@@ -49,10 +49,10 @@ export default function OrganizationPage() {
 
   const tabButtonClass = useMemo(
     () => (selected: boolean) =>
-      `flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+      `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
         selected
-          ? 'border-violet-500 text-violet-700 dark:text-violet-400'
-          : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+          ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
       }`,
     []
   )
@@ -75,24 +75,31 @@ export default function OrganizationPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Organization Console</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Manage your organization profile, members, workspaces, destinations, and notification settings.
-        </p>
-      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-start gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 p-2 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:ring-violet-500/30">
+            <Building2 className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Organization Console</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              Manage your organization profile, members, workspaces, destinations, and notification settings.
+            </p>
+          </div>
+        </div>
 
-      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={tabButtonClass(activeTab === id)}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
-        ))}
+        <div className="mt-4 flex gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={tabButtonClass(activeTab === id)}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === 'overview' ? (

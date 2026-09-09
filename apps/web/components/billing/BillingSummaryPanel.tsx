@@ -5,10 +5,11 @@ import { BarChart3, Download, ReceiptText } from 'lucide-react'
 import { getBillingSummary, exportBilling } from '@/lib/api'
 import type { BillingPeriodSummary } from '@/types/api'
 
-function money(v: number) {
-  if (v >= 1) return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  if (v >= 0.001) return `$${v.toFixed(4)}`
-  return `$${v.toFixed(6)}`
+function money(v: number | string) {
+  const n = Number(v) || 0
+  if (n >= 1) return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  if (n >= 0.001) return `$${n.toFixed(4)}`
+  return `$${n.toFixed(6)}`
 }
 
 export default function BillingSummaryPanel({
@@ -185,7 +186,7 @@ export default function BillingSummaryPanel({
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {periods.map((p) => {
-                  const pct = p.total_cost_usd > 0 ? ((p.billable_cost_usd / p.total_cost_usd) * 100).toFixed(1) : '0.0'
+                  const pct = Number(p.total_cost_usd) > 0 ? ((Number(p.billable_cost_usd) / Number(p.total_cost_usd)) * 100).toFixed(1) : '0.0'
                   return (
                     <tr key={p.period} className="bg-white dark:bg-slate-900">
                       <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{p.period}</td>

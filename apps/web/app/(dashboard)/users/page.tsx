@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import {
@@ -15,6 +14,7 @@ import {
   Shield,
   Trash2,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
@@ -30,9 +30,9 @@ import {
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const inputCls =
-  'rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm shadow-slate-200/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-300 dark:bg-white/90 dark:text-slate-900 dark:shadow-slate-300/30'
+  'rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm shadow-slate-200/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:shadow-slate-800/30'
 const TABLE_HEAD =
-  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-600'
+  'px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:text-slate-400'
 
 function Avatar({ name, email }: { name: string | null; email: string }) {
   const initial = ((name ?? email)[0] ?? '?').toUpperCase()
@@ -47,8 +47,8 @@ function StatusBadge({ active }: { active: boolean }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
       active
-        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-100 dark:text-emerald-700'
-        : 'bg-slate-100 text-slate-500 dark:bg-slate-100 dark:text-slate-500'
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
     }`}>
       <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
       {active ? 'Active' : 'Inactive'}
@@ -197,59 +197,51 @@ export default function UsersPage() {
   if (!canManage) {
     return (
       <div className="p-8">
-        <h1 className="font-display text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-950">Users</h1>
-        <p className="mt-4 text-sm text-slate-500">User management requires organization admin or manager access.</p>
+        <h1 className="font-display text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">Users</h1>
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">User management requires organization admin or manager access.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-slate-950">Users</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-600">
-            Your organization&apos;s people. Create a user here, then add them to workspaces to grant access.
-          </p>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
-            <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
-            <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
-            <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
-            <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
-            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
-            <Link href="/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
-            <Link href="/analytics/economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Economics</Link>
-            <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
-            <Link href="/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
-            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
-            <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
-            <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
-            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+    <div className="space-y-5">
+      {/* Hero card */}
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-blue-100 p-2 ring-1 ring-blue-200 dark:bg-blue-500/20 dark:ring-blue-500/30">
+              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Users</h1>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                Your organization&apos;s people. Create a user here, then add them to workspaces to grant access.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700"
+            >
+              <UserPlus className="h-4 w-4" /> New User
+            </button>
+            <button onClick={load} className="rounded-lg border border-slate-300 bg-white/70 p-2 text-slate-500 hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700">
+              <RefreshCw className="h-4 w-4" />
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-blue-500/20 hover:bg-blue-700"
-          >
-            <UserPlus className="h-4 w-4" /> New User
-          </button>
-          <button onClick={load} className="rounded-lg border border-slate-300 bg-white/70 p-2 text-slate-500 hover:bg-white dark:border-slate-300 dark:bg-white/70 dark:hover:bg-white">
-            <RefreshCw className="h-4 w-4" />
-          </button>
+
+        {/* Search bar inside hero */}
+        <div className="relative mt-4 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${users.length} users...`} className={`${inputCls} w-full pl-8`} />
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${users.length} users...`} className={`${inputCls} w-full pl-8`} />
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white/75 shadow-sm shadow-slate-300/30 dark:border-slate-300 dark:bg-white/75">
+      <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white/75 shadow-sm shadow-slate-300/30 dark:border-slate-700 dark:bg-slate-900">
         <table className="w-full text-sm">
-          <thead className="bg-slate-100/80 dark:bg-slate-100/80">
+          <thead className="bg-slate-100/80 dark:bg-slate-800/80">
             <tr>
               <th className={TABLE_HEAD}>User</th>
               <th className={TABLE_HEAD}>Org role</th>
@@ -259,24 +251,24 @@ export default function UsersPage() {
               <th className={TABLE_HEAD} />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-200">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {loading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No users. Create one to get started.</td></tr>
             ) : filtered.map((u) => (
-              <tr key={u.id} className="hover:bg-blue-50/60 dark:hover:bg-blue-50/60">
+              <tr key={u.id} className="hover:bg-blue-50/60 dark:hover:bg-slate-800/60">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar name={u.full_name} email={u.email} />
                     <div>
-                      <div className="font-medium text-slate-900 dark:text-slate-900">{u.full_name ?? '-'}</div>
+                      <div className="font-medium text-slate-900 dark:text-white">{u.full_name ?? '-'}</div>
                       <div className="text-xs text-slate-500">{u.email}</div>
                     </div>
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-100 dark:text-slate-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     {u.org_role === 'org_admin' && <Shield className="h-3 w-3" />}
                     {(u.org_role ?? 'org_member').replace('org_', '')}
                   </span>
@@ -315,7 +307,7 @@ export default function UsersPage() {
               <label className="text-xs text-slate-500">Temporary password</label>
               <input type="text" value={cPassword} onChange={(e) => setCPassword(e.target.value)} className={`${inputCls} w-full`} />
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input type="checkbox" checked={cSkipVerify} onChange={(e) => setCSkipVerify(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Skip email verification
             </label>
@@ -324,11 +316,11 @@ export default function UsersPage() {
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
                   Assign to Access Groups
                 </label>
-                <div className="max-h-32 overflow-y-auto space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                <div className="max-h-32 overflow-y-auto space-y-1.5 rounded-lg border border-slate-200 bg-slate-50/80 p-2.5 dark:border-slate-700 dark:bg-slate-800/80">
                   {accessGroups.map((g) => {
                     const checked = cSelectedGroupIds.includes(g.id)
                     return (
-                      <label key={g.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                      <label key={g.id} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -346,7 +338,7 @@ export default function UsersPage() {
               </div>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300">Cancel</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700">Cancel</button>
               <button type="submit" disabled={creating} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{creating ? 'Creating...' : 'Create user'}</button>
             </div>
           </form>
@@ -365,7 +357,7 @@ export default function UsersPage() {
               <input type="text" placeholder="********" value={ePassword} onChange={(e) => setEPassword(e.target.value)} className={`${inputCls} w-full`} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-300">Cancel</button>
+              <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700">Cancel</button>
               <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
@@ -378,9 +370,9 @@ export default function UsersPage() {
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-slate-300 bg-white p-5 shadow-xl shadow-slate-500/20 dark:border-slate-300 dark:bg-white" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-xl border border-slate-300 bg-white p-5 shadow-xl shadow-slate-500/20 dark:border-slate-700 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-slate-950">{title}</h2>
+          <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-slate-950 dark:text-white">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
         </div>
         {children}

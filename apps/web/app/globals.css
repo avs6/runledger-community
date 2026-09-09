@@ -47,7 +47,7 @@
   /* ── Density ── */
   --row-height: 48px;
   --row-padding-y: 12px;
-  --table-font-size: 14px;
+  --table-font-size: 15px;
 }
 
 .dark {
@@ -81,7 +81,7 @@
 [data-density="compact"] {
   --row-height: 36px;
   --row-padding-y: 6px;
-  --table-font-size: 12px;
+  --table-font-size: 13px;
 }
 
 @layer base {

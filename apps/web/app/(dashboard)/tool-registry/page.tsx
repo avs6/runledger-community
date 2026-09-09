@@ -323,26 +323,24 @@ export default function ToolGovernancePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-3">
       {/* ── Hero Header ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-cyan-950 to-indigo-950 px-5 py-4">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(6,182,212,0.15),transparent_60%)]" />
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-3xl" />
-        <div className="relative flex items-center justify-between gap-4">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20 border border-cyan-500/30">
-                <Shield className="h-4 w-4 text-cyan-400" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-100 border border-cyan-200 dark:bg-cyan-500/20 dark:border-cyan-500/30">
+                <Shield className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
               </div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400/80">Safety &amp; Governance</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">Safety &amp; Governance</p>
             </div>
-            <h1 className="text-lg font-bold text-white">Tool Governance</h1>
-            <p className="text-xs text-slate-400 mt-0.5 max-w-xl">
+            <h1 className="text-lg font-bold text-slate-950 dark:text-white">Tool Governance</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">
               Unified control surface for runtime tool registrations, search providers, governance policies, and dry-run testing.
             </p>
             {filterTool && (
-              <p className="text-[10px] text-cyan-400 mt-1">Filtered: <span className="font-mono text-cyan-300">{filterTool}</span></p>
+              <p className="text-[10px] text-cyan-600 dark:text-cyan-400 mt-1">Filtered: <span className="font-mono text-cyan-700 dark:text-cyan-300">{filterTool}</span></p>
             )}
           </div>
-          <button onClick={() => void load()} className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700/60 transition-colors">
+          <button onClick={() => void load()} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 transition-colors dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-700/60">
             <RefreshCw className="h-3 w-3" /> Refresh
           </button>
         </div>

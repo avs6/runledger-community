@@ -318,8 +318,8 @@ export default async function ModelUsagePage({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-slate-950 dark:text-white">Model Usage</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Models, routes, cost, latency, cache, and outcomes.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Model Usage</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Models, routes, cost, latency, cache, and outcomes.</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {(['workspace', 'org', 'platform'] as FlowScope[]).map((scope) => {

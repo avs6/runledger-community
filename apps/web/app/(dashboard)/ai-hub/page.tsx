@@ -4,7 +4,22 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { ArrowRight, KeyRound, Pencil, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import {
+  ArrowRight,
+  Box,
+  ChevronDown,
+  ChevronUp,
+  KeyRound,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Star,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react'
 import {
   addHubModel,
   deleteHubModel,
@@ -19,7 +34,7 @@ import type { HubModelCostPosture, HubModelGovernanceStatus } from '@/types/api'
 import type { HubModelResponse } from '@/types/api'
 
 const inputCls =
-  'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
 
 type ModelFormState = {
   name: string
@@ -75,14 +90,14 @@ function modelToForm(model: HubModelResponse): ModelFormState {
   }
 }
 
-function badgeCls(tone: 'blue' | 'amber' | 'slate') {
-  if (tone === 'blue') {
-    return 'rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300'
+function badgeCls(tone: 'blue' | 'amber' | 'emerald' | 'slate') {
+  const map = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    slate: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
   }
-  if (tone === 'amber') {
-    return 'rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300'
-  }
-  return 'rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+  return `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${map[tone]}`
 }
 
 export default function AiHubPage() {
@@ -107,6 +122,8 @@ export default function AiHubPage() {
   const [costPosture, setCostPosture] = useState<HubModelCostPosture | null>(null)
   const [govStatus, setGovStatus] = useState<HubModelGovernanceStatus | null>(null)
   const [loadingPosture, setLoadingPosture] = useState(false)
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
 
   const load = useCallback(async () => {
     if (!apiKey) return
@@ -154,7 +171,8 @@ export default function AiHubPage() {
     const featured = models.filter(model => model.is_featured).length
     const deprecated = models.filter(model => model.is_deprecated).length
     const accessRequests = models.reduce((sum, model) => sum + (model.access_request_count ?? 0), 0)
-    return { total, featured, deprecated, accessRequests }
+    const providerCount = new Set(models.map(m => m.provider)).size
+    return { total, featured, deprecated, accessRequests, providerCount }
   }, [models])
 
   function resetForm() {
@@ -236,7 +254,7 @@ export default function AiHubPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!apiKey) return
+    if (!apiKey || !confirm('Remove this model from the catalog?')) return
     try {
       await deleteHubModel(apiKey, id)
       toast.success('Model removed from catalog')
@@ -281,167 +299,339 @@ export default function AiHubPage() {
   if (!apiKey) return <div className="p-6 text-slate-400">Please sign in.</div>
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
-      <div className="rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/85">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-700 dark:text-blue-400">
-              Model Catalog
-            </p>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">
-              AI Hub
-            </h1>
-            <p className="max-w-3xl text-sm text-slate-500">
-              Curate the models your workspace exposes to workflows, connect seeded provider catalogs, and mark
-              model cards for promotion, deprecation, or governance review.
-            </p>
+    <div className="space-y-5">
+      {/* ── Hero ── */}
+      <section className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-blue-100 p-2 ring-1 ring-blue-200 dark:bg-blue-500/20 dark:ring-blue-500/30">
+              <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">AI Hub</h1>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                Curate the model catalog your workspace exposes to workflows, sync provider baselines, and manage governance.
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href="/provider-profiles"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Provider Profiles <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/model-usage"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Model Usage <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/budgets?scope_type=model"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Budgets <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/approvals?request_type=model_access"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Approvals <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/audit?target_type=hub_model"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Audit Log <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/governance?scope=hub_model"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Governance <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/tags"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Tags <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/organization"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Organization <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Platform Settings <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/analytics"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Analytics <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/runs"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Runs <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/request-flow"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Request Flow <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/request-explorer"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Request Explorer <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/guardrails"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Guardrails <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/ledger"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Ledger <ArrowRight className="h-4 w-4" />
-            </Link>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setShowSyncModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
             >
-              <Sparkles className="h-4 w-4" /> Sync Provider Catalog
+              <Sparkles className="h-3.5 w-3.5" /> Sync Provider
             </button>
             <button
               onClick={openCreateForm}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
             >
-              <Plus className="h-4 w-4" /> Add Model Card
+              <Plus className="h-3.5 w-3.5" /> Add Model
             </button>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Catalog Models</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{summary.total}</p>
+        {/* KPI strip */}
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {[
+            { label: 'Models', value: summary.total },
+            { label: 'Providers', value: summary.providerCount },
+            { label: 'Featured', value: summary.featured },
+            { label: 'Deprecated', value: summary.deprecated },
+            { label: 'Access Requests', value: summary.accessRequests },
+          ].map(kpi => (
+            <div key={kpi.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{kpi.label}</p>
+              <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{kpi.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Search & filters */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search models, providers, tags..."
+              className={`${inputCls} pl-8`}
+            />
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Featured</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{summary.featured}</p>
+          <select value={filterProvider} onChange={e => setFilterProvider(e.target.value)} className={`${inputCls} w-auto min-w-[140px]`}>
+            <option value="">All providers</option>
+            {providers.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className={`${inputCls} w-auto min-w-[120px]`}>
+            <option value="">All tags</option>
+            {tags.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <input
+              type="checkbox"
+              checked={featuredOnly}
+              onChange={e => setFeaturedOnly(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            Featured only
+          </label>
+        </div>
+      </section>
+
+      {/* ── Model Cards Grid ── */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {loading ? 'Loading...' : `${filteredModels.length} model${filteredModels.length !== 1 ? 's' : ''}`}
+          </p>
+          <button onClick={() => load()} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+        </div>
+
+        {!loading && filteredModels.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
+            <Box className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-600" />
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              {search || filterProvider || filterTag ? 'No models match the current filters.' : 'No models in the catalog yet.'}
+            </p>
+            <div className="mt-4 flex justify-center gap-3">
+              <button onClick={openCreateForm} className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline dark:text-blue-400">
+                <Plus className="h-4 w-4" /> Add a model card
+              </button>
+              <button onClick={() => setShowSyncModal(true)} className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline dark:text-blue-400">
+                <Sparkles className="h-4 w-4" /> Sync from a provider
+              </button>
+            </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Deprecated</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{summary.deprecated}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/70">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Access Requests</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{summary.accessRequests}</p>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {filteredModels.map(model => {
+            const isExpanded = expandedCardId === model.id
+            return (
+              <div
+                key={model.id}
+                className="group flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600"
+              >
+                <div>
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">{model.name}</h3>
+                        {model.is_featured && (
+                          <span className={badgeCls('blue')}><Star className="h-3 w-3" /> Featured</span>
+                        )}
+                        {model.is_deprecated && (
+                          <span className={badgeCls('amber')}>Deprecated</span>
+                        )}
+                        {!model.is_public && (
+                          <span className={badgeCls('slate')}>Private</span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{model.provider}</p>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button onClick={() => openEditForm(model)} title="Edit" className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(model.id)} title="Delete" className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {model.description && (
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-2">{model.description}</p>
+                  )}
+
+                  {/* Stats row */}
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-800/60">
+                      <p className="text-[10px] text-slate-400">Context</p>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{model.context_window ? `${(model.context_window / 1000).toFixed(0)}K` : '—'}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-800/60">
+                      <p className="text-[10px] text-slate-400">In / 1K</p>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{model.input_cost_per_1k != null ? `$${model.input_cost_per_1k}` : '—'}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-slate-800/60">
+                      <p className="text-[10px] text-slate-400">Out / 1K</p>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{model.output_cost_per_1k != null ? `$${model.output_cost_per_1k}` : '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Tags & capabilities */}
+                  {(model.capabilities?.length > 0 || model.tags?.length > 0) && (
+                    <div className="mt-2.5 flex flex-wrap gap-1">
+                      {(model.capabilities ?? []).map(c => (
+                        <span key={c} className={badgeCls('slate')}><Zap className="h-2.5 w-2.5" /> {c}</span>
+                      ))}
+                      {(model.tags ?? []).map(t => (
+                        <span key={t} className={badgeCls('blue')}>{t}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Deprecation notice */}
+                  {model.is_deprecated && model.deprecation_notice && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                      {model.deprecation_notice}
+                    </div>
+                  )}
+
+                  {/* Expandable details */}
+                  {isExpanded && (
+                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">Access requests:</span> {model.access_request_count ?? 0}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">Visibility:</span> {model.is_public ? 'Public' : 'Private'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card footer */}
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openModelPosture(model)}
+                      className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Posture
+                    </button>
+                    <button
+                      onClick={() => handleRequestAccess(model.id)}
+                      className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      <KeyRound className="mr-1 inline h-3 w-3" />Access
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setExpandedCardId(isExpanded ? null : model.id)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  >
+                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* ── Create / Edit Model Modal ── */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={resetForm}>
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                {editingId ? 'Edit Model Card' : 'Add Model Card'}
+              </h2>
+              <button onClick={resetForm} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Name *</label>
+                  <input value={form.name} onChange={e => updateForm('name', e.target.value)} className={inputCls} required placeholder="gpt-4o" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Provider *</label>
+                  <input value={form.provider} onChange={e => updateForm('provider', e.target.value)} className={inputCls} required placeholder="openai" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Description</label>
+                <textarea value={form.description} onChange={e => updateForm('description', e.target.value)} rows={2} className={inputCls} placeholder="Short description or governance note" />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Context window</label>
+                  <input value={form.contextWindow} onChange={e => updateForm('contextWindow', e.target.value)} className={inputCls} inputMode="numeric" placeholder="128000" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Input cost / 1K</label>
+                  <input value={form.inputCost} onChange={e => updateForm('inputCost', e.target.value)} className={inputCls} inputMode="decimal" placeholder="0.0025" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Output cost / 1K</label>
+                  <input value={form.outputCost} onChange={e => updateForm('outputCost', e.target.value)} className={inputCls} inputMode="decimal" placeholder="0.01" />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Capabilities</label>
+                  <input value={form.capabilities} onChange={e => updateForm('capabilities', e.target.value)} className={inputCls} placeholder="chat, reasoning, code, tools" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Tags</label>
+                  <input value={form.tags} onChange={e => updateForm('tags', e.target.value)} className={inputCls} placeholder="featured, open-weights, fast" />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={form.isFeatured} onChange={e => updateForm('isFeatured', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  Featured
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={form.isPublic} onChange={e => updateForm('isPublic', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  Public
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={form.isDeprecated} onChange={e => updateForm('isDeprecated', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  Deprecated
+                </label>
+              </div>
+
+              {form.isDeprecated && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Deprecation notice</label>
+                  <textarea value={form.deprecationNotice} onChange={e => updateForm('deprecationNotice', e.target.value)} rows={2} className={inputCls} placeholder="Migration guidance or replacement model" />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                  {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : editingId ? 'Save Changes' : 'Create Model'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      )}
 
+      {/* ── Sync Provider Modal ── */}
       {showSyncModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950 dark:text-white">
-              <Sparkles className="h-5 w-5 text-blue-600" /> Sync Provider Catalog
-            </h2>
-            <p className="text-sm text-slate-500">
-              Seed your workspace catalog from a provider baseline, then edit the resulting cards for local pricing,
-              tags, visibility, and governance notes.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setShowSyncModal(false)}>
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
+                <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" /> Sync Provider Catalog
+              </h2>
+              <button onClick={() => setShowSyncModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Seed your workspace catalog from a provider baseline, then customize the resulting cards.
             </p>
             <form onSubmit={handleSyncProvider} className="space-y-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                  Provider
-                </label>
-                <select
-                  value={syncProviderName}
-                  onChange={e => setSyncProviderName(e.target.value)}
-                  className={inputCls}
-                >
+                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Provider</label>
+                <select value={syncProviderName} onChange={e => setSyncProviderName(e.target.value)} className={inputCls}>
                   <option value="huggingface">Hugging Face</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
@@ -450,34 +640,16 @@ export default function AiHubPage() {
               </div>
               {syncProviderName === 'huggingface' && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Hugging Face token
-                  </label>
-                  <input
-                    type="password"
-                    value={syncToken}
-                    onChange={e => setSyncToken(e.target.value)}
-                    placeholder="hf_..."
-                    className={inputCls}
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Optional. Use a token for live catalog imports that include gated models.
-                  </p>
+                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Token (optional)</label>
+                  <input type="password" value={syncToken} onChange={e => setSyncToken(e.target.value)} placeholder="hf_..." className={inputCls} />
+                  <p className="mt-1 text-[11px] text-slate-400">For gated models that require authentication.</p>
                 </div>
               )}
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowSyncModal(false)}
-                  className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                >
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowSyncModal(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={syncing}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                >
+                <button type="submit" disabled={syncing} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
                   {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Sync Models'}
                 </button>
               </div>
@@ -486,459 +658,72 @@ export default function AiHubPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_2fr]">
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-slate-950 dark:text-white">
-                  Catalog Controls
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Filter the active catalog, then update a card to match workspace policy and routing intent.
-                </p>
-              </div>
-              {showForm && (
-                <button
-                  onClick={resetForm}
-                  className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                >
-                  Close
-                </button>
-              )}
-            </div>
-
-            <div className="mt-4 space-y-3">
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search models, providers, tags, or capabilities"
-                className={inputCls}
-              />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <select value={filterProvider} onChange={e => setFilterProvider(e.target.value)} className={inputCls}>
-                  <option value="">All providers</option>
-                  {providers.map(provider => (
-                    <option key={provider} value={provider}>
-                      {provider}
-                    </option>
-                  ))}
-                </select>
-                <select value={filterTag} onChange={e => setFilterTag(e.target.value)} className={inputCls}>
-                  <option value="">All tags</option>
-                  {tags.map(tag => (
-                    <option key={tag} value={tag}>
-                      {tag}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={featuredOnly}
-                  onChange={e => setFeaturedOnly(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Show featured models only
-              </label>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-slate-950 dark:text-white">
-                {editingId ? 'Edit Model Card' : 'Create Model Card'}
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Keep model metadata close to the workflow surface so routing, cost review, and access review stay
-                cohesive.
-              </p>
-            </div>
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Name</label>
-                  <input
-                    value={form.name}
-                    onChange={e => updateForm('name', e.target.value)}
-                    className={inputCls}
-                    required
-                    placeholder="gpt-4o"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Provider</label>
-                  <input
-                    value={form.provider}
-                    onChange={e => updateForm('provider', e.target.value)}
-                    className={inputCls}
-                    required
-                    placeholder="openai"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Description</label>
-                <textarea
-                  value={form.description}
-                  onChange={e => updateForm('description', e.target.value)}
-                  rows={3}
-                  className={inputCls}
-                  placeholder="Short description, governance note, or usage guidance"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Context window</label>
-                  <input
-                    value={form.contextWindow}
-                    onChange={e => updateForm('contextWindow', e.target.value)}
-                    className={inputCls}
-                    inputMode="numeric"
-                    placeholder="128000"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Input cost / 1K</label>
-                  <input
-                    value={form.inputCost}
-                    onChange={e => updateForm('inputCost', e.target.value)}
-                    className={inputCls}
-                    inputMode="decimal"
-                    placeholder="0.0025"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Output cost / 1K</label>
-                  <input
-                    value={form.outputCost}
-                    onChange={e => updateForm('outputCost', e.target.value)}
-                    className={inputCls}
-                    inputMode="decimal"
-                    placeholder="0.01"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Capabilities</label>
-                  <input
-                    value={form.capabilities}
-                    onChange={e => updateForm('capabilities', e.target.value)}
-                    className={inputCls}
-                    placeholder="chat, reasoning, code, tools"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Tags</label>
-                  <input
-                    value={form.tags}
-                    onChange={e => updateForm('tags', e.target.value)}
-                    className={inputCls}
-                    placeholder="featured, open-weights, fast"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={form.isFeatured}
-                    onChange={e => updateForm('isFeatured', e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  Featured
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={form.isPublic}
-                    onChange={e => updateForm('isPublic', e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  Public in workspace
-                </label>
-                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={form.isDeprecated}
-                    onChange={e => updateForm('isDeprecated', e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  Mark deprecated
-                </label>
-              </div>
-
-              {form.isDeprecated && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Deprecation notice
-                  </label>
-                  <textarea
-                    value={form.deprecationNotice}
-                    onChange={e => updateForm('deprecationNotice', e.target.value)}
-                    rows={2}
-                    className={inputCls}
-                    placeholder="Explain the replacement model or migration timing"
-                  />
-                </div>
-              )}
-
-              <div className="flex flex-wrap justify-end gap-3">
-                {editingId && (
-                  <button
-                    type="button"
-                    onClick={openCreateForm}
-                    className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                  >
-                    New card
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : editingId ? 'Save changes' : 'Create model card'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-950 dark:text-white">Catalog Inventory</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {loading ? 'Loading model cards…' : `${filteredModels.length} model cards in the current view.`}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-4">
-            {!loading && filteredModels.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
-                No model cards matched the current filters.
-              </div>
-            )}
-
-            {filteredModels.map(model => (
-              <div
-                key={model.id}
-                className="rounded-2xl border border-slate-200 p-5 dark:border-slate-800"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-slate-950 dark:text-white">{model.name}</h3>
-                        {model.is_featured && <span className={badgeCls('blue')}>Featured</span>}
-                        {model.is_deprecated && <span className={badgeCls('amber')}>Deprecated</span>}
-                        {!model.is_public && <span className={badgeCls('slate')}>Private</span>}
-                      </div>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Provider: <span className="font-medium text-slate-700 dark:text-slate-200">{model.provider}</span>
-                      </p>
-                    </div>
-
-                    {model.description && <p className="text-sm text-slate-600 dark:text-slate-300">{model.description}</p>}
-
-                    <div className="grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Context</p>
-                        <p className="mt-1 text-slate-700 dark:text-slate-200">{model.context_window ?? '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Input / 1K</p>
-                        <p className="mt-1 text-slate-700 dark:text-slate-200">{model.input_cost_per_1k ?? '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Output / 1K</p>
-                        <p className="mt-1 text-slate-700 dark:text-slate-200">{model.output_cost_per_1k ?? '—'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Access requests</p>
-                        <p className="mt-1 text-slate-700 dark:text-slate-200">{model.access_request_count}</p>
-                      </div>
-                    </div>
-
-                    {(model.capabilities?.length > 0 || model.tags?.length > 0) && (
-                      <div className="space-y-2">
-                        {model.capabilities?.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {model.capabilities.map(capability => (
-                              <span key={capability} className={badgeCls('slate')}>
-                                {capability}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {model.tags?.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {model.tags.map(tag => (
-                              <span key={tag} className={badgeCls('blue')}>
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {model.is_deprecated && model.deprecation_notice && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                        {model.deprecation_notice}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 lg:justify-end">
-                    <button
-                      onClick={() => openModelPosture(model)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950"
-                    >
-                      <ArrowRight className="h-4 w-4" /> Posture
-                    </button>
-                    <button
-                      onClick={() => openEditForm(model)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      <Pencil className="h-4 w-4" /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleRequestAccess(model.id)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300 dark:hover:bg-blue-950"
-                    >
-                      <KeyRound className="h-4 w-4" /> Request Access
-                    </button>
-                    <button
-                      onClick={() => handleDelete(model.id)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950"
-                    >
-                      <Trash2 className="h-4 w-4" /> Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
+      {/* ── Model Posture Modal ── */}
       {selectedModelId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-950 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setSelectedModelId(null)}>
+          <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                 Model Posture {costPosture ? `— ${costPosture.model_name}` : ''}
               </h2>
-              <button
-                onClick={() => setSelectedModelId(null)}
-                className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              >
-                Close
+              <button onClick={() => setSelectedModelId(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {loadingPosture && <p className="text-sm text-slate-500">Loading posture…</p>}
+            {loadingPosture && <p className="text-sm text-slate-500 animate-pulse">Loading posture data...</p>}
 
             {costPosture && (
               <section className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Cost Posture</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cost Posture</h3>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Active Budgets</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{costPosture.active_budget_count}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Budget Limit</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">${Number(costPosture.total_budget_limit_usd).toFixed(2)}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Current Spend</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">${Number(costPosture.current_spend_usd).toFixed(2)}</p>
-                  </div>
+                  {[
+                    { label: 'Active Budgets', value: costPosture.active_budget_count },
+                    { label: 'Budget Limit', value: `$${Number(costPosture.total_budget_limit_usd).toFixed(2)}` },
+                    { label: 'Current Spend', value: `$${Number(costPosture.current_spend_usd).toFixed(2)}` },
+                  ].map(s => (
+                    <div key={s.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{s.label}</p>
+                      <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-white">{s.value}</p>
+                    </div>
+                  ))}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Link
-                    href={`/budgets?scope_type=model&scope_id=${encodeURIComponent(costPosture.model_name)}`}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Open budget detail
+                  <Link href={`/budgets?scope_type=model&scope_id=${encodeURIComponent(costPosture.model_name)}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+                    Budget detail
                   </Link>
-                  <Link
-                    href={`/billing?model=${encodeURIComponent(costPosture.model_name)}`}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Billing periods
-                  </Link>
-                  <Link
-                    href={`/chargeback?dimension=model&model=${encodeURIComponent(costPosture.model_name)}`}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Chargeback
+                  <Link href={`/billing?model=${encodeURIComponent(costPosture.model_name)}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+                    Billing
                   </Link>
                 </div>
               </section>
             )}
 
             {govStatus && (
-              <section className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Governance Status</h3>
+              <section className="mt-5 space-y-3 border-t border-slate-100 pt-5 dark:border-slate-800">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Governance</h3>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Approvals</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{govStatus.approval_count}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Audit Events</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{govStatus.audit_event_count}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-400">Tool Policies</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">{govStatus.tool_policy_count}</p>
-                  </div>
+                  {[
+                    { label: 'Approvals', value: govStatus.approval_count },
+                    { label: 'Audit Events', value: govStatus.audit_event_count },
+                    { label: 'Tool Policies', value: govStatus.tool_policy_count },
+                  ].map(s => (
+                    <div key={s.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">{s.label}</p>
+                      <p className="mt-0.5 text-lg font-semibold text-slate-900 dark:text-white">{s.value}</p>
+                    </div>
+                  ))}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Link
-                    href={`/approvals?request_type=model_access&target_id=${encodeURIComponent(selectedModelId)}`}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    View approvals
+                  <Link href={`/approvals?request_type=model_access&target_id=${encodeURIComponent(selectedModelId)}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
+                    Approvals
                   </Link>
-                  <Link
-                    href={`/audit?target_type=hub_model&target_id=${encodeURIComponent(selectedModelId)}`}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
+                  <Link href={`/audit?target_type=hub_model&target_id=${encodeURIComponent(selectedModelId)}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
                     Audit log
-                  </Link>
-                  <Link
-                    href={`/governance?scope=hub_model&model_id=${encodeURIComponent(selectedModelId)}`}
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Governance pack
-                  </Link>
-                  <Link
-                    href="/tool-policies"
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Tool policies
-                  </Link>
-                  <Link
-                    href="/tags"
-                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                  >
-                    Tags
                   </Link>
                 </div>
                 {govStatus.is_deprecated && govStatus.deprecation_notice && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
                     Deprecated: {govStatus.deprecation_notice}
                   </div>
                 )}

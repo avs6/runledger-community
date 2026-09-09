@@ -107,8 +107,8 @@ function ScopeTabs({
             href={hrefFor(o.scope, currentRange)}
             className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
               active
-                ? 'bg-white/20 text-white backdrop-blur-sm'
-                : 'text-white/60 hover:text-white/90'
+                ? 'bg-blue-600 text-white dark:bg-blue-500'
+                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             {o.label}
@@ -122,15 +122,15 @@ function ScopeTabs({
 function RangeTabs({ currentScope, currentRange }: { currentScope: Scope; currentRange: DashboardRange }) {
   const ranges: DashboardRange[] = ['24h', '7d', '30d', '90d']
   return (
-    <div className="flex rounded-lg bg-white/10 p-0.5 backdrop-blur-sm">
+    <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800">
       {ranges.map(range => (
         <Link
           key={range}
           href={hrefFor(currentScope, range)}
           className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
             currentRange === range
-              ? 'bg-white/20 text-white shadow-sm'
-              : 'text-white/60 hover:text-white/90'
+              ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
           }`}
         >
           {range}
@@ -152,13 +152,13 @@ function HeroStat({
   icon: React.ElementType
 }) {
   return (
-    <div className="rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-sm">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/60">
       <div className="flex items-center gap-2">
-        <Icon className="h-3.5 w-3.5 text-white/70" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-white/70">{label}</span>
+        <Icon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</span>
       </div>
-      <p className="mt-1 text-xl font-bold tracking-tight text-white">{value}</p>
-      <p className="mt-0.5 text-[11px] text-white/60">{sub}</p>
+      <p className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
+      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{sub}</p>
     </div>
   )
 }
@@ -321,26 +321,24 @@ export default async function AnalyticsOverviewPage({
 
   return (
     <div className="space-y-4">
-      {/* Hero header with gradient */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 p-5">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),transparent)]" />
-        <div className="relative z-10">
+      {/* Hero header */}
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="mb-1.5 flex items-center gap-2">
-                <LayoutDashboard className="h-4 w-4 text-blue-400" />
-                <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-300">
+                <LayoutDashboard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
                   {scopeLabel(scope)} Overview
                 </span>
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
                 Observability Command Center
               </h1>
-              <p className="mt-1 max-w-2xl text-xs text-white/60">
+              <p className="mt-1 max-w-2xl text-xs text-slate-500 dark:text-slate-400">
                 Unified analytics, cost attribution, and platform health.
               </p>
               {accessGroup && (
-                <p className="mt-1 text-xs text-blue-300">
+                <p className="mt-1 text-xs text-blue-600 dark:text-blue-300">
                   Filtered: <span className="font-semibold">{accessGroup.name}</span>
                 </p>
               )}
@@ -369,12 +367,11 @@ export default async function AnalyticsOverviewPage({
               { href: '/cost-savings', label: 'Cost & Savings' },
               { href: '/model-usage', label: 'Models' },
             ].map(nav => (
-              <Link key={nav.label} href={nav.href} className="rounded-lg border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/70 transition hover:bg-white/15 hover:text-white/90">
+              <Link key={nav.label} href={nav.href} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white">
                 {nav.label}
               </Link>
             ))}
           </div>
-        </div>
       </div>
 
       {/* Analytics Breakdown — charts as hero */}

@@ -98,8 +98,8 @@ export default function TelemetryPage() {
   if (!canManageOrgSettings) {
     return (
       <div className="p-6">
-        <h1 className="text-lg font-bold text-slate-900 dark:text-white">Telemetry</h1>
-        <p className="mt-2 text-xs text-slate-500">Telemetry management is an organization-admin function.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Telemetry</h1>
+        <p className="mt-1 text-sm text-slate-500">Telemetry management is an organization-admin function.</p>
       </div>
     )
   }
@@ -112,8 +112,8 @@ export default function TelemetryPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-slate-950 dark:text-white">Telemetry</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">OTLP traces, metrics, logs — ingest health, attribution, and batch inspection.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Telemetry</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">OTLP traces, metrics, logs — ingest health, attribution, and batch inspection.</p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {[

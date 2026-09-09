@@ -74,20 +74,19 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-5">
       {/* ── Hero ── */}
-      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 px-6 py-8 text-white shadow-lg">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(99,102,241,0.15),transparent_60%)]" />
-        <div className="relative">
+      <section className="rounded-2xl border border-slate-200 bg-white/90 px-6 py-8 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div>
           <div className="flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-blue-400" />
-            <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
+            <Wallet className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">Budgets</h1>
           </div>
-          <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-300">
+          <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
             Manage spend policy as one control plane: budgets own the rules, overrides stay inside the rule lifecycle, and notifications turn breaches into action.
           </p>
           {postureChips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {postureChips.map((c) => (
-                <span key={c} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-medium text-slate-200 ring-1 ring-white/20">
+                <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   {c}
                 </span>
               ))}
@@ -96,7 +95,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
         </div>
 
         {/* KPI strip */}
-        <div className="relative mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           {[
             { label: 'Budget Tiers', value: String(tiers.items.length) },
             { label: 'Total Budgets', value: String(budgets.items.length) },
@@ -105,9 +104,9 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
             { label: 'Overrides', value: finopsPosture ? String(finopsPosture.override_context.total_overrides) : '0' },
             { label: 'Ledger Snaps', value: finopsPosture ? String(finopsPosture.ledger_context.total_snapshots) : '0' },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{kpi.label}</p>
-              <p className="mt-0.5 truncate text-sm font-bold">{kpi.value}</p>
+            <div key={kpi.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{kpi.label}</p>
+              <p className="mt-0.5 truncate text-sm font-bold text-slate-900 dark:text-white">{kpi.value}</p>
             </div>
           ))}
         </div>

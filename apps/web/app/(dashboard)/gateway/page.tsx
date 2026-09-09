@@ -330,8 +330,8 @@ export default function GatewayPage() {
   if (!canManage) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Model Gateway</h1>
-        <p className="mt-4 text-sm text-slate-500">Model Gateway configuration is an organization-admin function.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Model Gateway</h1>
+        <p className="mt-2 text-sm text-slate-500">Model Gateway configuration is an organization-admin function.</p>
       </div>
     )
   }
@@ -1037,9 +1037,9 @@ export default function GatewayPage() {
             <Network className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white">Model Gateway</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              OpenAI-compatible proxy with caching, fallback, and intelligent routing. Point <code className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">base_url</code> to <code className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">/gateway</code>.
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Model Gateway</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              OpenAI-compatible proxy with caching, fallback, and intelligent routing. Point <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">base_url</code> to <code className="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">/gateway</code>.
             </p>
           </div>
         </div>

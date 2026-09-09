@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
@@ -9,9 +8,6 @@ import {
   Users, ChevronDown, ChevronUp, UserPlus, Check, Pencil,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
-import { getBudgetDetailObservePosture } from '@/lib/api'
-import type { BudgetDetailObservePosture } from '@/types/api'
-import { num } from '@/lib/utils'
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -330,7 +326,7 @@ export default function WorkspacePage() {
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null)
-  const [budgetPosture, setBudgetPosture] = useState<BudgetDetailObservePosture | null>(null)
+
 
   const headers = useMemo(() => ({
     Authorization: `Bearer ${apiKey}`,
@@ -362,9 +358,7 @@ export default function WorkspacePage() {
 
   useEffect(() => { load() }, [load])
 
-  useEffect(() => {
-    if (apiKey) getBudgetDetailObservePosture(apiKey).then(setBudgetPosture).catch(() => {})
-  }, [apiKey])
+
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -454,7 +448,7 @@ export default function WorkspacePage() {
   if (!canManage) {
     return (
       <div className="p-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Workspaces</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Workspaces</h1>
         <p className="mt-4 text-sm text-slate-500">Workspace management requires organization admin or manager access.</p>
       </div>
     )
@@ -462,113 +456,64 @@ export default function WorkspacePage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">Workspaces</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Manage workspaces in your organization.
-          </p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Gateway</Link>
-            <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
-            <Link href="/gateway#cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
-            <Link href="/gateway#rate-limits" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Rate Limits</Link>
-            <Link href="/sessions" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Sessions</Link>
-            <Link href="/analytics?tab=model-usage" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Usage</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Economics</Link>
-            <Link href="/analytics?tab=savings" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Cost & Savings</Link>
-            <Link href="/analytics?tab=users" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Analytics Users</Link>
-            <Link href="/analytics?tab=engineering" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Engineering</Link>
-            <Link href="/monitoring" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Monitoring</Link>
-            <Link href="/runs?tab=flow-focus" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Request Flow</Link>
-            <Link href="/analytics?tab=billing" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Billing Summary</Link>
-            <Link href="/analytics?tab=roi" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Outcomes & ROI</Link>
-            <Link href="/budgets" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Budgets</Link>
-            <Link href="/billing" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Billing Periods</Link>
-            <Link href="/chargeback" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Chargeback</Link>
-            <Link href="/ledger" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Ledger</Link>
-            <Link href="/approvals" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Approvals</Link>
-            <Link href="/audit" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Audit Log</Link>
-            <Link href="/governance-pack" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Governance Pack</Link>
-            <Link href="/alert-rules" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Alert Rules</Link>
-            <Link href="/data-capture" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Data Capture</Link>
-            <Link href="/policy-dry-run" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Policy Dry Run</Link>
-          </div>
-        </div>
-        <button
-          onClick={() => load(true)}
-          disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 shrink-0"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
-      </div>
-
-      {budgetPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Budget Posture</p>
-          <div className="mt-3 grid gap-3 grid-cols-2 md:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.budget_context.active_budgets}</p>
+      {/* Hero */}
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-violet-100 p-2 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:ring-violet-500/30">
+              <LayoutGrid className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Total Limit</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${num(budgetPosture.budget_context.total_limit_usd).toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">30d Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Breached</p>
-              <p className={`mt-1 text-lg font-semibold ${budgetPosture.budget_context.breach_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-white'}`}>{budgetPosture.budget_context.breach_count}</p>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Workspaces</h1>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+                Manage workspaces in your organization.
+              </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
-            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing Periods</Link>
-            <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
-            <Link href="/analytics?tab=savings" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Cost & Savings</Link>
-          </div>
-        </div>
-      )}
-
-      {/* Search + New Workspace */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search workspaces…"
-            className={`${inputCls} pl-8 w-full`}
-          />
-          {search && (
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              onClick={() => load(true)}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
             >
-              <X className="h-3.5 w-3.5" />
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
-          )}
+            {canManage && (
+              <button
+                onClick={() => {
+                  setShowForm((v) => !v)
+                  setNewWsName('')
+                  setNewlyCreatedWs(null)
+                }}
+                className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                New Workspace
+              </button>
+            )}
+          </div>
         </div>
-        {canManage && (
-          <button
-            onClick={() => {
-              setShowForm((v) => !v)
-              setNewWsName('')
-              setNewlyCreatedWs(null)
-            }}
-            className="ml-auto flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-sm font-medium text-white transition-colors shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            New Workspace
-          </button>
-        )}
+
+        <div className="mt-4 flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search workspaces…"
+              className={`${inputCls} pl-8 w-full`}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Create form */}

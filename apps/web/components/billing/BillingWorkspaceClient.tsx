@@ -18,10 +18,11 @@ interface Props {
   accessGroupId?: string
 }
 
-function money(value: number) {
-  if (value >= 1) return `$${value.toFixed(2)}`
-  if (value >= 0.001) return `$${value.toFixed(4)}`
-  return `$${value.toFixed(6)}`
+function money(value: number | string) {
+  const v = Number(value) || 0
+  if (v >= 1) return `$${v.toFixed(2)}`
+  if (v >= 0.001) return `$${v.toFixed(4)}`
+  return `$${v.toFixed(6)}`
 }
 
 export default function BillingWorkspaceClient({
@@ -35,10 +36,10 @@ export default function BillingWorkspaceClient({
   const [periods, setPeriods] = useState(initialPeriods)
   const [showCreate, setShowCreate] = useState(false)
 
-  const totalCost = summary.periods.reduce((sum, period) => sum + period.total_cost_usd, 0)
-  const totalCalls = summary.periods.reduce((sum, period) => sum + period.total_calls, 0)
+  const totalCost = summary.periods.reduce((sum, period) => sum + Number(period.total_cost_usd), 0)
+  const totalCalls = summary.periods.reduce((sum, period) => sum + Number(period.total_calls), 0)
   const billableShare = totalCost > 0
-    ? (summary.periods.reduce((sum, period) => sum + period.billable_cost_usd, 0) / totalCost) * 100
+    ? (summary.periods.reduce((sum, period) => sum + Number(period.billable_cost_usd), 0) / totalCost) * 100
     : 0
 
   const accessGroupQuery = accessGroupId ? `&access_group_id=${encodeURIComponent(accessGroupId)}` : ''

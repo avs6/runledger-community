@@ -268,89 +268,88 @@ export default function TagsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
       {/* Hero header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-amber-950 to-orange-950 p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(245,158,11,0.15),transparent_60%)]" />
-        <div className="relative flex items-center justify-between">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 ring-1 ring-amber-400/30">
-              <BookOpen className="h-5 w-5 text-amber-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 ring-1 ring-amber-200 dark:bg-amber-500/20 dark:ring-amber-400/30">
+              <BookOpen className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Tag Management</h1>
-              <p className="text-xs text-amber-200/70">Hierarchical tags, auto-tagging rules &amp; classification simulation</p>
+              <h1 className="text-lg font-bold text-slate-950 dark:text-white">Tag Management</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hierarchical tags, auto-tagging rules &amp; classification simulation</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white ring-1 ring-white/10">{tags.length} tags</span>
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white ring-1 ring-white/10">{rules.length} rules</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">{tags.length} tags</span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">{rules.length} rules</span>
           </div>
         </div>
 
         {/* KPI strip */}
-        <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-            <p className="text-lg font-bold text-white">{activeTags}</p>
-            <p className="text-[10px] text-slate-400">Active Tags</p>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{activeTags}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Active Tags</p>
           </div>
-          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-            <p className="text-lg font-bold text-white">{activeRules}</p>
-            <p className="text-[10px] text-slate-400">Active Rules</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{activeRules}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Active Rules</p>
           </div>
-          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-            <p className="text-lg font-bold text-white">{simulation?.matched.length ?? 0}</p>
-            <p className="text-[10px] text-slate-400">Sim Matches</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{simulation?.matched.length ?? 0}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Sim Matches</p>
           </div>
-          <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-            <p className="text-lg font-bold text-white">{tree.length}</p>
-            <p className="text-[10px] text-slate-400">Root Nodes</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{tree.length}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Root Nodes</p>
           </div>
           {finopsPosture && (
             <>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">${finopsPosture.spend_context.tagged_spend_30d?.toFixed(0) ?? '0'}</p>
-                <p className="text-[10px] text-slate-400">Tagged Spend 30d</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">${finopsPosture.spend_context.tagged_spend_30d?.toFixed(0) ?? '0'}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Tagged Spend 30d</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{finopsPosture.budget_context.tag_scoped_budgets ?? 0}</p>
-                <p className="text-[10px] text-slate-400">Tag Budgets</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.budget_context.tag_scoped_budgets ?? 0}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Tag Budgets</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{finopsPosture.chargeback_context.tag_dimension_rules ?? 0}</p>
-                <p className="text-[10px] text-slate-400">Chargeback Rules</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.chargeback_context.tag_dimension_rules ?? 0}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Chargeback Rules</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{finopsPosture.tag_context.distinct_tags_with_spend ?? 0}</p>
-                <p className="text-[10px] text-slate-400">Tags w/ Spend</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.tag_context.distinct_tags_with_spend ?? 0}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Tags w/ Spend</p>
               </div>
             </>
           )}
         </div>
 
         {/* Posture chips */}
-        <div className="relative mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {govInternal && (
             <>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{govInternal.tool_registry_context.total_tools}</span> tools
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.tool_registry_context.total_tools}</span> tools
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{govInternal.tool_policies_context.active_policies}</span> policies
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.tool_policies_context.active_policies}</span> policies
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{govInternal.audit_context.audit_events_30d}</span> audit 30d
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.audit_context.audit_events_30d}</span> audit 30d
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{govInternal.alert_rules_context.alert_firings_30d}</span> alerts 30d
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.alert_rules_context.alert_firings_30d}</span> alerts 30d
               </span>
             </>
           )}
           {runtimePosture && (
             <>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{runtimePosture.observe_attribution.runs_30d}</span> runs 30d
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{runtimePosture.observe_attribution.runs_30d}</span> runs 30d
               </span>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{runtimePosture.finops_attribution.chargeback_rules}</span> chargeback
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{runtimePosture.finops_attribution.chargeback_rules}</span> chargeback
               </span>
             </>
           )}

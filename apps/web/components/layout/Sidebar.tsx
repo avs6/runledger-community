@@ -49,7 +49,6 @@ import {
   Wrench,
   Layers,
   FileSpreadsheet,
-  Server,
   Puzzle,
   Store,
 } from 'lucide-react'
@@ -127,8 +126,13 @@ export default function Sidebar() {
     return pathname === href || pathname.startsWith(`${href}/`)
   }
 
-  const isGroupActive = (parentHref: string) =>
-    pathname === parentHref || pathname.startsWith(`${parentHref}/`)
+  const orgChildPaths = ['/users', '/workspace', '/access-groups']
+  const isGroupActive = (parentHref: string) => {
+    if (parentHref === '/organization') {
+      return pathname === '/organization' || pathname.startsWith('/organization/') || orgChildPaths.some(p => pathname === p || pathname.startsWith(`${p}/`))
+    }
+    return pathname === parentHref || pathname.startsWith(`${parentHref}/`)
+  }
 
   function NavLink({ href, label, icon: Icon, badge }: { href: string; label: string; icon: React.ElementType; badge?: string }) {
     const active = isActive(href)
@@ -272,14 +276,15 @@ export default function Sidebar() {
 
       <div className="mt-auto shrink-0 border-t border-slate-200/80 pt-2 pr-1 max-h-[50vh] overflow-y-auto dark:border-white/[0.06]">
         {(canAccessApiKeys || canAccessOrgControl) && (
-          <Section id="organization" label="Organization & Access">
-            {canAccessOrgControl && <NavLink href="/organization/dashboard" label="Org Dashboard" icon={LayoutDashboard} />}
-            {canAccessOrgControl && <NavLink href="/organization" label="Organization" icon={Building2} />}
-            {canAccessOrgControl && <NavLink href="/users" label="Users" icon={Users} />}
-            {canAccessOrgControl && <NavLink href="/workspace" label="Workspaces" icon={LayoutGrid} />}
-            {canAccessOrgControl && <NavLink href="/access-groups" label="Access Groups" icon={Layers} />}
+          <Section id="organization" label="Org & Access">
+            {canAccessOrgControl && (
+              <NavGroup parentHref="/organization" parentLabel="Organization" parentIcon={Building2}>
+                <NavLink href="/users" label="Users" icon={Users} />
+                <NavLink href="/workspace" label="Workspaces" icon={LayoutGrid} />
+                <NavLink href="/access-groups" label="Access Groups" icon={Layers} />
+              </NavGroup>
+            )}
             <NavLink href="/api-keys" label="API Keys" icon={Key} />
-            {canAccessOrgControl && <NavLink href="/mcp-registry?tab=setup" label="MCP" icon={Server} />}
             {canAccessOrgControl && <NavLink href="/ai-hub" label="AI Hub" icon={Store} />}
             <NavLink href="/onboarding" label="Onboarding" icon={Rocket} />
           </Section>

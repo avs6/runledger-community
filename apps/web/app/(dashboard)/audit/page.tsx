@@ -92,16 +92,15 @@ export default function AuditPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
       {/* Hero header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-violet-950 to-purple-950 p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(139,92,246,0.15),transparent_60%)]" />
-        <div className="relative flex items-center justify-between">
+      <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 ring-1 ring-violet-400/30">
-              <ScrollText className="h-5 w-5 text-violet-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:ring-violet-400/30">
+              <ScrollText className="h-5 w-5 text-violet-600 dark:text-violet-400" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Audit Log</h1>
-              <p className="text-xs text-violet-200/70">Immutable record of all sensitive mutations in this workspace</p>
+              <h1 className="text-lg font-bold text-slate-950 dark:text-white">Audit Log</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Immutable record of all sensitive mutations in this workspace</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -120,14 +119,14 @@ export default function AuditPage() {
                   toast.success('Audit log exported')
                 } catch { toast.error('Export failed') }
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/20"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               <Download className="h-3.5 w-3.5" /> Export CSV
             </button>
             <button
               onClick={fetchEvents}
               disabled={loading}
-              className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 ring-1 ring-white/10 hover:bg-white/20 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
             </button>
@@ -135,44 +134,44 @@ export default function AuditPage() {
         </div>
 
         {/* KPI strip */}
-        <div className="relative mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {crossPosture && (
             <>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{crossPosture.observe_context.audit_events_30d}</p>
-                <p className="text-[10px] text-slate-400">Audit Events 30d</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.observe_context.audit_events_30d}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Audit Events 30d</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{crossPosture.finops_context.active_budgets}</p>
-                <p className="text-[10px] text-slate-400">Active Budgets</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.finops_context.active_budgets}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Active Budgets</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{crossPosture.org_context.workspace_users}</p>
-                <p className="text-[10px] text-slate-400">Workspace Users</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.org_context.workspace_users}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Workspace Users</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{crossPosture.gateway_context.total_routes}</p>
-                <p className="text-[10px] text-slate-400">Gateway Routes</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.gateway_context.total_routes}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Gateway Routes</p>
               </div>
             </>
           )}
           {runtimePosture && (
             <>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{runtimePosture.evidence_scope.audit_events_30d}</p>
-                <p className="text-[10px] text-slate-400">Evidence Events</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.evidence_scope.audit_events_30d}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Evidence Events</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{runtimePosture.observe_lineage.runs_30d}</p>
-                <p className="text-[10px] text-slate-400">Runs 30d</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.observe_lineage.runs_30d}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Runs 30d</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{runtimePosture.gateway_lineage.cache_configs}</p>
-                <p className="text-[10px] text-slate-400">Cache Configs</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.gateway_lineage.cache_configs}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Cache Configs</p>
               </div>
-              <div className="rounded-lg bg-white/10 px-3 py-2 ring-1 ring-white/20">
-                <p className="text-lg font-bold text-white">{runtimePosture.finops_lineage.ledger_snapshots_30d}</p>
-                <p className="text-[10px] text-slate-400">Ledger Snapshots</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.finops_lineage.ledger_snapshots_30d}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Ledger Snapshots</p>
               </div>
             </>
           )}
@@ -180,15 +179,15 @@ export default function AuditPage() {
 
         {/* Governance chips */}
         {govInternal && (
-          <div className="relative mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {[
               { label: `${govInternal.tool_registry_context.total_tools} Tools`, sub: `${govInternal.tool_registry_context.enforced_tools} enforced` },
               { label: `${govInternal.tool_policies_context.active_policies} Policies`, sub: 'active' },
               { label: `${govInternal.security_context.security_events_30d} Security`, sub: '30d' },
               { label: `${govInternal.tags_context.active_tags} Tags`, sub: 'active' },
             ].map((c) => (
-              <span key={c.label} className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-white/20">
-                <span className="font-semibold text-white">{c.label}</span> {c.sub}
+              <span key={c.label} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="font-semibold text-slate-900 dark:text-white">{c.label}</span> {c.sub}
               </span>
             ))}
           </div>

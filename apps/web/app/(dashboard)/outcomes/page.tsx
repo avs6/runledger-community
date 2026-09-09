@@ -357,8 +357,8 @@ export default function OutcomesPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-slate-950 dark:text-white">Outcomes & ROI</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Business outcomes, ROI attribution, and workflow cost analysis.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Outcomes & ROI</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Business outcomes, ROI attribution, and workflow cost analysis.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900">

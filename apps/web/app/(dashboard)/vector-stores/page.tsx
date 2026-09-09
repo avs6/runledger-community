@@ -162,8 +162,8 @@ export default function VectorStoresPage() {
             <Database className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white">Vector Stores</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Register, monitor, and manage Qdrant-backed knowledge bases for RAG and semantic search.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Vector Stores</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Register, monitor, and manage Qdrant-backed knowledge bases for RAG and semantic search.</p>
           </div>
         </div>
         <div className="flex gap-1.5">

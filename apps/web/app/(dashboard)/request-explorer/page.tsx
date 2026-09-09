@@ -681,8 +681,8 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
     <div className="space-y-3">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-100">Request Explorer</h1>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Debug individual AI requests — prompt, route, tools, cost, latency, cache, outcome.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">Request Explorer</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Debug individual AI requests — prompt, route, tools, cost, latency, cache, outcome.</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Link href={accessGroupId ? `/analytics?scope=workspace&access_group_id=${encodeURIComponent(accessGroupId)}` : '/analytics'} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">

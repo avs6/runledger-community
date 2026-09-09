@@ -117,8 +117,8 @@ export default async function WorkflowsPage() {
             <Route className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-950 dark:text-white">Workflows</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Define multi-step pipelines, orchestrate agents and models.</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Workflows</h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Define multi-step pipelines, orchestrate agents and models.</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
