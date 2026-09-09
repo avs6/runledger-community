@@ -437,7 +437,7 @@ export default function VectorStoresPage() {
               content: (
                 <div className="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed space-y-2">
                   <p><strong>1. Qdrant instance</strong> — Running and accessible from the RunLedger API container. The default Docker Compose stack includes Qdrant on port 6333.</p>
-                  <p><strong>2. Qdrant collection</strong> — Create the collection in Qdrant before registering in RunLedger. RunLedger tracks metadata but doesn't create collections in Qdrant.</p>
+                  <p><strong>2. Qdrant collection</strong> — Create the collection in Qdrant before registering in RunLedger. RunLedger tracks metadata but does not create collections in Qdrant.</p>
                   <p><strong>3. Embedding model</strong> — Decide on your model and dimensions before creating the collection (e.g., BGE Small = 384d, OpenAI Small = 1536d).</p>
                   <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-3 mt-2">
                     <div className="flex items-center justify-between mb-1">
