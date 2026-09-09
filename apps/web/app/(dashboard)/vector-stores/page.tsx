@@ -212,7 +212,7 @@ export default function VectorStoresPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Observe</p>
             <div className="flex flex-wrap gap-1.5">
               <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{lifecyclePosture.observe_context.provider_calls_30d} calls</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{lifecyclePosture.observe_context.distinct_models_30d} models</span>
+              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{lifecyclePosture.cost_context.chargeback_rules} chargeback rules</span>
               <Link href="/request-explorer" className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">Explorer</Link>
             </div>
           </div>
