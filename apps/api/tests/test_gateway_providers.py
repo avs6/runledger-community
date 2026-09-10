@@ -33,6 +33,7 @@ def _make_route(**kwargs) -> SimpleNamespace:
         base_url=None,
         api_key_env_var="OPENAI_API_KEY",
         priority=10,
+        timeout_ms=None,
         is_active=True,
         config=None,
         created_at=datetime.now(UTC),

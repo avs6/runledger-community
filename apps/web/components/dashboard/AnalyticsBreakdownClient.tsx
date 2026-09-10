@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
-  BarChart2, Users, Layers, TrendingDown, TrendingUp,
+  BarChart2, Layers, TrendingDown, TrendingUp,
   RefreshCw, Download, SlidersHorizontal, ArrowUpRight,
   Zap, Clock, Activity, PieChart as PieIcon,
   GitBranch, Target, Workflow, Grid3x3, Radio, Maximize2, Minimize2,
@@ -13,11 +13,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   getAnalyticsSummary, getSpendOverTime, getSpendByModel,
-  getSpendByFeature, getSpendByUser, getRuns,
+  getSpendByFeature, getRuns,
 } from '@/lib/api'
 import type {
   AnalyticsSummary, SpendOverTime, SpendByModel,
-  SpendByUser, SpendByFeature, RunListItem,
+  SpendByFeature, RunListItem,
 } from '@/types/api'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -50,6 +50,23 @@ function fmtDuration(ms: number | null | undefined) {
 
 type Preset = '5m' | '15m' | '30m' | '1h' | '3h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d'
 type SpendGranularity = 'minute' | '5min' | 'hourly' | 'daily'
+type RunStatusFilter = 'all' | 'succeeded' | 'failed' | 'running' | 'cancelled'
+type ModelMetric = 'cost' | 'tokens' | 'calls'
+type FeatureMetric = 'cost' | 'runs' | 'calls'
+
+const PRESETS: { v: Preset; label: string }[] = [
+  { v: '5m', label: '5m' },
+  { v: '15m', label: '15m' },
+  { v: '30m', label: '30m' },
+  { v: '1h', label: '1h' },
+  { v: '3h', label: '3h' },
+  { v: '6h', label: '6h' },
+  { v: '12h', label: '12h' },
+  { v: '24h', label: '24h' },
+  { v: '7d', label: '7d' },
+  { v: '30d', label: '30d' },
+  { v: '90d', label: '90d' },
+]
 
 function presetWindow(p: Preset) {
   const now = new Date()
@@ -280,26 +297,29 @@ function ModelChart({ data }: { data: SpendByModel }) {
   )
 }
 
-function ModelCostBars({ data }: { data: SpendByModel }) {
+function ModelCostBars({ data, metric }: { data: SpendByModel; metric: ModelMetric }) {
   if (data.items.length === 0) return <EmptyState label="No model data" />
   const bars = data.items.map(m => ({
     name: m.model,
     cost: parseFloat(m.cost_usd),
+    tokens: m.input_tokens + m.output_tokens,
+    calls: m.call_count,
     input: m.input_tokens,
     output: m.output_tokens,
     color: modelColor(m.model),
   }))
+  const metricLabel = metric === 'cost' ? 'Cost' : metric === 'tokens' ? 'Tokens' : 'Calls'
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, bars.length * 32)}>
       <BarChart data={bars} layout="vertical" margin={{ left: 8, right: 16 }}>
         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
-        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => metric === 'cost' ? `$${v}` : fmtTokens(Number(v))} />
         <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} width={120} />
         <Tooltip
           contentStyle={{ backgroundColor: 'rgba(15,23,42,0.95)', border: '1px solid rgba(100,116,139,0.3)', borderRadius: '10px', fontSize: '11px', color: '#e2e8f0' }}
-          formatter={(v: unknown) => [fmt$(Number(v)), 'Cost']}
+          formatter={(v: unknown) => [metric === 'cost' ? fmt$(Number(v)) : Number(v).toLocaleString(), metricLabel]}
         />
-        <Bar dataKey="cost" radius={[0, 6, 6, 0]}>
+        <Bar dataKey={metric} radius={[0, 6, 6, 0]}>
           {bars.map((entry, i) => <Cell key={i} fill={entry.color} />)}
         </Bar>
       </BarChart>
@@ -307,22 +327,23 @@ function ModelCostBars({ data }: { data: SpendByModel }) {
   )
 }
 
-function FeatureChart({ data }: { data: SpendByFeature }) {
+function FeatureChart({ data, metric }: { data: SpendByFeature; metric: FeatureMetric }) {
   if (data.items.length === 0) return <EmptyState label="No feature data" />
   const bars = data.items
     .filter(f => f.feature_tag)
-    .map(f => ({ name: f.feature_tag!, cost: parseFloat(f.cost_usd), runs: f.run_count }))
+    .map(f => ({ name: f.feature_tag!, cost: parseFloat(f.cost_usd), runs: f.run_count, calls: f.call_count }))
+  const metricLabel = metric === 'cost' ? 'Cost' : metric === 'runs' ? 'Runs' : 'Calls'
   return (
     <ResponsiveContainer width="100%" height={Math.max(160, bars.length * 28)}>
       <BarChart data={bars} layout="vertical" margin={{ left: 8, right: 16 }}>
         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" className="text-slate-200 dark:text-slate-700" />
-        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `$${v}`} />
+        <XAxis type="number" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => metric === 'cost' ? `$${v}` : fmtTokens(Number(v))} />
         <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} width={120} />
         <Tooltip
           contentStyle={{ backgroundColor: 'rgba(15,23,42,0.95)', border: '1px solid rgba(100,116,139,0.3)', borderRadius: '10px', fontSize: '11px', color: '#e2e8f0' }}
-          formatter={(v: unknown, name: unknown) => [String(name) === 'cost' ? fmt$(Number(v)) : Number(v).toLocaleString(), String(name) === 'cost' ? 'Cost' : 'Runs']}
+          formatter={(v: unknown) => [metric === 'cost' ? fmt$(Number(v)) : Number(v).toLocaleString(), metricLabel]}
         />
-        <Bar dataKey="cost" fill="#7c3aed" radius={[0, 6, 6, 0]} />
+        <Bar dataKey={metric} fill="#7c3aed" radius={[0, 6, 6, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )
@@ -465,38 +486,6 @@ function LatencyDistribution({ runs }: { runs: RunListItem[] }) {
         <span className="text-slate-400">P99: <span className="font-bold text-red-600 dark:text-red-400">{fmtDuration(p99)}</span></span>
       </div>
     </div>
-  )
-}
-
-function UserTable({ data }: { data: SpendByUser }) {
-  if (data.items.length === 0) return <EmptyState label="No user data for this period" />
-  return (
-    <table className="w-full text-sm">
-      <thead className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-        <tr>
-          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">User</th>
-          <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Spend</th>
-          <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Runs</th>
-          <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Avg/Run</th>
-          <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Calls</th>
-          <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Last Active</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-        {data.items.map((u, i) => (
-          <tr key={i} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
-            <td className="px-4 py-2.5 font-mono text-sm font-medium dark:text-slate-200">{u.end_user_id}</td>
-            <td className="px-4 py-2.5 text-right font-mono font-semibold text-violet-700 dark:text-violet-400">{fmt$(u.cost_usd)}</td>
-            <td className="px-4 py-2.5 text-right text-slate-500">{u.run_count}</td>
-            <td className="px-4 py-2.5 text-right text-slate-500">{fmt$(u.avg_cost_per_run)}</td>
-            <td className="px-4 py-2.5 text-right text-slate-500">{u.call_count}</td>
-            <td className="px-4 py-2.5 text-right text-xs text-slate-400">
-              {u.last_active ? new Date(u.last_active).toLocaleDateString() : '—'}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }
 
@@ -876,46 +865,158 @@ function EmptyState({ label }: { label: string }) {
   )
 }
 
-function Card({ title, sub, icon: Icon, children, action }: {
-  title: string; sub?: string; icon?: React.ElementType; children: React.ReactNode; action?: React.ReactNode
+function SelectControl({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [expanded, setExpanded] = useState(false)
-
-  function toggle() {
-    if (!ref.current) return
-    if (!document.fullscreenElement) {
-      ref.current.requestFullscreen().then(() => setExpanded(true)).catch(() => {})
-    } else {
-      document.exitFullscreen().then(() => setExpanded(false)).catch(() => {})
-    }
-  }
-
-  useEffect(() => {
-    function onFsChange() { if (!document.fullscreenElement) setExpanded(false) }
-    document.addEventListener('fullscreenchange', onFsChange)
-    return () => document.removeEventListener('fullscreenchange', onFsChange)
-  }, [])
-
   return (
-    <div ref={ref} className={`overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 ${expanded ? 'flex flex-col' : ''}`}>
-      <div className="flex items-start justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-800">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
-          <div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">{title}</p>
+    <label className="flex min-w-[140px] flex-col gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+      {label}
+      <select
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium normal-case tracking-normal text-slate-700 outline-none transition focus:border-blue-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function PeriodControl({ value, onChange }: { value: Preset; onChange: (value: Preset) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Window</span>
+      <div className="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        {PRESETS.map(({ v, label }) => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              value === v
+                ? 'bg-blue-600 font-medium text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CardShell({
+  title,
+  sub,
+  icon: Icon,
+  children,
+  action,
+  controls,
+  expanded,
+  onToggle,
+  elevated,
+}: {
+  title: string
+  sub?: string
+  icon?: React.ElementType
+  children: React.ReactNode
+  action?: React.ReactNode
+  controls?: React.ReactNode
+  expanded: boolean
+  onToggle: () => void
+  elevated?: boolean
+}) {
+  return (
+    <div className={`overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 ${elevated ? 'flex max-h-[calc(100vh-2rem)] min-h-[520px] flex-col shadow-2xl' : ''}`}>
+      <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
+        <div className="flex min-w-0 items-center gap-2">
+          {Icon && <Icon className="h-4 w-4 shrink-0 text-blue-500 dark:text-blue-400" />}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{title}</p>
             {sub && <p className="mt-0.5 text-[10px] text-slate-400">{sub}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {action}
-          <button onClick={toggle} className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300" title={expanded ? 'Exit fullscreen' : 'Expand'}>
+          <button onClick={onToggle} className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300" title={expanded ? 'Collapse' : 'Expand'}>
             {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
-      <div className={`px-5 py-4 ${expanded ? 'flex-1 overflow-auto' : ''}`}>{children}</div>
+      {controls && expanded && (
+        <div className="border-b border-slate-100 bg-slate-50/80 px-5 py-3 dark:border-slate-800 dark:bg-slate-950/30">
+          <div className="flex flex-wrap items-end gap-3">{controls}</div>
+        </div>
+      )}
+      <div className={`px-5 py-4 ${elevated ? 'min-h-0 flex-1 overflow-auto' : ''}`}>{children}</div>
     </div>
+  )
+}
+
+function Card({ title, sub, icon, children, action, controls }: {
+  title: string; sub?: string; icon?: React.ElementType; children: React.ReactNode; action?: React.ReactNode; controls?: React.ReactNode
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    if (!expanded) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setExpanded(false)
+    }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [expanded])
+
+  const shell = (
+    <CardShell
+      title={title}
+      sub={sub}
+      icon={icon}
+      action={action}
+      controls={controls}
+      expanded={expanded}
+      onToggle={() => setExpanded(value => !value)}
+    >
+      {children}
+    </CardShell>
+  )
+
+  return (
+    <>
+      {shell}
+      {expanded && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="w-[min(1180px,calc(100vw-2rem))]">
+            <CardShell
+              title={title}
+              sub={sub}
+              icon={icon}
+              action={action}
+              controls={controls}
+              expanded
+              elevated
+              onToggle={() => setExpanded(false)}
+            >
+              {children}
+            </CardShell>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -925,12 +1026,16 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
 
   const [preset, setPreset] = useState<Preset>('24h')
   const [loading, setLoading] = useState(true)
+  const [modelFilter, setModelFilter] = useState('all')
+  const [featureFilter, setFeatureFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<RunStatusFilter>('all')
+  const [modelMetric, setModelMetric] = useState<ModelMetric>('cost')
+  const [featureMetric, setFeatureMetric] = useState<FeatureMetric>('cost')
 
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null)
   const [spendTime, setSpendTime] = useState<SpendOverTime | null>(null)
   const [byModel, setByModel] = useState<SpendByModel | null>(null)
   const [byFeature, setByFeature] = useState<SpendByFeature | null>(null)
-  const [byUser, setByUser] = useState<SpendByUser | null>(null)
   const [recentRuns, setRecentRuns] = useState<RunListItem[]>([])
 
   const load = useCallback(async () => {
@@ -939,19 +1044,17 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
     const win = presetWindow(preset)
     const gran = presetGranularity(preset)
     try {
-      const [s, t, m, f, u, runs] = await Promise.all([
+      const [s, t, m, f, runs] = await Promise.all([
         getAnalyticsSummary(apiKey, win),
         getSpendOverTime(apiKey, gran, win),
         getSpendByModel(apiKey, win),
         getSpendByFeature(apiKey, win),
-        getSpendByUser(apiKey, 20, win),
         getRuns(apiKey, { limit: 80, from: win.from, to: win.to }),
       ])
       setSummary(s)
       setSpendTime(t)
       setByModel(m)
       setByFeature(f)
-      setByUser(u)
       setRecentRuns(runs.items)
     } catch {
       toast.error('Failed to load analytics')
@@ -962,25 +1065,93 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
 
   useEffect(() => { load() }, [load])
 
-  const presets: { v: Preset; label: string }[] = [
-    { v: '5m', label: '5m' },
-    { v: '15m', label: '15m' },
-    { v: '30m', label: '30m' },
-    { v: '1h', label: '1h' },
-    { v: '3h', label: '3h' },
-    { v: '6h', label: '6h' },
-    { v: '12h', label: '12h' },
-    { v: '24h', label: '24h' },
-    { v: '7d', label: '7d' },
-    { v: '30d', label: '30d' },
-    { v: '90d', label: '90d' },
-  ]
+  const filteredRuns = recentRuns.filter(run => {
+    if (modelFilter !== 'all' && run.primary_model !== modelFilter) return false
+    if (featureFilter !== 'all' && (run.feature_tag ?? 'untagged') !== featureFilter) return false
+    if (statusFilter !== 'all' && run.status !== statusFilter) return false
+    return true
+  })
+  const modelOptions = Array.from(new Set([
+    ...(byModel?.items.map(item => item.model) ?? []),
+    ...(recentRuns.map(run => run.primary_model).filter(Boolean) as string[]),
+  ])).sort()
+  const featureOptions = Array.from(new Set([
+    ...(byFeature?.items.map(item => item.feature_tag ?? 'untagged') ?? []),
+    ...recentRuns.map(run => run.feature_tag ?? 'untagged'),
+  ])).sort()
+  const filteredByModel = byModel
+    ? {
+        ...byModel,
+        items: byModel.items.filter(item => modelFilter === 'all' || item.model === modelFilter),
+      }
+    : null
+  const filteredByFeature = byFeature
+    ? {
+        ...byFeature,
+        items: byFeature.items.filter(item => featureFilter === 'all' || (item.feature_tag ?? 'untagged') === featureFilter),
+      }
+    : null
+  const periodControl = <PeriodControl value={preset} onChange={setPreset} />
+  const modelControl = (
+    <SelectControl
+      label="Model"
+      value={modelFilter}
+      onChange={setModelFilter}
+      options={[{ value: 'all', label: 'All models' }, ...modelOptions.map(model => ({ value: model, label: model }))]}
+    />
+  )
+  const featureControl = (
+    <SelectControl
+      label="Feature"
+      value={featureFilter}
+      onChange={setFeatureFilter}
+      options={[{ value: 'all', label: 'All features' }, ...featureOptions.map(feature => ({ value: feature, label: feature }))]}
+    />
+  )
+  const statusControl = (
+    <SelectControl
+      label="Status"
+      value={statusFilter}
+      onChange={value => setStatusFilter(value as RunStatusFilter)}
+      options={[
+        { value: 'all', label: 'All statuses' },
+        { value: 'succeeded', label: 'Succeeded' },
+        { value: 'failed', label: 'Failed' },
+        { value: 'running', label: 'Running' },
+        { value: 'cancelled', label: 'Cancelled' },
+      ]}
+    />
+  )
+  const modelMetricControl = (
+    <SelectControl
+      label="Metric"
+      value={modelMetric}
+      onChange={value => setModelMetric(value as ModelMetric)}
+      options={[
+        { value: 'cost', label: 'Cost' },
+        { value: 'tokens', label: 'Tokens' },
+        { value: 'calls', label: 'Calls' },
+      ]}
+    />
+  )
+  const featureMetricControl = (
+    <SelectControl
+      label="Metric"
+      value={featureMetric}
+      onChange={value => setFeatureMetric(value as FeatureMetric)}
+      options={[
+        { value: 'cost', label: 'Cost' },
+        { value: 'runs', label: 'Runs' },
+        { value: 'calls', label: 'Calls' },
+      ]}
+    />
+  )
 
   async function handleExport(format: 'csv' | 'json') {
     if (!apiKey) return
     const win = presetWindow(preset)
     const qs = new URLSearchParams({ format, from: win.from, to: win.to })
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
     const url = `${base}/analytics/export?${qs}`
     try {
       const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } })
@@ -1042,7 +1213,7 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
         <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
         <span className="mr-1 text-xs font-medium uppercase tracking-wide text-slate-400">Period</span>
         <div className="flex flex-wrap overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          {presets.map(({ v, label }) => (
+          {PRESETS.map(({ v, label }) => (
             <button
               key={v}
               onClick={() => setPreset(v)}
@@ -1068,80 +1239,75 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
       ) : null}
 
       {/* Live Activity Bar */}
-      <Card title="Live Model Activity" sub="Recent runs colored by model — bar height = token count" icon={Activity} action={
+      <Card title="Live Model Activity" sub="Recent runs colored by model — bar height = token count" icon={Activity} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>} action={
         <Link href="/runs" className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
           All runs
         </Link>
       }>
-        {recentRuns.length > 0 ? <LiveActivityBar runs={recentRuns} /> : loading ? <Skeleton className="h-44 w-full rounded-lg" /> : <EmptyState label="No recent runs" />}
+        {filteredRuns.length > 0 ? <LiveActivityBar runs={filteredRuns} /> : loading ? <Skeleton className="h-44 w-full rounded-lg" /> : <EmptyState label="No recent runs" />}
       </Card>
 
       {/* Spend over time + Token breakdown */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Spend Over Time" sub={presetSubtitle(preset, presetGranularity(preset))} icon={TrendingUp} action={<ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
+        <Card title="Spend Over Time" sub={presetSubtitle(preset, presetGranularity(preset))} icon={TrendingUp} controls={periodControl} action={<ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
           {spendTime ? <SpendChart data={spendTime} /> : <Skeleton className="h-[260px] w-full rounded-lg" />}
         </Card>
-        <Card title="Token Volume" sub="Input vs Output tokens stacked over time" icon={Zap}>
+        <Card title="Token Volume" sub="Input vs Output tokens stacked over time" icon={Zap} controls={periodControl}>
           {spendTime ? <TokenChart data={spendTime} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
         </Card>
       </div>
 
       {/* Model spend + cost ranking */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Spend by Model" sub="Cost distribution across all models" icon={PieIcon}>
-          {byModel ? <ModelChart data={byModel} /> : <Skeleton className="h-[220px] w-full rounded-lg" />}
+        <Card title="Spend by Model" sub="Cost distribution across all models" icon={PieIcon} controls={<>{periodControl}{modelControl}</>}>
+          {filteredByModel ? <ModelChart data={filteredByModel} /> : <Skeleton className="h-[220px] w-full rounded-lg" />}
         </Card>
-        <Card title="Model Cost Ranking" sub="Which models cost the most" icon={BarChart2}>
-          {byModel ? <ModelCostBars data={byModel} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
+        <Card title="Model Cost Ranking" sub="Which models cost the most" icon={BarChart2} controls={<>{periodControl}{modelControl}{modelMetricControl}</>}>
+          {filteredByModel ? <ModelCostBars data={filteredByModel} metric={modelMetric} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
         </Card>
       </div>
 
       {/* Run health + response times */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Run Health" sub="Success vs failure across all runs" icon={Activity}>
-          {recentRuns.length > 0 ? <StatusDonut runs={recentRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
+        <Card title="Run Health" sub="Success vs failure across all runs" icon={Activity} controls={<>{periodControl}{modelControl}{featureControl}</>}>
+          {filteredRuns.length > 0 ? <StatusDonut runs={filteredRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
         </Card>
-        <Card title="Response Times" sub="How fast are your LLM calls completing" icon={Clock}>
-          {recentRuns.length > 0 ? <LatencyDistribution runs={recentRuns} /> : loading ? <Skeleton className="h-[160px] w-full rounded-lg" /> : <EmptyState label="No data" />}
+        <Card title="Response Times" sub="How fast are your LLM calls completing" icon={Clock} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
+          {filteredRuns.length > 0 ? <LatencyDistribution runs={filteredRuns} /> : loading ? <Skeleton className="h-[160px] w-full rounded-lg" /> : <EmptyState label="No data" />}
         </Card>
       </div>
 
       {/* Feature tags */}
-      <Card title="Spend by Feature Tag" sub="Top features by cost" icon={Layers}>
-        {byFeature ? <FeatureChart data={byFeature} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
+      <Card title="Spend by Feature Tag" sub="Top features by cost" icon={Layers} controls={<>{periodControl}{featureControl}{featureMetricControl}</>}>
+        {filteredByFeature ? <FeatureChart data={filteredByFeature} metric={featureMetric} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
       </Card>
 
       {/* Usage patterns + model fingerprint */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Usage Patterns" sub="When are your agents most active — by hour and day" icon={Grid3x3}>
-          {recentRuns.length > 0 ? <ActivityHeatmap runs={recentRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No activity data" />}
+        <Card title="Usage Patterns" sub="When are your agents most active — by hour and day" icon={Grid3x3} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
+          {filteredRuns.length > 0 ? <ActivityHeatmap runs={filteredRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No activity data" />}
         </Card>
-        <Card title="Model Fingerprint" sub="How each model compares across cost, speed, tokens, and volume" icon={Target}>
-          {byModel && recentRuns.length > 0 ? <ModelRadar data={byModel} runs={recentRuns} /> : loading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
+        <Card title="Model Fingerprint" sub="How each model compares across cost, speed, tokens, and volume" icon={Target} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
+          {filteredByModel && filteredRuns.length > 0 ? <ModelRadar data={filteredByModel} runs={filteredRuns} /> : loading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
         </Card>
       </div>
 
       {/* Cost attribution flow */}
-      <Card title="Cost Attribution Flow" sub="How model spend flows into feature tags — trace where money goes" icon={Workflow}>
-        {byModel && byFeature && recentRuns.length > 0 ? (
-          <SankeyChart modelData={byModel} featureData={byFeature} runs={recentRuns} />
+      <Card title="Cost Attribution Flow" sub="How model spend flows into feature tags — trace where money goes" icon={Workflow} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
+        {filteredByModel && filteredByFeature && filteredRuns.length > 0 ? (
+          <SankeyChart modelData={filteredByModel} featureData={filteredByFeature} runs={filteredRuns} />
         ) : loading ? <Skeleton className="h-[320px] w-full rounded-lg" /> : <EmptyState label="Need model + feature data" />}
       </Card>
 
       {/* Model comparison + latency profile */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Model Comparison" sub="Side-by-side view of cost, tokens, calls, and latency per model" icon={GitBranch}>
-          {byModel && recentRuns.length > 0 ? <ParallelCoordinates data={byModel} runs={recentRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
+        <Card title="Model Comparison" sub="Side-by-side view of cost, tokens, calls, and latency per model" icon={GitBranch} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
+          {filteredByModel && filteredRuns.length > 0 ? <ParallelCoordinates data={filteredByModel} runs={filteredRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
         </Card>
-        <Card title="Latency Profile" sub="Response time distribution for each model — where do they cluster" icon={Radio}>
-          {recentRuns.length > 0 ? <RidgePlot runs={recentRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
+        <Card title="Latency Profile" sub="Response time distribution for each model — where do they cluster" icon={Radio} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
+          {filteredRuns.length > 0 ? <RidgePlot runs={filteredRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
         </Card>
       </div>
-
-      {/* User spend table */}
-      <Card title="Spend by End User" sub="Attribution per end_user_id — top 20" icon={Users} action={<Users className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
-        {byUser ? <UserTable data={byUser} /> : <div className="space-y-2">{[0, 1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-full rounded-md" />)}</div>}
-      </Card>
 
       {/* Full model breakdown table (non-embedded only) */}
       {!embedded && byModel && byModel.items.length > 0 && (

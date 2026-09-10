@@ -150,6 +150,7 @@ async def test_get_api_key(
         created_by="owner@example.com",
         ownership_type="service_account",
         owner_reference="svc-observe",
+        budget_tier_id=None,
     )
     mock_db_session.get.return_value = mock_api_key
 
@@ -181,6 +182,7 @@ async def test_update_api_key(
         created_by="owner@example.com",
         ownership_type="service_account",
         owner_reference="svc-observe",
+        budget_tier_id=None,
     )
     mock_db_session.get.return_value = mock_api_key
 

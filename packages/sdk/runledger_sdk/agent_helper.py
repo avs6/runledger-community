@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
@@ -215,7 +215,7 @@ class AgentTelemetryHelper:
             timeout=5.0,
         )
         resp.raise_for_status()
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())
 
     def check_policy(
         self,
@@ -239,4 +239,4 @@ class AgentTelemetryHelper:
             timeout=5.0,
         )
         resp.raise_for_status()
-        return resp.json()
+        return cast("dict[str, Any]", resp.json())

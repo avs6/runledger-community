@@ -141,6 +141,8 @@ async def test_list_audit_events_returns_paginated() -> None:
         actor_user_id=None,
         target_type=None,
         target_id=None,
+        access_group_id=None,
+        api_key_prefix=None,
         limit=50,
         offset=0,
     )
@@ -175,6 +177,8 @@ async def test_list_audit_events_action_filter() -> None:
         actor_user_id=None,
         target_type=None,
         target_id=None,
+        access_group_id=None,
+        api_key_prefix=None,
         limit=50,
         offset=0,
     )
@@ -206,6 +210,8 @@ async def test_list_audit_events_empty() -> None:
         actor_user_id=None,
         target_type=None,
         target_id=None,
+        access_group_id=None,
+        api_key_prefix=None,
         limit=50,
         offset=0,
     )

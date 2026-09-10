@@ -11,12 +11,15 @@ import os
 import re
 import threading
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from runledger_sdk.context import RunLedgerContext, get_context_snapshot
 from runledger_sdk.transport import SyncTransport, Transport
+
+if TYPE_CHECKING:
+    from runledger_sdk.agent_helper import AgentTelemetryHelper
 
 log = structlog.get_logger()
 
@@ -105,7 +108,7 @@ class RunLedger:
         self._sync_transport: SyncTransport | None = None
         self._async_transport: Transport | None = None
         self._instrumented = False
-        self._agent_helper: Any | None = None
+        self._agent_helper: AgentTelemetryHelper | None = None
         self._default_task_metadata: dict[str, Any] = {}
 
     @classmethod
@@ -318,7 +321,7 @@ class RunLedger:
             track_llm_cost=track_llm_cost,
         )
 
-    def agent_helper(self) -> object:
+    def agent_helper(self) -> AgentTelemetryHelper:
         """Return the shared helper for manual agent telemetry and policy checks."""
         if self._agent_helper is None:
             from runledger_sdk.agent_helper import AgentTelemetryHelper  # noqa: PLC0415

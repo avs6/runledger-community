@@ -177,7 +177,7 @@ async def check_cost_cap(
     )
     proj_res = await db.execute(pkey_stmt)
     proj = proj_res.scalar_one_or_none()
-    if proj and proj.budget_usd is not None:
+    if proj and isinstance(proj.budget_usd, Decimal):
         p_cost = _estimate_cost(monthly_row, input_rate, output_rate)
         if p_cost >= proj.budget_usd:
             log.warning(
@@ -204,7 +204,7 @@ async def check_cost_cap(
     )
     tm_res = await db.execute(tm_stmt)
     tm = tm_res.scalar_one_or_none()
-    if tm and tm.budget_usd is not None:
+    if tm and isinstance(tm.budget_usd, Decimal):
         tm_cost = _estimate_cost(monthly_row, input_rate, output_rate)
         if tm_cost >= tm.budget_usd:
             log.warning(

@@ -195,9 +195,7 @@ async def list_platform_orgs(
     owner_ids = [t.owner_user_id for t in tenants if t.owner_user_id]
     owner_emails: dict[Any, str] = {}
     if owner_ids:
-        rows = (
-            await db.execute(select(User.id, User.email).where(User.id.in_(owner_ids)))
-        ).all()
+        rows = (await db.execute(select(User.id, User.email).where(User.id.in_(owner_ids)))).all()
         owner_emails = {uid: email for uid, email in rows}
 
     admin_emails: dict[Any, str] = {}

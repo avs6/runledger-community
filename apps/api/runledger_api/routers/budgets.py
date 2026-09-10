@@ -100,7 +100,9 @@ def _budget_response(
     scope_display_name: str | None = None,
     breakdown: list[dict] | None = None,
 ) -> BudgetResponse:
-    pct = (current_spend_usd / budget.limit_usd * 100) if budget.limit_usd > 0 else Decimal(0)
+    pct = (current_spend_usd / budget.limit_usd * 100) if budget.limit_usd > 0 else Decimal("0")
+    if pct.is_zero():
+        pct = Decimal("0")
     return BudgetResponse(
         id=str(budget.id),
         scope_type=budget.scope_type,

@@ -24,7 +24,9 @@ def upgrade() -> None:
     )
     op.add_column(
         "billing_periods",
-        sa.Column("exchange_rate_to_usd", sa.Numeric(12, 6), nullable=False, server_default=sa.text("1.0")),
+        sa.Column(
+            "exchange_rate_to_usd", sa.Numeric(12, 6), nullable=False, server_default=sa.text("1.0")
+        ),
     )
 
 

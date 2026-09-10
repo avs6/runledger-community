@@ -933,8 +933,20 @@ async def test_get_traces_stats(
     resp = await authed_client.get("/v1/traces/stats")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["last_24h"] == {"batches": 5, "traces": 10, "spans": 40}
-    assert data["last_7d"] == {"batches": 30, "traces": 60, "spans": 240}
+    assert data["last_24h"] == {
+        "batches": 5,
+        "traces": 10,
+        "spans": 40,
+        "metrics": 1,
+        "logs": 1,
+    }
+    assert data["last_7d"] == {
+        "batches": 30,
+        "traces": 60,
+        "spans": 240,
+        "metrics": 1,
+        "logs": 1,
+    }
 
 
 @pytest.mark.anyio
@@ -952,6 +964,9 @@ async def test_get_traces_batches(
         received_at=now,
         trace_count=3,
         span_count=12,
+        signal_type="traces",
+        metric_count=0,
+        log_record_count=0,
         status="accepted",
         error=None,
         content_type="application/json",

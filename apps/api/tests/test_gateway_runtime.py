@@ -118,10 +118,14 @@ async def test_check_cost_cap_daily_under_limit():
     )
     # Simulate DB returning 0 tokens (cost = $0)
     mock_row = SimpleNamespace(total_input=None, total_output=None)
+    empty_result = MagicMock()
+    empty_result.scalar_one_or_none.return_value = None
     mock_result = MagicMock()
     mock_result.one.return_value = mock_row
     db = AsyncMock()
-    db.execute = AsyncMock(return_value=mock_result)
+    db.execute = AsyncMock(
+        side_effect=[empty_result, mock_result, mock_result, empty_result, empty_result]
+    )
 
     await check_cost_cap(db, route, uuid.uuid4())  # should not raise
 

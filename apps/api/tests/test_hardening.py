@@ -206,8 +206,12 @@ async def test_ingest_rate_limit_allows_under_limit(
 async def test_ingest_rate_limit_blocks_over_limit(
     authed_client: AsyncClient,
     mock_redis_client: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Over the 600/min ingest limit → request rejected (429) with Retry-After header."""
+    from runledger_api.core.config import settings
+
+    monkeypatch.setattr(settings, "ingest_rate_limit_per_minute", 600)
     mock_redis_client.incr = AsyncMock(return_value=601)
     mock_redis_client.expire = AsyncMock(return_value=True)
 
@@ -229,8 +233,12 @@ async def test_ingest_rate_limit_blocks_over_limit(
 async def test_analytics_rate_limit_blocks(
     authed_client: AsyncClient,
     mock_redis_client: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Over the 120/min analytics limit → 429."""
+    from runledger_api.core.config import settings
+
+    monkeypatch.setattr(settings, "analytics_rate_limit_per_minute", 120)
     mock_redis_client.incr = AsyncMock(return_value=121)
     mock_redis_client.expire = AsyncMock(return_value=True)
 
@@ -246,8 +254,12 @@ async def test_analytics_rate_limit_blocks(
 async def test_management_rate_limit_blocks(
     authed_client: AsyncClient,
     mock_redis_client: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Over the 60/min management limit → 429."""
+    from runledger_api.core.config import settings
+
+    monkeypatch.setattr(settings, "management_rate_limit_per_minute", 60)
     mock_redis_client.incr = AsyncMock(return_value=61)
     mock_redis_client.expire = AsyncMock(return_value=True)
 

@@ -10,9 +10,12 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
+    get_current_api_key,
     get_current_workspace,
     require_member,
     require_org_admin,
+    require_platform_admin,
+    require_user,
     require_workspace_admin,
 )
 from runledger_api.core.redis import get_redis
@@ -89,6 +92,14 @@ async def authed_client(
         id=uuid.uuid4(),
         email="admin@example.com",
         full_name="Test Admin",
+        is_active=True,
+        is_platform_admin=True,
+    )
+    mock_api_key = SimpleNamespace(
+        id=uuid.uuid4(),
+        workspace_id=mock_workspace.id,
+        is_session=True,
+        created_by=mock_user.email,
     )
 
     async def override_get_db() -> AsyncGenerator[AsyncMock]:
@@ -99,6 +110,15 @@ async def authed_client(
 
     async def override_get_workspace() -> SimpleNamespace:
         return mock_workspace
+
+    async def override_get_api_key() -> SimpleNamespace:
+        return mock_api_key
+
+    async def override_require_user() -> tuple:
+        return (mock_workspace, mock_user)
+
+    async def override_require_platform_admin() -> tuple:
+        return (mock_workspace, mock_user)
 
     async def override_require_workspace_admin() -> tuple:
         return (mock_workspace, mock_user, SimpleNamespace(workspace_id=mock_workspace.id))
@@ -111,7 +131,10 @@ async def authed_client(
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = override_get_redis
+    app.dependency_overrides[get_current_api_key] = override_get_api_key
     app.dependency_overrides[get_current_workspace] = override_get_workspace
+    app.dependency_overrides[require_user] = override_require_user
+    app.dependency_overrides[require_platform_admin] = override_require_platform_admin
     app.dependency_overrides[require_workspace_admin] = override_require_workspace_admin
     app.dependency_overrides[require_member] = override_require_member
     app.dependency_overrides[require_org_admin] = override_require_org_admin

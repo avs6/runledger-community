@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 
 class RunLedgerTask:
@@ -85,13 +85,16 @@ class RunLedgerTask:
         cost_usd: Decimal | float | str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> str:
-        return self._client.record_span(
-            run_id=self._require_run_id(),
-            name=name,
-            span_type=span_type,
-            status=status,
-            cost_usd=cost_usd,
-            metadata=metadata,
+        return cast(
+            "str",
+            self._client.record_span(
+                run_id=self._require_run_id(),
+                name=name,
+                span_type=span_type,
+                status=status,
+                cost_usd=cost_usd,
+                metadata=metadata,
+            ),
         )
 
     def tool_call(
@@ -183,10 +186,10 @@ class RunLedgerTask:
         self._outcome_recorded = True
 
     def check_budget(self, **kwargs: Any) -> dict[str, Any]:
-        return self._client.check_budget(**kwargs)
+        return cast("dict[str, Any]", self._client.check_budget(**kwargs))
 
     def check_policy(self, **kwargs: Any) -> dict[str, Any]:
-        return self._client.check_policy(**kwargs)
+        return cast("dict[str, Any]", self._client.check_policy(**kwargs))
 
     def _require_run_id(self) -> str:
         if self.run_id is None:

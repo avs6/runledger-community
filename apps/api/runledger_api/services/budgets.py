@@ -133,7 +133,16 @@ async def get_workspace_budgets_cached(
             )
         )
         for row in override_result.all():
-            overrides_map[row[0]] = row[1]
+            budget_id = getattr(row, "budget_id", None)
+            override_limit = getattr(row, "override_limit_usd", None)
+            if budget_id is None and override_limit is None:
+                try:
+                    budget_id, override_limit = row
+                except TypeError:
+                    continue
+            elif budget_id is None or override_limit is None:
+                budget_id, override_limit = row
+            overrides_map[budget_id] = override_limit
 
     serialised = [
         {

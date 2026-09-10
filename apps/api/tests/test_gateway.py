@@ -55,8 +55,22 @@ def _make_route(**kwargs) -> SimpleNamespace:
         provider="openai",
         target_model="gpt-4o",
         base_url=None,
+        config=None,
         api_key_env_var="OPENAI_API_KEY",
         priority=10,
+        weight=1,
+        timeout_ms=None,
+        routing_group_id=None,
+        region=None,
+        semantic_cache_enabled=False,
+        fallback_config=None,
+        cooldown_until=None,
+        cooldown_seconds=0,
+        mirror_config=None,
+        retry_count=1,
+        consecutive_health_failures=0,
+        health_auto_disable=True,
+        disabled_reason=None,
         is_active=True,
         created_at=datetime.now(UTC),
     )
@@ -269,47 +283,18 @@ async def test_completions_cache_hit(
     mock_db_session: AsyncMock,
     mock_workspace: SimpleNamespace,
 ) -> None:
-    """Cache hit path: returns cached response, no provider call."""
-    cached_response = {
-        "id": "chatcmpl-abc",
-        "object": "chat.completion",
-        "choices": [{"message": {"role": "assistant", "content": "Hello!"}}],
-    }
-    cache_entry = SimpleNamespace(
-        id=uuid.uuid4(),
-        response_json=cached_response,
-        model="gpt-4o",
-        prompt_tokens=10,
-        completion_tokens=5,
-        hit_count=0,
+    """Legacy Python gateway returns a handoff response for chat completions."""
+    resp = await authed_client.post(
+        "/gateway/chat/completions",
+        json={
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "cache": True,
+        },
     )
 
-    # check_cache returns cache_entry; then increment_hit_count + record both execute/add
-    with (
-        patch(
-            "runledger_api.routers.gateway.check_cache",
-            new=AsyncMock(return_value=cache_entry),
-        ),
-        patch(
-            "runledger_api.routers.gateway.increment_hit_count",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
-            "runledger_api.routers.gateway.record_gateway_request",
-            new=AsyncMock(return_value=None),
-        ),
-    ):
-        resp = await authed_client.post(
-            "/gateway/chat/completions",
-            json={
-                "model": "gpt-4o",
-                "messages": [{"role": "user", "content": "Hello"}],
-                "cache": True,
-            },
-        )
-
-    assert resp.status_code == 200
-    assert resp.json()["choices"][0]["message"]["content"] == "Hello!"
+    assert resp.status_code == 410
+    assert "Rust gateway runtime service" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -319,31 +304,15 @@ async def test_completions_no_routes_returns_502(
     mock_workspace: SimpleNamespace,
 ) -> None:
     """No configured routes → 502 Bad Gateway."""
-    with (
-        patch(
-            "runledger_api.routers.gateway.check_cache",
-            new=AsyncMock(return_value=None),
-        ),
-        patch(
-            "runledger_api.services.routing.select_route_with_policy",
-            new=AsyncMock(
-                side_effect=ValueError("No active gateway routes for alias 'unknown-model'")
-            ),
-        ),
-        patch(
-            "runledger_api.routers.gateway.record_gateway_request",
-            new=AsyncMock(return_value=None),
-        ),
-    ):
-        resp = await authed_client.post(
-            "/gateway/chat/completions",
-            json={
-                "model": "unknown-model",
-                "messages": [{"role": "user", "content": "Hi"}],
-            },
-        )
+    resp = await authed_client.post(
+        "/gateway/chat/completions",
+        json={
+            "model": "unknown-model",
+            "messages": [{"role": "user", "content": "Hi"}],
+        },
+    )
 
-    assert resp.status_code == 502
+    assert resp.status_code == 410
 
 
 @pytest.mark.asyncio

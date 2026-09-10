@@ -48,11 +48,19 @@ def _scalar_one_result(value: object) -> MagicMock:
     return m
 
 
+def _scalar_one_or_none_result(value: object) -> MagicMock:
+    """Result where .scalar_one_or_none() returns a nullable single value."""
+    m = MagicMock()
+    m.scalar_one_or_none = MagicMock(return_value=value)
+    return m
+
+
 def _make_run(**kwargs: object) -> SimpleNamespace:
     now = datetime.now(UTC)
     defaults = dict(
         id=uuid.uuid4(),
         workspace_id=uuid.uuid4(),
+        api_key_id=None,
         session_id="sess-abc",
         end_user_id="alice",
         feature_tag=None,
@@ -96,8 +104,8 @@ async def test_list_sessions_empty(
     """GET /sessions with no data → empty items list, total=0."""
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _all_result([]),
             _scalar_one_result(0),
+            _all_result([]),
         ]
     )
 
@@ -118,8 +126,8 @@ async def test_list_sessions_groups_by_session_id(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _all_result([row]),
             _scalar_one_result(1),
+            _all_result([row]),
         ]
     )
 
@@ -144,8 +152,8 @@ async def test_list_sessions_filter_by_end_user_id(
 
     mock_db_session.execute = AsyncMock(
         side_effect=[
-            _all_result([row]),
             _scalar_one_result(1),
+            _all_result([row]),
         ]
     )
 
@@ -280,6 +288,7 @@ async def test_run_detail_includes_payloads(
     mock_db_session.get = AsyncMock(return_value=mock_run)
     mock_db_session.execute = AsyncMock(
         side_effect=[
+            _scalar_one_or_none_result(mock_run),
             _scalars_all_result([mock_span]),
             _scalars_all_result([]),
             _scalars_all_result([]),
@@ -327,6 +336,7 @@ async def test_run_detail_no_payloads_without_metadata(
     mock_db_session.get = AsyncMock(return_value=mock_run)
     mock_db_session.execute = AsyncMock(
         side_effect=[
+            _scalar_one_or_none_result(mock_run),
             _scalars_all_result([mock_span]),
             _scalars_all_result([]),
             _scalars_all_result([]),

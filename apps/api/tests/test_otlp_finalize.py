@@ -223,13 +223,13 @@ async def test_handle_run_start_persists_source_type() -> None:
     await _handle_run_start(mock_session, workspace_id, event)
 
     assert mock_session.execute.called
-    # Extract the INSERT statement's compiled values
-    call_args = mock_session.execute.call_args[0][0]
-    # The insert stmt's _values include source_type and external_trace_id
-    compiled = call_args.compile()
-    params = compiled.params
-    assert params.get("source_type") == "otlp"
-    assert params.get("external_trace_id") == "aabbccddeeff00112233445566778899"
+    call_args = mock_session.execute.call_args_list[0][0][0]
+    stmt_values = {
+        getattr(key, "key", str(key)): getattr(value, "value", value)
+        for key, value in call_args._values.items()
+    }
+    assert stmt_values["source_type"] == "otlp"
+    assert stmt_values["external_trace_id"] == "aabbccddeeff00112233445566778899"
 
 
 @pytest.mark.anyio
