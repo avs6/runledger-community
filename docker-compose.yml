@@ -262,6 +262,14 @@ services:
     # Lets the gateway reach an Ollama/vLLM server on the Docker host.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     depends_on:
       runledger-postgres:
         condition: service_healthy
@@ -436,6 +444,14 @@ services:
       NEXTAUTH_SECRET: ${SECRET_KEY:-change-me-in-production-32chars}
       # Internal Docker network URL — never seen by the browser
       API_URL: http://runledger-api:8000
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     depends_on:
       runledger-api:
         condition: service_healthy
