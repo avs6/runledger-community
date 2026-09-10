@@ -3598,9 +3598,7 @@ async def telemetry_downstream_posture(
     budget_notification_count = (
         await db.execute(
             select(func.count(BudgetNotification.id)).where(
-                BudgetNotification.budget_id.in_(
-                    select(Budget.id).where(Budget.workspace_id == workspace.id)
-                )
+                BudgetNotification.workspace_id == workspace.id
             )
         )
     ).scalar() or 0
@@ -3796,9 +3794,7 @@ async def ai_hub_runtime_posture(
     budget_notification_count = (
         await db.execute(
             select(func.count(BudgetNotification.id)).where(
-                BudgetNotification.budget_id.in_(
-                    select(Budget.id).where(Budget.workspace_id == workspace.id)
-                )
+                BudgetNotification.workspace_id == workspace.id
             )
         )
     ).scalar() or 0
@@ -12652,15 +12648,13 @@ async def finops_internal_posture(
             )
         ).scalar() or 0
 
-    total_notifications = 0
-    if budget_ids:
-        total_notifications = (
-            await db.execute(
-                select(func.count()).select_from(BudgetNotification).where(
-                    BudgetNotification.budget_id.in_(budget_ids)
-                )
+    total_notifications = (
+        await db.execute(
+            select(func.count()).select_from(BudgetNotification).where(
+                BudgetNotification.workspace_id == workspace_id
             )
-        ).scalar() or 0
+        )
+    ).scalar() or 0
 
     spend_30d = float(
         (
@@ -12694,7 +12688,7 @@ async def finops_internal_posture(
         },
         ledger_context={
             "total_snapshots": ledger_snapshots,
-            "latest_snapshot_date": int(latest_snapshot.timestamp()) if latest_snapshot else 0,
+            "latest_snapshot_date": int(datetime.combine(latest_snapshot, datetime.min.time()).timestamp()) if latest_snapshot else 0,
         },
         override_context={
             "total_overrides": total_overrides,
@@ -12756,15 +12750,13 @@ async def budget_control_observe_posture(
             )
         ).scalar() or 0
 
-    total_notifications = 0
-    if budget_ids:
-        total_notifications = (
-            await db.execute(
-                select(func.count()).select_from(BudgetNotification).where(
-                    BudgetNotification.budget_id.in_(budget_ids)
-                )
+    total_notifications = (
+        await db.execute(
+            select(func.count()).select_from(BudgetNotification).where(
+                BudgetNotification.workspace_id == ws
             )
-        ).scalar() or 0
+        )
+    ).scalar() or 0
 
     spend_30d = float(
         (
@@ -13304,7 +13296,7 @@ async def ledger_cross_feature_posture(
             ).order_by(LedgerSnapshot.snapshot_date.desc()).limit(1)
         )
     ).scalar()
-    latest_snapshot_date = int(latest_snapshot_row.timestamp()) if latest_snapshot_row else 0
+    latest_snapshot_date = int(datetime.combine(latest_snapshot_row, datetime.min.time()).timestamp()) if latest_snapshot_row else 0
 
     return LedgerCrossFeaturePosture(
         workspace_id=workspace_id,

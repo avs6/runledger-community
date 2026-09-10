@@ -269,7 +269,7 @@ class EconomicsFinopsPosture(BaseModel):
     period_days: int
     budget_context: dict[str, int | float]
     billing_context: dict[str, int]
-    notification_context: dict[str, int]
+    notification_context: dict[str, int | float]
     ledger_context: dict[str, int]
     spend_context: dict[str, float | int]
 
@@ -287,7 +287,7 @@ class MonitoringFinopsPosture(BaseModel):
     period_days: int
     budget_context: dict[str, int | float]
     billing_context: dict[str, int]
-    notification_context: dict[str, int]
+    notification_context: dict[str, int | float]
     ledger_context: dict[str, int]
 
 
@@ -383,7 +383,7 @@ class OverviewFinopsBudgetPosture(BaseModel):
     budget_context: dict[str, int | float]
     billing_context: dict[str, int]
     spend_context: dict[str, float | int]
-    notification_context: dict[str, int]
+    notification_context: dict[str, int | float]
 
 
 class ModelBudgetUtilizationItem(BaseModel):
@@ -759,7 +759,7 @@ class FinOpsInternalPosture(BaseModel):
     chargeback_context: dict[str, int]
     ledger_context: dict[str, int]
     override_context: dict[str, int]
-    notification_context: dict[str, int]
+    notification_context: dict[str, int | float]
 
 
 class BudgetControlObservePosture(BaseModel):

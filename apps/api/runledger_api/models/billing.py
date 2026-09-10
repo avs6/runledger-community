@@ -137,7 +137,6 @@ class ChargebackRule(Base):
     weight: Mapped[Decimal] = mapped_column(sa.Numeric(6, 4), nullable=False)
     cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        sa.ForeignKey("cost_centers.id", ondelete="SET NULL"),
         nullable=True,
     )
     status: Mapped[str] = mapped_column(
