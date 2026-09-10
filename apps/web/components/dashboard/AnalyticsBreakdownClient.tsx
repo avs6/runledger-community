@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -8,7 +8,7 @@ import {
   BarChart2, Users, Layers, TrendingDown, TrendingUp,
   RefreshCw, Download, SlidersHorizontal, ArrowUpRight,
   Zap, Clock, Activity, PieChart as PieIcon,
-  GitBranch, Target, Workflow, Grid3x3, Radio,
+  GitBranch, Target, Workflow, Grid3x3, Radio, Maximize2, Minimize2,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -235,7 +235,7 @@ function ModelChart({ data }: { data: SpendByModel }) {
             paddingAngle={2}
             label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}
             labelLine={false}
-            style={{ fontSize: 10, fill: '#94a3b8' }}
+            isAnimationActive={false}
           >
             {pie.map((entry, i) => <Cell key={i} fill={entry.color} stroke="none" />)}
           </Pie>
@@ -879,8 +879,26 @@ function EmptyState({ label }: { label: string }) {
 function Card({ title, sub, icon: Icon, children, action }: {
   title: string; sub?: string; icon?: React.ElementType; children: React.ReactNode; action?: React.ReactNode
 }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+
+  function toggle() {
+    if (!ref.current) return
+    if (!document.fullscreenElement) {
+      ref.current.requestFullscreen().then(() => setExpanded(true)).catch(() => {})
+    } else {
+      document.exitFullscreen().then(() => setExpanded(false)).catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    function onFsChange() { if (!document.fullscreenElement) setExpanded(false) }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+    <div ref={ref} className={`overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 ${expanded ? 'flex flex-col' : ''}`}>
       <div className="flex items-start justify-between border-b border-slate-100 px-5 py-3 dark:border-slate-800">
         <div className="flex items-center gap-2">
           {Icon && <Icon className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
@@ -889,9 +907,14 @@ function Card({ title, sub, icon: Icon, children, action }: {
             {sub && <p className="mt-0.5 text-[10px] text-slate-400">{sub}</p>}
           </div>
         </div>
-        {action}
+        <div className="flex items-center gap-2">
+          {action}
+          <button onClick={toggle} className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300" title={expanded ? 'Exit fullscreen' : 'Expand'}>
+            {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
-      <div className="px-5 py-4">{children}</div>
+      <div className={`px-5 py-4 ${expanded ? 'flex-1 overflow-auto' : ''}`}>{children}</div>
     </div>
   )
 }
@@ -1063,18 +1086,22 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
         </Card>
       </div>
 
-      {/* Model pie + Cost bars + Status donut + Latency */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-4">
-        <Card title="Spend by Model" sub="Cost distribution" icon={PieIcon}>
+      {/* Model spend + cost ranking */}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <Card title="Spend by Model" sub="Cost distribution across all models" icon={PieIcon}>
           {byModel ? <ModelChart data={byModel} /> : <Skeleton className="h-[220px] w-full rounded-lg" />}
         </Card>
-        <Card title="Model Cost Ranking" sub="Horizontal cost comparison" icon={BarChart2}>
+        <Card title="Model Cost Ranking" sub="Which models cost the most" icon={BarChart2}>
           {byModel ? <ModelCostBars data={byModel} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
         </Card>
-        <Card title="Run Status" sub="Success / failure breakdown" icon={Activity}>
+      </div>
+
+      {/* Run health + response times */}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <Card title="Run Health" sub="Success vs failure across all runs" icon={Activity}>
           {recentRuns.length > 0 ? <StatusDonut runs={recentRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
         </Card>
-        <Card title="Latency Distribution" sub="Response time histogram" icon={Clock}>
+        <Card title="Response Times" sub="How fast are your LLM calls completing" icon={Clock}>
           {recentRuns.length > 0 ? <LatencyDistribution runs={recentRuns} /> : loading ? <Skeleton className="h-[160px] w-full rounded-lg" /> : <EmptyState label="No data" />}
         </Card>
       </div>
@@ -1084,29 +1111,29 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
         {byFeature ? <FeatureChart data={byFeature} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
       </Card>
 
-      {/* Activity Heatmap + Radar */}
+      {/* Usage patterns + model fingerprint */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Activity Heatmap" sub="Runs by hour × day of week — darker = more runs" icon={Grid3x3}>
+        <Card title="Usage Patterns" sub="When are your agents most active — by hour and day" icon={Grid3x3}>
           {recentRuns.length > 0 ? <ActivityHeatmap runs={recentRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No activity data" />}
         </Card>
-        <Card title="Model Radar" sub="Normalized comparison across cost, tokens, calls, speed" icon={Target}>
+        <Card title="Model Fingerprint" sub="How each model compares across cost, speed, tokens, and volume" icon={Target}>
           {byModel && recentRuns.length > 0 ? <ModelRadar data={byModel} runs={recentRuns} /> : loading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
         </Card>
       </div>
 
-      {/* Sankey: Model → Feature cost flow */}
-      <Card title="Cost Flow: Model → Feature" sub="Sankey diagram showing how model spend distributes across features" icon={Workflow}>
+      {/* Cost attribution flow */}
+      <Card title="Cost Attribution Flow" sub="How model spend flows into feature tags — trace where money goes" icon={Workflow}>
         {byModel && byFeature && recentRuns.length > 0 ? (
           <SankeyChart modelData={byModel} featureData={byFeature} runs={recentRuns} />
         ) : loading ? <Skeleton className="h-[320px] w-full rounded-lg" /> : <EmptyState label="Need model + feature data" />}
       </Card>
 
-      {/* Parallel Coordinates + Ridge Plot */}
+      {/* Model comparison + latency profile */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <Card title="Parallel Coordinates" sub="Compare models across cost, tokens, calls, latency" icon={GitBranch}>
+        <Card title="Model Comparison" sub="Side-by-side view of cost, tokens, calls, and latency per model" icon={GitBranch}>
           {byModel && recentRuns.length > 0 ? <ParallelCoordinates data={byModel} runs={recentRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
         </Card>
-        <Card title="Latency Ridge Plot" sub="Distribution shape per model — peaks show typical response time" icon={Radio}>
+        <Card title="Latency Profile" sub="Response time distribution for each model — where do they cluster" icon={Radio}>
           {recentRuns.length > 0 ? <RidgePlot runs={recentRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
         </Card>
       </div>
