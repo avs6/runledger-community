@@ -315,7 +315,7 @@ function RequestFeed({
               <span className="flex-shrink-0">{statusBadge(req.status)}</span>
               <span className="text-xs font-medium dark:text-white truncate flex-1">{req.model_requested}</span>
               <span className="text-[10px] text-slate-400 flex-shrink-0">{req.latency_ms}ms</span>
-              <span className="text-[10px] text-slate-400 flex-shrink-0">{req.input_tokens + req.output_tokens} tok</span>
+              <span className="text-[10px] text-slate-400 flex-shrink-0">{(req.input_tokens ?? 0) + (req.output_tokens ?? 0)} tok</span>
               <span className="text-[10px] text-slate-400 flex-shrink-0 w-14 text-right">
                 {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
