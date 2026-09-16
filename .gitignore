@@ -75,6 +75,7 @@ logs/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+apps/gateway-rs/target/
 
 
 ## Documents 
