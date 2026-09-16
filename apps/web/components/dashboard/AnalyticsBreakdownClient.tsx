@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -77,11 +77,13 @@ const LOADING_ON: Record<LoadingKey, boolean> = {
 }
 
 function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout>
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), LOAD_TIMEOUT_MS)
   })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId)
+  })
 }
 
 const PRESETS: { v: Preset; label: string }[] = [
@@ -1053,6 +1055,7 @@ function Card({ title, sub, icon, children, action, controls }: {
 export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24h', apiKey: apiKeyOverride }: AnalyticsBreakdownClientProps = {}) {
   const { data: session } = useSession()
   const apiKey = apiKeyOverride ?? (session as { apiKey?: string })?.apiKey
+  const loadIdRef = useRef(0)
 
   const [preset, setPreset] = useState<Preset>(initialPreset)
   const [loadingState, setLoadingState] = useState<Record<LoadingKey, boolean>>(LOADING_ON)
@@ -1073,6 +1076,10 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
   }, [initialPreset])
 
   const load = useCallback(async () => {
+    const loadId = loadIdRef.current + 1
+    loadIdRef.current = loadId
+    const isCurrentLoad = () => loadIdRef.current === loadId
+
     if (!apiKey) {
       setSummary(null)
       setSpendTime(null)
@@ -1085,31 +1092,36 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
     setLoadingState(LOADING_ON)
     const win = presetWindow(preset)
     const gran = presetGranularity(preset)
-    try {
-      const tasks = [
-        withTimeout(getAnalyticsSummary(apiKey, win), 'Analytics summary')
-          .then(setSummary)
-          .finally(() => setLoadingState(current => ({ ...current, summary: false }))),
-        withTimeout(getSpendOverTime(apiKey, gran, win), 'Spend over time')
-          .then(setSpendTime)
-          .finally(() => setLoadingState(current => ({ ...current, spendTime: false }))),
-        withTimeout(getSpendByModel(apiKey, win), 'Spend by model')
-          .then(setByModel)
-          .finally(() => setLoadingState(current => ({ ...current, byModel: false }))),
-        withTimeout(getSpendByFeature(apiKey, win), 'Spend by feature')
-          .then(setByFeature)
-          .finally(() => setLoadingState(current => ({ ...current, byFeature: false }))),
-        withTimeout(getRuns(apiKey, { limit: 80, from: win.from, to: win.to }), 'Recent runs')
-          .then(result => setRecentRuns(result.items))
-          .finally(() => setLoadingState(current => ({ ...current, runs: false }))),
-      ]
-      const results = await Promise.allSettled(tasks)
-      const failures = results
-        .filter(result => result.status === 'rejected')
-      if (failures.length === 5) {
-        toast.error('Failed to load analytics')
+
+    async function loadSection<T>(
+      key: LoadingKey,
+      label: string,
+      promise: Promise<T>,
+      apply: (value: T) => void,
+    ) {
+      try {
+        const value = await withTimeout(promise, label)
+        if (isCurrentLoad()) apply(value)
+        return null
+      } catch (error) {
+        console.error(`[AnalyticsBreakdownClient] ${label} failed`, error)
+        return error
+      } finally {
+        if (isCurrentLoad()) {
+          setLoadingState(current => ({ ...current, [key]: false }))
+        }
       }
-    } catch {
+    }
+
+    const results = await Promise.all([
+      loadSection('summary', 'Analytics summary', getAnalyticsSummary(apiKey, win), setSummary),
+      loadSection('spendTime', 'Spend over time', getSpendOverTime(apiKey, gran, win), setSpendTime),
+      loadSection('byModel', 'Spend by model', getSpendByModel(apiKey, win), setByModel),
+      loadSection('byFeature', 'Spend by feature', getSpendByFeature(apiKey, win), setByFeature),
+      loadSection('runs', 'Recent runs', getRuns(apiKey, { limit: 80, from: win.from, to: win.to }), result => setRecentRuns(result.items)),
+    ])
+    const failures = results.filter(Boolean)
+    if (isCurrentLoad() && failures.length === results.length) {
       toast.error('Failed to load analytics')
     }
   }, [apiKey, preset])
