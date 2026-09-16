@@ -58,6 +58,31 @@ type AnalyticsBreakdownClientProps = {
   initialPreset?: Preset
   apiKey?: string
 }
+type LoadingKey = 'summary' | 'spendTime' | 'byModel' | 'byFeature' | 'runs'
+
+const LOAD_TIMEOUT_MS = 15_000
+const LOADING_OFF: Record<LoadingKey, boolean> = {
+  summary: false,
+  spendTime: false,
+  byModel: false,
+  byFeature: false,
+  runs: false,
+}
+const LOADING_ON: Record<LoadingKey, boolean> = {
+  summary: true,
+  spendTime: true,
+  byModel: true,
+  byFeature: true,
+  runs: true,
+}
+
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out`)), LOAD_TIMEOUT_MS)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId))
+}
 
 const PRESETS: { v: Preset; label: string }[] = [
   { v: '5m', label: '5m' },
@@ -1030,7 +1055,7 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
   const apiKey = apiKeyOverride ?? (session as { apiKey?: string })?.apiKey
 
   const [preset, setPreset] = useState<Preset>(initialPreset)
-  const [loading, setLoading] = useState(true)
+  const [loadingState, setLoadingState] = useState<Record<LoadingKey, boolean>>(LOADING_ON)
   const [modelFilter, setModelFilter] = useState('all')
   const [featureFilter, setFeatureFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<RunStatusFilter>('all')
@@ -1054,19 +1079,29 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
       setByModel(null)
       setByFeature(null)
       setRecentRuns([])
-      setLoading(false)
+      setLoadingState(LOADING_OFF)
       return
     }
-    setLoading(true)
+    setLoadingState(LOADING_ON)
     const win = presetWindow(preset)
     const gran = presetGranularity(preset)
     try {
       const tasks = [
-        getAnalyticsSummary(apiKey, win).then(setSummary),
-        getSpendOverTime(apiKey, gran, win).then(setSpendTime),
-        getSpendByModel(apiKey, win).then(setByModel),
-        getSpendByFeature(apiKey, win).then(setByFeature),
-        getRuns(apiKey, { limit: 80, from: win.from, to: win.to }).then(result => setRecentRuns(result.items)),
+        withTimeout(getAnalyticsSummary(apiKey, win), 'Analytics summary')
+          .then(setSummary)
+          .finally(() => setLoadingState(current => ({ ...current, summary: false }))),
+        withTimeout(getSpendOverTime(apiKey, gran, win), 'Spend over time')
+          .then(setSpendTime)
+          .finally(() => setLoadingState(current => ({ ...current, spendTime: false }))),
+        withTimeout(getSpendByModel(apiKey, win), 'Spend by model')
+          .then(setByModel)
+          .finally(() => setLoadingState(current => ({ ...current, byModel: false }))),
+        withTimeout(getSpendByFeature(apiKey, win), 'Spend by feature')
+          .then(setByFeature)
+          .finally(() => setLoadingState(current => ({ ...current, byFeature: false }))),
+        withTimeout(getRuns(apiKey, { limit: 80, from: win.from, to: win.to }), 'Recent runs')
+          .then(result => setRecentRuns(result.items))
+          .finally(() => setLoadingState(current => ({ ...current, runs: false }))),
       ]
       const results = await Promise.allSettled(tasks)
       const failures = results
@@ -1076,12 +1111,17 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
       }
     } catch {
       toast.error('Failed to load analytics')
-    } finally {
-      setLoading(false)
     }
   }, [apiKey, preset])
 
   useEffect(() => { load() }, [load])
+
+  const summaryLoading = loadingState.summary
+  const spendTimeLoading = loadingState.spendTime
+  const modelLoading = loadingState.byModel
+  const featureLoading = loadingState.byFeature
+  const runsLoading = loadingState.runs
+  const loading = Object.values(loadingState).some(Boolean)
 
   const filteredRuns = recentRuns.filter(run => {
     if (modelFilter !== 'all' && run.primary_model !== modelFilter) return false
@@ -1248,7 +1288,7 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
       </div>
 
       {/* KPI strip */}
-      {loading && !summary ? (
+      {summaryLoading && !summary ? (
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6">
           {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
@@ -1264,51 +1304,51 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
           All runs
         </Link>
       }>
-        {filteredRuns.length > 0 ? <LiveActivityBar runs={filteredRuns} /> : loading ? <Skeleton className="h-44 w-full rounded-lg" /> : <EmptyState label="No recent runs" />}
+        {filteredRuns.length > 0 ? <LiveActivityBar runs={filteredRuns} /> : runsLoading ? <Skeleton className="h-44 w-full rounded-lg" /> : <EmptyState label="No recent runs" />}
       </Card>
 
       {/* Spend over time + Token breakdown */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Spend Over Time" sub={presetSubtitle(preset, presetGranularity(preset))} icon={TrendingUp} controls={periodControl} action={<ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
-          {spendTime ? <SpendChart data={spendTime} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="Spend data unavailable" />}
+          {spendTime ? <SpendChart data={spendTime} /> : spendTimeLoading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="Spend data unavailable" />}
         </Card>
         <Card title="Token Volume" sub="Input vs Output tokens stacked over time" icon={Zap} controls={periodControl}>
-          {spendTime ? <TokenChart data={spendTime} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Token data unavailable" />}
+          {spendTime ? <TokenChart data={spendTime} /> : spendTimeLoading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Token data unavailable" />}
         </Card>
       </div>
 
       {/* Model spend + cost ranking */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Spend by Model" sub="Cost distribution across all models" icon={PieIcon} controls={<>{periodControl}{modelControl}</>}>
-          {filteredByModel ? <ModelChart data={filteredByModel} /> : loading ? <Skeleton className="h-[220px] w-full rounded-lg" /> : <EmptyState label="Model data unavailable" />}
+          {filteredByModel ? <ModelChart data={filteredByModel} /> : modelLoading ? <Skeleton className="h-[220px] w-full rounded-lg" /> : <EmptyState label="Model data unavailable" />}
         </Card>
         <Card title="Model Cost Ranking" sub="Which models cost the most" icon={BarChart2} controls={<>{periodControl}{modelControl}{modelMetricControl}</>}>
-          {filteredByModel ? <ModelCostBars data={filteredByModel} metric={modelMetric} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Model data unavailable" />}
+          {filteredByModel ? <ModelCostBars data={filteredByModel} metric={modelMetric} /> : modelLoading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Model data unavailable" />}
         </Card>
       </div>
 
       {/* Run health + response times */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Run Health" sub="Success vs failure across all runs" icon={Activity} controls={<>{periodControl}{modelControl}{featureControl}</>}>
-          {filteredRuns.length > 0 ? <StatusDonut runs={filteredRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
+          {filteredRuns.length > 0 ? <StatusDonut runs={filteredRuns} /> : runsLoading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
         </Card>
         <Card title="Response Times" sub="How fast are your LLM calls completing" icon={Clock} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
-          {filteredRuns.length > 0 ? <LatencyDistribution runs={filteredRuns} /> : loading ? <Skeleton className="h-[160px] w-full rounded-lg" /> : <EmptyState label="No data" />}
+          {filteredRuns.length > 0 ? <LatencyDistribution runs={filteredRuns} /> : runsLoading ? <Skeleton className="h-[160px] w-full rounded-lg" /> : <EmptyState label="No data" />}
         </Card>
       </div>
 
       {/* Feature tags */}
       <Card title="Spend by Feature Tag" sub="Top features by cost" icon={Layers} controls={<>{periodControl}{featureControl}{featureMetricControl}</>}>
-        {filteredByFeature ? <FeatureChart data={filteredByFeature} metric={featureMetric} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Feature data unavailable" />}
+        {filteredByFeature ? <FeatureChart data={filteredByFeature} metric={featureMetric} /> : featureLoading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Feature data unavailable" />}
       </Card>
 
       {/* Usage patterns + model fingerprint */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Usage Patterns" sub="When are your agents most active — by hour and day" icon={Grid3x3} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
-          {filteredRuns.length > 0 ? <ActivityHeatmap runs={filteredRuns} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No activity data" />}
+          {filteredRuns.length > 0 ? <ActivityHeatmap runs={filteredRuns} /> : runsLoading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="No activity data" />}
         </Card>
         <Card title="Model Fingerprint" sub="How each model compares across cost, speed, tokens, and volume" icon={Target} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
-          {filteredByModel && filteredRuns.length > 0 ? <ModelRadar data={filteredByModel} runs={filteredRuns} /> : loading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
+          {filteredByModel && filteredRuns.length > 0 ? <ModelRadar data={filteredByModel} runs={filteredRuns} /> : (modelLoading || runsLoading) ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
         </Card>
       </div>
 
@@ -1316,16 +1356,16 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
       <Card title="Cost Attribution Flow" sub="How model spend flows into feature tags — trace where money goes" icon={Workflow} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
         {filteredByModel && filteredByFeature && filteredRuns.length > 0 ? (
           <SankeyChart modelData={filteredByModel} featureData={filteredByFeature} runs={filteredRuns} />
-        ) : loading ? <Skeleton className="h-[320px] w-full rounded-lg" /> : <EmptyState label="Need model + feature data" />}
+        ) : (modelLoading || featureLoading || runsLoading) ? <Skeleton className="h-[320px] w-full rounded-lg" /> : <EmptyState label="Need model + feature data" />}
       </Card>
 
       {/* Model comparison + latency profile */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Model Comparison" sub="Side-by-side view of cost, tokens, calls, and latency per model" icon={GitBranch} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
-          {filteredByModel && filteredRuns.length > 0 ? <ParallelCoordinates data={filteredByModel} runs={filteredRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
+          {filteredByModel && filteredRuns.length > 0 ? <ParallelCoordinates data={filteredByModel} runs={filteredRuns} /> : (modelLoading || runsLoading) ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No model data" />}
         </Card>
         <Card title="Latency Profile" sub="Response time distribution for each model — where do they cluster" icon={Radio} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>}>
-          {filteredRuns.length > 0 ? <RidgePlot runs={filteredRuns} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
+          {filteredRuns.length > 0 ? <RidgePlot runs={filteredRuns} /> : runsLoading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="No runs" />}
         </Card>
       </div>
 
