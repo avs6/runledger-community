@@ -424,17 +424,24 @@ export default function MonitoringPage() {
   const [opsPosture, setOpsPosture] = useState<MonitoringOpsPosture | null>(null)
 
   const load = useCallback(async (isRefresh = false) => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      setRefreshing(false)
+      return
+    }
     isRefresh ? setRefreshing(true) : setLoading(true)
     try {
-      const [evts, alerts, gw] = await Promise.all([
+      const [evts, alerts, gw] = await Promise.allSettled([
         getSecurityEvents(apiKey),
         listAlertHistory(apiKey, 100),
         listGatewayRequests(apiKey, { limit: 100 }),
       ])
-      setSecurityEvents(evts.items.slice(0, 100))
-      setAlertFirings(alerts.items)
-      setGatewayRequests(gw.items)
+      if (evts.status === 'fulfilled') setSecurityEvents(evts.value.items.slice(0, 100))
+      if (alerts.status === 'fulfilled') setAlertFirings(alerts.value.items)
+      if (gw.status === 'fulfilled') setGatewayRequests(gw.value.items)
+      if ([evts, alerts, gw].every(result => result.status === 'rejected')) {
+        toast.error('Failed to load monitoring data')
+      }
     } catch (err) {
       console.error(err)
       toast.error('Failed to load monitoring data')

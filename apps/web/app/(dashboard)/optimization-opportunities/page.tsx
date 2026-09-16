@@ -174,7 +174,10 @@ export default function OptimizationPage() {
   }, [apiKey])
 
   const loadOpps = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setOppsLoading(false)
+      return
+    }
     setOppsLoading(true)
     const win = rangeWindow(range)
     try {

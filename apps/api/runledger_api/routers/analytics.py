@@ -16935,7 +16935,10 @@ async def platform_settings_convergence_posture(
 
     ledger_closures = (
         await db.execute(
-            select(func.count(LedgerSnapshot.id)).where(LedgerSnapshot.is_signed.is_(True))
+            select(func.count(LedgerSnapshot.id)).where(
+                LedgerSnapshot.hash.is_not(None),
+                LedgerSnapshot.key_id.is_not(None),
+            )
         )
     ).scalar() or 0
 

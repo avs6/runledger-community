@@ -57,10 +57,12 @@ function PipelineGraph({
   activeStage,
   setActiveStage,
   requestCount,
+  onStageSelect,
 }: {
   activeStage: string | null
   setActiveStage: (s: string | null) => void
   requestCount: number
+  onStageSelect: (s: string) => void
 }) {
   return (
     <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-gradient-to-r from-slate-50 to-indigo-50/30 dark:from-slate-800/60 dark:to-indigo-900/20 p-6">
@@ -94,7 +96,10 @@ function PipelineGraph({
                 </div>
               )}
               <button
-                onClick={() => setActiveStage(selected ? null : stage.id)}
+                onClick={() => {
+                  setActiveStage(selected ? null : stage.id)
+                  onStageSelect(stage.id)
+                }}
                 className={`flex-shrink-0 rounded-xl px-5 py-4 text-center min-w-[130px] transition-all cursor-pointer
                   ${selected
                     ? 'ring-2 ring-indigo-500 bg-white dark:bg-slate-800 shadow-lg scale-105'
@@ -153,10 +158,12 @@ function Toggle({
 function RoutesPanel({
   routes,
   onToggle,
+  onFeatureToggle,
   toggling,
 }: {
   routes: GatewayRoute[]
   onToggle: (id: string, active: boolean) => void
+  onFeatureToggle: (id: string, feature: 'semantic_cache_enabled' | 'context_compiler_enabled' | 'intelligent_routing_enabled', enabled: boolean) => void
   toggling: Set<string>
 }) {
   return (
@@ -177,12 +184,43 @@ function RoutesPanel({
               {r.intelligent_routing_enabled && ' · IR'}
               {r.semantic_cache_enabled && ' · Cache'}
             </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {([
+                ['intelligent_routing_enabled', 'Routing', 'teal'],
+                ['semantic_cache_enabled', 'Cache', 'indigo'],
+                ['context_compiler_enabled', 'Compiler', 'violet'],
+              ] as const).map(([feature, label, color]) => {
+                const enabled = Boolean(r[feature])
+                const colorClass = enabled
+                  ? color === 'teal'
+                    ? 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-300'
+                    : color === 'violet'
+                    ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300'
+                    : 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
+                  : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                return (
+                  <button
+                    key={feature}
+                    type="button"
+                    onClick={() => onFeatureToggle(r.id, feature, !enabled)}
+                    disabled={toggling.has(`${r.id}:${feature}`)}
+                    className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium transition hover:opacity-80 disabled:opacity-50 ${colorClass}`}
+                    title={`${label} ${enabled ? 'enabled' : 'disabled'} for ${r.alias}`}
+                  >
+                    {label} {enabled ? 'ON' : 'OFF'}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <Toggle
-            checked={r.is_active}
-            onChange={(v) => onToggle(r.id, v)}
-            disabled={toggling.has(r.id)}
-          />
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[10px] text-slate-400">Active</span>
+            <Toggle
+              checked={r.is_active}
+              onChange={(v) => onToggle(r.id, v)}
+              disabled={toggling.has(r.id)}
+            />
+          </div>
         </div>
       ))}
     </div>
@@ -381,23 +419,45 @@ function InjectPanel({
   open,
   onClose,
   apiKey,
+  routes,
   onSent,
 }: {
   open: boolean
   onClose: () => void
   apiKey: string
+  routes: GatewayRoute[]
   onSent: () => void
 }) {
-  const [model, setModel] = useState('gpt-4o')
+  const modelOptions = Array.from(
+    new Map(
+      routes
+        .filter((route) => route.is_active)
+        .flatMap((route) => [
+          [route.alias, `${route.alias} (${route.provider} -> ${route.target_model})`],
+          [route.target_model, `${route.target_model} (${route.provider})`],
+        ])
+    )
+  )
+  const [model, setModel] = useState(modelOptions[0]?.[0] ?? 'gpt-4o')
   const [prompt, setPrompt] = useState('Say hello in one sentence.')
+  const [cacheEnabled, setCacheEnabled] = useState(true)
+  const [semanticCacheEnabled, setSemanticCacheEnabled] = useState(false)
+  const [contextCompilerEnabled, setContextCompilerEnabled] = useState(false)
+  const [intelligentRoutingEnabled, setIntelligentRoutingEnabled] = useState(false)
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!modelOptions.some(([value]) => value === model) && modelOptions[0]) {
+      setModel(modelOptions[0][0])
+    }
+  }, [model, modelOptions])
 
   async function send() {
     setSending(true)
     setResult(null)
     try {
-      const res = await fetch('/api/v1/gateway/chat/completions', {
+      const res = await fetch('/api/gateway/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -407,13 +467,21 @@ function InjectPanel({
           model,
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 100,
+          cache: cacheEnabled,
+          semantic_cache: semanticCacheEnabled,
+          context_compiler: contextCompilerEnabled,
+          intelligent_routing: intelligentRoutingEnabled,
+          metadata: { feature_tag: 'pipeline-designer' },
         }),
       })
-      const data = await res.json()
+      const contentType = res.headers.get('content-type') || ''
+      const data = contentType.includes('application/json') ? await res.json() : await res.text()
       if (!res.ok) {
-        setResult(`Error ${res.status}: ${JSON.stringify(data)}`)
+        setResult(`Error ${res.status}: ${typeof data === 'string' ? data.slice(0, 500) : JSON.stringify(data)}`)
       } else {
-        const content = data.choices?.[0]?.message?.content || JSON.stringify(data)
+        const content = typeof data === 'string'
+          ? data
+          : data.choices?.[0]?.message?.content || JSON.stringify(data)
         setResult(content)
         toast.success('Request traced through pipeline')
         onSent()
@@ -441,12 +509,30 @@ function InjectPanel({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1">Model</label>
-          <input className={inputCls} value={model} onChange={(e) => setModel(e.target.value)} placeholder="gpt-4o" />
+          <select className={inputCls} value={model} onChange={(e) => setModel(e.target.value)}>
+            {modelOptions.length === 0 && <option value="gpt-4o">gpt-4o</option>}
+            {modelOptions.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="text-[11px] text-slate-500 dark:text-slate-400 block mb-1">Prompt</label>
           <input className={inputCls} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Say hello" />
         </div>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        {[
+          ['Exact cache', cacheEnabled, setCacheEnabled],
+          ['Semantic cache', semanticCacheEnabled, setSemanticCacheEnabled],
+          ['Compiler', contextCompilerEnabled, setContextCompilerEnabled],
+          ['Routing', intelligentRoutingEnabled, setIntelligentRoutingEnabled],
+        ].map(([label, checked, setter]) => (
+          <label key={String(label)} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-2 text-[11px] text-slate-600 dark:text-slate-300">
+            {label as string}
+            <Toggle checked={checked as boolean} onChange={setter as (v: boolean) => void} />
+          </label>
+        ))}
       </div>
       <div className="flex items-center gap-3">
         <button
@@ -522,13 +608,31 @@ export default function PipelineDesignerPage() {
   async function toggleRoute(id: string, active: boolean) {
     setToggling((s) => new Set(s).add(id))
     try {
-      await updateGatewayRoute(apiKey, id, { is_active: active })
-      setRoutes((prev) => prev.map((r) => (r.id === id ? { ...r, is_active: active } : r)))
+      const updated = await updateGatewayRoute(apiKey, id, { is_active: active })
+      setRoutes((prev) => prev.map((r) => (r.id === id ? updated : r)))
       toast.success(`Route ${active ? 'enabled' : 'disabled'}`)
     } catch {
       toast.error('Failed to update route')
     } finally {
       setToggling((s) => { const n = new Set(s); n.delete(id); return n })
+    }
+  }
+
+  async function toggleRouteFeature(
+    id: string,
+    feature: 'semantic_cache_enabled' | 'context_compiler_enabled' | 'intelligent_routing_enabled',
+    enabled: boolean,
+  ) {
+    const key = `${id}:${feature}`
+    setToggling((s) => new Set(s).add(key))
+    try {
+      const updated = await updateGatewayRoute(apiKey, id, { [feature]: enabled })
+      setRoutes((prev) => prev.map((r) => (r.id === id ? updated : r)))
+      toast.success(`${feature.replace(/_/g, ' ')} ${enabled ? 'enabled' : 'disabled'}`)
+    } catch {
+      toast.error('Failed to update route feature')
+    } finally {
+      setToggling((s) => { const n = new Set(s); n.delete(key); return n })
     }
   }
 
@@ -570,6 +674,12 @@ export default function PipelineDesignerPage() {
     { id: 'policies', label: 'Policies', icon: Zap, count: policies.length },
   ]
 
+  function selectStage(stage: string) {
+    if (stage === 'routing' || stage === 'execution') setActiveTab('routes')
+    if (stage === 'reporting') setActiveTab('cache')
+    if (stage === 'enforcement') setActiveTab('guardrails')
+  }
+
   return (
     <div className="mx-auto max-w-[1600px] space-y-5 px-4 py-6">
       {/* Header */}
@@ -603,7 +713,7 @@ export default function PipelineDesignerPage() {
       </div>
 
       {/* Inject Panel */}
-      <InjectPanel open={injectOpen} onClose={() => setInjectOpen(false)} apiKey={apiKey} onSent={fetchAll} />
+      <InjectPanel open={injectOpen} onClose={() => setInjectOpen(false)} apiKey={apiKey} routes={routes} onSent={fetchAll} />
 
       {/* Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-3">
@@ -634,7 +744,7 @@ export default function PipelineDesignerPage() {
       </div>
 
       {/* Pipeline Flow Graph */}
-      <PipelineGraph activeStage={activeStage} setActiveStage={setActiveStage} requestCount={requests.length} />
+      <PipelineGraph activeStage={activeStage} setActiveStage={setActiveStage} requestCount={requests.length} onStageSelect={selectStage} />
 
       {/* Main Content: Control Panels + Live Feed */}
       <div className="grid gap-5 xl:grid-cols-3">
@@ -658,7 +768,7 @@ export default function PipelineDesignerPage() {
               ))}
             </div>
             <div className="p-3 max-h-[500px] overflow-y-auto">
-              {activeTab === 'routes' && <RoutesPanel routes={routes} onToggle={toggleRoute} toggling={toggling} />}
+              {activeTab === 'routes' && <RoutesPanel routes={routes} onToggle={toggleRoute} onFeatureToggle={toggleRouteFeature} toggling={toggling} />}
               {activeTab === 'guardrails' && (
                 <div className="space-y-2">
                   <p className="text-xs text-slate-400">

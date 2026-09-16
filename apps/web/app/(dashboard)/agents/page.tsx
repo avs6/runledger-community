@@ -123,7 +123,10 @@ export default function AgentsPage() {
   })
 
   const fetchAgents = useCallback(() => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     getAgents(apiKey, { limit: 100 })
       .then(data => { setAgents(data.agents); setTotal(data.total) })

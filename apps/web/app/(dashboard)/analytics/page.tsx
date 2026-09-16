@@ -375,7 +375,7 @@ export default async function AnalyticsOverviewPage({
       </div>
 
       {/* Analytics Breakdown — charts as hero */}
-      <AnalyticsBreakdownClient embedded />
+      <AnalyticsBreakdownClient embedded initialPreset={win.range} apiKey={session.apiKey} />
 
       {/* Grid: Recent activity + Top intents + Top models */}
       <div className="grid gap-3 xl:grid-cols-3">

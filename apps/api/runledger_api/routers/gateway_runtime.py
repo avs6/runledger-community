@@ -7,6 +7,142 @@ from .gateway_shared import *
 router = APIRouter()
 
 
+def _metadata_text(metadata: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = metadata.get(key)
+        if value not in (None, "", []):
+            return str(value)[:255]
+    return None
+
+
+def _optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _record_canonical_gateway_run(
+    db: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    route: GatewayRoute,
+    body: GatewayRuntimeFinalizeRequest,
+    input_tokens: int | None,
+    output_tokens: int | None,
+) -> None:
+    ended_at = datetime.now(UTC)
+    latency_ms = body.latency_ms if body.latency_ms is not None else body.total_wall_ms
+    started_at = ended_at - timedelta(milliseconds=latency_ms or 0)
+    metadata = body.request_metadata or {}
+    response_id = body.response_json.get("id")
+    cost = await calculate_cost(
+        db,
+        provider=route.provider,
+        model=route.target_model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        at_time=ended_at,
+        workspace_id=workspace_id,
+    )
+    run_metadata = {
+        **metadata,
+        "source": "runledger.gateway-rs",
+        "model_requested": body.model_requested,
+        "model_used": route.target_model,
+        "route_id": str(route.id),
+        "route_alias": route.alias,
+        "provider": route.provider,
+        "decision_reason": body.decision_reason,
+        "request_tags": body.request_tags,
+        "compiler_enabled": body.compiler_enabled,
+        "semantic_cache_enabled": body.semantic_cache_enabled,
+        "guardrails_enabled": body.guardrails_enabled,
+        "ir_decision": body.ir_decision,
+        "response_id": response_id,
+    }
+    feature_tag = _metadata_text(
+        metadata,
+        "runledger.feature_tag",
+        "feature_tag",
+        "feature",
+        "workflow",
+        "workflow_type",
+    )
+    if feature_tag is None and body.request_tags:
+        feature_tag = body.request_tags[0][:255]
+
+    run = AgentRun(
+        workspace_id=workspace_id,
+        api_key_id=body.api_key_id,
+        end_user_id=body.end_user_id,
+        session_id=_metadata_text(metadata, "runledger.session_id", "session_id", "session"),
+        feature_tag=feature_tag,
+        deployment_version=_metadata_text(
+            metadata,
+            "runledger.deployment_version",
+            "deployment_version",
+            "service.version",
+            "version",
+        ),
+        status=RunStatusEnum.succeeded,
+        started_at=started_at,
+        ended_at=ended_at,
+        total_cost_usd=cost,
+        total_input_tokens=input_tokens,
+        total_output_tokens=output_tokens,
+        run_metadata=run_metadata,
+        intent=_metadata_text(metadata, "intent", "task.intent"),
+        source_type="gateway-rs",
+    )
+    db.add(run)
+    await db.flush()
+
+    span = Span(
+        run_id=run.id,
+        span_type=SpanTypeEnum.llm,
+        name=f"{route.provider}:{route.target_model}"[:255],
+        started_at=started_at,
+        ended_at=ended_at,
+        status=SpanStatusEnum.succeeded,
+        cost_usd=cost,
+        span_metadata={
+            "source": "runledger.gateway-rs",
+            "route_id": str(route.id),
+            "route_alias": route.alias,
+            "model_requested": body.model_requested,
+            "decision_reason": body.decision_reason,
+            "response_id": response_id,
+        },
+    )
+    db.add(span)
+    await db.flush()
+
+    db.add(
+        ProviderCall(
+            span_id=span.id,
+            run_id=run.id,
+            workspace_id=workspace_id,
+            api_key_id=body.api_key_id,
+            end_user_id=body.end_user_id,
+            provider=route.provider,
+            model=route.target_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=body.latency_ms,
+            cost_usd=cost,
+            status="success",
+            provider_request_id=str(response_id) if response_id else None,
+            cost_source="pricing" if cost is not None else None,
+            model_provider=route.provider,
+            is_billable=True,
+        )
+    )
+    await db.flush()
+
+
 @router.get("/runtime/snapshot", response_model=GatewayRuntimeSnapshotResponse)
 async def get_gateway_runtime_snapshot(
     auth: OrgAdminDep,
@@ -517,8 +653,8 @@ async def gateway_runtime_finalize(
                     )
 
     usage = body.response_json.get("usage") or {}
-    input_tokens = usage.get("prompt_tokens")
-    output_tokens = usage.get("completion_tokens")
+    input_tokens = _optional_int(usage.get("prompt_tokens"))
+    output_tokens = _optional_int(usage.get("completion_tokens"))
     if body.cache:
         cache_key = make_cache_key(body.model_requested, body.prepared_messages)
         await store_cache(
@@ -540,6 +676,14 @@ async def gateway_runtime_finalize(
             completion_tokens=output_tokens,
         )
     gateway_overhead_ms = max((body.total_wall_ms or 0) - (body.latency_ms or 0), 0)
+    await _record_canonical_gateway_run(
+        db,
+        workspace_id=workspace.id,
+        route=route,
+        body=body,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
     await record_gateway_request(
         db=db,
         workspace_id=workspace.id,

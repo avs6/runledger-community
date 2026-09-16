@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -53,6 +53,11 @@ type SpendGranularity = 'minute' | '5min' | 'hourly' | 'daily'
 type RunStatusFilter = 'all' | 'succeeded' | 'failed' | 'running' | 'cancelled'
 type ModelMetric = 'cost' | 'tokens' | 'calls'
 type FeatureMetric = 'cost' | 'runs' | 'calls'
+type AnalyticsBreakdownClientProps = {
+  embedded?: boolean
+  initialPreset?: Preset
+  apiKey?: string
+}
 
 const PRESETS: { v: Preset; label: string }[] = [
   { v: '5m', label: '5m' },
@@ -1020,11 +1025,15 @@ function Card({ title, sub, icon, children, action, controls }: {
   )
 }
 
-export default function AnalyticsBreakdownClient({ embedded }: { embedded?: boolean } = {}) {
-  const { data: session } = useSession()
-  const apiKey = (session as { apiKey?: string })?.apiKey
+function isFulfilled<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {
+  return result.status === 'fulfilled'
+}
 
-  const [preset, setPreset] = useState<Preset>('24h')
+export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24h', apiKey: apiKeyOverride }: AnalyticsBreakdownClientProps = {}) {
+  const { data: session } = useSession()
+  const apiKey = apiKeyOverride ?? (session as { apiKey?: string })?.apiKey
+
+  const [preset, setPreset] = useState<Preset>(initialPreset)
   const [loading, setLoading] = useState(true)
   const [modelFilter, setModelFilter] = useState('all')
   const [featureFilter, setFeatureFilter] = useState('all')
@@ -1038,24 +1047,37 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
   const [byFeature, setByFeature] = useState<SpendByFeature | null>(null)
   const [recentRuns, setRecentRuns] = useState<RunListItem[]>([])
 
+  useEffect(() => {
+    setPreset(initialPreset)
+  }, [initialPreset])
+
   const load = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const win = presetWindow(preset)
     const gran = presetGranularity(preset)
     try {
-      const [s, t, m, f, runs] = await Promise.all([
+      const [summaryResult, spendTimeResult, byModelResult, byFeatureResult, runsResult] = await Promise.allSettled([
         getAnalyticsSummary(apiKey, win),
         getSpendOverTime(apiKey, gran, win),
         getSpendByModel(apiKey, win),
         getSpendByFeature(apiKey, win),
         getRuns(apiKey, { limit: 80, from: win.from, to: win.to }),
       ])
-      setSummary(s)
-      setSpendTime(t)
-      setByModel(m)
-      setByFeature(f)
-      setRecentRuns(runs.items)
+      if (isFulfilled(summaryResult)) setSummary(summaryResult.value)
+      if (isFulfilled(spendTimeResult)) setSpendTime(spendTimeResult.value)
+      if (isFulfilled(byModelResult)) setByModel(byModelResult.value)
+      if (isFulfilled(byFeatureResult)) setByFeature(byFeatureResult.value)
+      if (isFulfilled(runsResult)) setRecentRuns(runsResult.value.items)
+
+      const failures = [summaryResult, spendTimeResult, byModelResult, byFeatureResult, runsResult]
+        .filter(result => result.status === 'rejected')
+      if (failures.length === 5) {
+        toast.error('Failed to load analytics')
+      }
     } catch {
       toast.error('Failed to load analytics')
     } finally {
@@ -1071,14 +1093,14 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
     if (statusFilter !== 'all' && run.status !== statusFilter) return false
     return true
   })
-  const modelOptions = Array.from(new Set([
+  const modelOptions = useMemo(() => Array.from(new Set([
     ...(byModel?.items.map(item => item.model) ?? []),
     ...(recentRuns.map(run => run.primary_model).filter(Boolean) as string[]),
-  ])).sort()
-  const featureOptions = Array.from(new Set([
+  ])).sort(), [byModel, recentRuns])
+  const featureOptions = useMemo(() => Array.from(new Set([
     ...(byFeature?.items.map(item => item.feature_tag ?? 'untagged') ?? []),
     ...recentRuns.map(run => run.feature_tag ?? 'untagged'),
-  ])).sort()
+  ])).sort(), [byFeature, recentRuns])
   const filteredByModel = byModel
     ? {
         ...byModel,
@@ -1236,7 +1258,9 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
         </div>
       ) : summary ? (
         <KpiStrip summary={summary} />
-      ) : null}
+      ) : (
+        <EmptyState label={apiKey ? 'Analytics summary unavailable' : 'Waiting for an API key'} />
+      )}
 
       {/* Live Activity Bar */}
       <Card title="Live Model Activity" sub="Recent runs colored by model — bar height = token count" icon={Activity} controls={<>{periodControl}{modelControl}{featureControl}{statusControl}</>} action={
@@ -1250,20 +1274,20 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
       {/* Spend over time + Token breakdown */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Spend Over Time" sub={presetSubtitle(preset, presetGranularity(preset))} icon={TrendingUp} controls={periodControl} action={<ArrowUpRight className="h-4 w-4 text-slate-300 dark:text-slate-600" />}>
-          {spendTime ? <SpendChart data={spendTime} /> : <Skeleton className="h-[260px] w-full rounded-lg" />}
+          {spendTime ? <SpendChart data={spendTime} /> : loading ? <Skeleton className="h-[260px] w-full rounded-lg" /> : <EmptyState label="Spend data unavailable" />}
         </Card>
         <Card title="Token Volume" sub="Input vs Output tokens stacked over time" icon={Zap} controls={periodControl}>
-          {spendTime ? <TokenChart data={spendTime} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
+          {spendTime ? <TokenChart data={spendTime} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Token data unavailable" />}
         </Card>
       </div>
 
       {/* Model spend + cost ranking */}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <Card title="Spend by Model" sub="Cost distribution across all models" icon={PieIcon} controls={<>{periodControl}{modelControl}</>}>
-          {filteredByModel ? <ModelChart data={filteredByModel} /> : <Skeleton className="h-[220px] w-full rounded-lg" />}
+          {filteredByModel ? <ModelChart data={filteredByModel} /> : loading ? <Skeleton className="h-[220px] w-full rounded-lg" /> : <EmptyState label="Model data unavailable" />}
         </Card>
         <Card title="Model Cost Ranking" sub="Which models cost the most" icon={BarChart2} controls={<>{periodControl}{modelControl}{modelMetricControl}</>}>
-          {filteredByModel ? <ModelCostBars data={filteredByModel} metric={modelMetric} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
+          {filteredByModel ? <ModelCostBars data={filteredByModel} metric={modelMetric} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Model data unavailable" />}
         </Card>
       </div>
 
@@ -1279,7 +1303,7 @@ export default function AnalyticsBreakdownClient({ embedded }: { embedded?: bool
 
       {/* Feature tags */}
       <Card title="Spend by Feature Tag" sub="Top features by cost" icon={Layers} controls={<>{periodControl}{featureControl}{featureMetricControl}</>}>
-        {filteredByFeature ? <FeatureChart data={filteredByFeature} metric={featureMetric} /> : <Skeleton className="h-[200px] w-full rounded-lg" />}
+        {filteredByFeature ? <FeatureChart data={filteredByFeature} metric={featureMetric} /> : loading ? <Skeleton className="h-[200px] w-full rounded-lg" /> : <EmptyState label="Feature data unavailable" />}
       </Card>
 
       {/* Usage patterns + model fingerprint */}

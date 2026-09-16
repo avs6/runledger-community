@@ -578,9 +578,12 @@ class GatewayRuntimePreflightResponse(BaseModel):
 class GatewayRuntimeFinalizeRequest(BaseModel):
     workspace_id: uuid.UUID
     route_id: uuid.UUID
+    api_key_id: uuid.UUID | None = None
     model_requested: str
     prepared_messages: list[dict[str, Any]] = Field(default_factory=list)
     response_json: dict[str, Any]
+    request_metadata: dict[str, Any] = Field(default_factory=dict)
+    request_tags: list[str] = Field(default_factory=list)
     latency_ms: int | None = Field(default=None, ge=0)
     total_wall_ms: int | None = Field(default=None, ge=0)
     decision_reason: str | None = None

@@ -925,7 +925,10 @@ export default function EvaluationPage() {
   const [modePosture, setModePosture] = useState<ReplayLabModePosture | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const [exp, ds, pr, evs, cq, bv] = await Promise.all([

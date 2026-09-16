@@ -215,19 +215,25 @@ export default function OutcomesPage() {
   const [showForm, setShowForm] = useState(false)
 
   const loadAnalytics = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
-      const [s, t, w, q] = await Promise.all([
+      const [s, t, w, q] = await Promise.allSettled([
         getOutcomeSummary(apiKey, windowDays),
         getOutcomeTrend(apiKey, windowDays),
         getWorkflowROI(apiKey, windowDays),
         getQualityCorrelation(apiKey, windowDays),
       ])
-      setSummary(s)
-      setTrend(t)
-      setWorkflows(w)
-      setQuality(q)
+      if (s.status === 'fulfilled') setSummary(s.value)
+      if (t.status === 'fulfilled') setTrend(t.value)
+      if (w.status === 'fulfilled') setWorkflows(w.value)
+      if (q.status === 'fulfilled') setQuality(q.value)
+      if ([s, t, w, q].every(result => result.status === 'rejected')) {
+        toast.error('Failed to load outcome analytics')
+      }
     } catch {
       toast.error('Failed to load outcome analytics')
     } finally {
@@ -236,7 +242,10 @@ export default function OutcomesPage() {
   }, [apiKey, windowDays])
 
   const loadLedger = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLedgerLoading(false)
+      return
+    }
     setLedgerLoading(true)
     try {
       const data = await listOutcomes(apiKey, {

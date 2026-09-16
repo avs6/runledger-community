@@ -180,7 +180,10 @@ export default function GuardrailsPage() {
   const testCaseCounts = useMemo(() => { const m = new Map<string, number>(); for (const tc of testCases) m.set(tc.guardrail_rule_id, (m.get(tc.guardrail_rule_id) || 0) + 1); return m }, [testCases])
 
   async function loadData() {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const [rulesRes, statsRes, eventsRes, templatesRes, partnersRes, filtersRes, testCasesRes, alertsRes] = await Promise.all([

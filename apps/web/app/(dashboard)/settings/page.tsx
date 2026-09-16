@@ -158,12 +158,15 @@ export default function SettingsPage() {
     setComplianceAttempted(true)
     setLoadingCompliance(true)
     try {
-      const [snapList, summary] = await Promise.all([
+      const [snapList, summary] = await Promise.allSettled([
         listLedgerSnapshots(apiKey),
         getLedgerClosureSummary(apiKey),
       ])
-      setSnapshots(snapList.items)
-      setClosureSummary(summary)
+      if (snapList.status === 'fulfilled') setSnapshots(snapList.value.items)
+      if (summary.status === 'fulfilled') setClosureSummary(summary.value)
+      if (snapList.status === 'rejected' && summary.status === 'rejected') {
+        throw snapList.reason
+      }
     } catch (err) {
       console.error(err)
       toast.error('Failed to load compliance data')
@@ -180,12 +183,15 @@ export default function SettingsPage() {
     if (!apiKey || !canManagePlatformSettings) return
     setOpsStatusAttempted(true)
     try {
-      const [status, defaults] = await Promise.all([
+      const [status, defaults] = await Promise.allSettled([
         getOpsFeatureStatus(apiKey),
         getPlatformWebhookDefaults(apiKey),
       ])
-      setOpsStatus(status)
-      setPlatformWebhookDefaults(defaults)
+      if (status.status === 'fulfilled') setOpsStatus(status.value)
+      if (defaults.status === 'fulfilled') setPlatformWebhookDefaults(defaults.value)
+      if (status.status === 'rejected' && defaults.status === 'rejected') {
+        throw status.reason
+      }
     } catch (err) {
       console.error(err)
       toast.error('Failed to load operational feature status')
@@ -203,7 +209,7 @@ export default function SettingsPage() {
     setBackupAttempted(true)
     setLoadingBackup(true)
     try {
-      const [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, featureFlags, policyEval] = await Promise.all([
+      const [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, featureFlags, policyEval] = await Promise.allSettled([
         getOpsFeatureStatus(apiKey),
         getBackupHistory(apiKey, 20),
         getBackupConfig(apiKey),
@@ -214,16 +220,22 @@ export default function SettingsPage() {
         getOpsFeatureFlags(apiKey),
         getOpsPolicyEvaluation(apiKey),
       ])
-      setOpsStatus(status)
-      setBackupRuns(history.items)
-      setBackupConfig(config ?? makeDefaultBackupConfig())
-      setBackupSnapshots(snapshotList.items)
-      setBackupStatus(backupHealth)
-      setOpsQueues(queueStatus.items)
-      setOpsQueueSummary({ total_depth: queueStatus.total_depth, busy_queues: queueStatus.busy_queues })
-      setOpsStorage(storageStatus)
-      setOpsFeatureFlags(featureFlags)
-      setOpsPolicy(policyEval)
+      if (status.status === 'fulfilled') setOpsStatus(status.value)
+      if (history.status === 'fulfilled') setBackupRuns(history.value.items)
+      if (config.status === 'fulfilled') setBackupConfig(config.value ?? makeDefaultBackupConfig())
+      if (snapshotList.status === 'fulfilled') setBackupSnapshots(snapshotList.value.items)
+      if (backupHealth.status === 'fulfilled') setBackupStatus(backupHealth.value)
+      if (queueStatus.status === 'fulfilled') {
+        setOpsQueues(queueStatus.value.items)
+        setOpsQueueSummary({ total_depth: queueStatus.value.total_depth, busy_queues: queueStatus.value.busy_queues })
+      }
+      if (storageStatus.status === 'fulfilled') setOpsStorage(storageStatus.value)
+      if (featureFlags.status === 'fulfilled') setOpsFeatureFlags(featureFlags.value)
+      if (policyEval.status === 'fulfilled') setOpsPolicy(policyEval.value)
+      const loadedAny = [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, featureFlags, policyEval].some(
+        (result) => result.status === 'fulfilled'
+      )
+      if (!loadedAny) throw new Error('Failed to load backup and operations data')
     } catch (err) {
       console.error(err)
       toast.error('Failed to load backup history')

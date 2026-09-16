@@ -91,7 +91,10 @@ export default function VectorStoresPage() {
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const [data, posture] = await Promise.all([

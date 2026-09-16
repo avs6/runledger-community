@@ -97,9 +97,12 @@ struct RuntimePreflightResponse {
 struct RuntimeFinalizeRequest {
     workspace_id: String,
     route_id: String,
+    api_key_id: Option<String>,
     model_requested: String,
     prepared_messages: Vec<Value>,
     response_json: Value,
+    request_metadata: Value,
+    request_tags: Vec<String>,
     latency_ms: Option<i64>,
     total_wall_ms: Option<i64>,
     decision_reason: Option<String>,
@@ -564,9 +567,15 @@ async fn gateway_chat_completions(
                         RuntimeFinalizeRequest {
                             workspace_id: preflight.workspace_id.clone(),
                             route_id: step.route_id.clone(),
+                            api_key_id: preflight.api_key_id.clone(),
                             model_requested: preflight.model_requested.clone(),
                             prepared_messages: preflight.prepared_messages.clone(),
                             response_json: response_json.clone(),
+                            request_metadata: body
+                                .get("metadata")
+                                .cloned()
+                                .unwrap_or_else(|| json!({})),
+                            request_tags: preflight.request_tags.clone(),
                             latency_ms: Some(latency_ms),
                             total_wall_ms: Some(latency_ms),
                             decision_reason: step

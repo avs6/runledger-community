@@ -58,7 +58,10 @@ export default function ModelScorecardsPage() {
   const [intelPosture, setIntelPosture] = useState<ModelScorecardsIntelPosture | null>(null)
 
   const fetchScorecards = useCallback(() => {
-    if (!apiKey) return
+    if (!apiKey) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     const win = getDashboardWindow(range)
     getModelScorecards(apiKey, { from: win.from, to: win.to })

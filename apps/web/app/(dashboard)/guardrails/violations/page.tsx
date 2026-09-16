@@ -43,7 +43,10 @@ export default function GuardrailViolationsPage() {
 
   useEffect(() => {
     async function load() {
-      if (!apiKey) return
+      if (!apiKey) {
+        setLoading(false)
+        return
+      }
       setLoading(true)
       try {
         const result = await listGuardrailEvents(apiKey, {

@@ -50,20 +50,30 @@ export default function TelemetryPage() {
   const [opsPosture, setOpsPosture] = useState<TelemetryOpsPosture | null>(null)
 
   const load = useCallback(async () => {
-    if (!apiKey || !canManageOrgSettings) return
+    if (!apiKey || !canManageOrgSettings) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
-      const [stats, batches, insights] = await Promise.all([
+      const [stats, batches, insights] = await Promise.allSettled([
         getOtlpStats(apiKey),
         listOtlpBatches(apiKey, PAGE_SIZE, offset),
         getOtlpInsights(apiKey),
       ])
-      setOtlpStats(stats)
-      setOtlpBatches(batches)
-      setOtlpInsights(insights)
-      if (selectedBatchId && !batches.items.some((item) => item.id === selectedBatchId)) {
+      if (stats.status === 'fulfilled') setOtlpStats(stats.value)
+      if (batches.status === 'fulfilled') setOtlpBatches(batches.value)
+      if (insights.status === 'fulfilled') setOtlpInsights(insights.value)
+      if (
+        selectedBatchId &&
+        batches.status === 'fulfilled' &&
+        !batches.value.items.some((item) => item.id === selectedBatchId)
+      ) {
         setSelectedBatchId(null)
         setSelectedBatch(null)
+      }
+      if ([stats, batches, insights].every(result => result.status === 'rejected')) {
+        toast.error('Failed to load telemetry data')
       }
     } catch (err) {
       console.error(err)

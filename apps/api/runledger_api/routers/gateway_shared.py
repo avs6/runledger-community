@@ -38,6 +38,14 @@ from runledger_api.models.gateway import (
     GatewayRoutingGroup,
     RoutingPolicy,  # noqa: F401
 )
+from runledger_api.models.events import (  # noqa: F401
+    AgentRun,
+    ProviderCall,
+    RunStatusEnum,
+    Span,
+    SpanStatusEnum,
+    SpanTypeEnum,
+)
 from runledger_api.models.tenant import ApiKey, TenantUser, User, Workspace
 from runledger_api.schemas.gateway import (  # noqa: F401
     GatewayBenchmarkComparisonItem,
@@ -122,6 +130,7 @@ from runledger_api.services.gateway_runtime import (  # noqa: F401
     verify_gateway_runtime_signature,
 )
 from runledger_api.services.guardrails import evaluate_guardrails  # noqa: F401
+from runledger_api.services.pricing import calculate_cost  # noqa: F401
 from runledger_api.services.routing import analyze_routing_policy  # noqa: F401
 from runledger_api.services.security import (
     authenticate_oidc_token,
@@ -173,6 +182,12 @@ __all__ = [
     "GatewayRoute",
     "GatewayRoutingGroup",
     "RoutingPolicy",
+    "AgentRun",
+    "ProviderCall",
+    "RunStatusEnum",
+    "Span",
+    "SpanStatusEnum",
+    "SpanTypeEnum",
     "ApiKey",
     "TenantUser",
     "User",
@@ -254,6 +269,7 @@ __all__ = [
     "ingest_gateway_runtime_events",
     "verify_gateway_runtime_signature",
     "evaluate_guardrails",
+    "calculate_cost",
     "analyze_routing_policy",
     "authenticate_oidc_token",
     "enforce_required_metadata",
