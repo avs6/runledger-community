@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::Sha256;
 use tracing::{error, info};
+use uuid::Uuid;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -61,6 +62,10 @@ struct RuntimeExecutionStep {
     request_url: Option<String>,
     request_headers: std::collections::HashMap<String, String>,
     request_body: Value,
+    #[serde(default)]
+    response_format: Option<String>,
+    #[serde(default)]
+    provider_stream_format: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -152,6 +157,231 @@ enum ProviderSuccess {
     Json { response_json: Value, latency_ms: i64 },
     Stream { response: Response, latency_ms: i64 },
 }
+
+// ── Response normalizers ────────────────────────────────────────────────────────
+
+fn normalize_bedrock_converse(raw: &Value, model: &str) -> Value {
+    let output = raw.get("output").unwrap_or(&Value::Null);
+    let message = output.get("message").unwrap_or(&Value::Null);
+    let content_blocks = message.get("content").and_then(|c| c.as_array());
+    let text = content_blocks
+        .map(|blocks| {
+            blocks
+                .iter()
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_default();
+    let usage = raw.get("usage").unwrap_or(&Value::Null);
+    let input_tokens = usage
+        .get("inputTokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let output_tokens = usage
+        .get("outputTokens")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let stop_reason = raw
+        .get("stopReason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("end_turn");
+    let finish_reason = match stop_reason {
+        "end_turn" | "stop_sequence" => "stop",
+        "max_tokens" => "length",
+        other => other,
+    };
+    openai_response(model, &text, input_tokens, output_tokens, finish_reason)
+}
+
+fn normalize_gemini(raw: &Value, model: &str) -> Value {
+    let candidates = raw.get("candidates").and_then(|c| c.as_array());
+    let first = candidates.and_then(|c| c.first()).unwrap_or(&Value::Null);
+    let parts = first
+        .get("content")
+        .and_then(|c| c.get("parts"))
+        .and_then(|p| p.as_array());
+    let text = parts
+        .map(|ps| {
+            ps.iter()
+                .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .unwrap_or_default();
+    let finish_raw = first
+        .get("finishReason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("STOP");
+    let finish_reason = match finish_raw {
+        "STOP" => "stop",
+        "MAX_TOKENS" => "length",
+        "SAFETY" => "content_filter",
+        other => other,
+    };
+    let meta = raw.get("usageMetadata").unwrap_or(&Value::Null);
+    let input_tokens = meta
+        .get("promptTokenCount")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let output_tokens = meta
+        .get("candidatesTokenCount")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    openai_response(model, &text, input_tokens, output_tokens, finish_reason)
+}
+
+fn openai_response(
+    model: &str,
+    content: &str,
+    input_tokens: u64,
+    output_tokens: u64,
+    finish_reason: &str,
+) -> Value {
+    json!({
+        "id": format!("rl-gw-{}", Uuid::new_v4().simple()),
+        "object": "chat.completion",
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": content},
+            "finish_reason": finish_reason,
+        }],
+        "usage": {
+            "prompt_tokens": input_tokens,
+            "completion_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+        }
+    })
+}
+
+fn maybe_normalize_response(raw: Value, step: &RuntimeExecutionStep) -> Value {
+    match step.response_format.as_deref() {
+        Some("bedrock_converse") => normalize_bedrock_converse(&raw, &step.target_model),
+        Some("gemini") => normalize_gemini(&raw, &step.target_model),
+        _ => raw,
+    }
+}
+
+// ── Streaming format converters ─────────────────────────────────────────────────
+
+fn sse_chunk(content: &str, model: &str, finish: bool) -> Vec<u8> {
+    let chunk = json!({
+        "id": "rl-gw-chunk",
+        "object": "chat.completion.chunk",
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": if finish { json!({}) } else { json!({"content": content}) },
+            "finish_reason": if finish { Value::String("stop".into()) } else { Value::Null },
+        }]
+    });
+    format!("data: {}\n\n", chunk).into_bytes()
+}
+
+fn convert_gemini_sse_to_openai(line: &str, model: &str) -> Option<Vec<u8>> {
+    if !line.starts_with("data: ") {
+        return None;
+    }
+    let raw_str = line[6..].trim();
+    if raw_str.is_empty() || raw_str == "[DONE]" {
+        return None;
+    }
+    let raw: Value = serde_json::from_str(raw_str).ok()?;
+    let candidates = raw.get("candidates")?.as_array()?;
+    let first = candidates.first()?;
+    let parts = first.get("content")?.get("parts")?.as_array()?;
+    let text: String = parts
+        .iter()
+        .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+        .collect();
+    if text.is_empty() {
+        return None;
+    }
+    Some(sse_chunk(&text, model, false))
+}
+
+fn parse_bedrock_event_stream_chunk(data: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let mut events = Vec::new();
+    let mut offset = 0;
+    while offset + 12 <= data.len() {
+        let total_len =
+            u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+                as usize;
+        if total_len < 16 || offset + total_len > data.len() {
+            break;
+        }
+        let headers_len = u32::from_be_bytes([
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ]) as usize;
+        let headers_start = offset + 12;
+        let headers_end = headers_start + headers_len;
+        if headers_end > offset + total_len {
+            break;
+        }
+        let mut event_type = String::new();
+        let mut hdr_offset = headers_start;
+        while hdr_offset < headers_end {
+            if hdr_offset >= data.len() {
+                break;
+            }
+            let name_len = data[hdr_offset] as usize;
+            hdr_offset += 1;
+            if hdr_offset + name_len > headers_end {
+                break;
+            }
+            let name = String::from_utf8_lossy(&data[hdr_offset..hdr_offset + name_len]).to_string();
+            hdr_offset += name_len;
+            if hdr_offset + 3 > headers_end {
+                break;
+            }
+            let _header_type = data[hdr_offset];
+            hdr_offset += 1;
+            let value_len =
+                u16::from_be_bytes([data[hdr_offset], data[hdr_offset + 1]]) as usize;
+            hdr_offset += 2;
+            if hdr_offset + value_len > headers_end {
+                break;
+            }
+            let value =
+                String::from_utf8_lossy(&data[hdr_offset..hdr_offset + value_len]).to_string();
+            hdr_offset += value_len;
+            if name == ":event-type" {
+                event_type = value;
+            }
+        }
+        let payload_start = headers_end;
+        let payload_end = offset + total_len - 4;
+        let payload = if payload_end > payload_start {
+            data[payload_start..payload_end].to_vec()
+        } else {
+            Vec::new()
+        };
+        events.push((event_type, payload));
+        offset += total_len;
+    }
+    events
+}
+
+fn bedrock_event_to_openai_sse(event_type: &str, payload: &[u8], model: &str) -> Option<Vec<u8>> {
+    match event_type {
+        "contentBlockDelta" => {
+            let v: Value = serde_json::from_slice(payload).ok()?;
+            let text = v.get("delta")?.get("text")?.as_str()?;
+            if text.is_empty() {
+                return None;
+            }
+            Some(sse_chunk(text, model, false))
+        }
+        "messageStop" => Some(sse_chunk("", model, true)),
+        _ => None,
+    }
+}
+
+// ── Main ────────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() {
@@ -426,6 +656,8 @@ async fn gateway_chat_completions(
         .into_response()
 }
 
+// ── Control-plane calls ─────────────────────────────────────────────────────────
+
 async fn call_preflight(
     state: &AppState,
     payload: RuntimePreflightRequest,
@@ -517,7 +749,7 @@ async fn call_provider_execute(
             .unwrap_or("text/event-stream")
             .to_string();
         let stream_body = resp.bytes_stream().map(|chunk| {
-            chunk.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))
+            chunk.map_err(|err| std::io::Error::other(err.to_string()))
         });
         let body = Body::from_stream(stream_body);
         let response = Response::builder()
@@ -572,6 +804,8 @@ async fn call_provider_execute(
     })
 }
 
+// ── Provider execution ──────────────────────────────────────────────────────────
+
 async fn execute_step(
     state: &AppState,
     step: &RuntimeExecutionStep,
@@ -607,7 +841,7 @@ async fn execute_step(
         .http
         .request(
             reqwest::Method::from_bytes(step.request_method.as_bytes()).unwrap_or(reqwest::Method::POST),
-            request_url,
+            &request_url,
         )
         .headers(upstream_headers)
         .timeout(std::time::Duration::from_millis(
@@ -628,42 +862,23 @@ async fn execute_step(
         }
     };
     let latency_ms = started.elapsed().as_millis() as i64;
+
     if stream && resp.status().is_success() {
         let _ = call_route_result(state, &step.route_id, true, false, None).await;
-        let content_type = resp
-            .headers()
-            .get("content-type")
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or("text/event-stream")
-            .to_string();
-        let stream_body = resp.bytes_stream().map(|chunk| {
-            chunk.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err.to_string()))
-        });
-        let body = Body::from_stream(stream_body);
-        let response = Response::builder()
-            .status(StatusCode::OK)
-            .header("content-type", content_type)
-            .body(body)
-            .unwrap_or_else(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"detail": "failed to build streaming response"})),
-                )
-                    .into_response()
-            });
-        return Ok(ProviderSuccess::Stream {
-            response,
-            latency_ms,
-        });
+        return execute_streaming_response(resp, step, latency_ms).await;
     }
+
     if resp.status().is_success() {
         let _ = call_route_result(state, &step.route_id, true, false, None).await;
         return resp
             .json::<Value>()
             .await
-            .map(|response_json| ProviderSuccess::Json {
-                response_json,
-                latency_ms,
+            .map(|raw| {
+                let response_json = maybe_normalize_response(raw, step);
+                ProviderSuccess::Json {
+                    response_json,
+                    latency_ms,
+                }
             })
             .map_err(|err| ProviderFailure {
                 upstream_status: Some(StatusCode::BAD_GATEWAY.as_u16()),
@@ -691,6 +906,120 @@ async fn execute_step(
         classified_triggers: triggers,
     })
 }
+
+async fn execute_streaming_response(
+    resp: reqwest::Response,
+    step: &RuntimeExecutionStep,
+    latency_ms: i64,
+) -> Result<ProviderSuccess, ProviderFailure> {
+    let stream_format = step.provider_stream_format.as_deref();
+    match stream_format {
+        Some("bedrock_eventstream") => {
+            let model = step.target_model.clone();
+            let all_bytes = resp.bytes().await.map_err(|err| ProviderFailure {
+                upstream_status: None,
+                body: format!("bedrock stream read failed: {}", err),
+                transient: true,
+                classified_triggers: vec!["timeout".to_string()],
+            })?;
+            let events = parse_bedrock_event_stream_chunk(&all_bytes);
+            let mut chunks: Vec<Vec<u8>> = Vec::new();
+            for (event_type, payload) in &events {
+                if let Some(sse_bytes) = bedrock_event_to_openai_sse(event_type, payload, &model) {
+                    chunks.push(sse_bytes);
+                }
+            }
+            chunks.push(sse_chunk("", &model, true));
+            chunks.push(b"data: [DONE]\n\n".to_vec());
+            let body_bytes: Vec<u8> = chunks.into_iter().flatten().collect();
+            let body = Body::from(body_bytes);
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "text/event-stream")
+                .body(body)
+                .unwrap_or_else(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"detail": "failed to build streaming response"})),
+                    )
+                        .into_response()
+                });
+            Ok(ProviderSuccess::Stream {
+                response,
+                latency_ms,
+            })
+        }
+        Some("gemini_sse") => {
+            let model = step.target_model.clone();
+            let stream_body = resp.bytes_stream().map(move |chunk| {
+                match chunk {
+                    Ok(bytes) => {
+                        let text = String::from_utf8_lossy(&bytes);
+                        let mut output = Vec::new();
+                        for line in text.lines() {
+                            if let Some(sse_bytes) = convert_gemini_sse_to_openai(line, &model) {
+                                output.extend_from_slice(&sse_bytes);
+                            }
+                        }
+                        if output.is_empty() {
+                            Ok(bytes::Bytes::new())
+                        } else {
+                            Ok(bytes::Bytes::from(output))
+                        }
+                    }
+                    Err(err) => Err(std::io::Error::other(
+                        err.to_string(),
+                    )),
+                }
+            });
+            let body = Body::from_stream(stream_body);
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "text/event-stream")
+                .body(body)
+                .unwrap_or_else(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"detail": "failed to build streaming response"})),
+                    )
+                        .into_response()
+                });
+            Ok(ProviderSuccess::Stream {
+                response,
+                latency_ms,
+            })
+        }
+        _ => {
+            let content_type = resp
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or("text/event-stream")
+                .to_string();
+            let stream_body = resp.bytes_stream().map(|chunk| {
+                chunk.map_err(|err| std::io::Error::other(err.to_string()))
+            });
+            let body = Body::from_stream(stream_body);
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", content_type)
+                .body(body)
+                .unwrap_or_else(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"detail": "failed to build streaming response"})),
+                    )
+                        .into_response()
+                });
+            Ok(ProviderSuccess::Stream {
+                response,
+                latency_ms,
+            })
+        }
+    }
+}
+
+// ── Route health ────────────────────────────────────────────────────────────────
 
 async fn call_route_result(
     state: &AppState,
@@ -732,6 +1061,8 @@ async fn call_mirror(state: &AppState, payload: RuntimeMirrorRequest) -> Result<
     Ok(())
 }
 
+// ── Error classification ────────────────────────────────────────────────────────
+
 fn classify_error_triggers(status_code: Option<u16>, body: &str) -> Vec<String> {
     let mut triggers = Vec::new();
     let lowered = body.to_lowercase();
@@ -757,6 +1088,8 @@ fn classify_error_triggers(status_code: Option<u16>, body: &str) -> Vec<String> 
     }
     triggers
 }
+
+// ── Utilities ───────────────────────────────────────────────────────────────────
 
 async fn response_from_upstream(resp: reqwest::Response) -> Response {
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
@@ -824,11 +1157,5 @@ async fn emit_runtime_events(
 }
 
 fn uuid_like() -> String {
-    format!(
-        "gw_{}",
-        Utc::now()
-            .timestamp_nanos_opt()
-            .unwrap_or_default()
-            .unsigned_abs()
-    )
+    format!("gw_{}", Uuid::new_v4().simple())
 }

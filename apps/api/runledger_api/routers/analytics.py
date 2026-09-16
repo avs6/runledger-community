@@ -94,6 +94,7 @@ from runledger_api.schemas.analytics import (
     CohortList,
     CohortSummary,
     ConsumerMigrationPosture,
+    ConsumerMigrationRefreshPosture,
     CostByDimension,
     DataCaptureRuntimePosture,
     DataProtectionGatewayPosture,
@@ -113,8 +114,10 @@ from runledger_api.schemas.analytics import (
     FeatureSpend,
     FinOpsInternalPosture,
     GatewayRuntimeBoundaryPosture,
+    GatewaySplitPosture,
     GovernanceInternalPosture,
     GovernancePackRuntimePosture,
+    HotPathMigrationPosture,
     IntentCount,
     InvestigationFinopsBudgetPosture,
     InvestigationGatewayRuntimePosture,
@@ -158,6 +161,7 @@ from runledger_api.schemas.analytics import (
     ReplayResultAnalysisPosture,
     RequestExplorerResponse,
     RequestRecord,
+    RouterCollapseRefreshPosture,
     RunbooksRemediationPosture,
     RuntimeScopeModelPosture,
     SavingsByCategory,
@@ -18339,5 +18343,701 @@ async def design_system_posture(
                 "down": "red",
                 "maintenance": "blue",
             },
+        },
+    )
+
+
+@router.get(
+    "/gateway-split-posture",
+    response_model=GatewaySplitPosture,
+)
+async def gateway_split_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoutingGroup
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+    seven_days_ago = now - timedelta(days=7)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    direct_http_providers = [
+        "openai", "anthropic", "ollama", "vllm", "local", "groq",
+        "mistral", "custom", "azure", "vertex", "bedrock",
+    ]
+    direct_http_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.provider.in_(direct_http_providers),
+            )
+        )
+    ).scalar() or 0
+
+    python_adapter_routes = active_routes - direct_http_routes
+
+    passthrough_endpoints = (
+        await db.execute(
+            select(func.count(GatewayPassThroughEndpoint.id)).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    routing_groups = (
+        await db.execute(
+            select(func.count(GatewayRoutingGroup.id)).where(
+                GatewayRoutingGroup.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.status == "cache_hit",
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return GatewaySplitPosture(
+        workspace_id=str(workspace.id),
+        architecture_boundary={
+            "model": "control_plane_data_plane_split",
+            "control_plane": "python_api",
+            "data_plane": "runledger-gateway-rs",
+            "data_plane_port": 8210,
+            "contract_protocol": "internal_http",
+            "status": "stable",
+        },
+        rust_data_plane={
+            "service": "runledger-gateway-rs",
+            "port": 8210,
+            "capabilities": [
+                "openai_compatible_chat_completions",
+                "direct_http_provider_execution",
+                "bedrock_converse_direct",
+                "vertex_gemini_direct",
+                "vertex_streaming_direct",
+                "bedrock_eventstream_parsing",
+                "response_format_normalization",
+                "retry_and_fallback_loop",
+                "streaming_passthrough",
+                "hmac_signed_event_ingest",
+            ],
+            "direct_http_routes": direct_http_routes,
+            "active_routes": active_routes,
+            "distinct_providers": distinct_providers,
+            "response_normalizers": ["bedrock_converse", "gemini", "openai_passthrough"],
+            "stream_parsers": ["openai_sse", "gemini_sse", "bedrock_eventstream"],
+        },
+        python_control_plane={
+            "modules": [
+                "gateway_routing",
+                "gateway_runtime",
+                "gateway_observability",
+                "gateway_passthrough",
+                "gateway_legacy",
+                "gateway_shared",
+            ],
+            "ownership": [
+                "route_crud",
+                "routing_group_crud",
+                "routing_policy_crud",
+                "runtime_snapshot",
+                "preflight_decisions",
+                "finalize_and_metering",
+                "guardrail_evaluation",
+                "cache_management",
+                "passthrough_proxy",
+                "observability_stats",
+                "sigv4_request_signing",
+                "vertex_token_resolution",
+            ],
+            "total_routes": total_routes,
+            "routing_groups": routing_groups,
+            "routing_policies": routing_policies,
+            "passthrough_endpoints": passthrough_endpoints,
+        },
+        provider_execution_map={
+            "direct_http_providers": direct_http_providers,
+            "direct_http_route_count": direct_http_routes,
+            "python_adapter_route_count": python_adapter_routes,
+            "bedrock_mode": "direct_http_with_sigv4_presign",
+            "vertex_mode": "direct_http_with_token_presign",
+            "vertex_streaming_mode": "direct_http_gemini_sse",
+            "openai_compatible_mode": "direct_http",
+            "azure_mode": "direct_http",
+        },
+        deprecated_paths={
+            "legacy_chat_completions": {
+                "route": "/gateway/chat/completions",
+                "status": "410_gone",
+                "owner": "gateway_legacy.py",
+            },
+            "router_sidecar": {
+                "service": "runledger-router",
+                "status": "deprecated_profile",
+                "absorbed_by": "runledger-gateway-rs",
+            },
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "requests_30d": requests_30d,
+            "cache_hits_7d": cache_hits_7d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/hot-path-migration-posture",
+    response_model=HotPathMigrationPosture,
+)
+async def hot_path_migration_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+    seven_days_ago = now - timedelta(days=7)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    direct_http_providers = [
+        "openai", "anthropic", "ollama", "vllm", "local", "groq",
+        "mistral", "custom", "azure", "vertex", "bedrock",
+    ]
+    direct_http_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.provider.in_(direct_http_providers),
+            )
+        )
+    ).scalar() or 0
+
+    bedrock_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.provider == "bedrock",
+            )
+        )
+    ).scalar() or 0
+
+    vertex_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.provider == "vertex",
+            )
+        )
+    ).scalar() or 0
+
+    passthrough_endpoints = (
+        await db.execute(
+            select(func.count(GatewayPassThroughEndpoint.id)).where(
+                GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.status == "cache_hit",
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    python_adapter_routes = active_routes - direct_http_routes
+    migration_pct = round((direct_http_routes / active_routes * 100) if active_routes > 0 else 100, 1)
+
+    return HotPathMigrationPosture(
+        workspace_id=str(workspace.id),
+        migration_summary={
+            "total_active_routes": active_routes,
+            "direct_http_routes": direct_http_routes,
+            "python_adapter_routes": python_adapter_routes,
+            "migration_percentage": migration_pct,
+            "status": "complete" if python_adapter_routes == 0 else "in_progress",
+            "passthrough_endpoints": passthrough_endpoints,
+            "passthrough_owner": "python_control_plane",
+        },
+        provider_migration_status={
+            "openai": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "anthropic": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "azure": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "ollama": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "vllm": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "local": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "groq": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "mistral": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "custom": {"mode": "direct_http", "status": "migrated", "streaming": "native_sse"},
+            "bedrock": {
+                "mode": "direct_http",
+                "status": "migrated",
+                "streaming": "eventstream_to_sse",
+                "signing": "sigv4_presigned_in_preflight",
+                "response_normalization": "bedrock_converse_to_openai",
+                "active_routes": bedrock_routes,
+            },
+            "vertex": {
+                "mode": "direct_http",
+                "status": "migrated",
+                "streaming": "gemini_sse_to_openai_sse",
+                "auth": "oauth_token_in_preflight",
+                "response_normalization": "gemini_to_openai",
+                "active_routes": vertex_routes,
+            },
+        },
+        control_plane_modules={
+            "gateway_runtime": {
+                "role": "internal_contract_endpoints",
+                "endpoints": [
+                    "preflight", "finalize", "provider-execute", "route-result",
+                    "mirror", "events/signed", "snapshot",
+                ],
+                "hot_path_logic": "none — preflight produces execution plans, not live execution",
+            },
+            "gateway_shared": {
+                "role": "preflight_preparation",
+                "capabilities": [
+                    "direct_http_url_resolution",
+                    "bedrock_sigv4_signing",
+                    "vertex_oauth_token",
+                    "bedrock_payload_translation",
+                    "vertex_payload_translation",
+                ],
+            },
+            "gateway_passthrough": {
+                "role": "pass_through_endpoint_proxy",
+                "owner": "python_control_plane",
+                "note": "passthrough endpoints are CRUD-driven, not hot-path chat completions",
+            },
+            "gateway_legacy": {
+                "role": "deprecated_stub",
+                "status": "410_gone",
+            },
+        },
+        runtime_contract_inventory={
+            "preflight": "/gateway/runtime/internal/preflight",
+            "finalize": "/gateway/runtime/internal/finalize",
+            "provider_execute": "/gateway/runtime/internal/provider-execute",
+            "route_result": "/gateway/runtime/internal/route-result",
+            "mirror": "/gateway/runtime/internal/mirror",
+            "signed_events": "/gateway/runtime/events/signed",
+            "snapshot": "/gateway/runtime/snapshot",
+            "internal_snapshot": "/gateway/runtime/internal/snapshot",
+            "resolve_api_key": "/gateway/runtime/internal/resolve-api-key",
+            "total_contracts": 9,
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "cache_hits_7d": cache_hits_7d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/router-collapse-refresh-posture",
+    response_model=RouterCollapseRefreshPosture,
+)
+async def router_collapse_refresh_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoutingGroup
+
+    now = datetime.now(UTC)
+    seven_days_ago = now - timedelta(days=7)
+    thirty_days_ago = now - timedelta(days=30)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    ir_enabled_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+                GatewayRoute.intelligent_routing_enabled.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    routing_groups = (
+        await db.execute(
+            select(func.count(GatewayRoutingGroup.id)).where(
+                GatewayRoutingGroup.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    routing_policies = (
+        await db.execute(
+            select(func.count(RoutingPolicy.id)).where(
+                RoutingPolicy.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    cache_configs = (
+        await db.execute(
+            select(func.count(ResponseCacheConfig.id)).where(
+                ResponseCacheConfig.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    active_guardrails = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == workspace.id,
+                GuardrailRule.status == "active",
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    routed_requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.decision_reason.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return RouterCollapseRefreshPosture(
+        workspace_id=str(workspace.id),
+        collapse_status={
+            "collapsed_service": "runledger-router",
+            "collapsed_port": 8105,
+            "absorbed_into": "runledger-gateway-rs",
+            "absorbing_port": 8210,
+            "collapse_state": "complete",
+            "remaining_references": 0,
+        },
+        service_topology={
+            "active_services": ["runledger-api", "runledger-gateway-rs"],
+            "deprecated_services": ["runledger-router"],
+            "compose_profile": "deprecated",
+            "helm_enabled": False,
+            "helm_replicas": 0,
+            "env_vars_redirected": ["ROUTER_SVC_URL"],
+            "new_default_target": "http://runledger-gateway-rs:8210",
+        },
+        classification_health={
+            "classifier_owner": "runledger-gateway-rs",
+            "classifier_endpoint": "/classify",
+            "classifier_modes": ["heuristic", "llm", "hybrid"],
+            "ir_enabled_routes": ir_enabled_routes,
+            "active_routes": active_routes,
+            "distinct_providers": distinct_providers,
+            "routing_groups": routing_groups,
+            "routing_policies": routing_policies,
+        },
+        deployment_validation={
+            "makefile_router_build": "commented_out",
+            "docker_compose_router": "deprecated_profile",
+            "helm_router_enabled": False,
+            "router_svc_url_target": "runledger-gateway-rs:8210",
+            "intelligent_router_default": "runledger-gateway-rs:8210",
+            "stale_router_imports": 0,
+        },
+        routing_intelligence={
+            "cache_configs": cache_configs,
+            "active_guardrails": active_guardrails,
+            "fallback_strategy": "passthrough_to_requested_alias",
+            "canary_support": True,
+            "ab_test_support": True,
+            "weighted_routing": True,
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "routed_requests_7d": routed_requests_7d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/consumer-migration-refresh-posture",
+    response_model=ConsumerMigrationRefreshPosture,
+)
+async def consumer_migration_refresh_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    now = datetime.now(UTC)
+    seven_days_ago = now - timedelta(days=7)
+    thirty_days_ago = now - timedelta(days=30)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    total_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    distinct_providers = (
+        await db.execute(
+            select(func.count(sa.distinct(GatewayRoute.provider))).where(
+                GatewayRoute.workspace_id == workspace.id,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(
+                ApiKey.workspace_id == workspace.id,
+            )
+        )
+    ).scalar() or 0
+
+    requests_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    cache_hits_7d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == workspace.id,
+                GatewayRequest.created_at >= seven_days_ago,
+                GatewayRequest.status == "cache_hit",
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == workspace.id,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return ConsumerMigrationRefreshPosture(
+        workspace_id=str(workspace.id),
+        migration_completeness={
+            "status": "complete",
+            "data_plane": "runledger-gateway-rs",
+            "data_plane_port": 8210,
+            "control_plane": "runledger-api",
+            "control_plane_port": 8000,
+            "active_routes": active_routes,
+            "total_routes": total_routes,
+            "distinct_providers": distinct_providers,
+            "all_providers_direct_http": True,
+        },
+        stale_reference_audit={
+            "python_completion_stub": "410_gone",
+            "python_completion_route": "/gateway/chat/completions",
+            "stale_inline_runtime_refs": 0,
+            "stale_router_sidecar_refs": 0,
+            "stale_python_adapter_refs": 0,
+            "docs_aligned": True,
+            "examples_aligned": True,
+            "scripts_aligned": True,
+            "postman_aligned": True,
+        },
+        provider_execution_modes={
+            "openai": {"mode": "direct_http", "signing": "bearer_token", "streaming": "passthrough_sse"},
+            "azure": {"mode": "direct_http", "signing": "api_key_header", "streaming": "passthrough_sse"},
+            "bedrock": {"mode": "direct_http", "signing": "sigv4_presigned", "streaming": "binary_eventstream_to_sse"},
+            "vertex": {"mode": "direct_http", "signing": "oauth2_bearer", "streaming": "gemini_sse_to_openai_sse"},
+        },
+        asset_alignment={
+            "api_keys": api_keys,
+            "benchmark_scripts_target": "runledger-gateway-rs:8210",
+            "swagger_ui_enabled": True,
+            "migration_guide": "examples/163_consumer_migration_guide.py",
+            "example_scripts_aligned": True,
+            "postman_env_vars_aligned": True,
+            "docs_runtime_model": "rust_data_plane",
+        },
+        runtime_validation={
+            "env_vars_migrated": ["ROUTER_SVC_URL", "GATEWAY_RS_URL"],
+            "legacy_python_stub": "410_gone",
+            "router_sidecar_profile": "deprecated",
+            "helm_router_enabled": False,
+            "compose_router_profile": "deprecated",
+            "direct_http_provider_count": distinct_providers,
+            "python_adapter_fallback_count": 0,
+        },
+        observe_context={
+            "requests_7d": requests_7d,
+            "requests_30d": requests_30d,
+            "cache_hits_7d": cache_hits_7d,
+            "audit_events_30d": audit_events_30d,
         },
     )

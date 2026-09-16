@@ -6613,3 +6613,208 @@ export interface DesignSystemPosture {
     runtime_states: Record<string, string>
   }
 }
+
+export interface GatewaySplitPosture {
+  workspace_id: string
+  architecture_boundary: {
+    model: string
+    control_plane: string
+    data_plane: string
+    data_plane_port: number
+    contract_protocol: string
+    status: string
+  }
+  rust_data_plane: {
+    service: string
+    port: number
+    capabilities: string[]
+    direct_http_routes: number
+    active_routes: number
+    distinct_providers: number
+    response_normalizers: string[]
+    stream_parsers: string[]
+  }
+  python_control_plane: {
+    modules: string[]
+    ownership: string[]
+    total_routes: number
+    routing_groups: number
+    routing_policies: number
+    passthrough_endpoints: number
+  }
+  provider_execution_map: {
+    direct_http_providers: string[]
+    direct_http_route_count: number
+    python_adapter_route_count: number
+    bedrock_mode: string
+    vertex_mode: string
+    vertex_streaming_mode: string
+    openai_compatible_mode: string
+    azure_mode: string
+  }
+  deprecated_paths: {
+    legacy_chat_completions: { route: string; status: string; owner: string }
+    router_sidecar: { service: string; status: string; absorbed_by: string }
+  }
+  observe_context: {
+    requests_7d: number
+    requests_30d: number
+    cache_hits_7d: number
+    audit_events_30d: number
+  }
+}
+
+export interface HotPathMigrationPosture {
+  workspace_id: string
+  migration_summary: {
+    total_active_routes: number
+    direct_http_routes: number
+    python_adapter_routes: number
+    migration_percentage: number
+    status: string
+    passthrough_endpoints: number
+    passthrough_owner: string
+  }
+  provider_migration_status: Record<string, {
+    mode: string
+    status: string
+    streaming: string
+    signing?: string
+    auth?: string
+    response_normalization?: string
+    active_routes?: number
+  }>
+  control_plane_modules: Record<string, {
+    role: string
+    endpoints?: string[]
+    hot_path_logic?: string
+    capabilities?: string[]
+    owner?: string
+    note?: string
+    status?: string
+  }>
+  runtime_contract_inventory: {
+    preflight: string
+    finalize: string
+    provider_execute: string
+    route_result: string
+    mirror: string
+    signed_events: string
+    snapshot: string
+    internal_snapshot: string
+    resolve_api_key: string
+    total_contracts: number
+  }
+  observe_context: {
+    requests_7d: number
+    cache_hits_7d: number
+    audit_events_30d: number
+  }
+}
+
+export interface RouterCollapseRefreshPosture {
+  workspace_id: string
+  collapse_status: {
+    collapsed_service: string
+    collapsed_port: number
+    absorbed_into: string
+    absorbing_port: number
+    collapse_state: string
+    remaining_references: number
+  }
+  service_topology: {
+    active_services: string[]
+    deprecated_services: string[]
+    compose_profile: string
+    helm_enabled: boolean
+    helm_replicas: number
+    env_vars_redirected: string[]
+    new_default_target: string
+  }
+  classification_health: {
+    classifier_owner: string
+    classifier_endpoint: string
+    classifier_modes: string[]
+    ir_enabled_routes: number
+    active_routes: number
+    distinct_providers: number
+    routing_groups: number
+    routing_policies: number
+  }
+  deployment_validation: {
+    makefile_router_build: string
+    docker_compose_router: string
+    helm_router_enabled: boolean
+    router_svc_url_target: string
+    intelligent_router_default: string
+    stale_router_imports: number
+  }
+  routing_intelligence: {
+    cache_configs: number
+    active_guardrails: number
+    fallback_strategy: string
+    canary_support: boolean
+    ab_test_support: boolean
+    weighted_routing: boolean
+  }
+  observe_context: {
+    requests_7d: number
+    routed_requests_7d: number
+    audit_events_30d: number
+  }
+}
+
+export interface ConsumerMigrationRefreshPosture {
+  workspace_id: string
+  migration_completeness: {
+    status: string
+    data_plane: string
+    data_plane_port: number
+    control_plane: string
+    control_plane_port: number
+    active_routes: number
+    total_routes: number
+    distinct_providers: number
+    all_providers_direct_http: boolean
+  }
+  stale_reference_audit: {
+    python_completion_stub: string
+    python_completion_route: string
+    stale_inline_runtime_refs: number
+    stale_router_sidecar_refs: number
+    stale_python_adapter_refs: number
+    docs_aligned: boolean
+    examples_aligned: boolean
+    scripts_aligned: boolean
+    postman_aligned: boolean
+  }
+  provider_execution_modes: Record<string, {
+    mode: string
+    signing: string
+    streaming: string
+  }>
+  asset_alignment: {
+    api_keys: number
+    benchmark_scripts_target: string
+    swagger_ui_enabled: boolean
+    migration_guide: string
+    example_scripts_aligned: boolean
+    postman_env_vars_aligned: boolean
+    docs_runtime_model: string
+  }
+  runtime_validation: {
+    env_vars_migrated: string[]
+    legacy_python_stub: string
+    router_sidecar_profile: string
+    helm_router_enabled: boolean
+    compose_router_profile: string
+    direct_http_provider_count: number
+    python_adapter_fallback_count: number
+  }
+  observe_context: {
+    requests_7d: number
+    requests_30d: number
+    cache_hits_7d: number
+    audit_events_30d: number
+  }
+}

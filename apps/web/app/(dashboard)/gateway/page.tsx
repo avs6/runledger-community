@@ -24,6 +24,10 @@ import {
   getConsumerMigrationPosture,
   getRuntimeScopeModelPosture,
   getScopeEnforcementEvidencePosture,
+  getGatewaySplitPosture,
+  getHotPathMigrationPosture,
+  getRouterCollapseRefreshPosture,
+  getConsumerMigrationRefreshPosture,
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
@@ -36,7 +40,7 @@ import type {
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
   GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
-  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture,
+  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture, GatewaySplitPosture, HotPathMigrationPosture, RouterCollapseRefreshPosture, ConsumerMigrationRefreshPosture,
 } from '@/types/api'
 
 const inputCls =
@@ -255,6 +259,10 @@ export default function GatewayPage() {
   const [consumerMigrationPosture, setConsumerMigrationPosture] = useState<ConsumerMigrationPosture | null>(null)
   const [runtimeScopeModelPosture, setRuntimeScopeModelPosture] = useState<RuntimeScopeModelPosture | null>(null)
   const [scopeEnforcementEvidencePosture, setScopeEnforcementEvidencePosture] = useState<ScopeEnforcementEvidencePosture | null>(null)
+  const [gatewaySplitPosture, setGatewaySplitPosture] = useState<GatewaySplitPosture | null>(null)
+  const [hotPathMigrationPosture, setHotPathMigrationPosture] = useState<HotPathMigrationPosture | null>(null)
+  const [routerCollapseRefreshPosture, setRouterCollapseRefreshPosture] = useState<RouterCollapseRefreshPosture | null>(null)
+  const [consumerMigrationRefreshPosture, setConsumerMigrationRefreshPosture] = useState<ConsumerMigrationRefreshPosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const searchParams = useSearchParams()
@@ -325,6 +333,10 @@ export default function GatewayPage() {
     getConsumerMigrationPosture(apiKey).then(setConsumerMigrationPosture).catch(() => {})
     getRuntimeScopeModelPosture(apiKey).then(setRuntimeScopeModelPosture).catch(() => {})
     getScopeEnforcementEvidencePosture(apiKey).then(setScopeEnforcementEvidencePosture).catch(() => {})
+    getGatewaySplitPosture(apiKey).then(setGatewaySplitPosture).catch(() => {})
+    getHotPathMigrationPosture(apiKey).then(setHotPathMigrationPosture).catch(() => {})
+    getRouterCollapseRefreshPosture(apiKey).then(setRouterCollapseRefreshPosture).catch(() => {})
+    getConsumerMigrationRefreshPosture(apiKey).then(setConsumerMigrationRefreshPosture).catch(() => {})
   }, [apiKey])
 
   if (!canManage) {
@@ -1705,6 +1717,61 @@ export default function GatewayPage() {
         </div>
       )}
 
+      {routerCollapseRefreshPosture && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-amber-900 dark:text-amber-100">Router Collapse Refresh — Sidecar Architecture Re-Audit</h2>
+            <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+              Post-collapse validation: routing classification fully absorbed into gateway-rs, deployment artifacts cleaned, Helm/Compose/Makefile aligned.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Collapse State</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white capitalize">{routerCollapseRefreshPosture.collapse_status.collapse_state}</p>
+              <p className="text-xs text-slate-400">{routerCollapseRefreshPosture.collapse_status.collapsed_service} → {routerCollapseRefreshPosture.collapse_status.absorbed_into}</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Service Topology</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{routerCollapseRefreshPosture.service_topology.active_services.length} active</p>
+              <p className="text-xs text-slate-400">{routerCollapseRefreshPosture.service_topology.deprecated_services.length} deprecated · Helm {routerCollapseRefreshPosture.service_topology.helm_enabled ? 'enabled' : 'disabled'}</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Classification</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{routerCollapseRefreshPosture.classification_health.ir_enabled_routes} IR routes</p>
+              <p className="text-xs text-slate-400">{routerCollapseRefreshPosture.classification_health.classifier_modes.length} modes · {routerCollapseRefreshPosture.classification_health.distinct_providers} providers</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Routing Groups</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{routerCollapseRefreshPosture.classification_health.routing_groups}</p>
+              <p className="text-xs text-slate-400">{routerCollapseRefreshPosture.classification_health.routing_policies} policies</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Deployment</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{routerCollapseRefreshPosture.deployment_validation.stale_router_imports} stale</p>
+              <p className="text-xs text-slate-400">Makefile: {routerCollapseRefreshPosture.deployment_validation.makefile_router_build}</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Intelligence</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{routerCollapseRefreshPosture.routing_intelligence.cache_configs} caches</p>
+              <p className="text-xs text-slate-400">{routerCollapseRefreshPosture.routing_intelligence.active_guardrails} guardrails</p>
+            </div>
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">Requests (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{num(routerCollapseRefreshPosture.observe_context.requests_7d)}</p>
+              <p className="text-xs text-slate-400">{num(routerCollapseRefreshPosture.observe_context.routed_requests_7d)} routed</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
+            <Link href="/admin/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
       {consumerMigrationPosture && (
         <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-800/40 p-5 space-y-4">
           <div>
@@ -1740,6 +1807,61 @@ export default function GatewayPage() {
             <Link href="/analytics/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
             <Link href="/optimization" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Optimization</Link>
             <Link href="/admin/settings" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Platform Settings</Link>
+          </div>
+        </div>
+      )}
+
+      {consumerMigrationRefreshPosture && (
+        <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50/30 dark:bg-orange-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-orange-900 dark:text-orange-100">Consumer Migration Refresh — Stale Reference & Asset Re-Audit</h2>
+            <p className="mt-0.5 text-xs text-orange-700 dark:text-orange-400">
+              Post-migration validation: all provider execution modes verified, stale Python-inline references audited across docs/examples/scripts/Postman, benchmark and asset alignment confirmed.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Migration</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white capitalize">{consumerMigrationRefreshPosture.migration_completeness.status}</p>
+              <p className="text-xs text-slate-400">{consumerMigrationRefreshPosture.migration_completeness.active_routes} active / {consumerMigrationRefreshPosture.migration_completeness.total_routes} total routes</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Stale References</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationRefreshPosture.stale_reference_audit.stale_inline_runtime_refs + consumerMigrationRefreshPosture.stale_reference_audit.stale_router_sidecar_refs + consumerMigrationRefreshPosture.stale_reference_audit.stale_python_adapter_refs}</p>
+              <p className="text-xs text-slate-400">inline: {consumerMigrationRefreshPosture.stale_reference_audit.stale_inline_runtime_refs} · sidecar: {consumerMigrationRefreshPosture.stale_reference_audit.stale_router_sidecar_refs} · adapter: {consumerMigrationRefreshPosture.stale_reference_audit.stale_python_adapter_refs}</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Provider Modes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{Object.keys(consumerMigrationRefreshPosture.provider_execution_modes).length} providers</p>
+              <p className="text-xs text-slate-400">All direct HTTP: {consumerMigrationRefreshPosture.migration_completeness.all_providers_direct_http ? 'yes' : 'no'}</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Asset Alignment</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationRefreshPosture.asset_alignment.api_keys} keys</p>
+              <p className="text-xs text-slate-400">docs: {consumerMigrationRefreshPosture.stale_reference_audit.docs_aligned ? '✓' : '✗'} · scripts: {consumerMigrationRefreshPosture.stale_reference_audit.scripts_aligned ? '✓' : '✗'}</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Runtime Validation</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{consumerMigrationRefreshPosture.runtime_validation.direct_http_provider_count} direct</p>
+              <p className="text-xs text-slate-400">{consumerMigrationRefreshPosture.runtime_validation.python_adapter_fallback_count} adapter fallback</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Requests (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{num(consumerMigrationRefreshPosture.observe_context.requests_7d)}</p>
+              <p className="text-xs text-slate-400">{num(consumerMigrationRefreshPosture.observe_context.cache_hits_7d)} cache hits</p>
+            </div>
+            <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-orange-600 dark:text-orange-400">Audit Events (30d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{num(consumerMigrationRefreshPosture.observe_context.audit_events_30d)}</p>
+              <p className="text-xs text-slate-400">{num(consumerMigrationRefreshPosture.observe_context.requests_30d)} requests (30d)</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
+            <Link href="/audit-log" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Audit Log</Link>
           </div>
         </div>
       )}
@@ -1843,6 +1965,116 @@ export default function GatewayPage() {
             <Link href="/guardrails" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Guardrails</Link>
             <Link href="/analytics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Analytics</Link>
             <Link href="/analytics/monitoring" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Monitoring</Link>
+          </div>
+        </div>
+      )}
+
+      {gatewaySplitPosture && (
+        <div className="rounded-xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/30 dark:bg-cyan-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-cyan-900 dark:text-cyan-100">Gateway Architecture Split — Rust Data Plane & Python Control Plane</h2>
+            <p className="mt-0.5 text-xs text-cyan-700 dark:text-cyan-400">
+              Stable architecture contract: Rust gateway-rs owns all live request execution including Bedrock and Vertex, Python owns control-plane configuration and preflight intelligence.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Rust Data Plane</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{gatewaySplitPosture.rust_data_plane.service}</p>
+              <p className="text-xs text-slate-400">Port {gatewaySplitPosture.rust_data_plane.port} · {gatewaySplitPosture.rust_data_plane.capabilities.length} capabilities</p>
+            </div>
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Direct HTTP Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{gatewaySplitPosture.rust_data_plane.direct_http_routes}</p>
+              <p className="text-xs text-slate-400">{gatewaySplitPosture.rust_data_plane.active_routes} active · {gatewaySplitPosture.rust_data_plane.distinct_providers} providers</p>
+            </div>
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Python Control Plane</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{gatewaySplitPosture.python_control_plane.modules.length} modules</p>
+              <p className="text-xs text-slate-400">{gatewaySplitPosture.python_control_plane.ownership.length} ownership domains</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Provider Execution</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{gatewaySplitPosture.provider_execution_map.direct_http_route_count} direct</p>
+              <p className="text-xs text-slate-400">{gatewaySplitPosture.provider_execution_map.python_adapter_route_count} adapter fallback</p>
+            </div>
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Response Normalizers</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{gatewaySplitPosture.rust_data_plane.response_normalizers.length}</p>
+              <p className="text-xs text-slate-400">{gatewaySplitPosture.rust_data_plane.stream_parsers.length} stream parsers</p>
+            </div>
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Requests (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{num(gatewaySplitPosture.observe_context.requests_7d)}</p>
+              <p className="text-xs text-slate-400">{num(gatewaySplitPosture.observe_context.cache_hits_7d)} cache hits</p>
+            </div>
+            <div className="rounded-lg border border-cyan-200 dark:border-cyan-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-cyan-600 dark:text-cyan-400">Boundary Status</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white capitalize">{gatewaySplitPosture.architecture_boundary.status}</p>
+              <p className="text-xs text-slate-400">{gatewaySplitPosture.architecture_boundary.contract_protocol}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+          </div>
+        </div>
+      )}
+
+      {hotPathMigrationPosture && (
+        <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-violet-900 dark:text-violet-100">Hot-Path Migration — Python to Rust Data Plane</h2>
+            <p className="mt-0.5 text-xs text-violet-700 dark:text-violet-400">
+              Provider execution migration status: all providers now execute via Rust direct HTTP with Bedrock Sigv4 pre-signing and Vertex SSE stream conversion in the data plane.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Migration</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{hotPathMigrationPosture.migration_summary.migration_percentage}%</p>
+              <p className="text-xs text-slate-400">{hotPathMigrationPosture.migration_summary.direct_http_routes} of {hotPathMigrationPosture.migration_summary.total_active_routes} routes direct</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Adapter Fallback</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{hotPathMigrationPosture.migration_summary.python_adapter_routes}</p>
+              <p className="text-xs text-slate-400">{hotPathMigrationPosture.migration_summary.passthrough_endpoints} passthrough endpoints</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Bedrock</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white capitalize">{hotPathMigrationPosture.provider_migration_status.bedrock?.status ?? 'n/a'}</p>
+              <p className="text-xs text-slate-400">{hotPathMigrationPosture.provider_migration_status.bedrock?.active_routes ?? 0} routes · {hotPathMigrationPosture.provider_migration_status.bedrock?.streaming ?? 'n/a'}</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Vertex</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white capitalize">{hotPathMigrationPosture.provider_migration_status.vertex?.status ?? 'n/a'}</p>
+              <p className="text-xs text-slate-400">{hotPathMigrationPosture.provider_migration_status.vertex?.active_routes ?? 0} routes · {hotPathMigrationPosture.provider_migration_status.vertex?.streaming ?? 'n/a'}</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Runtime Contracts</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{hotPathMigrationPosture.runtime_contract_inventory.total_contracts}</p>
+              <p className="text-xs text-slate-400">preflight · finalize · snapshot + internal</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Requests (7d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{num(hotPathMigrationPosture.observe_context.requests_7d)}</p>
+              <p className="text-xs text-slate-400">{num(hotPathMigrationPosture.observe_context.cache_hits_7d)} cache hits</p>
+            </div>
+            <div className="rounded-lg border border-violet-200 dark:border-violet-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-violet-600 dark:text-violet-400">Audit Events (30d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{num(hotPathMigrationPosture.observe_context.audit_events_30d)}</p>
+              <p className="text-xs text-slate-400">observe trail</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/analytics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Analytics Overview</Link>
+            <Link href="/analytics/runs" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Runs</Link>
+            <Link href="/audit-log" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Audit Log</Link>
           </div>
         </div>
       )}

@@ -369,12 +369,38 @@ def _runtime_request_body(
     return payload
 
 
+class _DirectProviderResult:
+    __slots__ = ("url", "headers", "response_format", "provider_stream_format")
+
+    def __init__(
+        self,
+        url: str,
+        headers: dict[str, str],
+        response_format: str | None = None,
+        provider_stream_format: str | None = None,
+    ) -> None:
+        self.url = url
+        self.headers = headers
+        self.response_format = response_format
+        self.provider_stream_format = provider_stream_format
+
+    def __getitem__(self, idx: int) -> Any:
+        if idx == 0:
+            return self.url
+        if idx == 1:
+            return self.headers
+        raise IndexError(idx)
+
+    def __bool__(self) -> bool:
+        return True
+
+
 def _runtime_direct_provider_request(
     *,
     route: GatewayRoute,
     request_body: dict[str, Any],
     stream: bool,
-) -> tuple[str, dict[str, str]] | None:
+) -> _DirectProviderResult | None:
     provider = (route.provider or "").lower()
     if provider in {"openai", "anthropic", "ollama", "vllm", "local", "groq", "mistral", "custom"}:
         api_key_var = route.api_key_env_var or "OPENAI_API_KEY"
@@ -385,7 +411,7 @@ def _runtime_direct_provider_request(
         elif provider == "vllm":
             default_base_url = os.getenv("VLLM_BASE_URL", "http://host.docker.internal:8001/v1")
         base_url = (route.base_url or default_base_url).rstrip("/")
-        return (
+        return _DirectProviderResult(
             f"{base_url}/chat/completions",
             {
                 "Authorization": f"Bearer {api_key}",
@@ -401,7 +427,7 @@ def _runtime_direct_provider_request(
             return None
         deployment = cfg.get("deployment_name") or route.target_model
         api_version = cfg.get("api_version") or "2024-02-01"
-        return (
+        return _DirectProviderResult(
             f"{resource_endpoint}/openai/deployments/{deployment}/chat/completions?api-version={api_version}",
             {
                 "api-key": api_key,
@@ -409,8 +435,6 @@ def _runtime_direct_provider_request(
             },
         )
     if provider == "vertex":
-        if stream:
-            return None
         try:
             adapter = VertexAdapter()
             contents, system_text = adapter._messages_to_gemini(request_body["messages"])  # type: ignore[attr-defined]
@@ -433,16 +457,107 @@ def _runtime_direct_provider_request(
             )
             request_body.clear()
             request_body.update(payload)
-            return (
+            if stream:
+                stream_url = url.replace(":generateContent", ":streamGenerateContent") + "?alt=sse"
+                return _DirectProviderResult(
+                    stream_url,
+                    {
+                        "Authorization": f"Bearer {token}",
+                        "Content-Type": "application/json",
+                    },
+                    response_format="gemini",
+                    provider_stream_format="gemini_sse",
+                )
+            return _DirectProviderResult(
                 url,
                 {
                     "Authorization": f"Bearer {token}",
                     "Content-Type": "application/json",
                 },
+                response_format="gemini",
             )
         except Exception:
             return None
+    if provider == "bedrock":
+        return _bedrock_direct_provider_request(route=route, request_body=request_body, stream=stream)
     return None
+
+
+def _bedrock_direct_provider_request(
+    *,
+    route: GatewayRoute,
+    request_body: dict[str, Any],
+    stream: bool,
+) -> _DirectProviderResult | None:
+    try:
+        from runledger_api.services.gateway_providers import _messages_to_bedrock  # noqa: PLC0415
+
+        cfg = route.config or {}
+        region = (
+            cfg.get("region")
+            or os.getenv("BEDROCK_AWS_REGION")
+            or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+        )
+        prefix = (route.api_key_env_var or "").rstrip("_") or "BEDROCK"
+        access_key = os.getenv(f"{prefix}_AWS_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID", "")
+        secret_key = os.getenv(f"{prefix}_AWS_SECRET_ACCESS_KEY") or os.getenv(
+            "AWS_SECRET_ACCESS_KEY", ""
+        )
+        if not access_key or not secret_key:
+            return None
+
+        converse_messages, system_msgs = _messages_to_bedrock(request_body.get("messages") or [])
+        inference_config: dict[str, Any] = {}
+        if request_body.get("max_tokens") is not None:
+            inference_config["maxTokens"] = request_body["max_tokens"]
+        if request_body.get("temperature") is not None:
+            inference_config["temperature"] = request_body["temperature"]
+        if request_body.get("top_p") is not None:
+            inference_config["topP"] = request_body["top_p"]
+
+        bedrock_payload: dict[str, Any] = {
+            "modelId": route.target_model,
+            "messages": converse_messages,
+            "inferenceConfig": {k: v for k, v in inference_config.items() if v is not None},
+        }
+        if system_msgs:
+            bedrock_payload["system"] = system_msgs
+
+        model_id = route.target_model
+        action = "converse-stream" if stream else "converse"
+        url = f"https://bedrock-runtime.{region}.amazonaws.com/model/{model_id}/{action}"
+
+        import json as _json  # noqa: PLC0415
+
+        body_bytes = _json.dumps(bedrock_payload).encode()
+
+        import botocore.auth  # noqa: PLC0415
+        import botocore.awsrequest  # noqa: PLC0415
+        import botocore.credentials  # noqa: PLC0415
+
+        credentials = botocore.credentials.Credentials(access_key, secret_key)
+        signer = botocore.auth.SigV4Auth(credentials, "bedrock", region)
+        aws_request = botocore.awsrequest.AWSRequest(
+            method="POST",
+            url=url,
+            data=body_bytes,
+            headers={"Content-Type": "application/json"},
+        )
+        signer.add_auth(aws_request)
+
+        signed_headers = {k: v for k, v in dict(aws_request.headers).items() if v is not None}
+
+        request_body.clear()
+        request_body.update(bedrock_payload)
+
+        return _DirectProviderResult(
+            url,
+            signed_headers,
+            response_format="bedrock_converse",
+            provider_stream_format="bedrock_eventstream" if stream else None,
+        )
+    except Exception:
+        return None
 
 
 # ── Chat completions ────────────────────────────────────────────────────────────

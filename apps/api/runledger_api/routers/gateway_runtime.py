@@ -390,41 +390,45 @@ async def gateway_runtime_preflight(
                 request_body=step_request,
                 stream=body.body.stream,
             )
-            execution_steps.append(
-                {
-                    "route_id": route.id,
-                    "alias": alias_to_try,
-                    "provider": route.provider,
-                    "target_model": route.target_model,
-                    "execution_mode": "direct_http"
-                    if direct_provider is not None
-                    else "python_adapter",
-                    "base_url": route.base_url,
-                    "api_key_env_var": route.api_key_env_var,
-                    "priority": route.priority,
-                    "timeout_ms": timeout_override_ms or route.timeout_ms,
-                    "retry_count": route.retry_count,
-                    "region": route.region,
-                    "deployment_status": route.deployment_status,
-                    "trigger": trigger,
-                    "required_error_triggers": (
-                        [
-                            str(item).strip()
-                            for item in (rule.get("on", []) if isinstance(rule, dict) else [])
-                            if str(item).strip()
-                        ]
-                        if trigger in {"policy", "timeout", "content_policy", "context_window"}
-                        else []
-                    ),
-                    "decision_reason": decision_reason
-                    if trigger == "primary"
-                    else f"{trigger}:{selected_reason}",
-                    "request_method": "POST",
-                    "request_url": direct_provider[0] if direct_provider is not None else None,
-                    "request_headers": direct_provider[1] if direct_provider is not None else {},
-                    "request_body": step_request,
-                }
-            )
+            step_entry: dict[str, Any] = {
+                "route_id": route.id,
+                "alias": alias_to_try,
+                "provider": route.provider,
+                "target_model": route.target_model,
+                "execution_mode": "direct_http"
+                if direct_provider is not None
+                else "python_adapter",
+                "base_url": route.base_url,
+                "api_key_env_var": route.api_key_env_var,
+                "priority": route.priority,
+                "timeout_ms": timeout_override_ms or route.timeout_ms,
+                "retry_count": route.retry_count,
+                "region": route.region,
+                "deployment_status": route.deployment_status,
+                "trigger": trigger,
+                "required_error_triggers": (
+                    [
+                        str(item).strip()
+                        for item in (rule.get("on", []) if isinstance(rule, dict) else [])
+                        if str(item).strip()
+                    ]
+                    if trigger in {"policy", "timeout", "content_policy", "context_window"}
+                    else []
+                ),
+                "decision_reason": decision_reason
+                if trigger == "primary"
+                else f"{trigger}:{selected_reason}",
+                "request_method": "POST",
+                "request_url": direct_provider[0] if direct_provider is not None else None,
+                "request_headers": direct_provider[1] if direct_provider is not None else {},
+                "request_body": step_request,
+            }
+            if direct_provider is not None and hasattr(direct_provider, "response_format"):
+                if direct_provider.response_format:
+                    step_entry["response_format"] = direct_provider.response_format
+                if direct_provider.provider_stream_format:
+                    step_entry["provider_stream_format"] = direct_provider.provider_stream_format
+            execution_steps.append(step_entry)
 
     if not execution_steps:
         raise HTTPException(

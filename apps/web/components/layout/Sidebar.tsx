@@ -88,6 +88,7 @@ const buildNav = [
   { href: '/optimization-opportunities', label: 'Optimization', icon: Lightbulb },
   { href: '/model-scorecards', label: 'Model Scorecards', icon: Trophy },
   { href: '/vector-stores', label: 'Vector Stores', icon: Database },
+  { href: '/pipeline', label: 'Pipeline Designer', icon: Cpu },
 ] as const
 
 export default function Sidebar() {

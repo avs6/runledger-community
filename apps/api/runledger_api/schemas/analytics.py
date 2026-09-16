@@ -1234,4 +1234,43 @@ class DesignSystemPosture(BaseModel):
     scope_visual_language: dict[str, Any]
     layout_shells: dict[str, Any]
     density_modes: dict[str, Any]
+
+
+class GatewaySplitPosture(BaseModel):
+    workspace_id: str
+    architecture_boundary: dict[str, Any]
+    rust_data_plane: dict[str, Any]
+    python_control_plane: dict[str, Any]
+    provider_execution_map: dict[str, Any]
+    deprecated_paths: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class HotPathMigrationPosture(BaseModel):
+    workspace_id: str
+    migration_summary: dict[str, Any]
+    provider_migration_status: dict[str, Any]
+    control_plane_modules: dict[str, Any]
+    runtime_contract_inventory: dict[str, Any]
+    observe_context: dict[str, Any]
     status_semantics: dict[str, Any]
+
+
+class RouterCollapseRefreshPosture(BaseModel):
+    workspace_id: str
+    collapse_status: dict[str, Any]
+    service_topology: dict[str, Any]
+    classification_health: dict[str, Any]
+    deployment_validation: dict[str, Any]
+    routing_intelligence: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class ConsumerMigrationRefreshPosture(BaseModel):
+    workspace_id: str
+    migration_completeness: dict[str, Any]
+    stale_reference_audit: dict[str, Any]
+    provider_execution_modes: dict[str, Any]
+    asset_alignment: dict[str, Any]
+    runtime_validation: dict[str, Any]
+    observe_context: dict[str, Any]
