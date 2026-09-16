@@ -1025,10 +1025,6 @@ function Card({ title, sub, icon, children, action, controls }: {
   )
 }
 
-function isFulfilled<T>(result: PromiseSettledResult<T>): result is PromiseFulfilledResult<T> {
-  return result.status === 'fulfilled'
-}
-
 export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24h', apiKey: apiKeyOverride }: AnalyticsBreakdownClientProps = {}) {
   const { data: session } = useSession()
   const apiKey = apiKeyOverride ?? (session as { apiKey?: string })?.apiKey
@@ -1053,6 +1049,11 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
 
   const load = useCallback(async () => {
     if (!apiKey) {
+      setSummary(null)
+      setSpendTime(null)
+      setByModel(null)
+      setByFeature(null)
+      setRecentRuns([])
       setLoading(false)
       return
     }
@@ -1060,20 +1061,15 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
     const win = presetWindow(preset)
     const gran = presetGranularity(preset)
     try {
-      const [summaryResult, spendTimeResult, byModelResult, byFeatureResult, runsResult] = await Promise.allSettled([
-        getAnalyticsSummary(apiKey, win),
-        getSpendOverTime(apiKey, gran, win),
-        getSpendByModel(apiKey, win),
-        getSpendByFeature(apiKey, win),
-        getRuns(apiKey, { limit: 80, from: win.from, to: win.to }),
-      ])
-      if (isFulfilled(summaryResult)) setSummary(summaryResult.value)
-      if (isFulfilled(spendTimeResult)) setSpendTime(spendTimeResult.value)
-      if (isFulfilled(byModelResult)) setByModel(byModelResult.value)
-      if (isFulfilled(byFeatureResult)) setByFeature(byFeatureResult.value)
-      if (isFulfilled(runsResult)) setRecentRuns(runsResult.value.items)
-
-      const failures = [summaryResult, spendTimeResult, byModelResult, byFeatureResult, runsResult]
+      const tasks = [
+        getAnalyticsSummary(apiKey, win).then(setSummary),
+        getSpendOverTime(apiKey, gran, win).then(setSpendTime),
+        getSpendByModel(apiKey, win).then(setByModel),
+        getSpendByFeature(apiKey, win).then(setByFeature),
+        getRuns(apiKey, { limit: 80, from: win.from, to: win.to }).then(result => setRecentRuns(result.items)),
+      ]
+      const results = await Promise.allSettled(tasks)
+      const failures = results
         .filter(result => result.status === 'rejected')
       if (failures.length === 5) {
         toast.error('Failed to load analytics')

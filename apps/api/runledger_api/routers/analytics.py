@@ -2,7 +2,9 @@
 Analytics query API — cost and usage aggregates.
 
 All endpoints are workspace-scoped via Bearer API key authentication.
-Data is read directly from provider_calls (and agent_runs for feature_tag).
+Cost/model endpoints prefer provider_calls and fall back to agent_runs so OTLP
+and gateway traffic still produces visible charts when provider-level calls are
+not available.
 
 Time-range parameters:
   ``from_dt``  ISO-8601 datetime (default: 7 days ago)
@@ -355,6 +357,22 @@ async def analytics_summary(
     prev_result = await db.execute(_summary_stmt(prev_from, prev_to))
     prev_row = prev_result.one()
 
+    if int(row.call_count or 0) == 0:
+        def _run_summary_stmt(period_from: datetime, period_to: datetime) -> Any:
+            filters = _successful_run_filter(workspace.id, period_from, period_to)
+            if api_key_id is not None:
+                filters.append(AgentRun.api_key_id == api_key_id)
+            return select(
+                func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("total_cost"),
+                func.coalesce(func.sum(AgentRun.total_input_tokens), 0).label("total_input"),
+                func.coalesce(func.sum(AgentRun.total_output_tokens), 0).label("total_output"),
+                func.count(AgentRun.id).label("run_count"),
+                func.count(AgentRun.id).label("call_count"),
+            ).where(*filters)
+
+        row = (await db.execute(_run_summary_stmt(t_from, t_to))).one()
+        prev_row = (await db.execute(_run_summary_stmt(prev_from, prev_to))).one()
+
     prev_cost: Decimal = prev_row.total_cost
     cost_delta_pct: Decimal | None = None
     if prev_cost and prev_cost > Decimal(0):
@@ -369,6 +387,15 @@ async def analytics_summary(
         prev_cost_usd=prev_cost,
         cost_delta_pct=cost_delta_pct,
     )
+
+
+def _successful_run_filter(workspace_id: uuid.UUID, period_from: datetime, period_to: datetime) -> list[Any]:
+    return [
+        AgentRun.workspace_id == workspace_id,
+        AgentRun.started_at >= period_from,
+        AgentRun.started_at < period_to,
+        AgentRun.status == "succeeded",
+    ]
 
 
 # ── /analytics/spend-over-time ────────────────────────────────────────────────
@@ -421,6 +448,35 @@ async def spend_over_time(
 
     result = await db.execute(stmt)
     rows = result.all()
+
+    if not rows:
+        if granularity == "minute":
+            run_period_col = func.date_trunc("minute", AgentRun.started_at).label("period")
+        elif granularity == "5min":
+            run_period_col = func.to_timestamp(
+                func.floor(func.extract("epoch", AgentRun.started_at) / 300) * 300
+            ).label("period")
+        else:
+            trunc_unit = "hour" if granularity == "hourly" else "day"
+            run_period_col = func.date_trunc(trunc_unit, AgentRun.started_at).label("period")
+
+        run_filters = _successful_run_filter(workspace.id, t_from, t_to)
+        if api_key_id is not None:
+            run_filters.append(AgentRun.api_key_id == api_key_id)
+
+        run_stmt = (
+            select(
+                run_period_col,
+                func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost_usd"),
+                func.coalesce(func.sum(AgentRun.total_input_tokens), 0).label("input_tokens"),
+                func.coalesce(func.sum(AgentRun.total_output_tokens), 0).label("output_tokens"),
+                func.count(AgentRun.id).label("call_count"),
+            )
+            .where(*run_filters)
+            .group_by(run_period_col)
+            .order_by(run_period_col)
+        )
+        rows = (await db.execute(run_stmt)).all()
 
     return SpendOverTime(
         granularity=granularity,
@@ -477,6 +533,32 @@ async def spend_by_model(
 
     result = await db.execute(stmt)
     rows = result.all()
+
+    if not rows:
+        run_filters = _successful_run_filter(workspace.id, t_from, t_to)
+        if api_key_id is not None:
+            run_filters.append(AgentRun.api_key_id == api_key_id)
+        run_model = func.coalesce(
+            AgentRun.run_metadata["model"].astext,
+            AgentRun.run_metadata["primary_model"].astext,
+            AgentRun.intent,
+            AgentRun.source_type,
+            sa.literal("unknown"),
+        )
+        run_stmt = (
+            select(
+                sa.literal("observed").label("provider"),
+                run_model.label("model"),
+                func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost_usd"),
+                func.coalesce(func.sum(AgentRun.total_input_tokens), 0).label("input_tokens"),
+                func.coalesce(func.sum(AgentRun.total_output_tokens), 0).label("output_tokens"),
+                func.count(AgentRun.id).label("call_count"),
+            )
+            .where(*run_filters)
+            .group_by(run_model)
+            .order_by(func.sum(AgentRun.total_cost_usd).desc().nulls_last())
+        )
+        rows = (await db.execute(run_stmt)).all()
 
     return SpendByModel(
         items=[
@@ -594,6 +676,23 @@ async def spend_by_feature(
 
     result = await db.execute(stmt)
     rows = result.all()
+
+    if not rows:
+        run_filters = _successful_run_filter(workspace.id, t_from, t_to)
+        if api_key_id is not None:
+            run_filters.append(AgentRun.api_key_id == api_key_id)
+        run_stmt = (
+            select(
+                AgentRun.feature_tag,
+                func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost_usd"),
+                func.count(AgentRun.id).label("run_count"),
+                func.count(AgentRun.id).label("call_count"),
+            )
+            .where(*run_filters)
+            .group_by(AgentRun.feature_tag)
+            .order_by(func.sum(AgentRun.total_cost_usd).desc().nulls_last())
+        )
+        rows = (await db.execute(run_stmt)).all()
 
     return SpendByFeature(
         items=[
