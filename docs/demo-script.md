@@ -2,7 +2,7 @@
 
 This is the default RunLedger Community demo script for a 10 to 15 minute product walkthrough.
 
-Baseline context: Friday, August 7, 2026, release `v1alpha1`.
+Baseline context: release `v1alpha6`.
 
 ## Goal
 

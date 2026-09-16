@@ -1014,8 +1014,8 @@ async def get_run_flow(
                 cached_input_tokens=cached_input_tokens,
                 latency_ms=_duration_or_latency(run, primary_call),
                 success=(
-                    outcome.success
-                    if outcome is not None
+                    run_outcome.success
+                    if run_outcome is not None
                     else run.status == RunStatusEnum.succeeded
                 ),
                 savings_usd=savings,

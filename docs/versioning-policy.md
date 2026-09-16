@@ -4,13 +4,13 @@ RunLedger Community uses semantic-style release tags with explicit pre-stable ch
 
 ## Current channel
 
-As of Friday, August 7, 2026, the project is in the `alpha` channel and the first tagged release is `v1alpha1`.
+The project is currently in the `alpha` channel. The current alpha baseline is `v1alpha6`; the first tagged alpha release was `v1alpha1`.
 
 ## Tag format
 
 Release tags use one of these forms:
 
-- `v1alpha1`, `v1alpha2`, `v1alpha3`
+- `v1alpha1`, `v1alpha2`, `v1alpha6`
 - `v1beta1`, `v1beta2`
 - `v1rc1`
 - `v1.0.0`

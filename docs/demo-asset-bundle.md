@@ -4,7 +4,7 @@ This page collects the reusable artifacts for demos, screenshots, and storytelli
 
 Use it as the single entrypoint when you need to prepare a local walkthrough, internal review, or prospect-facing product tour.
 
-Current bundle baseline: Friday, August 7, 2026, aligned to release `v1alpha1`.
+Current bundle baseline: release `v1alpha6`.
 
 ## What's in the bundle
 

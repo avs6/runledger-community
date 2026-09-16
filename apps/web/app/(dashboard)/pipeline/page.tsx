@@ -560,7 +560,8 @@ export default function PipelineDesignerPage() {
 
   const activeRoutes = routes.filter((r) => r.is_active).length
   const totalRequests = stats?.total_requests ?? 0
-  const cacheRate = stats?.cache_hit_rate ?? 0
+  const cacheRate = num(stats?.cache_hit_rate ?? 0)
+  const avgLatencyMs = stats?.avg_latency_ms == null ? null : num(stats.avg_latency_ms)
 
   const tabs: { id: Tab; label: string; icon: typeof Activity; count: number }[] = [
     { id: 'routes', label: 'Routes', icon: GitBranch, count: routes.length },
@@ -620,7 +621,7 @@ export default function PipelineDesignerPage() {
         </div>
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-2">
           <p className="text-[10px] uppercase tracking-wide text-slate-400">Avg Latency</p>
-          <p className="text-lg font-semibold dark:text-white">{stats?.avg_latency_ms?.toFixed(0) ?? '—'}ms</p>
+          <p className="text-lg font-semibold dark:text-white">{avgLatencyMs == null ? '—' : `${avgLatencyMs.toFixed(0)}ms`}</p>
         </div>
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-2">
           <p className="text-[10px] uppercase tracking-wide text-slate-400">Guardrails</p>
