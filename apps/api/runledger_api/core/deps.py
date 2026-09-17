@@ -23,6 +23,7 @@ from runledger_api.models.tenant import (
     WorkspaceUser,
 )
 from runledger_api.services.auth import verify_api_key
+from runledger_api.services.security import authenticate_oidc_token
 
 _bearer = HTTPBearer()
 
@@ -30,27 +31,7 @@ _bearer = HTTPBearer()
 _ORG_ADMIN_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
 
 
-async def get_current_workspace(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> Workspace:
-    """Validates Bearer API key and returns the associated Workspace."""
-    api_key = await verify_api_key(credentials.credentials, db)
-    if api_key is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or revoked API key",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    result = await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
-    workspace = result.scalar_one_or_none()
-    if workspace is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Workspace not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    # Check workspace status
+async def _validate_workspace_status(workspace: Workspace, db: AsyncSession) -> Workspace:
     if workspace.status == WorkspaceStatusEnum.suspended:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -61,7 +42,6 @@ async def get_current_workspace(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This workspace is archived",
         )
-    # Check parent tenant status
     tenant = (
         await db.execute(select(Tenant).where(Tenant.id == workspace.tenant_id))
     ).scalar_one_or_none()
@@ -71,6 +51,38 @@ async def get_current_workspace(
             detail="This organization is suspended",
         )
     return workspace
+
+
+async def get_current_workspace(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Workspace:
+    """Validates Bearer token (API key or OIDC JWT) and returns the associated Workspace."""
+    token = credentials.credentials
+
+    # Try API key first
+    api_key = await verify_api_key(token, db)
+    if api_key is not None:
+        result = await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
+        workspace = result.scalar_one_or_none()
+        if workspace is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Workspace not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return await _validate_workspace_status(workspace, db)
+
+    # Fallback: try OIDC bearer token validation
+    oidc_result = await authenticate_oidc_token(token, db)
+    if oidc_result is not None:
+        return await _validate_workspace_status(oidc_result.workspace, db)
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or revoked API key",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def get_current_api_key(

@@ -25,6 +25,7 @@ function buildUserFromApiResponse(data: Record<string, unknown>) {
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
+      id: 'credentials',
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -52,7 +53,93 @@ export const authOptions: AuthOptions = {
         }
       },
     }),
+    CredentialsProvider({
+      id: 'oidc-callback',
+      name: 'OIDC',
+      credentials: {
+        code: { label: 'Authorization Code', type: 'text' },
+        state: { label: 'State', type: 'text' },
+        provider_id: { label: 'Provider ID', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.code || !credentials?.state || !credentials?.provider_id) return null
 
+        try {
+          const res = await fetch(`${API_URL}/auth/oidc/callback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: credentials.code,
+              state: credentials.state,
+              provider_id: credentials.provider_id,
+            }),
+          })
+
+          if (!res.ok) return null
+          return buildUserFromApiResponse(await res.json())
+        } catch {
+          return null
+        }
+      },
+    }),
+    CredentialsProvider({
+      id: 'oauth2-callback',
+      name: 'OAuth2',
+      credentials: {
+        code: { label: 'Authorization Code', type: 'text' },
+        state: { label: 'State', type: 'text' },
+        provider_id: { label: 'Provider ID', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.code || !credentials?.state || !credentials?.provider_id) return null
+
+        try {
+          const res = await fetch(`${API_URL}/auth/oauth2/callback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: credentials.code,
+              state: credentials.state,
+              provider_id: credentials.provider_id,
+            }),
+          })
+
+          if (!res.ok) return null
+          return buildUserFromApiResponse(await res.json())
+        } catch {
+          return null
+        }
+      },
+    }),
+    CredentialsProvider({
+      id: 'ldap-login',
+      name: 'LDAP',
+      credentials: {
+        username: { label: 'Username', type: 'text' },
+        password: { label: 'Password', type: 'password' },
+        provider_id: { label: 'Provider ID', type: 'text' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password || !credentials?.provider_id) return null
+
+        try {
+          const res = await fetch(`${API_URL}/auth/ldap/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: credentials.username,
+              password: credentials.password,
+              provider_id: credentials.provider_id,
+            }),
+          })
+
+          if (!res.ok) return null
+          return buildUserFromApiResponse(await res.json())
+        } catch {
+          return null
+        }
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {

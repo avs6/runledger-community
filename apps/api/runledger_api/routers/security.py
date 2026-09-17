@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.security import IpAclRule, KeyRotationEvent, OIDCProvider
+from runledger_api.models.security import (
+    IpAclRule,
+    KeyRotationEvent,
+    LDAPProvider,
+    OAuth2Provider,
+    OIDCProvider,
+)
 from runledger_api.models.tenant import ApiKey, EnvironmentEnum, Workspace, WorkspaceUser
 from runledger_api.schemas.security import (
     IpAclRuleCreate,
@@ -23,6 +29,14 @@ from runledger_api.schemas.security import (
     IpAclTestResponse,
     KeyRotationEventList,
     KeyRotationEventResponse,
+    LDAPProviderCreate,
+    LDAPProviderList,
+    LDAPProviderResponse,
+    LDAPProviderUpdate,
+    OAuth2ProviderCreate,
+    OAuth2ProviderList,
+    OAuth2ProviderResponse,
+    OAuth2ProviderUpdate,
     OIDCProviderCreate,
     OIDCProviderList,
     OIDCProviderResponse,
@@ -33,7 +47,11 @@ from runledger_api.schemas.security import (
     WorkspaceSecuritySettingsUpdate,
 )
 from runledger_api.services.auth import generate_api_key
-from runledger_api.services.security import evaluate_ip_acl, get_or_create_security_settings
+from runledger_api.services.security import (
+    _encrypt_client_secret,
+    evaluate_ip_acl,
+    get_or_create_security_settings,
+)
 
 router = APIRouter(
     prefix="/security",
@@ -117,7 +135,11 @@ async def create_oidc_provider(
     db: DbDep,
 ) -> OIDCProviderResponse:
     workspace = auth[0]
-    item = OIDCProvider(workspace_id=workspace.id, **body.model_dump())
+    data = body.model_dump(exclude={"client_secret"})
+    if body.client_secret:
+        data["client_secret_encrypted"] = _encrypt_client_secret(body.client_secret)
+    data["tenant_id"] = workspace.tenant_id
+    item = OIDCProvider(workspace_id=workspace.id, **data)
     db.add(item)
     await db.commit()
     await db.refresh(item)
@@ -135,8 +157,11 @@ async def update_oidc_provider(
     item = await db.get(OIDCProvider, provider_id)
     if item is None or item.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "OIDC provider not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    updates = body.model_dump(exclude_none=True, exclude={"client_secret"})
+    for field, value in updates.items():
         setattr(item, field, value)
+    if body.client_secret is not None:
+        item.client_secret_encrypted = _encrypt_client_secret(body.client_secret)
     item.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(item)
@@ -153,6 +178,150 @@ async def delete_oidc_provider(
     item = await db.get(OIDCProvider, provider_id)
     if item is None or item.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "OIDC provider not found")
+    await db.delete(item)
+    await db.commit()
+
+
+# ── OAuth2 Providers ──────────────────────────────────────────────────────────
+
+
+@router.get("/oauth2-providers", response_model=OAuth2ProviderList)
+async def list_oauth2_providers(auth: OrgAdminDep, db: DbDep) -> OAuth2ProviderList:
+    workspace = auth[0]
+    items = (
+        (
+            await db.execute(
+                select(OAuth2Provider).where(OAuth2Provider.workspace_id == workspace.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return OAuth2ProviderList(items=[OAuth2ProviderResponse.model_validate(item) for item in items])
+
+
+@router.post(
+    "/oauth2-providers", response_model=OAuth2ProviderResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_oauth2_provider(
+    body: OAuth2ProviderCreate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> OAuth2ProviderResponse:
+    workspace = auth[0]
+    data = body.model_dump(exclude={"client_secret"})
+    if body.client_secret:
+        data["client_secret_encrypted"] = _encrypt_client_secret(body.client_secret)
+    data["tenant_id"] = workspace.tenant_id
+    item = OAuth2Provider(workspace_id=workspace.id, **data)
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return OAuth2ProviderResponse.model_validate(item)
+
+
+@router.put("/oauth2-providers/{provider_id}", response_model=OAuth2ProviderResponse)
+async def update_oauth2_provider(
+    provider_id: uuid.UUID,
+    body: OAuth2ProviderUpdate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> OAuth2ProviderResponse:
+    workspace = auth[0]
+    item = await db.get(OAuth2Provider, provider_id)
+    if item is None or item.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "OAuth2 provider not found")
+    updates = body.model_dump(exclude_none=True, exclude={"client_secret"})
+    for field, value in updates.items():
+        setattr(item, field, value)
+    if body.client_secret is not None:
+        item.client_secret_encrypted = _encrypt_client_secret(body.client_secret)
+    item.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(item)
+    return OAuth2ProviderResponse.model_validate(item)
+
+
+@router.delete("/oauth2-providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_oauth2_provider(
+    provider_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    item = await db.get(OAuth2Provider, provider_id)
+    if item is None or item.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "OAuth2 provider not found")
+    await db.delete(item)
+    await db.commit()
+
+
+# ── LDAP Providers ────────────────────────────────────────────────────────────
+
+
+@router.get("/ldap-providers", response_model=LDAPProviderList)
+async def list_ldap_providers(auth: OrgAdminDep, db: DbDep) -> LDAPProviderList:
+    workspace = auth[0]
+    items = (
+        (await db.execute(select(LDAPProvider).where(LDAPProvider.workspace_id == workspace.id)))
+        .scalars()
+        .all()
+    )
+    return LDAPProviderList(items=[LDAPProviderResponse.model_validate(item) for item in items])
+
+
+@router.post(
+    "/ldap-providers", response_model=LDAPProviderResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_ldap_provider(
+    body: LDAPProviderCreate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> LDAPProviderResponse:
+    workspace = auth[0]
+    data = body.model_dump(exclude={"bind_password"})
+    if body.bind_password:
+        data["bind_password_encrypted"] = _encrypt_client_secret(body.bind_password)
+    data["tenant_id"] = workspace.tenant_id
+    item = LDAPProvider(workspace_id=workspace.id, **data)
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return LDAPProviderResponse.model_validate(item)
+
+
+@router.put("/ldap-providers/{provider_id}", response_model=LDAPProviderResponse)
+async def update_ldap_provider(
+    provider_id: uuid.UUID,
+    body: LDAPProviderUpdate,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> LDAPProviderResponse:
+    workspace = auth[0]
+    item = await db.get(LDAPProvider, provider_id)
+    if item is None or item.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "LDAP provider not found")
+    updates = body.model_dump(exclude_none=True, exclude={"bind_password"})
+    for field, value in updates.items():
+        setattr(item, field, value)
+    if body.bind_password is not None:
+        item.bind_password_encrypted = _encrypt_client_secret(body.bind_password)
+    item.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(item)
+    return LDAPProviderResponse.model_validate(item)
+
+
+@router.delete("/ldap-providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ldap_provider(
+    provider_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> None:
+    workspace = auth[0]
+    item = await db.get(LDAPProvider, provider_id)
+    if item is None or item.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "LDAP provider not found")
     await db.delete(item)
     await db.commit()
 
