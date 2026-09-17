@@ -31,13 +31,6 @@ from runledger_api.core.deps import (
     require_admin,
     require_org_admin,
 )
-from runledger_api.models.gateway import (
-    GatewayPassThroughEndpoint,
-    GatewayRequest,  # noqa: F401
-    GatewayRoute,
-    GatewayRoutingGroup,
-    RoutingPolicy,  # noqa: F401
-)
 from runledger_api.models.events import (  # noqa: F401
     AgentRun,
     ProviderCall,
@@ -45,6 +38,13 @@ from runledger_api.models.events import (  # noqa: F401
     Span,
     SpanStatusEnum,
     SpanTypeEnum,
+)
+from runledger_api.models.gateway import (
+    GatewayPassThroughEndpoint,
+    GatewayRequest,  # noqa: F401
+    GatewayRoute,
+    GatewayRoutingGroup,
+    RoutingPolicy,  # noqa: F401
 )
 from runledger_api.models.tenant import ApiKey, TenantUser, User, Workspace
 from runledger_api.schemas.gateway import (  # noqa: F401
