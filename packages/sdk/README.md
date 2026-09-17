@@ -33,7 +33,7 @@ from runledger_sdk import RunLedger
 import openai
 
 rl = RunLedger(api_key="rl_dev_...")  # or set RUNLEDGER_API_KEY env var
-rl.instrument()                        # wraps openai.OpenAI + AsyncOpenAI
+rl.instrument()  # wraps openai.OpenAI + AsyncOpenAI
 
 client = openai.OpenAI()
 
@@ -53,7 +53,7 @@ from runledger_sdk import RunLedger
 import anthropic
 
 rl = RunLedger(api_key="rl_dev_...")
-rl.instrument_anthropic()   # patches anthropic.Anthropic + AsyncAnthropic
+rl.instrument_anthropic()  # patches anthropic.Anthropic + AsyncAnthropic
 
 client = anthropic.Anthropic()
 
@@ -89,7 +89,9 @@ chain = (
 handler = rl.callback_handler()
 
 with rl.context(end_user_id="u_456", feature_tag="explainer") as run_id:
-    result = chain.invoke({"topic": "gradient descent"}, config={"callbacks": [handler]})
+    result = chain.invoke(
+        {"topic": "gradient descent"}, config={"callbacks": [handler]}
+    )
 
 rl.shutdown()
 ```
@@ -193,7 +195,7 @@ print(published_skill_tool_names())
 ## Local / offline mode
 
 ```python
-rl = RunLedger(local=True)   # prints events to stdout, no HTTP calls
+rl = RunLedger(local=True)  # prints events to stdout, no HTTP calls
 ```
 
 ## Configuration

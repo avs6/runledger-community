@@ -140,7 +140,9 @@ async def govern_and_filter_tool_call(
     )
     all_policies = (await db.execute(policy_stmt)).scalars().all()
     scoped_policies = _filter_policies_by_scope(all_policies, access_group_id, api_key_id)
-    matching_policies = [p for p in scoped_policies if p.tool_name.lower() in [tool_name.lower(), "*"]]
+    matching_policies = [
+        p for p in scoped_policies if p.tool_name.lower() in [tool_name.lower(), "*"]
+    ]
 
     matched_policy = matching_policies[0] if matching_policies else None
     skipped_count = len(all_policies) - len(scoped_policies)
@@ -173,7 +175,9 @@ async def govern_and_filter_tool_call(
         payload["violation"] = violation_reason
         payload["matched_policy_scope"] = {
             "scope_type": matched_policy.scope_type if matched_policy else None,
-            "scope_id": str(matched_policy.scope_id) if matched_policy and matched_policy.scope_id else None,
+            "scope_id": str(matched_policy.scope_id)
+            if matched_policy and matched_policy.scope_id
+            else None,
             "policy_name": matched_policy.name if matched_policy else None,
         }
         await execute_plugin_hooks(db, workspace_id, "on_guardrail_violation", payload)
@@ -204,7 +208,9 @@ async def govern_and_filter_tool_call(
         payload["approval_reason"] = reason
         payload["matched_policy_scope"] = {
             "scope_type": matched_policy.scope_type if matched_policy else None,
-            "scope_id": str(matched_policy.scope_id) if matched_policy and matched_policy.scope_id else None,
+            "scope_id": str(matched_policy.scope_id)
+            if matched_policy and matched_policy.scope_id
+            else None,
             "policy_name": matched_policy.name if matched_policy else None,
         }
 

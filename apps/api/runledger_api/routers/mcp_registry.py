@@ -263,7 +263,11 @@ async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> Mc
     from runledger_api.services.plugin_runner import govern_and_filter_tool_call  # noqa: PLC0415
 
     gov_res = await govern_and_filter_tool_call(
-        db, ws.id, srv.id, body.tool_name, body.arguments,
+        db,
+        ws.id,
+        srv.id,
+        body.tool_name,
+        body.arguments,
         access_group_id=body.access_group_id,
         api_key_id=body.api_key_id,
         end_user_id=body.end_user_id,
