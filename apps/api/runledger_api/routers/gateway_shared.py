@@ -495,7 +495,9 @@ def _runtime_direct_provider_request(
         except Exception:
             return None
     if provider == "bedrock":
-        return _bedrock_direct_provider_request(route=route, request_body=request_body, stream=stream)
+        return _bedrock_direct_provider_request(
+            route=route, request_body=request_body, stream=stream
+        )
     return None
 
 

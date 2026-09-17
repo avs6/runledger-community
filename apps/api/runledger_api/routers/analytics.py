@@ -363,6 +363,7 @@ async def analytics_summary(
     prev_row = prev_result.one()
 
     if int(row.call_count or 0) == 0:
+
         def _run_summary_stmt(period_from: datetime, period_to: datetime) -> Any:
             filters = _successful_run_filter(workspace.id, period_from, period_to)
             if api_key_id is not None:
@@ -394,7 +395,9 @@ async def analytics_summary(
     )
 
 
-def _successful_run_filter(workspace_id: uuid.UUID, period_from: datetime, period_to: datetime) -> list[Any]:
+def _successful_run_filter(
+    workspace_id: uuid.UUID, period_from: datetime, period_to: datetime
+) -> list[Any]:
     return [
         AgentRun.workspace_id == workspace_id,
         AgentRun.started_at >= period_from,
@@ -18512,8 +18515,17 @@ async def gateway_split_posture(
     ).scalar() or 0
 
     direct_http_providers = [
-        "openai", "anthropic", "ollama", "vllm", "local", "groq",
-        "mistral", "custom", "azure", "vertex", "bedrock",
+        "openai",
+        "anthropic",
+        "ollama",
+        "vllm",
+        "local",
+        "groq",
+        "mistral",
+        "custom",
+        "azure",
+        "vertex",
+        "bedrock",
     ]
     direct_http_routes = (
         await db.execute(
@@ -18704,8 +18716,17 @@ async def hot_path_migration_posture(
     ).scalar() or 0
 
     direct_http_providers = [
-        "openai", "anthropic", "ollama", "vllm", "local", "groq",
-        "mistral", "custom", "azure", "vertex", "bedrock",
+        "openai",
+        "anthropic",
+        "ollama",
+        "vllm",
+        "local",
+        "groq",
+        "mistral",
+        "custom",
+        "azure",
+        "vertex",
+        "bedrock",
     ]
     direct_http_routes = (
         await db.execute(
@@ -18774,7 +18795,9 @@ async def hot_path_migration_posture(
     ).scalar() or 0
 
     python_adapter_routes = active_routes - direct_http_routes
-    migration_pct = round((direct_http_routes / active_routes * 100) if active_routes > 0 else 100, 1)
+    migration_pct = round(
+        (direct_http_routes / active_routes * 100) if active_routes > 0 else 100, 1
+    )
 
     return HotPathMigrationPosture(
         workspace_id=str(workspace.id),
@@ -18818,8 +18841,13 @@ async def hot_path_migration_posture(
             "gateway_runtime": {
                 "role": "internal_contract_endpoints",
                 "endpoints": [
-                    "preflight", "finalize", "provider-execute", "route-result",
-                    "mirror", "events/signed", "snapshot",
+                    "preflight",
+                    "finalize",
+                    "provider-execute",
+                    "route-result",
+                    "mirror",
+                    "events/signed",
+                    "snapshot",
                 ],
                 "hot_path_logic": "none — preflight produces execution plans, not live execution",
             },
@@ -19133,10 +19161,26 @@ async def consumer_migration_refresh_posture(
             "postman_aligned": True,
         },
         provider_execution_modes={
-            "openai": {"mode": "direct_http", "signing": "bearer_token", "streaming": "passthrough_sse"},
-            "azure": {"mode": "direct_http", "signing": "api_key_header", "streaming": "passthrough_sse"},
-            "bedrock": {"mode": "direct_http", "signing": "sigv4_presigned", "streaming": "binary_eventstream_to_sse"},
-            "vertex": {"mode": "direct_http", "signing": "oauth2_bearer", "streaming": "gemini_sse_to_openai_sse"},
+            "openai": {
+                "mode": "direct_http",
+                "signing": "bearer_token",
+                "streaming": "passthrough_sse",
+            },
+            "azure": {
+                "mode": "direct_http",
+                "signing": "api_key_header",
+                "streaming": "passthrough_sse",
+            },
+            "bedrock": {
+                "mode": "direct_http",
+                "signing": "sigv4_presigned",
+                "streaming": "binary_eventstream_to_sse",
+            },
+            "vertex": {
+                "mode": "direct_http",
+                "signing": "oauth2_bearer",
+                "streaming": "gemini_sse_to_openai_sse",
+            },
         },
         asset_alignment={
             "api_keys": api_keys,
@@ -19296,12 +19340,12 @@ async def governance_runtime_refresh_posture(
     ).scalar() or 0
 
     api_keys = (
-        await db.execute(
-            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
-        )
+        await db.execute(select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws))
     ).scalar() or 0
 
-    scope_aware_pct = round(access_group_scoped / total_policies * 100, 1) if total_policies else 0.0
+    scope_aware_pct = (
+        round(access_group_scoped / total_policies * 100, 1) if total_policies else 0.0
+    )
     block_rate = round(blocked_30d / guardrail_events_30d * 100, 1) if guardrail_events_30d else 0.0
 
     return GovernanceRuntimeRefreshPosture(
@@ -19396,9 +19440,7 @@ async def api_explorer_refresh_posture(
     ).scalar() or 0
 
     api_keys = (
-        await db.execute(
-            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
-        )
+        await db.execute(select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws))
     ).scalar() or 0
 
     mcp_servers = (
@@ -19443,24 +19485,40 @@ async def api_explorer_refresh_posture(
             "control_plane": {
                 "host": "runledger-api:8000",
                 "families": [
-                    "org", "gateway_routing", "gateway_runtime",
-                    "budgets", "analytics", "settings", "governance",
-                    "evaluations", "agents", "workflows", "prompts",
-                    "pipelines", "mcp_registry",
+                    "org",
+                    "gateway_routing",
+                    "gateway_runtime",
+                    "budgets",
+                    "analytics",
+                    "settings",
+                    "governance",
+                    "evaluations",
+                    "agents",
+                    "workflows",
+                    "prompts",
+                    "pipelines",
+                    "mcp_registry",
                 ],
             },
             "data_plane": {
                 "host": "runledger-gateway-rs:8210",
                 "families": [
-                    "chat_completions", "streaming", "passthrough",
+                    "chat_completions",
+                    "streaming",
+                    "passthrough",
                     "pipeline_streaming",
                 ],
             },
             "observability": {
                 "host": "runledger-api:8000",
                 "families": [
-                    "analytics", "monitoring", "audit", "runs",
-                    "sessions", "request_explorer", "live_pipeline",
+                    "analytics",
+                    "monitoring",
+                    "audit",
+                    "runs",
+                    "sessions",
+                    "request_explorer",
+                    "live_pipeline",
                 ],
             },
             "admin": {
@@ -19513,9 +19571,7 @@ async def help_hub_posture(
     thirty_days_ago = now - timedelta(days=30)
 
     api_keys = (
-        await db.execute(
-            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
-        )
+        await db.execute(select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws))
     ).scalar() or 0
 
     requests_30d = (
@@ -19537,8 +19593,13 @@ async def help_hub_posture(
     ).scalar() or 0
 
     sections = [
-        "observe", "build", "gateway", "governance",
-        "finops", "org_access", "platform",
+        "observe",
+        "build",
+        "gateway",
+        "governance",
+        "finops",
+        "org_access",
+        "platform",
     ]
 
     return HelpHubPosture(
@@ -19563,23 +19624,68 @@ async def help_hub_posture(
         contextual_links={
             "observe": {
                 "label": "Observe & Monitor",
-                "pages": ["Overview", "Runs", "Request Flow", "Live Pipeline", "Request Explorer", "Model Usage", "Monitoring", "Outcomes & ROI"],
-                "help_topics": ["trace_inspection", "session_replay", "live_streaming", "telemetry"],
+                "pages": [
+                    "Overview",
+                    "Runs",
+                    "Request Flow",
+                    "Live Pipeline",
+                    "Request Explorer",
+                    "Model Usage",
+                    "Monitoring",
+                    "Outcomes & ROI",
+                ],
+                "help_topics": [
+                    "trace_inspection",
+                    "session_replay",
+                    "live_streaming",
+                    "telemetry",
+                ],
             },
             "build": {
                 "label": "Build & Improve",
-                "pages": ["Agents", "Workflows", "Playground", "Evaluation Studio", "Optimization", "Pipeline Designer", "Vector Stores"],
-                "help_topics": ["agent_creation", "workflow_design", "prompt_testing", "pipeline_design"],
+                "pages": [
+                    "Agents",
+                    "Workflows",
+                    "Playground",
+                    "Evaluation Studio",
+                    "Optimization",
+                    "Pipeline Designer",
+                    "Vector Stores",
+                ],
+                "help_topics": [
+                    "agent_creation",
+                    "workflow_design",
+                    "prompt_testing",
+                    "pipeline_design",
+                ],
             },
             "gateway": {
                 "label": "Gateway & Routing",
                 "pages": ["Model Gateway", "Provider Profiles", "Guardrails"],
-                "help_topics": ["route_config", "provider_setup", "guardrail_rules", "rate_limits", "caching"],
+                "help_topics": [
+                    "route_config",
+                    "provider_setup",
+                    "guardrail_rules",
+                    "rate_limits",
+                    "caching",
+                ],
             },
             "governance": {
                 "label": "Safety & Governance",
-                "pages": ["Tool Governance", "MCP Servers", "Data Capture", "Security", "Approvals", "Audit Log"],
-                "help_topics": ["tool_policies", "mcp_config", "scope_enforcement", "audit_evidence"],
+                "pages": [
+                    "Tool Governance",
+                    "MCP Servers",
+                    "Data Capture",
+                    "Security",
+                    "Approvals",
+                    "Audit Log",
+                ],
+                "help_topics": [
+                    "tool_policies",
+                    "mcp_config",
+                    "scope_enforcement",
+                    "audit_evidence",
+                ],
             },
             "finops": {
                 "label": "FinOps",
@@ -19589,7 +19695,12 @@ async def help_hub_posture(
             "org_access": {
                 "label": "Org & Access",
                 "pages": ["Organization", "API Keys", "Access Groups", "Onboarding"],
-                "help_topics": ["user_management", "api_key_rotation", "access_group_setup", "workspace_config"],
+                "help_topics": [
+                    "user_management",
+                    "api_key_rotation",
+                    "access_group_setup",
+                    "workspace_config",
+                ],
             },
             "platform": {
                 "label": "Platform",
@@ -19640,9 +19751,7 @@ async def design_system_refresh_posture(
     ).scalar() or 0
 
     api_keys = (
-        await db.execute(
-            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
-        )
+        await db.execute(select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws))
     ).scalar() or 0
 
     requests_30d = (
@@ -19669,7 +19778,20 @@ async def design_system_refresh_posture(
         token_system={
             "css_variables": True,
             "root_tokens": True,
-            "color_scales": ["slate", "blue", "violet", "emerald", "amber", "rose", "cyan", "teal", "sky", "indigo", "purple", "red"],
+            "color_scales": [
+                "slate",
+                "blue",
+                "violet",
+                "emerald",
+                "amber",
+                "rose",
+                "cyan",
+                "teal",
+                "sky",
+                "indigo",
+                "purple",
+                "red",
+            ],
             "border_radius": "rounded-lg / rounded-xl",
             "spacing_scale": "tailwind default (0.25rem increments)",
         },
@@ -19689,9 +19811,15 @@ async def design_system_refresh_posture(
             "toast_notifications": True,
             "charts": True,
             "themed_sections": [
-                "emerald (enforcement)", "rose (governance)", "purple (API)",
-                "sky (help)", "cyan (architecture)", "teal (pipeline)",
-                "amber (safety)", "blue (observe)", "indigo (org)",
+                "emerald (enforcement)",
+                "rose (governance)",
+                "purple (API)",
+                "sky (help)",
+                "cyan (architecture)",
+                "teal (pipeline)",
+                "amber (safety)",
+                "blue (observe)",
+                "indigo (org)",
                 "violet (build)",
             ],
         },
@@ -19761,8 +19889,14 @@ async def docs_ia_refresh_posture(
         docs_structure={
             "hierarchy": "workflow-centered",
             "sections": [
-                "observe", "build", "gateway", "governance",
-                "finops", "org_access", "platform", "architecture",
+                "observe",
+                "build",
+                "gateway",
+                "governance",
+                "finops",
+                "org_access",
+                "platform",
+                "architecture",
             ],
             "total_sections": 8,
             "landing_map": True,
