@@ -5497,6 +5497,10 @@ export async function getDesignSystemPosture(apiKey: string): Promise<import('@/
   return apiFetch<import('@/types/api').DesignSystemPosture>('/analytics/design-system-posture', apiKey)
 }
 
+export async function getGovernanceRuntimeRefreshPosture(apiKey: string): Promise<import('@/types/api').GovernanceRuntimeRefreshPosture> {
+  return apiFetch<import('@/types/api').GovernanceRuntimeRefreshPosture>('/analytics/governance-runtime-refresh-posture', apiKey)
+}
+
 export async function getGatewaySplitPosture(apiKey: string): Promise<import('@/types/api').GatewaySplitPosture> {
   return apiFetch<import('@/types/api').GatewaySplitPosture>('/analytics/gateway-split-posture', apiKey)
 }
@@ -5511,4 +5515,12 @@ export async function getRouterCollapseRefreshPosture(apiKey: string): Promise<i
 
 export async function getConsumerMigrationRefreshPosture(apiKey: string): Promise<import('@/types/api').ConsumerMigrationRefreshPosture> {
   return apiFetch<import('@/types/api').ConsumerMigrationRefreshPosture>('/analytics/consumer-migration-refresh-posture', apiKey)
+}
+
+export async function getApiExplorerRefreshPosture(apiKey: string): Promise<import('@/types/api').ApiExplorerRefreshPosture> {
+  return apiFetch<import('@/types/api').ApiExplorerRefreshPosture>('/analytics/api-explorer-refresh-posture', apiKey)
+}
+
+export async function getHelpHubPosture(apiKey: string): Promise<import('@/types/api').HelpHubPosture> {
+  return apiFetch<import('@/types/api').HelpHubPosture>('/analytics/help-hub-posture', apiKey)
 }

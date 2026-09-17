@@ -88,6 +88,9 @@ class McpToolCallRequest(BaseModel):
     server_id: uuid.UUID
     tool_name: str
     arguments: dict[str, Any] = {}
+    access_group_id: uuid.UUID | None = None
+    api_key_id: uuid.UUID | None = None
+    end_user_id: str | None = None
 
 
 class McpToolCallResponse(BaseModel):

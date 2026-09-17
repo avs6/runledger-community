@@ -1223,6 +1223,7 @@ class ApiExplorerPosture(BaseModel):
     workspace_id: str
     openapi_surface: dict[str, Any]
     endpoint_ownership: dict[str, Any]
+    pipeline_endpoints: dict[str, Any]
     sdk_support: dict[str, Any]
     observe_context: dict[str, Any]
 
@@ -1273,4 +1274,34 @@ class ConsumerMigrationRefreshPosture(BaseModel):
     provider_execution_modes: dict[str, Any]
     asset_alignment: dict[str, Any]
     runtime_validation: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class GovernanceRuntimeRefreshPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    scope_resolution: dict[str, Any]
+    policy_scope_breakdown: dict[str, Any]
+    enforcement_depth: dict[str, Any]
+    friction_by_scope: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class ApiExplorerRefreshPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    openapi_surface: dict[str, Any]
+    endpoint_ownership: dict[str, Any]
+    pipeline_endpoints: dict[str, Any]
+    sdk_support: dict[str, Any]
+    discovery_surface: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class HelpHubPosture(BaseModel):
+    workspace_id: str
+    hub_status: dict[str, Any]
+    content_coverage: dict[str, Any]
+    contextual_links: dict[str, Any]
+    platform_readiness: dict[str, Any]
     observe_context: dict[str, Any]

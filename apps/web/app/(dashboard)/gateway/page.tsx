@@ -28,6 +28,9 @@ import {
   getHotPathMigrationPosture,
   getRouterCollapseRefreshPosture,
   getConsumerMigrationRefreshPosture,
+  getGovernanceRuntimeRefreshPosture,
+  getApiExplorerRefreshPosture,
+  getHelpHubPosture,
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
@@ -40,7 +43,7 @@ import type {
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
   GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
-  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture, GatewaySplitPosture, HotPathMigrationPosture, RouterCollapseRefreshPosture, ConsumerMigrationRefreshPosture,
+  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture, GatewaySplitPosture, HotPathMigrationPosture, RouterCollapseRefreshPosture, ConsumerMigrationRefreshPosture, GovernanceRuntimeRefreshPosture, ApiExplorerRefreshPosture, HelpHubPosture,
 } from '@/types/api'
 
 const inputCls =
@@ -263,6 +266,9 @@ export default function GatewayPage() {
   const [hotPathMigrationPosture, setHotPathMigrationPosture] = useState<HotPathMigrationPosture | null>(null)
   const [routerCollapseRefreshPosture, setRouterCollapseRefreshPosture] = useState<RouterCollapseRefreshPosture | null>(null)
   const [consumerMigrationRefreshPosture, setConsumerMigrationRefreshPosture] = useState<ConsumerMigrationRefreshPosture | null>(null)
+  const [governanceRuntimeRefreshPosture, setGovernanceRuntimeRefreshPosture] = useState<GovernanceRuntimeRefreshPosture | null>(null)
+  const [apiExplorerRefreshPosture, setApiExplorerRefreshPosture] = useState<ApiExplorerRefreshPosture | null>(null)
+  const [helpHubPosture, setHelpHubPosture] = useState<HelpHubPosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const searchParams = useSearchParams()
@@ -337,6 +343,9 @@ export default function GatewayPage() {
     getHotPathMigrationPosture(apiKey).then(setHotPathMigrationPosture).catch(() => {})
     getRouterCollapseRefreshPosture(apiKey).then(setRouterCollapseRefreshPosture).catch(() => {})
     getConsumerMigrationRefreshPosture(apiKey).then(setConsumerMigrationRefreshPosture).catch(() => {})
+    getGovernanceRuntimeRefreshPosture(apiKey).then(setGovernanceRuntimeRefreshPosture).catch(() => {})
+    getApiExplorerRefreshPosture(apiKey).then(setApiExplorerRefreshPosture).catch(() => {})
+    getHelpHubPosture(apiKey).then(setHelpHubPosture).catch(() => {})
   }, [apiKey])
 
   if (!canManage) {
@@ -1965,6 +1974,130 @@ export default function GatewayPage() {
             <Link href="/guardrails" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Guardrails</Link>
             <Link href="/analytics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Analytics</Link>
             <Link href="/analytics/monitoring" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Monitoring</Link>
+          </div>
+        </div>
+      )}
+
+      {governanceRuntimeRefreshPosture && (
+        <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-rose-900 dark:text-rose-100">Scope-Aware Governance Runtime</h2>
+            <p className="mt-0.5 text-xs text-rose-700 dark:text-rose-400">
+              Policy filtering respects scope dimensions — workspace, access-group, and search-tool scoped policies apply only to matching callers with full audit lineage.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-rose-600 dark:text-rose-400">Active Policies</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{governanceRuntimeRefreshPosture.policy_scope_breakdown.total_active_policies}</p>
+              <p className="text-xs text-slate-400">{governanceRuntimeRefreshPosture.policy_scope_breakdown.scope_aware_pct}% scope-aware</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-rose-600 dark:text-rose-400">Scope Breakdown</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{governanceRuntimeRefreshPosture.policy_scope_breakdown.workspace_scoped} ws · {governanceRuntimeRefreshPosture.policy_scope_breakdown.access_group_scoped} grp</p>
+              <p className="text-xs text-slate-400">{governanceRuntimeRefreshPosture.policy_scope_breakdown.search_tool_scoped} search-tool scoped</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-rose-600 dark:text-rose-400">Enforcement (30d)</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{governanceRuntimeRefreshPosture.enforcement_depth.guardrail_events_30d}</p>
+              <p className="text-xs text-slate-400">{governanceRuntimeRefreshPosture.enforcement_depth.block_rate_pct}% block rate</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-rose-600 dark:text-rose-400">Access Groups</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{governanceRuntimeRefreshPosture.policy_scope_breakdown.total_access_groups}</p>
+              <p className="text-xs text-slate-400">{governanceRuntimeRefreshPosture.policy_scope_breakdown.groups_with_guardrails} with guardrails</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-rose-600 dark:text-rose-400">Observe Surface</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{governanceRuntimeRefreshPosture.observe_context.requests_30d}</p>
+              <p className="text-xs text-slate-400">{governanceRuntimeRefreshPosture.observe_context.audit_events_30d} audit events · {governanceRuntimeRefreshPosture.observe_context.api_keys} keys</p>
+            </div>
+            <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-rose-600 dark:text-rose-400">Scope Filtering</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{governanceRuntimeRefreshPosture.scope_resolution.scope_filtering_active ? 'Active' : 'Inactive'}</p>
+              <p className="text-xs text-slate-400">{governanceRuntimeRefreshPosture.scope_resolution.scope_types_supported.join(', ')}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/governance" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Governance</Link>
+            <Link href="/guardrails" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Guardrails</Link>
+            <Link href="/analytics" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Analytics</Link>
+          </div>
+        </div>
+      )}
+
+      {apiExplorerRefreshPosture && (
+        <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50/30 dark:bg-purple-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-purple-900 dark:text-purple-100">API Explorer Surface</h2>
+            <p className="mt-0.5 text-xs text-purple-700 dark:text-purple-400">
+              Generated OpenAPI reference with pipeline endpoint discovery, SDK support, and embedded explorer for in-product API interaction.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">Spec Format</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{apiExplorerRefreshPosture.openapi_surface.spec_format}</p>
+              <p className="text-xs text-slate-400">{apiExplorerRefreshPosture.openapi_surface.source_of_truth}</p>
+            </div>
+            <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">Active Routes</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{apiExplorerRefreshPosture.sdk_support.active_routes}</p>
+              <p className="text-xs text-slate-400">{apiExplorerRefreshPosture.sdk_support.api_keys} API keys</p>
+            </div>
+            <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">Pipeline Endpoints</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{apiExplorerRefreshPosture.pipeline_endpoints.mcp_servers} MCP</p>
+              <p className="text-xs text-slate-400">Streaming: {apiExplorerRefreshPosture.pipeline_endpoints.streaming_inject ? 'Active' : 'Off'}</p>
+            </div>
+            <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">SDK Languages</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{apiExplorerRefreshPosture.sdk_support.languages.length}</p>
+              <p className="text-xs text-slate-400">{apiExplorerRefreshPosture.sdk_support.languages.join(', ')}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/api-docs" className="text-xs text-purple-600 hover:underline dark:text-purple-400">API Explorer</Link>
+            <Link href="/pipeline-studio" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Pipeline Studio</Link>
+            <Link href="/help" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Help Hub</Link>
+          </div>
+        </div>
+      )}
+
+      {helpHubPosture && (
+        <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-sky-900 dark:text-sky-100">Help Hub</h2>
+            <p className="mt-0.5 text-xs text-sky-700 dark:text-sky-400">
+              Contextual help and feature guides across all RunLedger surfaces — embedded documentation, quick-start links, and platform readiness.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-sky-600 dark:text-sky-400">Sections</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{helpHubPosture.hub_status.total_sections}</p>
+              <p className="text-xs text-slate-400">v{helpHubPosture.hub_status.version}</p>
+            </div>
+            <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-sky-600 dark:text-sky-400">Content Coverage</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{Object.values(helpHubPosture.content_coverage).filter(Boolean).length} / {Object.keys(helpHubPosture.content_coverage).length}</p>
+              <p className="text-xs text-slate-400">guide areas covered</p>
+            </div>
+            <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-sky-600 dark:text-sky-400">API Keys</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{helpHubPosture.platform_readiness.api_keys}</p>
+              <p className="text-xs text-slate-400">{helpHubPosture.platform_readiness.sdk_languages.join(', ')}</p>
+            </div>
+            <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-sky-600 dark:text-sky-400">Contextual Help</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{helpHubPosture.hub_status.contextual_help ? 'Enabled' : 'Disabled'}</p>
+              <p className="text-xs text-slate-400">{helpHubPosture.observe_context.requests_30d} requests (30d)</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/help" className="text-xs text-sky-600 hover:underline dark:text-sky-400">Help Hub</Link>
+            <Link href="/api-docs" className="text-xs text-sky-600 hover:underline dark:text-sky-400">API Explorer</Link>
+            <Link href="/onboarding" className="text-xs text-sky-600 hover:underline dark:text-sky-400">Onboarding</Link>
           </div>
         </div>
       )}

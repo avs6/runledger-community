@@ -6558,6 +6558,13 @@ export interface ApiExplorerPosture {
     observability: { host: string; families: string[] }
     admin: { host: string; families: string[] }
   }
+  pipeline_endpoints: {
+    live_pipeline: string
+    pipeline_designer: string
+    pipeline_studio: string
+    streaming_inject: boolean
+    trace_enrichment: boolean
+  }
   sdk_support: {
     languages: string[]
     auth_model: string
@@ -6815,6 +6822,121 @@ export interface ConsumerMigrationRefreshPosture {
     requests_7d: number
     requests_30d: number
     cache_hits_7d: number
+    audit_events_30d: number
+  }
+}
+
+export interface GovernanceRuntimeRefreshPosture {
+  workspace_id: string
+  period_days: number
+  scope_resolution: {
+    dimensions_enforced: string[]
+    scope_filtering_active: boolean
+    scope_types_supported: string[]
+    identity_propagation: Record<string, string>
+  }
+  policy_scope_breakdown: {
+    total_active_policies: number
+    workspace_scoped: number
+    access_group_scoped: number
+    search_tool_scoped: number
+    scope_aware_pct: number
+    total_access_groups: number
+    groups_with_guardrails: number
+  }
+  enforcement_depth: {
+    guardrail_events_30d: number
+    blocked_30d: number
+    allowed_30d: number
+    block_rate_pct: number
+    active_guardrail_rules: number
+    enforcement_points: string[]
+    scope_enrichment: string[]
+  }
+  friction_by_scope: {
+    workspace_level: { policies: number; enforcement: string }
+    access_group_level: { policies: number; enforcement: string; groups_with_guardrails: number }
+    search_tool_level: { policies: number; enforcement: string }
+  }
+  observe_context: {
+    requests_30d: number
+    audit_events_30d: number
+    api_keys: number
+    guardrail_events_30d: number
+  }
+}
+
+export interface ApiExplorerRefreshPosture {
+  workspace_id: string
+  period_days: number
+  openapi_surface: {
+    spec_url: string
+    reference_ui: string
+    spec_format: string
+    generated: boolean
+    source_of_truth: string
+    swagger_ui: string
+  }
+  endpoint_ownership: {
+    control_plane: { host: string; families: string[] }
+    data_plane: { host: string; families: string[] }
+    observability: { host: string; families: string[] }
+    admin: { host: string; families: string[] }
+  }
+  pipeline_endpoints: {
+    live_pipeline: string
+    pipeline_designer: string
+    pipeline_studio: string
+    streaming_inject: boolean
+    trace_enrichment: boolean
+    mcp_servers: number
+  }
+  sdk_support: {
+    languages: string[]
+    auth_model: string
+    api_keys: number
+    active_routes: number
+  }
+  discovery_surface: {
+    in_app_explorer: string
+    swagger_ui: string
+    scalar_reference: string
+    postman_collection: boolean
+    sidebar_linked: boolean
+  }
+  observe_context: {
+    requests_30d: number
+    audit_events_30d: number
+  }
+}
+
+export interface HelpHubPosture {
+  workspace_id: string
+  hub_status: {
+    enabled: boolean
+    version: string
+    contextual_help: boolean
+    sections: string[]
+    total_sections: number
+  }
+  content_coverage: Record<string, boolean>
+  contextual_links: Record<string, {
+    label: string
+    pages: string[]
+    help_topics: string[]
+  }>
+  platform_readiness: {
+    api_explorer: boolean
+    swagger_ui: boolean
+    scalar_reference: boolean
+    postman_collection: boolean
+    pipeline_studio: boolean
+    live_pipeline: boolean
+    sdk_languages: string[]
+    api_keys: number
+  }
+  observe_context: {
+    requests_30d: number
     audit_events_30d: number
   }
 }

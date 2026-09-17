@@ -51,6 +51,8 @@ import {
   FileSpreadsheet,
   Puzzle,
   Store,
+  HelpCircle,
+  Code2,
 } from 'lucide-react'
 import RunLedgerLogo from '@/components/brand/RunLedgerLogo'
 import { useRole } from '@/components/rbac/useRole'
@@ -299,6 +301,8 @@ export default function Sidebar() {
             {isPlatformAdmin && <NavLink href="/global-dashboard" label="Global Dashboard" icon={Landmark} />}
             {isPlatformAdmin && <NavLink href="/organizations" label="All Organizations" icon={Landmark} />}
             {canAccessSettings && <NavLink href="/settings" label="Settings" icon={Settings} />}
+            <NavLink href="/api-docs" label="API Explorer" icon={Code2} />
+            <NavLink href="/help" label="Help Hub" icon={HelpCircle} />
           </Section>
         )}
       </div>

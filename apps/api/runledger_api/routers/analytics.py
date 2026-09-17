@@ -98,6 +98,9 @@ from runledger_api.schemas.analytics import (
     ConsumerMigrationPosture,
     ConsumerMigrationRefreshPosture,
     CostByDimension,
+    GovernanceRuntimeRefreshPosture,
+    ApiExplorerRefreshPosture,
+    HelpHubPosture,
     DataCaptureRuntimePosture,
     DataProtectionGatewayPosture,
     DataProtectionOrgPosture,
@@ -18314,11 +18317,18 @@ async def api_explorer_posture(
                     "agents",
                     "workflows",
                     "prompts",
+                    "pipelines",
+                    "mcp_registry",
                 ],
             },
             "data_plane": {
                 "host": "runledger-gateway-rs:8210",
-                "families": ["chat_completions", "streaming", "passthrough"],
+                "families": [
+                    "chat_completions",
+                    "streaming",
+                    "passthrough",
+                    "pipeline_streaming",
+                ],
             },
             "observability": {
                 "host": "runledger-api:8000",
@@ -18329,12 +18339,20 @@ async def api_explorer_posture(
                     "runs",
                     "sessions",
                     "request_explorer",
+                    "live_pipeline",
                 ],
             },
             "admin": {
                 "host": "runledger-api:8000",
                 "families": ["admin", "bootstrap", "platform_settings", "scim"],
             },
+        },
+        pipeline_endpoints={
+            "live_pipeline": "/request-flow/live",
+            "pipeline_designer": "/pipeline",
+            "pipeline_studio": "/pipeline-studio",
+            "streaming_inject": True,
+            "trace_enrichment": True,
         },
         sdk_support={
             "languages": ["python", "typescript", "curl"],
@@ -19140,6 +19158,455 @@ async def consumer_migration_refresh_posture(
             "requests_7d": requests_7d,
             "requests_30d": requests_30d,
             "cache_hits_7d": cache_hits_7d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/governance-runtime-refresh-posture",
+    response_model=GovernanceRuntimeRefreshPosture,
+)
+async def governance_runtime_refresh_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_policies = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    workspace_scoped = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type == "workspace",
+            )
+        )
+    ).scalar() or 0
+
+    access_group_scoped = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type.in_(["access_group", "group"]),
+            )
+        )
+    ).scalar() or 0
+
+    search_tool_scoped = (
+        await db.execute(
+            select(func.count(ToolPolicy.id)).where(
+                ToolPolicy.workspace_id == ws,
+                ToolPolicy.is_active.is_(True),
+                ToolPolicy.scope_type == "search_tool",
+            )
+        )
+    ).scalar() or 0
+
+    total_access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    groups_with_guardrails = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+                AccessGroup.guardrail_profile.isnot(None),
+            )
+        )
+    ).scalar() or 0
+
+    guardrail_events_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    blocked_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.decision == "block",
+            )
+        )
+    ).scalar() or 0
+
+    allowed_30d = (
+        await db.execute(
+            select(func.count(GuardrailEvent.id)).where(
+                GuardrailEvent.workspace_id == ws,
+                GuardrailEvent.created_at >= thirty_days_ago,
+                GuardrailEvent.decision == "allow",
+            )
+        )
+    ).scalar() or 0
+
+    active_rules = (
+        await db.execute(
+            select(func.count(GuardrailRule.id)).where(
+                GuardrailRule.workspace_id == ws,
+                GuardrailRule.status == "active",
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
+        )
+    ).scalar() or 0
+
+    scope_aware_pct = round(access_group_scoped / total_policies * 100, 1) if total_policies else 0.0
+    block_rate = round(blocked_30d / guardrail_events_30d * 100, 1) if guardrail_events_30d else 0.0
+
+    return GovernanceRuntimeRefreshPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        scope_resolution={
+            "dimensions_enforced": ["workspace_id", "access_group_id", "api_key_id", "end_user_id"],
+            "scope_filtering_active": True,
+            "scope_types_supported": ["workspace", "access_group", "search_tool"],
+            "identity_propagation": {
+                "workspace": "always_resolved",
+                "access_group": "resolved_when_provided",
+                "api_key": "resolved_from_bearer",
+                "end_user": "resolved_from_header",
+            },
+        },
+        policy_scope_breakdown={
+            "total_active_policies": total_policies,
+            "workspace_scoped": workspace_scoped,
+            "access_group_scoped": access_group_scoped,
+            "search_tool_scoped": search_tool_scoped,
+            "scope_aware_pct": scope_aware_pct,
+            "total_access_groups": total_access_groups,
+            "groups_with_guardrails": groups_with_guardrails,
+        },
+        enforcement_depth={
+            "guardrail_events_30d": guardrail_events_30d,
+            "blocked_30d": blocked_30d,
+            "allowed_30d": allowed_30d,
+            "block_rate_pct": block_rate,
+            "active_guardrail_rules": active_rules,
+            "enforcement_points": [
+                "plugin_runner.govern_and_filter_tool_call",
+                "guardrails.evaluate_guardrails",
+                "gateway_preflight",
+                "budget_check",
+            ],
+            "scope_enrichment": [
+                "violation_payload.scope_context",
+                "violation_payload.matched_policy_scope",
+                "plugin_hook_payload.scope_context",
+            ],
+        },
+        friction_by_scope={
+            "workspace_level": {
+                "policies": workspace_scoped,
+                "enforcement": "all_callers",
+            },
+            "access_group_level": {
+                "policies": access_group_scoped,
+                "enforcement": "matching_group_members_only",
+                "groups_with_guardrails": groups_with_guardrails,
+            },
+            "search_tool_level": {
+                "policies": search_tool_scoped,
+                "enforcement": "tool_specific",
+            },
+        },
+        observe_context={
+            "requests_30d": requests_30d,
+            "audit_events_30d": audit_events_30d,
+            "api_keys": api_keys,
+            "guardrail_events_30d": guardrail_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/api-explorer-refresh-posture",
+    response_model=ApiExplorerRefreshPosture,
+)
+async def api_explorer_refresh_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+    from runledger_api.models.mcp_registry import McpServer
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    active_routes = (
+        await db.execute(
+            select(func.count(GatewayRoute.id)).where(
+                GatewayRoute.workspace_id == ws,
+                GatewayRoute.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
+        )
+    ).scalar() or 0
+
+    mcp_servers = (
+        await db.execute(
+            select(func.count(McpServer.id)).where(
+                McpServer.workspace_id == ws,
+                McpServer.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return ApiExplorerRefreshPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        openapi_surface={
+            "spec_url": "/openapi.json",
+            "reference_ui": "/reference",
+            "spec_format": "OpenAPI 3.1",
+            "generated": True,
+            "source_of_truth": "FastAPI auto-generated from route decorators",
+            "swagger_ui": "/docs",
+        },
+        endpoint_ownership={
+            "control_plane": {
+                "host": "runledger-api:8000",
+                "families": [
+                    "org", "gateway_routing", "gateway_runtime",
+                    "budgets", "analytics", "settings", "governance",
+                    "evaluations", "agents", "workflows", "prompts",
+                    "pipelines", "mcp_registry",
+                ],
+            },
+            "data_plane": {
+                "host": "runledger-gateway-rs:8210",
+                "families": [
+                    "chat_completions", "streaming", "passthrough",
+                    "pipeline_streaming",
+                ],
+            },
+            "observability": {
+                "host": "runledger-api:8000",
+                "families": [
+                    "analytics", "monitoring", "audit", "runs",
+                    "sessions", "request_explorer", "live_pipeline",
+                ],
+            },
+            "admin": {
+                "host": "runledger-api:8000",
+                "families": ["admin", "bootstrap", "platform_settings", "scim"],
+            },
+        },
+        pipeline_endpoints={
+            "live_pipeline": "/request-flow/live",
+            "pipeline_designer": "/pipeline",
+            "pipeline_studio": "/pipeline-studio",
+            "streaming_inject": True,
+            "trace_enrichment": True,
+            "mcp_servers": mcp_servers,
+        },
+        sdk_support={
+            "languages": ["python", "typescript", "curl"],
+            "auth_model": "Bearer token (API key or session key)",
+            "api_keys": api_keys,
+            "active_routes": active_routes,
+        },
+        discovery_surface={
+            "in_app_explorer": "/api-docs",
+            "swagger_ui": "/docs",
+            "scalar_reference": "/reference",
+            "postman_collection": True,
+            "sidebar_linked": True,
+        },
+        observe_context={
+            "requests_30d": requests_30d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/help-hub-posture",
+    response_model=HelpHubPosture,
+)
+async def help_hub_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    sections = [
+        "observe", "build", "gateway", "governance",
+        "finops", "org_access", "platform",
+    ]
+
+    return HelpHubPosture(
+        workspace_id=str(ws),
+        hub_status={
+            "enabled": True,
+            "version": "1.0",
+            "contextual_help": True,
+            "sections": sections,
+            "total_sections": len(sections),
+        },
+        content_coverage={
+            "getting_started": True,
+            "api_reference": True,
+            "pipeline_guide": True,
+            "governance_guide": True,
+            "finops_guide": True,
+            "mcp_guide": True,
+            "guardrails_guide": True,
+            "evaluation_guide": True,
+        },
+        contextual_links={
+            "observe": {
+                "label": "Observe & Monitor",
+                "pages": ["Overview", "Runs", "Request Flow", "Live Pipeline", "Request Explorer", "Model Usage", "Monitoring", "Outcomes & ROI"],
+                "help_topics": ["trace_inspection", "session_replay", "live_streaming", "telemetry"],
+            },
+            "build": {
+                "label": "Build & Improve",
+                "pages": ["Agents", "Workflows", "Playground", "Evaluation Studio", "Optimization", "Pipeline Designer", "Vector Stores"],
+                "help_topics": ["agent_creation", "workflow_design", "prompt_testing", "pipeline_design"],
+            },
+            "gateway": {
+                "label": "Gateway & Routing",
+                "pages": ["Model Gateway", "Provider Profiles", "Guardrails"],
+                "help_topics": ["route_config", "provider_setup", "guardrail_rules", "rate_limits", "caching"],
+            },
+            "governance": {
+                "label": "Safety & Governance",
+                "pages": ["Tool Governance", "MCP Servers", "Data Capture", "Security", "Approvals", "Audit Log"],
+                "help_topics": ["tool_policies", "mcp_config", "scope_enforcement", "audit_evidence"],
+            },
+            "finops": {
+                "label": "FinOps",
+                "pages": ["Cost & Savings", "Budgets", "Billing", "Chargeback"],
+                "help_topics": ["cost_tracking", "budget_setup", "chargeback_config"],
+            },
+            "org_access": {
+                "label": "Org & Access",
+                "pages": ["Organization", "API Keys", "Access Groups", "Onboarding"],
+                "help_topics": ["user_management", "api_key_rotation", "access_group_setup", "workspace_config"],
+            },
+            "platform": {
+                "label": "Platform",
+                "pages": ["Global Dashboard", "Settings", "API Explorer"],
+                "help_topics": ["platform_config", "api_reference", "sdk_setup"],
+            },
+        },
+        platform_readiness={
+            "api_explorer": True,
+            "swagger_ui": True,
+            "scalar_reference": True,
+            "postman_collection": True,
+            "pipeline_studio": True,
+            "live_pipeline": True,
+            "sdk_languages": ["python", "typescript", "curl"],
+            "api_keys": api_keys,
+        },
+        observe_context={
+            "requests_30d": requests_30d,
             "audit_events_30d": audit_events_30d,
         },
     )

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { BookOpen, RefreshCw, Server, Code2, Shield, Eye } from 'lucide-react'
+import { BookOpen, RefreshCw, Server, Code2, Shield, Eye, GitBranch, Zap } from 'lucide-react'
 import { getApiExplorerPosture } from '@/lib/api'
 import type { ApiExplorerPosture } from '@/types/api'
 
@@ -140,6 +140,36 @@ export default function ApiDocsPage() {
             </div>
           </div>
 
+          <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-900/20 p-5 space-y-4">
+            <h2 className="text-base font-semibold text-teal-900 dark:text-teal-100">Pipeline & Streaming Endpoints</h2>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Link href={posture.pipeline_endpoints.live_pipeline} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3 hover:bg-teal-50 dark:hover:bg-slate-800/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400 font-semibold">Live Pipeline</p>
+                </div>
+                <p className="mt-1 text-sm font-mono dark:text-white">{posture.pipeline_endpoints.live_pipeline}</p>
+                <p className="text-xs text-slate-400">Streaming inject: {posture.pipeline_endpoints.streaming_inject ? 'Active' : 'Inactive'}</p>
+              </Link>
+              <Link href={posture.pipeline_endpoints.pipeline_designer} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3 hover:bg-teal-50 dark:hover:bg-slate-800/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400 font-semibold">Pipeline Designer</p>
+                </div>
+                <p className="mt-1 text-sm font-mono dark:text-white">{posture.pipeline_endpoints.pipeline_designer}</p>
+                <p className="text-xs text-slate-400">Trace enrichment: {posture.pipeline_endpoints.trace_enrichment ? 'Active' : 'Inactive'}</p>
+              </Link>
+              <Link href={posture.pipeline_endpoints.pipeline_studio} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3 hover:bg-teal-50 dark:hover:bg-slate-800/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <Code2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                  <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400 font-semibold">Pipeline Studio</p>
+                </div>
+                <p className="mt-1 text-sm font-mono dark:text-white">{posture.pipeline_endpoints.pipeline_studio}</p>
+                <p className="text-xs text-slate-400">Architecture posture surface</p>
+              </Link>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-3">
             <h2 className="text-base font-semibold dark:text-white">Observe Context (30d)</h2>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -159,6 +189,7 @@ export default function ApiDocsPage() {
             <Link href="/pipeline-studio" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Pipeline Studio</Link>
             <Link href="/analytics" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Analytics</Link>
             <Link href="/governance" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Governance</Link>
+            <Link href="/help" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Help Hub</Link>
             <Link href="/admin/settings" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Platform Settings</Link>
           </div>
         </>

@@ -71,31 +71,65 @@ async def execute_plugin_hooks(
     return executions
 
 
+def _filter_policies_by_scope(
+    policies: list[ToolPolicy],
+    access_group_id: uuid.UUID | None,
+    api_key_id: uuid.UUID | None,
+) -> list[ToolPolicy]:
+    """Filter policies so scope-specific ones only apply to matching callers.
+
+    - workspace-scoped policies always apply
+    - access_group-scoped policies apply only when the caller belongs to that group
+    - search_tool-scoped policies always apply (tool-level, not identity-level)
+    """
+    result: list[ToolPolicy] = []
+    for p in policies:
+        if p.scope_type in ("workspace", "search_tool") or p.scope_type is None:
+            result.append(p)
+        elif p.scope_type in ("access_group", "group"):
+            if access_group_id and p.scope_id == access_group_id:
+                result.append(p)
+        else:
+            result.append(p)
+    return result
+
+
 async def govern_and_filter_tool_call(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     server_id: uuid.UUID | None,
     tool_name: str,
     arguments: dict[str, Any] | None,
+    *,
+    access_group_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | None = None,
+    end_user_id: str | None = None,
 ) -> dict[str, Any]:
-    """Filters tool calls through ToolPolicy and Guardrails.
+    """Filters tool calls through ToolPolicy and Guardrails with scope-aware resolution.
 
-    If a violation occurs or policy requires approval:
-    1. Logs violation in PluginExecution.
-    2. Triggers on_guardrail_violation and on_approval_required plugin hooks.
-    3. Routes to manager approval workflow.
+    Scope context (access_group_id, api_key_id, end_user_id) is used to:
+    1. Filter policies — access-group-scoped policies only apply to matching callers.
+    2. Enrich violation payloads with scope lineage for audit and observability.
+    3. Trigger scope-aware plugin hooks.
     """
+    scope_context = {
+        "workspace_id": str(workspace_id),
+        "access_group_id": str(access_group_id) if access_group_id else None,
+        "api_key_id": str(api_key_id) if api_key_id else None,
+        "end_user_id": end_user_id,
+    }
     payload = {
         "server_id": str(server_id) if server_id else None,
         "tool_name": tool_name,
         "arguments": arguments,
+        "scope_context": scope_context,
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
     # Step 1: Pre-Gateway Interceptors
     await execute_plugin_hooks(db, workspace_id, "pre_gateway", payload)
 
-    # Step 2: Evaluate Tool Policies
+    # Step 2: Evaluate Tool Policies with scope-aware filtering
     policy_stmt = (
         select(ToolPolicy)
         .where(
@@ -105,9 +139,21 @@ async def govern_and_filter_tool_call(
         .order_by(ToolPolicy.priority.asc())
     )
     all_policies = (await db.execute(policy_stmt)).scalars().all()
-    matching_policies = [p for p in all_policies if p.tool_name.lower() in [tool_name.lower(), "*"]]
+    scoped_policies = _filter_policies_by_scope(all_policies, access_group_id, api_key_id)
+    matching_policies = [p for p in scoped_policies if p.tool_name.lower() in [tool_name.lower(), "*"]]
 
     matched_policy = matching_policies[0] if matching_policies else None
+    skipped_count = len(all_policies) - len(scoped_policies)
+
+    if skipped_count > 0:
+        log.info(
+            "scope_filtered_policies",
+            tool_name=tool_name,
+            total=len(all_policies),
+            in_scope=len(scoped_policies),
+            skipped=skipped_count,
+            access_group_id=str(access_group_id) if access_group_id else None,
+        )
 
     # Step 3: Evaluate Guardrails Payload Scan
     arg_str = str(arguments) if arguments else ""
@@ -125,9 +171,20 @@ async def govern_and_filter_tool_call(
             else "Blocked by security rule"
         )
         payload["violation"] = violation_reason
+        payload["matched_policy_scope"] = {
+            "scope_type": matched_policy.scope_type if matched_policy else None,
+            "scope_id": str(matched_policy.scope_id) if matched_policy and matched_policy.scope_id else None,
+            "policy_name": matched_policy.name if matched_policy else None,
+        }
         await execute_plugin_hooks(db, workspace_id, "on_guardrail_violation", payload)
 
-        log.warning("tool_call_blocked_governance", tool_name=tool_name, reason=violation_reason)
+        log.warning(
+            "tool_call_blocked_governance",
+            tool_name=tool_name,
+            reason=violation_reason,
+            scope_type=matched_policy.scope_type if matched_policy else None,
+            access_group_id=str(access_group_id) if access_group_id else None,
+        )
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             f"Tool call '{tool_name}' blocked by governance engine: {violation_reason}",
@@ -145,12 +202,18 @@ async def govern_and_filter_tool_call(
         )
         payload["approval_id"] = approval_id
         payload["approval_reason"] = reason
+        payload["matched_policy_scope"] = {
+            "scope_type": matched_policy.scope_type if matched_policy else None,
+            "scope_id": str(matched_policy.scope_id) if matched_policy and matched_policy.scope_id else None,
+            "policy_name": matched_policy.name if matched_policy else None,
+        }
 
         log.info(
             "tool_call_routed_to_approval",
             tool_name=tool_name,
             approval_id=approval_id,
             reason=reason,
+            scope_type=matched_policy.scope_type if matched_policy else None,
         )
 
         # Trigger plugin notification webhooks (Slack/PagerDuty)
@@ -164,8 +227,9 @@ async def govern_and_filter_tool_call(
             "message": f"Tool execution for '{tool_name}' requires approval. Violation logged and dispatched to Slack/PagerDuty.",
             "reason": reason,
             "arguments": arguments,
+            "scope_context": scope_context,
         }
 
     # Case C: Allow Action -> Execute Post-Gateway Hooks
     await execute_plugin_hooks(db, workspace_id, "post_gateway", payload)
-    return {"status": "allowed", "tool_name": tool_name}
+    return {"status": "allowed", "tool_name": tool_name, "scope_context": scope_context}
