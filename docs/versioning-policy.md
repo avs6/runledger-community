@@ -10,7 +10,7 @@ The project is currently in the `beta` channel. The current beta baseline is `v1
 
 Release tags use one of these forms:
 
-- `v1alpha1`, `v1alpha2`, `v1alpha6`
+- `v1alpha6`, `v1alpha7`
 - `v1beta1`, `v1beta2`
 - `v1rc1`
 - `v1.0.0`

@@ -1,14 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useTheme } from 'next-themes'
-import { BarChart3, CheckCircle2, Gauge, LockKeyhole, Moon, Route, Sun } from 'lucide-react'
+import { BarChart3, CheckCircle2, Gauge, LockKeyhole, Moon, Route, Shield, Sun } from 'lucide-react'
 import RunLedgerLogo, { RunLedgerMark } from '@/components/brand/RunLedgerLogo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
+
+interface AuthProvider {
+  id: string
+  name: string
+  type: string
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,6 +25,70 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [ssoProviders, setSsoProviders] = useState<AuthProvider[]>([])
+  const [ssoLoading, setSsoLoading] = useState<string | null>(null)
+  const [ldapProvider, setLdapProvider] = useState<AuthProvider | null>(null)
+  const [ldapUsername, setLdapUsername] = useState('')
+  const [ldapPassword, setLdapPassword] = useState('')
+
+  useEffect(() => {
+    fetch(`${API_URL}/auth/providers`)
+      .then((res) => (res.ok ? res.json() : { providers: [] }))
+      .then((data) => setSsoProviders(data.providers ?? []))
+      .catch(() => {})
+  }, [])
+
+  async function handleSsoLogin(provider: AuthProvider) {
+    if (provider.type === 'ldap') {
+      setLdapProvider(provider)
+      return
+    }
+
+    setSsoLoading(provider.id)
+    setError('')
+    try {
+      const isOauth2 = provider.type === 'oauth2'
+      const callbackPath = isOauth2 ? '/auth/oauth2/callback' : '/auth/oidc/callback'
+      const redirectUri = `${window.location.origin}${callbackPath}`
+      const apiPath = isOauth2
+        ? `${API_URL}/auth/oauth2/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`
+        : `${API_URL}/auth/oidc/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`
+      const res = await fetch(apiPath)
+      if (!res.ok) {
+        setError('Failed to start SSO login.')
+        setSsoLoading(null)
+        return
+      }
+      const data = await res.json()
+      sessionStorage.setItem(isOauth2 ? 'oauth2_provider_id' : 'oidc_provider_id', provider.id)
+      window.location.href = data.authorization_url
+    } catch {
+      setError('Failed to start SSO login.')
+      setSsoLoading(null)
+    }
+  }
+
+  async function handleLdapSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!ldapProvider) return
+    setSsoLoading(ldapProvider.id)
+    setError('')
+
+    const result = await signIn('ldap-login', {
+      username: ldapUsername,
+      password: ldapPassword,
+      provider_id: ldapProvider.id,
+      redirect: false,
+    })
+
+    setSsoLoading(null)
+
+    if (result?.error) {
+      setError('LDAP authentication failed.')
+    } else {
+      router.push('/dashboard')
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -174,6 +246,85 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
+
+              {ssoProviders.length > 0 && (
+                <>
+                  <div className="my-5 flex items-center gap-3">
+                    <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                    <span className="text-xs font-medium text-slate-400 dark:text-slate-500">or</span>
+                    <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                  </div>
+                  <div className="space-y-2.5">
+                    {ssoProviders.map((provider) => (
+                      <Button
+                        key={provider.id}
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 border-slate-300 font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                        onClick={() => handleSsoLogin(provider)}
+                        disabled={ssoLoading === provider.id}
+                      >
+                        {ssoLoading === provider.id ? (
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400/30 border-t-slate-600" />
+                        ) : (
+                          <Shield className="h-4 w-4" />
+                        )}
+                        Continue with {provider.name}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {ldapProvider && (
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700/60 dark:bg-slate-900/60">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      Sign in with {ldapProvider.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setLdapProvider(null); setLdapUsername(''); setLdapPassword(''); setError('') }}
+                      className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <form onSubmit={handleLdapSubmit} className="space-y-3">
+                    <Input
+                      type="text"
+                      placeholder="Username"
+                      value={ldapUsername}
+                      onChange={(e) => setLdapUsername(e.target.value)}
+                      required
+                      autoFocus
+                      className="h-10 border-slate-300 bg-white text-slate-950 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <Input
+                      type="password"
+                      placeholder="Password"
+                      value={ldapPassword}
+                      onChange={(e) => setLdapPassword(e.target.value)}
+                      required
+                      className="h-10 border-slate-300 bg-white text-slate-950 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <Button
+                      type="submit"
+                      className="h-10 w-full bg-blue-600 font-semibold text-white hover:bg-blue-500"
+                      disabled={ssoLoading === ldapProvider.id}
+                    >
+                      {ssoLoading === ldapProvider.id ? (
+                        <span className="flex items-center gap-2">
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          Signing in...
+                        </span>
+                      ) : (
+                        'Sign in'
+                      )}
+                    </Button>
+                  </form>
+                </div>
+              )}
             </div>
 
             <p className="mt-5 text-center text-xs text-slate-500 dark:text-slate-500">

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 import sqlalchemy as sa
@@ -53,6 +54,13 @@ class WorkspaceSecuritySettings(Base):
     )
 
 
+class AuthProviderTypeEnum(StrEnum):
+    oidc = "oidc"
+    oauth2 = "oauth2"
+    ldap = "ldap"
+    saml = "saml"
+
+
 class OIDCProvider(Base):
     __tablename__ = "oidc_providers"
     __table_args__ = (sa.Index("ix_oidc_providers_workspace_active", "workspace_id", "is_active"),)
@@ -66,13 +74,197 @@ class OIDCProvider(Base):
         nullable=False,
         index=True,
     )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(sa.String(120), nullable=False)
     issuer_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
     audience: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     discovery_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     jwks_uri: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    client_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    client_secret_encrypted: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    scopes: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'openid email profile'")
+    )
+    auto_provision: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    default_workspace_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'viewer'")
+    )
+    default_tenant_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'org_member'")
+    )
     claim_mappings: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+    @property
+    def supports_login(self) -> bool:
+        return bool(self.client_id)
+
+
+class ExternalIdentity(Base):
+    __tablename__ = "external_identities"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "provider_type",
+            "provider_id",
+            "external_subject",
+            name="uq_external_identity_provider_subject",
+        ),
+        sa.Index("ix_external_identities_user", "user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider_type: Mapped[str] = mapped_column(sa.String(16), nullable=False)
+    provider_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    external_subject: Mapped[str] = mapped_column(sa.String(512), nullable=False)
+    external_email: Mapped[str | None] = mapped_column(sa.String(320), nullable=True)
+    external_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'{}'")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+
+
+class OAuth2Provider(Base):
+    __tablename__ = "oauth2_providers"
+    __table_args__ = (
+        sa.Index("ix_oauth2_providers_workspace_active", "workspace_id", "is_active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(sa.String(120), nullable=False)
+    authorization_endpoint: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    token_endpoint: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    userinfo_endpoint: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    client_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    client_secret_encrypted: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    scopes: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'openid email profile'")
+    )
+    userinfo_id_field: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'sub'")
+    )
+    userinfo_email_field: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'email'")
+    )
+    userinfo_name_field: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'name'")
+    )
+    auto_provision: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    default_workspace_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'viewer'")
+    )
+    default_tenant_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'org_member'")
+    )
+    is_active: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("true")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+
+class LDAPProvider(Base):
+    __tablename__ = "ldap_providers"
+    __table_args__ = (
+        sa.Index("ix_ldap_providers_workspace_active", "workspace_id", "is_active"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(sa.String(120), nullable=False)
+    server_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    bind_dn: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    bind_password_encrypted: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    use_ssl: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    start_tls: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    user_search_base: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    user_search_filter: Mapped[str] = mapped_column(
+        sa.Text, nullable=False, server_default=sa.text("'(uid={username})'")
+    )
+    email_attribute: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'mail'")
+    )
+    name_attribute: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'cn'")
+    )
+    uid_attribute: Mapped[str] = mapped_column(
+        sa.String(64), nullable=False, server_default=sa.text("'uid'")
+    )
+    group_search_base: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    group_search_filter: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    auto_provision: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    default_workspace_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'viewer'")
+    )
+    default_tenant_role: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'org_member'")
     )
     is_active: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("true")

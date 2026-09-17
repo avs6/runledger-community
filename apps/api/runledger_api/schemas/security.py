@@ -37,6 +37,12 @@ class OIDCProviderCreate(BaseModel):
     audience: str | None = None
     discovery_url: str | None = None
     jwks_uri: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+    scopes: str = "openid email profile"
+    auto_provision: bool = False
+    default_workspace_role: str = "viewer"
+    default_tenant_role: str = "org_member"
     claim_mappings: dict[str, Any] = Field(default_factory=dict)
     is_active: bool = True
 
@@ -47,6 +53,12 @@ class OIDCProviderUpdate(BaseModel):
     audience: str | None = None
     discovery_url: str | None = None
     jwks_uri: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+    scopes: str | None = None
+    auto_provision: bool | None = None
+    default_workspace_role: str | None = None
+    default_tenant_role: str | None = None
     claim_mappings: dict[str, Any] | None = None
     is_active: bool | None = None
 
@@ -54,11 +66,17 @@ class OIDCProviderUpdate(BaseModel):
 class OIDCProviderResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
     name: str
     issuer_url: str
     audience: str | None
     discovery_url: str | None
     jwks_uri: str | None
+    client_id: str | None = None
+    scopes: str
+    auto_provision: bool
+    default_workspace_role: str
+    default_tenant_role: str
     claim_mappings: dict[str, Any]
     is_active: bool
     created_at: datetime
@@ -69,6 +87,195 @@ class OIDCProviderResponse(BaseModel):
 
 class OIDCProviderList(BaseModel):
     items: list[OIDCProviderResponse]
+
+
+class OIDCAuthorizeResponse(BaseModel):
+    authorization_url: str
+    state: str
+
+
+class OIDCCallbackRequest(BaseModel):
+    code: str
+    state: str
+    provider_id: uuid.UUID
+
+
+class AuthProviderInfo(BaseModel):
+    id: uuid.UUID
+    name: str
+    type: str = "oidc"
+
+    model_config = {"from_attributes": True}
+
+
+class AuthProvidersResponse(BaseModel):
+    providers: list[AuthProviderInfo]
+
+
+class ExternalIdentityResponse(BaseModel):
+    id: uuid.UUID
+    provider_type: str
+    provider_id: uuid.UUID
+    external_subject: str
+    external_email: str | None
+    created_at: datetime
+    last_login_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+# ── OAuth2 Provider schemas ──────────────────────────────────────────────────
+
+
+class OAuth2ProviderCreate(BaseModel):
+    name: str
+    authorization_endpoint: str
+    token_endpoint: str
+    userinfo_endpoint: str
+    client_id: str
+    client_secret: str | None = None
+    scopes: str = "openid email profile"
+    userinfo_id_field: str = "sub"
+    userinfo_email_field: str = "email"
+    userinfo_name_field: str = "name"
+    auto_provision: bool = False
+    default_workspace_role: str = "viewer"
+    default_tenant_role: str = "org_member"
+    is_active: bool = True
+
+
+class OAuth2ProviderUpdate(BaseModel):
+    name: str | None = None
+    authorization_endpoint: str | None = None
+    token_endpoint: str | None = None
+    userinfo_endpoint: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+    scopes: str | None = None
+    userinfo_id_field: str | None = None
+    userinfo_email_field: str | None = None
+    userinfo_name_field: str | None = None
+    auto_provision: bool | None = None
+    default_workspace_role: str | None = None
+    default_tenant_role: str | None = None
+    is_active: bool | None = None
+
+
+class OAuth2ProviderResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
+    name: str
+    authorization_endpoint: str
+    token_endpoint: str
+    userinfo_endpoint: str
+    client_id: str
+    scopes: str
+    userinfo_id_field: str
+    userinfo_email_field: str
+    userinfo_name_field: str
+    auto_provision: bool
+    default_workspace_role: str
+    default_tenant_role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class OAuth2ProviderList(BaseModel):
+    items: list[OAuth2ProviderResponse]
+
+
+class OAuth2AuthorizeResponse(BaseModel):
+    authorization_url: str
+    state: str
+
+
+class OAuth2CallbackRequest(BaseModel):
+    code: str
+    state: str
+    provider_id: uuid.UUID
+
+
+# ── LDAP Provider schemas ────────────────────────────────────────────────────
+
+
+class LDAPProviderCreate(BaseModel):
+    name: str
+    server_url: str
+    bind_dn: str | None = None
+    bind_password: str | None = None
+    use_ssl: bool = False
+    start_tls: bool = False
+    user_search_base: str
+    user_search_filter: str = "(uid={username})"
+    email_attribute: str = "mail"
+    name_attribute: str = "cn"
+    uid_attribute: str = "uid"
+    group_search_base: str | None = None
+    group_search_filter: str | None = None
+    auto_provision: bool = False
+    default_workspace_role: str = "viewer"
+    default_tenant_role: str = "org_member"
+    is_active: bool = True
+
+
+class LDAPProviderUpdate(BaseModel):
+    name: str | None = None
+    server_url: str | None = None
+    bind_dn: str | None = None
+    bind_password: str | None = None
+    use_ssl: bool | None = None
+    start_tls: bool | None = None
+    user_search_base: str | None = None
+    user_search_filter: str | None = None
+    email_attribute: str | None = None
+    name_attribute: str | None = None
+    uid_attribute: str | None = None
+    group_search_base: str | None = None
+    group_search_filter: str | None = None
+    auto_provision: bool | None = None
+    default_workspace_role: str | None = None
+    default_tenant_role: str | None = None
+    is_active: bool | None = None
+
+
+class LDAPProviderResponse(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    tenant_id: uuid.UUID | None = None
+    name: str
+    server_url: str
+    bind_dn: str | None
+    use_ssl: bool
+    start_tls: bool
+    user_search_base: str
+    user_search_filter: str
+    email_attribute: str
+    name_attribute: str
+    uid_attribute: str
+    group_search_base: str | None
+    group_search_filter: str | None
+    auto_provision: bool
+    default_workspace_role: str
+    default_tenant_role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LDAPProviderList(BaseModel):
+    items: list[LDAPProviderResponse]
+
+
+class LDAPLoginRequest(BaseModel):
+    provider_id: uuid.UUID
+    username: str
+    password: str
 
 
 class IpAclRuleCreate(BaseModel):
