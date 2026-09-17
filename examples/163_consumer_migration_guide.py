@@ -19,7 +19,7 @@ Migration checklist:
 
 import os, httpx
 
-BASE = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 GATEWAY = os.getenv("RUNLEDGER_GATEWAY_BASE_URL", "http://localhost:8210/gateway")
 KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 

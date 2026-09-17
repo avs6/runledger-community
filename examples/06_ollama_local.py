@@ -39,7 +39,7 @@ Key .env variables used here:
     RUNLEDGER_API_KEY    — your workspace API key (workspace-scoped: all runs land in
                            the workspace this key belongs to; swap the key to switch
                            workspaces — you never pass workspace_id explicitly)
-    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_BASE_URL   — http://localhost:8201  (local Docker stack)
     RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
     OLLAMA_BASE_URL      — http://localhost:11434/v1
     OLLAMA_MODEL         — e.g. llama3.2 or llama3.1:8b or llama2:latest
@@ -79,7 +79,7 @@ Note on cost_usd
 Local models have no pricing row in RunLedger so cost_usd will be NULL.
 To add one, use the settings page or POST /providers/pricing:
 
-    curl -X POST http://localhost:8000/providers/pricing \\
+    curl -X POST http://localhost:8201/providers/pricing \\
          -H "Authorization: Bearer $RUNLEDGER_API_KEY" \\
          -H "Content-Type: application/json" \\
          -d '{
@@ -107,7 +107,7 @@ load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
-RUNLEDGER_BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+RUNLEDGER_BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 RUNLEDGER_API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 # Set USE_GATEWAY=true to route via RunLedger Model Gateway instead of Ollama directly.

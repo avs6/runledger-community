@@ -27,7 +27,7 @@ import {
   type OrgUser,
 } from '@/lib/api'
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
 const inputCls =
   'rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm shadow-slate-200/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:shadow-slate-800/30'

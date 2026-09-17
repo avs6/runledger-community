@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 SESSION_KEY = os.getenv("RUNLEDGER_SESSION_KEY", "")
 
 if not SESSION_KEY:

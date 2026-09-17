@@ -6,7 +6,7 @@ details, and 30-day observe context.
 
 import os, httpx
 
-BASE = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 HEADERS = {"Authorization": f"Bearer {KEY}"} if KEY else {}
 

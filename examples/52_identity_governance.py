@@ -14,7 +14,7 @@ import os
 import urllib.request
 
 
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000").rstrip("/")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201").rstrip("/")
 API_KEY = os.environ["RUNLEDGER_API_KEY"]
 USER_ID = os.environ.get("RUNLEDGER_USER_ID", "")
 ACCESS_GROUP_ID = os.environ.get("RUNLEDGER_ACCESS_GROUP_ID", "")

@@ -201,7 +201,7 @@ rl = RunLedger(local=True)   # prints events to stdout, no HTTP calls
 | Parameter | Env var | Default |
 |-----------|---------|---------|
 | `api_key` | `RUNLEDGER_API_KEY` | required |
-| `base_url` | `RUNLEDGER_BASE_URL` | `http://localhost:8000` |
+| `base_url` | `RUNLEDGER_BASE_URL` | `http://localhost:8201` |
 | `local` | `RUNLEDGER_LOCAL` | `False` |
 | `budget_check` | — | `False` |
 | `privacy_mode` | — | `metadata_only` |

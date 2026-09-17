@@ -13,7 +13,7 @@ Usage::
 
     exporter = RunLedgerOTLPExporter(
         api_key="rl_live_...",
-        base_url="https://api.runledger.io",  # or http://localhost:8000
+        base_url="https://api.runledger.io",  # or http://localhost:8201
     )
     provider = TracerProvider()
     provider.add_span_processor(BatchSpanProcessor(exporter))
@@ -205,7 +205,7 @@ class RunLedgerOTLPExporter:
         Falls back to ``RUNLEDGER_API_KEY`` env var if not provided.
     base_url:
         RunLedger API base URL. Defaults to ``https://api.runledger.io``.
-        Set to ``http://localhost:8000`` for local development.
+        Set to ``http://localhost:8201`` for local development.
     timeout:
         HTTP request timeout in seconds (default 10).
     """

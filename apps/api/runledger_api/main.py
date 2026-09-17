@@ -143,9 +143,9 @@ app.include_router(hub_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:
-#   claude mcp add --transport http runledger http://localhost:8000/mcp
+#   claude mcp add --transport http runledger http://localhost:8201/mcp
 # Or in claude_desktop_config.json:
-#   { "mcpServers": { "runledger": { "url": "http://localhost:8000/mcp" } } }
+#   { "mcpServers": { "runledger": { "url": "http://localhost:8201/mcp" } } }
 app.mount("/mcp", _mcp_http_app)
 
 # ── API Reference UI — Scalar (richer DX than Swagger UI) ────────────────────

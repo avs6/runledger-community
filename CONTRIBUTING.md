@@ -86,7 +86,7 @@ cd apps/api && uv run celery -A runledger_api.core.celery_app worker --loglevel=
 cd apps/web && npm install && npm run dev
 ```
 
-The dashboard is at `http://localhost:3000`. The API is at `http://localhost:8000`.
+The dashboard is at `http://localhost:3201`. The API is at `http://localhost:8201`.
 
 ---
 

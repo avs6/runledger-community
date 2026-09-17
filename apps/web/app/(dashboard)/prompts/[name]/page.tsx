@@ -197,7 +197,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
     setEditSaving(true)
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}/prompts/${encodeURIComponent(decodedName)}/versions/${editingVersion.version}`,
+        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'}/prompts/${encodeURIComponent(decodedName)}/versions/${editingVersion.version}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },

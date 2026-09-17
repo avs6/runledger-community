@@ -43,7 +43,7 @@ export default function TopBar() {
   const orgName = (s?.tenantName as string) || (s?.orgName as string) || ''
   const email = (s?.email as string) || ''
   const apiKey = (s?.apiKey as string) || ''
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
   const badge = roleBadge(workspaceRole || tenantRole, isPlatformAdmin)
   const analyticsScope = pathname === '/analytics' ? searchParams.get('scope') : null

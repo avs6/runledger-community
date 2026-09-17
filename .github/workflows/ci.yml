@@ -58,8 +58,8 @@ jobs:
       - name: Build
         run: cd apps/web && npm run build
         env:
-          API_URL: http://localhost:8000
-          NEXTAUTH_URL: http://localhost:3000
+          API_URL: http://localhost:8201
+          NEXTAUTH_URL: http://localhost:3201
           NEXTAUTH_SECRET: ci-secret-32-chars-placeholder!!
 
   ts-sdk:

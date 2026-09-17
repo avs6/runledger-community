@@ -185,7 +185,7 @@ services:
       # Allow both hostnames the dashboard is commonly opened at. If you browse the UI
       # from another host (a LAN IP, a machine name), add it here (comma-separated).
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3201,http://127.0.0.1:3201}
-      RUNLEDGER_BASE_URL: ${RUNLEDGER_BASE_URL:-http://localhost:8000}
+      RUNLEDGER_BASE_URL: ${RUNLEDGER_INTERNAL_BASE_URL:-http://localhost:8000}
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
       # License key — required for enterprise features (SSO, warehouse, etc.)
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
@@ -434,7 +434,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Browser-facing API URL — baked in at build time
-        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8201}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://127.0.0.1:8201}
     container_name: runledger-web
     restart: unless-stopped
     ports:

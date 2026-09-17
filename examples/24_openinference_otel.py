@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import os
 
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 
@@ -82,7 +82,7 @@ def main() -> None:
     # 5. Flush all pending spans to RunLedger
     provider.force_flush(timeout_millis=10_000)
     print("✓ Spans flushed to RunLedger")
-    print(f"\nView runs at: {BASE_URL.replace('localhost:8000', 'localhost:3000')}/runs")
+    print(f"\nView runs at: {BASE_URL.replace('localhost:8201', 'localhost:3201')}/runs")
 
 
 def _manual_span_example(provider: object) -> None:

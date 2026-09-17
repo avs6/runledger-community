@@ -46,7 +46,7 @@ Run it
 
 Key .env variables:
     RUNLEDGER_API_KEY    — your workspace API key (tool registry + runs scoped to this workspace)
-    RUNLEDGER_BASE_URL   — http://localhost:8000
+    RUNLEDGER_BASE_URL   — http://localhost:8201
     RUNLEDGER_LOCAL      — set "true" to print events instead of sending
     OPENAI_API_KEY       — your OpenAI key
 

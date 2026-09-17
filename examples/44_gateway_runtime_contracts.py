@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 
 import httpx
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 SESSION_KEY = os.getenv("RUNLEDGER_SESSION_KEY", "")
 WORKSPACE_ID = os.getenv("RUNLEDGER_WORKSPACE_ID", "")
 ADMIN_SECRET = os.getenv("RUNLEDGER_ADMIN_SECRET", "")

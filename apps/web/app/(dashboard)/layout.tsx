@@ -8,7 +8,7 @@ import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { Toaster } from 'sonner'
 
 const API_URL =
-  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
 
 /**
  * Lightweight API key probe. Returns false if the key is invalid (401),

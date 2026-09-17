@@ -40,7 +40,7 @@ receivers:
         # Allow any CORS origin for local dev
         cors:
           allowed_origins:
-            - "http://localhost:3000"
+            - "http://localhost:3201"
             - "http://localhost:*"
             - "http://*"
 

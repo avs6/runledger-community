@@ -25,14 +25,14 @@ Run it
     # Copy .env.example → .env and fill in your values, then:
     uvicorn 05_fastapi_service:app --reload
 
-    curl -X POST http://localhost:8000/chat \\
+    curl -X POST http://localhost:8201/chat \\
          -H "Content-Type: application/json" \\
          -H "X-User-Id: user-eve" \\
          -d '{"message": "What is Python?"}'
 
 Key .env variables used here:
     RUNLEDGER_API_KEY    — your workspace API key
-    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_BASE_URL   — http://localhost:8201  (local Docker stack)
     RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
     OPENAI_API_KEY       — your OpenAI key
 """

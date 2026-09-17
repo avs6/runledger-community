@@ -31,6 +31,18 @@ export async function POST(request: NextRequest) {
   })
 
   const contentType = response.headers.get('content-type') || 'application/json'
+
+  if (contentType.includes('text/event-stream') && response.body) {
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+      },
+    })
+  }
+
   const payload = await response.arrayBuffer()
   return new NextResponse(payload, {
     status: response.status,

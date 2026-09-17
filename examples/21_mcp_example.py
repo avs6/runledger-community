@@ -19,7 +19,7 @@ or %APPDATA%\\Claude\\claude_desktop_config.json (Windows):
           "args": ["-m", "runledger_api.mcp_server"],
           "env": {
             "RUNLEDGER_API_KEY": "rl_live_...",
-            "RUNLEDGER_BASE_URL": "http://localhost:8000"
+            "RUNLEDGER_BASE_URL": "http://localhost:8201"
           }
         }
       }

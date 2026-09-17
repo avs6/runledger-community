@@ -618,9 +618,7 @@ async def gateway_runtime_finalize(
             msg = choices[0].get("message", {})
             response_content = msg.get("content", "") or ""
         if response_content:
-            import asyncio  # noqa: PLC0415
-
-            post_coro = evaluate_guardrails(
+            post_result = await evaluate_guardrails(
                 db,
                 workspace.id,
                 "post_call",
@@ -629,7 +627,7 @@ async def gateway_runtime_finalize(
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
             )
-            during_coro = evaluate_guardrails(
+            during_result = await evaluate_guardrails(
                 db,
                 workspace.id,
                 "during_call",
@@ -641,7 +639,6 @@ async def gateway_runtime_finalize(
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
             )
-            (post_result, during_result) = await asyncio.gather(post_coro, during_coro)
             for phase_decision, phase_results, _ in [post_result, during_result]:
                 if phase_decision == "block":
                     blocked_reason = next(

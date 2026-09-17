@@ -1,7 +1,7 @@
 import type { AuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 
-const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
 
 function buildUserFromApiResponse(data: Record<string, unknown>) {
   return {

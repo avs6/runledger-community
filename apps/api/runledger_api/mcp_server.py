@@ -21,7 +21,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 
 mcp = FastMCP(
     name="RunLedger",

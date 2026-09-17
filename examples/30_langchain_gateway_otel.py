@@ -23,7 +23,7 @@ Prerequisites — one-time install:
 
 Environment variables:
   RUNLEDGER_API_KEY   — your RunLedger API key (from /admin/bootstrap)
-  RUNLEDGER_BASE_URL  — RunLedger API base URL  (default: http://localhost:8000)
+  RUNLEDGER_BASE_URL  — RunLedger API base URL  (default: http://localhost:8201)
   OTEL_ENDPOINT       — OTEL Collector HTTP endpoint (default: http://localhost:4318)
 
 The example does NOT require a real OpenAI key — it calls the RunLedger gateway
@@ -42,7 +42,7 @@ from typing import Annotated, TypedDict
 # ── Config ────────────────────────────────────────────────────────────────────
 
 RUNLEDGER_API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
-RUNLEDGER_BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+RUNLEDGER_BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201")
 RUNLEDGER_GATEWAY_BASE_URL = os.environ.get("RUNLEDGER_GATEWAY_BASE_URL", "http://localhost:8210/gateway")
 OTEL_ENDPOINT = os.environ.get("OTEL_ENDPOINT", "http://localhost:4318")
 
@@ -53,7 +53,7 @@ if not RUNLEDGER_API_KEY:
     raise SystemExit(
         "Set RUNLEDGER_API_KEY before running this example.\n"
         "  export RUNLEDGER_API_KEY=rl_live_...\n"
-        "Get your key from: POST http://localhost:8000/admin/bootstrap"
+        "Get your key from: POST http://localhost:8201/admin/bootstrap"
     )
 
 

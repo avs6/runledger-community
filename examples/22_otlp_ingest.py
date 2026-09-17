@@ -30,7 +30,7 @@ Usage
 
 Set environment variables (or create a .env file in examples/):
     RUNLEDGER_API_KEY=rl_dev_xxxx...
-    RUNLEDGER_BASE_URL=http://localhost:8000
+    RUNLEDGER_BASE_URL=http://localhost:8201
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000").rstrip("/")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201").rstrip("/")
 
 if not API_KEY:
     print("[WARN] RUNLEDGER_API_KEY not set — will likely get 401")
@@ -307,7 +307,7 @@ def main() -> None:
     )
 
     print("\n" + "="*60)
-    print("Done. Check http://localhost:3000/runs to see the ingested traces.")
+    print("Done. Check http://localhost:3201/runs to see the ingested traces.")
     print()
     print("OTel Collector (optional):")
     print("  docker compose --profile otel -f infra/docker-compose.yml up otel-collector")

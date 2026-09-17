@@ -19,7 +19,7 @@ Run it
 
 Key .env variables:
     RUNLEDGER_API_KEY   — your workspace API key
-    RUNLEDGER_BASE_URL  — http://localhost:8000  (default)
+    RUNLEDGER_BASE_URL  — http://localhost:8201  (default)
 
 Notes
 ─────
@@ -39,7 +39,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:

@@ -143,8 +143,8 @@ import type {
 // Client-side (browser): use NEXT_PUBLIC_API_URL — baked at build time, must be browser-reachable.
 const API_URL =
   typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201')
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
 
 async function apiFetch<T>(path: string, apiKey: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -2347,7 +2347,7 @@ export async function uploadInvoice(
   formData.append('file', file)
   const qs = new URLSearchParams({ period_start: periodStart, period_end: periodEnd })
   if (provider) qs.set('provider', provider)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201'
   const res = await fetch(`${API_URL}/invoices/upload?${qs}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -3420,8 +3420,8 @@ export async function exportAuditEvents(
   if (action) qs.set('action', action)
   if (targetType) qs.set('target_type', targetType)
   const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
   const res = await fetch(`${API}/audit/events/export?${qs}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
@@ -3499,8 +3499,8 @@ export async function exportRunbook(
   format: 'markdown' | 'json' = 'markdown'
 ): Promise<string> {
   const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
   const res = await fetch(`${API}/runs/runbooks/${runbookId}/export?format=${format}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
@@ -3593,8 +3593,8 @@ export async function exportChargebackReport(
   if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
   if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
   const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
   const res = await fetch(`${API}/billing/chargeback-report/export?${q}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
@@ -3641,8 +3641,8 @@ export async function exportGovernanceAuditPack(
   if (params?.from) q.set('from', params.from)
   if (params?.to) q.set('to', params.to)
   const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000')
+    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
+    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
   const res = await fetch(`${API}/governance/audit-pack/export?${q}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
@@ -4182,7 +4182,7 @@ export async function exportBilling(
 ): Promise<Blob> {
   const params = new URLSearchParams({ format })
   if (months) params.set('months', String(months))
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'}/budgets/billing-export?${params}`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8201'}/budgets/billing-export?${params}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
   })
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)

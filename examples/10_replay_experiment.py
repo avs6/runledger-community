@@ -30,7 +30,7 @@ Run it
 
 Key .env variables used here:
     RUNLEDGER_API_KEY   — your workspace API key
-    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_BASE_URL  — http://localhost:8201  (local Docker stack)
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+API_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:

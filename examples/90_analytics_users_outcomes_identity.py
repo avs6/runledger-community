@@ -9,7 +9,7 @@ spend analysis and outcome ROI tracking.
 import os
 import httpx
 
-BASE = os.getenv("RUNLEDGER_API_URL", "http://localhost:8000")
+BASE = os.getenv("RUNLEDGER_API_URL", "http://localhost:8201")
 KEY = os.getenv("RUNLEDGER_API_KEY", "rl_test_key")
 HEADERS = {"Authorization": f"Bearer {KEY}"}
 

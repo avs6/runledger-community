@@ -175,7 +175,7 @@ def test_exporter_export_success():
     except ImportError:
         pytest.skip("opentelemetry-sdk not installed")
 
-    exporter = RunLedgerOTLPExporter(api_key="rl_test_abc", base_url="http://localhost:8000")
+    exporter = RunLedgerOTLPExporter(api_key="rl_test_abc", base_url="http://localhost:8201")
 
     mock_response = MagicMock()
     mock_response.status_code = 200
@@ -195,7 +195,7 @@ def test_exporter_export_failure_http():
     except ImportError:
         pytest.skip("opentelemetry-sdk not installed")
 
-    exporter = RunLedgerOTLPExporter(api_key="rl_test_abc", base_url="http://localhost:8000")
+    exporter = RunLedgerOTLPExporter(api_key="rl_test_abc", base_url="http://localhost:8201")
 
     mock_response = MagicMock()
     mock_response.status_code = 503
@@ -215,7 +215,7 @@ def test_exporter_export_empty_spans():
     except ImportError:
         pytest.skip("opentelemetry-sdk not installed")
 
-    exporter = RunLedgerOTLPExporter(api_key="rl_test_abc", base_url="http://localhost:8000")
+    exporter = RunLedgerOTLPExporter(api_key="rl_test_abc", base_url="http://localhost:8201")
     result = exporter.export([])
     assert result == SpanExportResult.SUCCESS
 
@@ -228,7 +228,7 @@ def test_exporter_requires_api_key():
     old = os.environ.pop("RUNLEDGER_API_KEY", None)
     try:
         with pytest.raises(ValueError, match="api_key"):
-            RunLedgerOTLPExporter(api_key=None, base_url="http://localhost:8000")
+            RunLedgerOTLPExporter(api_key=None, base_url="http://localhost:8201")
     finally:
         if old:
             os.environ["RUNLEDGER_API_KEY"] = old

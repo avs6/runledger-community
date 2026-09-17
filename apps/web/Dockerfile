@@ -7,7 +7,7 @@ RUN npm ci
 
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_API_URL=http://127.0.0.1:8201
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
@@ -19,7 +19,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV API_URL=http://api:8000
+ENV API_URL=http://runledger-api:8000
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

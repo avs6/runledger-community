@@ -49,7 +49,7 @@ export default function ApiDocsPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">

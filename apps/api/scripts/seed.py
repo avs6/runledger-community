@@ -196,7 +196,7 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
     print("\nDashboard login (Platform Admin):")
     print(f"  Email:    {_DEFAULT_EMAIL}")
     print(f"  Password: {_DEFAULT_PASSWORD}")
-    print("  URL:      http://localhost:3000")
+    print("  URL:      http://localhost:3201")
     print("  Role:     Platform Admin (can create orgs via Sidebar → Platform Admin → Tenants)")
 
 

@@ -13,7 +13,7 @@ Usage:
 import os
 import httpx
 
-BASE = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 KEY = os.getenv("RUNLEDGER_API_KEY", "")
 HEADERS = {"Authorization": f"Bearer {KEY}"}
 

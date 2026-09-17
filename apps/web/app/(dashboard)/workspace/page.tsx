@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
 interface Workspace {
   id: string

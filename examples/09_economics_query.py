@@ -57,7 +57,7 @@ Run it
 
 Key .env variables used here:
     RUNLEDGER_API_KEY   — your workspace API key (all queries scoped to this workspace)
-    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_BASE_URL  — http://localhost:8201  (local Docker stack)
 
 All economics and analytics endpoints return data scoped to the workspace the
 API key belongs to. Switching workspaces = swap RUNLEDGER_API_KEY.
@@ -77,7 +77,7 @@ load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:
@@ -366,7 +366,7 @@ def main() -> None:
 
     print()
     print(
-        "Tip: open http://localhost:3000/analytics/economics to see the full\n"
+        "Tip: open http://localhost:3201/analytics/economics to see the full\n"
         "     economics dashboard with version comparison and regression table."
     )
     print()

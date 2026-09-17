@@ -8,7 +8,7 @@ Demonstrates:
 
 Environment:
   RUNLEDGER_API_KEY   required
-  RUNLEDGER_BASE_URL  optional (default: http://localhost:8000)
+  RUNLEDGER_BASE_URL  optional (default: http://localhost:8201)
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:

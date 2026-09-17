@@ -22,7 +22,7 @@ import uuid
 
 import runledger_sdk as rl
 
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 

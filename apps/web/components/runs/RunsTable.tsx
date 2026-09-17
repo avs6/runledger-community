@@ -16,7 +16,7 @@ const HEADERS = [
   'Cost', 'Tokens', 'Duration', 'Started',
 ]
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
 export default function RunsTable({ items }: { items: RunListItem[] }) {
   const { data: session } = useSession()

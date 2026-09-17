@@ -224,6 +224,10 @@ export default function Sidebar() {
                 <NavGroup key={href} parentHref="/monitoring" parentLabel="Monitoring" parentIcon={Activity}>
                   <NavLink href="/monitoring/telemetry" label="Telemetry" icon={Radio} />
                 </NavGroup>
+              ) : href === '/request-flow' ? (
+                <NavGroup key={href} parentHref="/request-flow" parentLabel="Request Flow" parentIcon={Route}>
+                  <NavLink href="/request-flow/live" label="Live Pipeline" icon={Radio} />
+                </NavGroup>
               ) : (
                 <NavLink key={href} href={href} label={label} icon={icon} />
               )

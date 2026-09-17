@@ -52,7 +52,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 GATEWAY_BASE_URL = os.getenv("RUNLEDGER_GATEWAY_BASE_URL", "http://localhost:8210/gateway")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 

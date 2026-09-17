@@ -17,7 +17,7 @@ export default function SessionsExportButton({
       toast.error('Missing session API key')
       return
     }
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
     const url = `${base}/sessions/export${queryString ? `?${queryString}` : ''}`
     try {
       const response = await fetch(url, {

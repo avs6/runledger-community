@@ -38,10 +38,10 @@ class Settings(BaseSettings):
 
     # CORS — comma-separated list of allowed origins.
     # In production set CORS_ORIGINS=https://your-frontend.railway.app
-    # Dev defaults cover the Next dev server (3000) and the Docker dashboard (3201) on
-    # both localhost and 127.0.0.1 — a browser Origin that isn't listed fails preflight
+    # Dev defaults cover the dashboard (3201) on both localhost and 127.0.0.1 —
+    # a browser Origin that isn't listed fails preflight
     # (400) and the dashboard shows "Failed to load …" on client-fetched pages.
-    cors_origins: str = "http://localhost:3000,http://localhost:3201,http://127.0.0.1:3201"
+    cors_origins: str = "http://localhost:3201,http://127.0.0.1:3201"
 
     # Provider pricing YAML file.  Mounted into the container by docker-compose.
     # Set PRICING_FILE=/path/to/pricing.yml to override.
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     smtp_user: str = ""  # Brevo login email
     smtp_password: str = ""  # Brevo SMTP key
     smtp_from: str = "runledger@gmail.com"
-    app_base_url: str = "http://localhost:3000"  # used for verification links
+    app_base_url: str = "http://localhost:3201"  # used for verification links
     platform_webhook_url: str = ""
     platform_slack_webhook_url: str = ""
     platform_webhook_events: str = "budget.breach,runaway.detected,backup.failed,backup.completed"

@@ -8,7 +8,7 @@
         build down down-volumes ps logs logs-api
 
 # API base URL used by the `health` target. Defaults to the Docker Compose stack
-# (host port 8201). Override for a local hot-reload API: make health API_URL=http://localhost:8000
+# (host port 8201). Override for a local hot-reload API: make health API_URL=http://localhost:8201
 API_URL ?= http://localhost:8201
 
 # ── Setup ──────────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ dev-worker:
 dev-beat:
 	cd apps/api && uv run celery -A runledger_api.core.celery_app beat --loglevel=info
 
-## Next.js frontend (http://localhost:3000)
+## Next.js frontend (http://localhost:3201)
 dev-web:
 	cd apps/web && npm run dev
 

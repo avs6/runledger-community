@@ -33,7 +33,7 @@ Run it
 
 Key .env variables used here:
     RUNLEDGER_API_KEY   — your workspace API key (analytics are scoped to this workspace)
-    RUNLEDGER_BASE_URL  — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_BASE_URL  — http://localhost:8201  (local Docker stack)
 
 All analytics endpoints return data scoped to the workspace the API key belongs to.
 To query a different workspace, use a key from that workspace (Settings → API Keys).
@@ -54,7 +54,7 @@ load_dotenv()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 if not API_KEY:

@@ -432,7 +432,7 @@ def init(
             help="RunLedger API base URL",
             prompt="API base URL",
         ),
-    ] = "http://localhost:8000",
+    ] = "http://localhost:8201",
     admin_secret: Annotated[
         str,
         typer.Option(

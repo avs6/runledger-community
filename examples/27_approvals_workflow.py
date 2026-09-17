@@ -24,7 +24,7 @@ import uuid
 
 import httpx
 
-BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.environ.get("RUNLEDGER_API_KEY", "")
 
 client = httpx.Client(

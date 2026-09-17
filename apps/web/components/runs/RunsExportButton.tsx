@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Download, FileText, ChevronDown } from 'lucide-react'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
 
 export default function RunsExportButton() {
   const { data: session } = useSession()

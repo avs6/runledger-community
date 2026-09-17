@@ -26,7 +26,7 @@ Run it
 
 Key .env variables used here:
     RUNLEDGER_API_KEY    — your workspace API key (all runs scoped to this workspace)
-    RUNLEDGER_BASE_URL   — http://localhost:8000  (local Docker stack)
+    RUNLEDGER_BASE_URL   — http://localhost:8201  (local Docker stack)
     RUNLEDGER_LOCAL      — set "true" to print events instead of sending to the API
     OPENAI_API_KEY       — your OpenAI key
 """

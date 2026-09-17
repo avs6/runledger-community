@@ -14,7 +14,7 @@ import { RunLedger } from '../../packages/ts-sdk/src/index.js'
 
 const rl = new RunLedger({
   apiKey: process.env['RUNLEDGER_API_KEY'],
-  baseUrl: process.env['RUNLEDGER_BASE_URL'] ?? 'http://localhost:8000',
+  baseUrl: process.env['RUNLEDGER_BASE_URL'] ?? 'http://localhost:8201',
 })
 
 const openai = new OpenAI()

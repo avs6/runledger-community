@@ -75,7 +75,7 @@ Run it
 
 Key .env variables:
     RUNLEDGER_API_KEY    — your workspace API key
-    RUNLEDGER_BASE_URL   — http://localhost:8000
+    RUNLEDGER_BASE_URL   — http://localhost:8201
     OLLAMA_BASE_URL      — http://localhost:11434/v1  (default)
     OLLAMA_MODEL         — llama3.1  (default; needs tool-calling support)
     SETUP_REGISTRY       — set "true" to auto-register tool policies
@@ -99,7 +99,7 @@ load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")  # must support tool calling
-RUNLEDGER_BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+RUNLEDGER_BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 RUNLEDGER_API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 LOCAL_MODE = os.getenv("RUNLEDGER_LOCAL", "false").lower() in ("1", "true", "yes")
 SETUP_REGISTRY = os.getenv("SETUP_REGISTRY", "false").lower() in ("1", "true", "yes")

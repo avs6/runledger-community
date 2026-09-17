@@ -10,7 +10,7 @@ import { OrgDestinationsPanel } from '@/components/settings/OrgDestinationsPanel
 import type { OrgConsoleTab } from '@/components/settings/OrgNotificationsPanel'
 import { useRole } from '@/components/rbac/useRole'
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
 const TABS: { id: OrgConsoleTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Organization', icon: Building2 },

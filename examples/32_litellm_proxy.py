@@ -64,7 +64,7 @@ Run
 
 .env variables:
     RUNLEDGER_API_KEY    — your workspace API key
-    RUNLEDGER_BASE_URL   — http://localhost:8000  (RunLedger API)
+    RUNLEDGER_BASE_URL   — http://localhost:8201  (RunLedger API)
     LITELLM_PROXY_URL    — http://localhost:4000  (LiteLLM Proxy)
     LITELLM_PROXY_KEY    — master key set in litellm config (or leave blank)
     OPENAI_API_KEY       — required by LiteLLM Proxy
@@ -84,7 +84,7 @@ from runledger_sdk import RunLedger
 
 load_dotenv()
 
-BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 LITELLM_PROXY_URL = os.getenv("LITELLM_PROXY_URL", "http://localhost:4000")
 LITELLM_PROXY_KEY = os.getenv("LITELLM_PROXY_KEY", "sk-litellm-proxy")
