@@ -2,7 +2,7 @@
 
 Use this checklist for every tagged RunLedger Community release.
 
-The current alpha baseline is `v1alpha6`.
+The current beta baseline is `v1beta1`.
 
 ## 1. Source control
 
@@ -49,9 +49,9 @@ These are common examples, not a substitute for judgment:
 
 ```bash
 git status --short
-git tag -a v1alpha6 -m "Release v1alpha6"
-git push origin main --tags
-make build-push TAG=v1alpha6
+git tag -a v1beta1 -m "Release v1beta1"
+git push origin master --tags
+make build-push TAG=v1beta1
 ```
 
 On this repository, avoid `deploy` unless you explicitly intend to recreate running containers.

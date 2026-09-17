@@ -28,7 +28,7 @@ services:
   # ── Infrastructure ───────────────────────────────────────────────────────────
 
   runledger-postgres:
-    image: postgres:16-alpine
+    image: abijith13/runledger-postgres:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-postgres
     restart: unless-stopped
     environment:
@@ -46,7 +46,7 @@ services:
       retries: 10
 
   runledger-redis:
-    image: redis:7-alpine
+    image: abijith13/runledger-redis:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-redis
     restart: unless-stopped
     command:
@@ -64,7 +64,7 @@ services:
       retries: 10
 
   runledger-qdrant:
-    image: qdrant/qdrant:v1.12.4
+    image: abijith13/runledger-qdrant:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-qdrant
     restart: unless-stopped
     # profiles: removed — always starts
@@ -80,7 +80,7 @@ services:
       retries: 5
 
   runledger-minio:
-    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    image: abijith13/runledger-minio:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-minio
     restart: unless-stopped
     # profiles: removed — always starts
@@ -102,7 +102,7 @@ services:
   # ── RunLedger API ──────────────────────────────────────────────────────────
 
   runledger-redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:v26.1.5
+    image: abijith13/runledger-redpanda:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-redpanda
     restart: unless-stopped
     # profiles: removed — always starts
@@ -143,7 +143,7 @@ services:
       retries: 10
 
   runledger-redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:v3.1.0
+    image: abijith13/runledger-redpanda-console:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-redpanda-console
     restart: unless-stopped
     # profiles: removed — always starts
@@ -167,7 +167,7 @@ services:
         condition: service_healthy
 
   runledger-api:
-    image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -283,7 +283,7 @@ services:
       start_period: 20s
 
   runledger-gateway-rs:
-    image: abijith13/runledger-gateway-rs:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-gateway-rs:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/gateway-rs
       dockerfile: Dockerfile
@@ -319,7 +319,7 @@ services:
   # ── Celery Worker (event pipeline, metering, rollups, optimizer jobs) ──────
 
   runledger-worker:
-    image: abijith13/runledger-worker:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-worker:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -381,7 +381,7 @@ services:
   # ── Celery Beat (periodic tasks: rollups, alerts, health checks) ───────────
 
   runledger-beat:
-    image: abijith13/runledger-beat:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-beat:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -428,7 +428,7 @@ services:
   # ── Dashboard (Next.js) ───────────────────────────────────────────────────
 
   runledger-web:
-    image: abijith13/runledger-web:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-web:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/web
       dockerfile: Dockerfile
@@ -457,7 +457,7 @@ services:
         condition: service_healthy
 
   runledger-caddy:
-    image: caddy:2-alpine
+    image: abijith13/runledger-caddy:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-caddy
     restart: unless-stopped
     # profiles: removed — always starts
@@ -477,7 +477,7 @@ services:
   # ── Optimization services ──────────────────────────────────────────────────
 
   runledger-embedding-svc:
-    image: abijith13/runledger-embedding-svc:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-embedding-svc:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/embedding-svc
     container_name: runledger-embedding-svc
@@ -497,7 +497,7 @@ services:
       start_period: 30s
 
   runledger-semantic-cache-svc:
-    image: abijith13/runledger-semantic-cache-svc:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-semantic-cache-svc:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/semantic-cache-svc
     container_name: runledger-semantic-cache-svc
@@ -523,7 +523,7 @@ services:
       start_period: 15s
 
   runledger-mcp-gateway:
-    image: abijith13/runledger-mcp-gateway:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-mcp-gateway:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/mcp-gateway
     container_name: runledger-mcp-gateway
@@ -547,7 +547,7 @@ services:
   # control-plane runledger-postgres (plain Postgres 16).
 
   runledger-memory-db:
-    image: pgvector/pgvector:pg16
+    image: abijith13/runledger-pgvector:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-memory-db
     restart: unless-stopped
     # profiles: removed — always starts
@@ -566,7 +566,7 @@ services:
       retries: 10
 
   runledger-letta:
-    image: letta/letta:latest
+    image: abijith13/runledger-letta:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-letta
     restart: unless-stopped
     # profiles: removed — always starts
@@ -582,7 +582,7 @@ services:
         condition: service_healthy
 
   runledger-memory-svc:
-    image: abijith13/runledger-memory-svc:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-memory-svc:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/memory-svc
     container_name: runledger-memory-svc
@@ -601,7 +601,7 @@ services:
       - runledger-letta
 
   runledger-kg-svc:
-    image: abijith13/runledger-kg-svc:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-kg-svc:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/kg-svc
     container_name: runledger-kg-svc
@@ -619,7 +619,7 @@ services:
       start_period: 15s
 
   runledger-skill-registry:
-    image: abijith13/runledger-skill-registry:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-skill-registry:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/skill-registry
     container_name: runledger-skill-registry
@@ -631,7 +631,7 @@ services:
       - skills_data:/data/skills
 
   runledger-reranker:
-    image: abijith13/runledger-reranker:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-reranker:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/reranker-svc
     container_name: runledger-reranker
@@ -651,7 +651,7 @@ services:
       start_period: 30s
 
   runledger-compression:
-    image: abijith13/runledger-compression:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-compression:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/compression-svc
     container_name: runledger-compression
@@ -676,7 +676,7 @@ services:
   # that still set ROUTER_SVC_URL to the old address.  New deployments should
   # point ROUTER_SVC_URL at runledger-gateway-rs:8210 (the default).
   runledger-router:
-    image: abijith13/runledger-router:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-router:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/router-svc
     container_name: runledger-router
@@ -697,7 +697,7 @@ services:
       start_period: 15s
 
   runledger-context-compiler:
-    image: abijith13/runledger-context-compiler:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-context-compiler:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/context-compiler-svc
     container_name: runledger-context-compiler
@@ -725,7 +725,7 @@ services:
       start_period: 15s
 
   runledger-flywheel:
-    image: abijith13/runledger-flywheel:${RUNLEDGER_TAG:-v1alpha6}
+    image: abijith13/runledger-flywheel:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: ./apps/flywheel-svc
     container_name: runledger-flywheel
@@ -744,7 +744,7 @@ services:
   # Send traces from any instrumented agent to http://localhost:4318 (HTTP) or :4317 (gRPC).
 
   runledger-otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.114.0
+    image: abijith13/runledger-otel-collector:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-otel-collector
     restart: unless-stopped
     # profiles: removed — always starts

@@ -208,7 +208,7 @@ migrations:
 backup:
   enabled: false
   schedule: "0 2 * * *"   # 02:00 UTC daily
-  image: postgres:16-alpine   # has pg_dump; awscli + curl + tar installed at runtime
+  image: abijith13/runledger-postgres:v1beta1   # has pg_dump; awscli + curl + tar installed at runtime
   s3Bucket: ""             # s3://my-bucket/runledger-backups
   awsRegion: us-east-1
   retainDays: 30
@@ -340,14 +340,14 @@ stores:
   qdrant:
     external: false
     url: ""                      # http://host:6333 when external
-    image: qdrant/qdrant:v1.12.1
+    image: abijith13/runledger-qdrant:v1beta1
     port: 6333
     persistence: { size: 10Gi, storageClass: "", mountPath: /qdrant/storage }
     resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { cpu: "1", memory: 2Gi } }
   memoryDb:
     external: false
     url: ""                      # postgresql://user:pass@host:5432/memory when external
-    image: pgvector/pgvector:pg16
+    image: abijith13/runledger-pgvector:v1beta1
     port: 5432
     database: memory
     user: runledger
@@ -358,7 +358,7 @@ stores:
   letta:
     external: false
     url: ""                      # http://host:8283 when external
-    image: letta/letta:latest
+    image: abijith13/runledger-letta:v1beta1
     port: 8283
     resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: "1", memory: 1Gi } }
 
@@ -366,7 +366,7 @@ stores:
 # leave these disabled and set externalDatabase.url / externalRedis.url to managed services.
 postgres:
   inCluster: false
-  image: postgres:16-alpine
+  image: abijith13/runledger-postgres:v1beta1
   port: 5432
   database: runledger
   user: runledger
@@ -376,7 +376,7 @@ postgres:
 
 redis:
   inCluster: false
-  image: redis:7-alpine
+  image: abijith13/runledger-redis:v1beta1
   port: 6379
   persistence: { size: 5Gi, storageClass: "" }
   resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
