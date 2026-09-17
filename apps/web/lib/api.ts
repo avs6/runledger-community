@@ -5524,3 +5524,11 @@ export async function getApiExplorerRefreshPosture(apiKey: string): Promise<impo
 export async function getHelpHubPosture(apiKey: string): Promise<import('@/types/api').HelpHubPosture> {
   return apiFetch<import('@/types/api').HelpHubPosture>('/analytics/help-hub-posture', apiKey)
 }
+
+export async function getDesignSystemRefreshPosture(apiKey: string): Promise<import('@/types/api').DesignSystemRefreshPosture> {
+  return apiFetch<import('@/types/api').DesignSystemRefreshPosture>('/analytics/design-system-refresh-posture', apiKey)
+}
+
+export async function getDocsIaRefreshPosture(apiKey: string): Promise<import('@/types/api').DocsIaRefreshPosture> {
+  return apiFetch<import('@/types/api').DocsIaRefreshPosture>('/analytics/docs-ia-refresh-posture', apiKey)
+}

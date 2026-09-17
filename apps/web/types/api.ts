@@ -6940,3 +6940,31 @@ export interface HelpHubPosture {
     audit_events_30d: number
   }
 }
+
+export interface DesignSystemRefreshPosture {
+  workspace_id: string
+  period_days: number
+  token_system: Record<string, unknown>
+  dark_mode: Record<string, unknown>
+  component_coverage: Record<string, unknown>
+  scope_visual_language: Record<string, unknown>
+  density_modes: Record<string, unknown>
+  status_semantics: Record<string, unknown>
+  observe_context: {
+    requests_30d: number
+    audit_events_30d: number
+  }
+}
+
+export interface DocsIaRefreshPosture {
+  workspace_id: string
+  period_days: number
+  docs_structure: Record<string, unknown>
+  content_inventory: Record<string, unknown>
+  naming_audit: Record<string, unknown>
+  repo_hygiene: Record<string, unknown>
+  observe_context: {
+    requests_30d: number
+    audit_events_30d: number
+  }
+}

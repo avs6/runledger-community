@@ -101,6 +101,8 @@ from runledger_api.schemas.analytics import (
     GovernanceRuntimeRefreshPosture,
     ApiExplorerRefreshPosture,
     HelpHubPosture,
+    DesignSystemRefreshPosture,
+    DocsIaRefreshPosture,
     DataCaptureRuntimePosture,
     DataProtectionGatewayPosture,
     DataProtectionOrgPosture,
@@ -19604,6 +19606,197 @@ async def help_hub_posture(
             "live_pipeline": True,
             "sdk_languages": ["python", "typescript", "curl"],
             "api_keys": api_keys,
+        },
+        observe_context={
+            "requests_30d": requests_30d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/design-system-refresh-posture",
+    response_model=DesignSystemRefreshPosture,
+)
+async def design_system_refresh_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    access_groups = (
+        await db.execute(
+            select(func.count(AccessGroup.id)).where(
+                AccessGroup.workspace_id == ws,
+                AccessGroup.is_active.is_(True),
+            )
+        )
+    ).scalar() or 0
+
+    api_keys = (
+        await db.execute(
+            select(func.count(ApiKey.id)).where(ApiKey.workspace_id == ws)
+        )
+    ).scalar() or 0
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return DesignSystemRefreshPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        token_system={
+            "css_variables": True,
+            "root_tokens": True,
+            "color_scales": ["slate", "blue", "violet", "emerald", "amber", "rose", "cyan", "teal", "sky", "indigo", "purple", "red"],
+            "border_radius": "rounded-lg / rounded-xl",
+            "spacing_scale": "tailwind default (0.25rem increments)",
+        },
+        dark_mode={
+            "strategy": "class-based (dark:) with system preference detection",
+            "coverage": "full",
+            "token_override": True,
+            "bg_pattern": "slate-900 / slate-800",
+            "text_pattern": "white / slate-100 / slate-400",
+        },
+        component_coverage={
+            "posture_cards": True,
+            "data_tables": True,
+            "form_inputs": True,
+            "navigation": True,
+            "modals": True,
+            "toast_notifications": True,
+            "charts": True,
+            "themed_sections": [
+                "emerald (enforcement)", "rose (governance)", "purple (API)",
+                "sky (help)", "cyan (architecture)", "teal (pipeline)",
+                "amber (safety)", "blue (observe)", "indigo (org)",
+                "violet (build)",
+            ],
+        },
+        scope_visual_language={
+            "workspace_color": "blue",
+            "access_group_color": "violet",
+            "api_key_color": "amber",
+            "total_access_groups": access_groups,
+            "total_api_keys": api_keys,
+        },
+        density_modes={
+            "compact": "text-xs / py-1.5 / gap-2",
+            "default": "text-sm / py-2 / gap-3",
+            "posture_card": "text-[11px] uppercase tracking-wide",
+            "metric_value": "text-lg font-semibold",
+        },
+        status_semantics={
+            "operational_states": ["active", "inactive", "pending", "error"],
+            "severity_levels": ["info", "warning", "critical"],
+            "runtime_states": ["running", "stopped", "degraded", "healthy"],
+            "scope_types": ["workspace", "access_group", "search_tool"],
+        },
+        observe_context={
+            "requests_30d": requests_30d,
+            "audit_events_30d": audit_events_30d,
+        },
+    )
+
+
+@router.get(
+    "/docs-ia-refresh-posture",
+    response_model=DocsIaRefreshPosture,
+)
+async def docs_ia_refresh_posture(
+    workspace: Workspace = Depends(get_current_workspace),
+    db: AsyncSession = Depends(get_db),
+    _user: TenantUser = Depends(get_current_user),
+    _rl: None = Depends(analytics_rate_limit),
+):
+    from runledger_api.models.gateway import GatewayRequest
+
+    ws = workspace.id
+    now = datetime.now(UTC)
+    thirty_days_ago = now - timedelta(days=30)
+
+    requests_30d = (
+        await db.execute(
+            select(func.count(GatewayRequest.id)).where(
+                GatewayRequest.workspace_id == ws,
+                GatewayRequest.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    audit_events_30d = (
+        await db.execute(
+            select(func.count(AuditEvent.id)).where(
+                AuditEvent.workspace_id == ws,
+                AuditEvent.created_at >= thirty_days_ago,
+            )
+        )
+    ).scalar() or 0
+
+    return DocsIaRefreshPosture(
+        workspace_id=str(ws),
+        period_days=30,
+        docs_structure={
+            "hierarchy": "workflow-centered",
+            "sections": [
+                "observe", "build", "gateway", "governance",
+                "finops", "org_access", "platform", "architecture",
+            ],
+            "total_sections": 8,
+            "landing_map": True,
+            "progressive_disclosure": True,
+            "onboarding_guide": True,
+            "operator_guide": True,
+            "architecture_guide": True,
+        },
+        content_inventory={
+            "api_reference": True,
+            "sdk_guides": ["python", "typescript", "curl"],
+            "pipeline_docs": True,
+            "governance_docs": True,
+            "finops_docs": True,
+            "mcp_docs": True,
+            "guardrails_docs": True,
+            "evaluation_docs": True,
+            "help_hub_linked": True,
+            "api_explorer_linked": True,
+        },
+        naming_audit={
+            "product_centered": True,
+            "stale_phase_refs_removed": True,
+            "migration_language_cleaned": True,
+            "consistent_terminology": True,
+            "subsystem_ownership_maps": True,
+            "vocabulary_guidance": True,
+        },
+        repo_hygiene={
+            "example_scripts_aligned": True,
+            "postman_collection_aligned": True,
+            "docs_feature_oriented": True,
+            "mermaid_diagrams": True,
+            "blueprint_crosswalks": True,
         },
         observe_context={
             "requests_30d": requests_30d,

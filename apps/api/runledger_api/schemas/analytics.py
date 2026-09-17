@@ -1235,6 +1235,7 @@ class DesignSystemPosture(BaseModel):
     scope_visual_language: dict[str, Any]
     layout_shells: dict[str, Any]
     density_modes: dict[str, Any]
+    status_semantics: dict[str, Any] = {}
 
 
 class GatewaySplitPosture(BaseModel):
@@ -1304,4 +1305,26 @@ class HelpHubPosture(BaseModel):
     content_coverage: dict[str, Any]
     contextual_links: dict[str, Any]
     platform_readiness: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class DesignSystemRefreshPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    token_system: dict[str, Any]
+    dark_mode: dict[str, Any]
+    component_coverage: dict[str, Any]
+    scope_visual_language: dict[str, Any]
+    density_modes: dict[str, Any]
+    status_semantics: dict[str, Any]
+    observe_context: dict[str, Any]
+
+
+class DocsIaRefreshPosture(BaseModel):
+    workspace_id: str
+    period_days: int
+    docs_structure: dict[str, Any]
+    content_inventory: dict[str, Any]
+    naming_audit: dict[str, Any]
+    repo_hygiene: dict[str, Any]
     observe_context: dict[str, Any]

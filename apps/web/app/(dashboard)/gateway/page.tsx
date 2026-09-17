@@ -31,6 +31,8 @@ import {
   getGovernanceRuntimeRefreshPosture,
   getApiExplorerRefreshPosture,
   getHelpHubPosture,
+  getDesignSystemRefreshPosture,
+  getDocsIaRefreshPosture,
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
@@ -43,7 +45,7 @@ import type {
   RoutingRecommendationResponse,
   FlywheelSettings, FlywheelRecommendation, GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, GatewayPassThroughTestResult, GatewayBenchmarkComparisonItem,
   GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse,
-  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture, GatewaySplitPosture, HotPathMigrationPosture, RouterCollapseRefreshPosture, ConsumerMigrationRefreshPosture, GovernanceRuntimeRefreshPosture, ApiExplorerRefreshPosture, HelpHubPosture,
+  GatewayFinopsPosture, GatewayObservePosture, GatewaySafetyPosture, GatewayBuildPosture, PerformanceControlsOrgPosture, GatewayInternalPosture, GatewayControlPlanePosture, ResponseCacheEconomicsPosture, RateLimitScopePosture, GatewayRuntimeBoundaryPosture, SidecarCollapsePosture, ConsumerMigrationPosture, RuntimeScopeModelPosture, ScopeEnforcementEvidencePosture, GatewaySplitPosture, HotPathMigrationPosture, RouterCollapseRefreshPosture, ConsumerMigrationRefreshPosture, GovernanceRuntimeRefreshPosture, ApiExplorerRefreshPosture, HelpHubPosture, DesignSystemRefreshPosture, DocsIaRefreshPosture,
 } from '@/types/api'
 
 const inputCls =
@@ -269,6 +271,8 @@ export default function GatewayPage() {
   const [governanceRuntimeRefreshPosture, setGovernanceRuntimeRefreshPosture] = useState<GovernanceRuntimeRefreshPosture | null>(null)
   const [apiExplorerRefreshPosture, setApiExplorerRefreshPosture] = useState<ApiExplorerRefreshPosture | null>(null)
   const [helpHubPosture, setHelpHubPosture] = useState<HelpHubPosture | null>(null)
+  const [designSystemRefreshPosture, setDesignSystemRefreshPosture] = useState<DesignSystemRefreshPosture | null>(null)
+  const [docsIaRefreshPosture, setDocsIaRefreshPosture] = useState<DocsIaRefreshPosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const searchParams = useSearchParams()
@@ -346,6 +350,8 @@ export default function GatewayPage() {
     getGovernanceRuntimeRefreshPosture(apiKey).then(setGovernanceRuntimeRefreshPosture).catch(() => {})
     getApiExplorerRefreshPosture(apiKey).then(setApiExplorerRefreshPosture).catch(() => {})
     getHelpHubPosture(apiKey).then(setHelpHubPosture).catch(() => {})
+    getDesignSystemRefreshPosture(apiKey).then(setDesignSystemRefreshPosture).catch(() => {})
+    getDocsIaRefreshPosture(apiKey).then(setDocsIaRefreshPosture).catch(() => {})
   }, [apiKey])
 
   if (!canManage) {
@@ -2098,6 +2104,75 @@ export default function GatewayPage() {
             <Link href="/help" className="text-xs text-sky-600 hover:underline dark:text-sky-400">Help Hub</Link>
             <Link href="/api-docs" className="text-xs text-sky-600 hover:underline dark:text-sky-400">API Explorer</Link>
             <Link href="/onboarding" className="text-xs text-sky-600 hover:underline dark:text-sky-400">Onboarding</Link>
+          </div>
+        </div>
+      )}
+
+      {designSystemRefreshPosture && (
+        <div className="rounded-xl border border-fuchsia-200 dark:border-fuchsia-800 bg-fuchsia-50/30 dark:bg-fuchsia-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-fuchsia-900 dark:text-fuchsia-100">Design System Refresh — Token Architecture & Visual Language</h2>
+            <p className="mt-0.5 text-xs text-fuchsia-700 dark:text-fuchsia-400">
+              Unified token system, dark mode coverage, density modes, and scope-aware visual language across all surfaces.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-fuchsia-200 dark:border-fuchsia-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-400">Color Scales</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(designSystemRefreshPosture.token_system as { color_scales?: string[] }).color_scales?.length ?? 0}</p>
+              <p className="text-xs text-slate-400">{(designSystemRefreshPosture.dark_mode as { coverage?: string }).coverage ?? 'N/A'} dark mode</p>
+            </div>
+            <div className="rounded-lg border border-fuchsia-200 dark:border-fuchsia-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-400">Themed Sections</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(designSystemRefreshPosture.component_coverage as { themed_sections?: string[] }).themed_sections?.length ?? 0}</p>
+              <p className="text-xs text-slate-400">scope colors active</p>
+            </div>
+            <div className="rounded-lg border border-fuchsia-200 dark:border-fuchsia-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-400">Access Groups</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(designSystemRefreshPosture.scope_visual_language as { total_access_groups?: number }).total_access_groups ?? 0}</p>
+              <p className="text-xs text-slate-400">{(designSystemRefreshPosture.scope_visual_language as { total_api_keys?: number }).total_api_keys ?? 0} API keys</p>
+            </div>
+            <div className="rounded-lg border border-fuchsia-200 dark:border-fuchsia-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-fuchsia-600 dark:text-fuchsia-400">Status Semantics</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{Object.keys(designSystemRefreshPosture.status_semantics).length}</p>
+              <p className="text-xs text-slate-400">{designSystemRefreshPosture.observe_context.requests_30d} requests (30d)</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/design-system" className="text-xs text-fuchsia-600 hover:underline dark:text-fuchsia-400">Design System</Link>
+          </div>
+        </div>
+      )}
+
+      {docsIaRefreshPosture && (
+        <div className="rounded-xl border border-lime-200 dark:border-lime-800 bg-lime-50/30 dark:bg-lime-900/20 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-semibold text-lime-900 dark:text-lime-100">Docs IA Refresh — Documentation Structure & Content Inventory</h2>
+            <p className="mt-0.5 text-xs text-lime-700 dark:text-lime-400">
+              Documentation information architecture, content inventory, naming audit, and repo hygiene status.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-lime-200 dark:border-lime-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-lime-600 dark:text-lime-400">Doc Sections</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(docsIaRefreshPosture.docs_structure as { total_sections?: number }).total_sections ?? 0}</p>
+              <p className="text-xs text-slate-400">{(docsIaRefreshPosture.docs_structure as { hierarchy?: string }).hierarchy ?? 'N/A'}</p>
+            </div>
+            <div className="rounded-lg border border-lime-200 dark:border-lime-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-lime-600 dark:text-lime-400">SDK Guides</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(docsIaRefreshPosture.content_inventory as { sdk_guides?: string[] }).sdk_guides?.length ?? 0}</p>
+              <p className="text-xs text-slate-400">languages covered</p>
+            </div>
+            <div className="rounded-lg border border-lime-200 dark:border-lime-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-lime-600 dark:text-lime-400">Naming Audit</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(docsIaRefreshPosture.naming_audit as { consistent_terminology?: boolean }).consistent_terminology ? 'Clean' : 'Pending'}</p>
+              <p className="text-xs text-slate-400">{(docsIaRefreshPosture.naming_audit as { stale_phase_refs_removed?: boolean }).stale_phase_refs_removed ? 'No stale refs' : 'Stale refs found'}</p>
+            </div>
+            <div className="rounded-lg border border-lime-200 dark:border-lime-800 bg-white dark:bg-slate-900/50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-lime-600 dark:text-lime-400">Repo Hygiene</p>
+              <p className="mt-1 text-lg font-semibold dark:text-white">{(docsIaRefreshPosture.repo_hygiene as { mermaid_diagrams?: boolean }).mermaid_diagrams ? 'Diagrams' : 'No Diagrams'}</p>
+              <p className="text-xs text-slate-400">{docsIaRefreshPosture.observe_context.requests_30d} requests (30d)</p>
+            </div>
           </div>
         </div>
       )}
