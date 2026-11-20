@@ -491,9 +491,7 @@ async def exchange_oauth2_code(
         return resp.json()
 
 
-async def fetch_oauth2_userinfo(
-    provider: OAuth2Provider, access_token: str
-) -> dict[str, Any]:
+async def fetch_oauth2_userinfo(provider: OAuth2Provider, access_token: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(
             provider.userinfo_endpoint,
@@ -635,11 +633,12 @@ async def authenticate_ldap(
         if provider.start_tls and not use_ssl:
             conn.start_tls()
 
-        if bind_dn:
-            if not conn.bind():
-                raise HTTPException(status.HTTP_502_BAD_GATEWAY, "LDAP service bind failed")
+        if bind_dn and not conn.bind():
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "LDAP service bind failed")
 
-        search_filter = provider.user_search_filter.replace("{username}", ldap3.utils.conv.escape_filter_chars(username))
+        search_filter = provider.user_search_filter.replace(
+            "{username}", ldap3.utils.conv.escape_filter_chars(username)
+        )
         conn.search(
             provider.user_search_base,
             search_filter,
