@@ -22,6 +22,9 @@ from urllib import error, request
 
 BASE_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201").rstrip("/")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
+# The MCP server only accepts localhost Host headers (DNS-rebinding protection).
+# When RunLedger runs on another machine, set this to e.g. "localhost:8201".
+HOST_HEADER = os.getenv("RUNLEDGER_MCP_HOST_HEADER", "")
 
 # Force unbuffered line-by-line stdio output regardless of launcher environment
 if hasattr(sys.stdout, "reconfigure"):
@@ -48,7 +51,11 @@ def _jsonrpc_error(message_id: Any, code: int, message: str) -> dict[str, Any]:
     return res
 
 
+_SESSION_ID: str | None = None  # streamable HTTP session, returned by initialize
+
+
 def _post_to_runledger(payload: dict[str, Any]) -> dict[str, Any] | None:
+    global _SESSION_ID
     body = json.dumps(payload).encode("utf-8")
     req = request.Request(
         f"{BASE_URL}/mcp/",
@@ -57,11 +64,14 @@ def _post_to_runledger(payload: dict[str, Any]) -> dict[str, Any] | None:
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
             "Authorization": f"Bearer {API_KEY}",
+            **({"Host": HOST_HEADER} if HOST_HEADER else {}),
+            **({"Mcp-Session-Id": _SESSION_ID} if _SESSION_ID else {}),
         },
         method="POST",
     )
     opener = request.build_opener(request.ProxyHandler({}))
     with opener.open(req, timeout=30) as resp:
+        _SESSION_ID = resp.headers.get("mcp-session-id") or _SESSION_ID
         raw = resp.read().decode("utf-8")
         if not raw.strip():
             return None
