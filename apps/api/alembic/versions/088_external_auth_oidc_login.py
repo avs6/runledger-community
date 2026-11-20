@@ -110,9 +110,7 @@ def upgrade() -> None:
             name="uq_external_identity_provider_subject",
         ),
     )
-    op.create_index(
-        "ix_external_identities_user", "external_identities", ["user_id"]
-    )
+    op.create_index("ix_external_identities_user", "external_identities", ["user_id"])
 
 
 def downgrade() -> None:

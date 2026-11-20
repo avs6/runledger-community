@@ -213,9 +213,7 @@ class OAuth2Provider(Base):
 
 class LDAPProvider(Base):
     __tablename__ = "ldap_providers"
-    __table_args__ = (
-        sa.Index("ix_ldap_providers_workspace_active", "workspace_id", "is_active"),
-    )
+    __table_args__ = (sa.Index("ix_ldap_providers_workspace_active", "workspace_id", "is_active"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
