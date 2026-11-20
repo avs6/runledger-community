@@ -216,7 +216,8 @@ async def gateway_runtime_preflight(
         db, workspace_id=workspace.id, metadata=metadata
     )
 
-    messages = [{"role": m.role, "content": m.content} for m in body.body.messages]
+    # Keep every message field (tool_calls, tool_call_id, name, …), not just role/content.
+    messages = [m.model_dump(exclude_none=True) for m in body.body.messages]
     request_tags = (
         [str(tag).strip() for tag in metadata.get("tags", [])]
         if isinstance(metadata.get("tags"), list)

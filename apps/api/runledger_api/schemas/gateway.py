@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ── Route schemas ──────────────────────────────────────────────────────────────
 
@@ -240,8 +240,24 @@ class GatewayDeploymentHealthList(BaseModel):
 
 
 class GatewayMessage(BaseModel):
+    """OpenAI-style chat message.
+
+    Fields beyond ``role``/``content`` (``tool_calls``, ``tool_call_id``, ``name``, …)
+    are kept and forwarded: strict providers such as OpenRouter reject a tool
+    message without ``tool_call_id``.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
     role: str
-    content: str | list[Any]  # str for text; list for multimodal content parts
+    # str for text; list for multimodal content parts. Assistant messages that only
+    # carry tool_calls may omit content or send null — normalised to "".
+    content: str | list[Any] = ""
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _null_content_to_empty(cls, value: Any) -> Any:
+        return "" if value is None else value
 
 
 class GatewayCompletionRequest(BaseModel):

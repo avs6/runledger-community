@@ -376,3 +376,36 @@ async def test_route_and_forward_retries_once_on_transient_failure() -> None:
     assert winning_route.id == route.id
     assert isinstance(latency_ms, int)
     assert forward_mock.await_count == 2
+
+
+def test_gateway_message_keeps_tool_fields_and_allows_null_content() -> None:
+    """Tool-calling turns must reach the provider intact (OpenRouter rejects a tool
+    message without tool_call_id), and assistant tool-call messages may omit content."""
+    from runledger_api.schemas.gateway import GatewayCompletionRequest
+
+    req = GatewayCompletionRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [
+                {"role": "user", "content": "hi"},
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {"name": "terminal", "arguments": "{}"},
+                        }
+                    ],
+                },
+                {"role": "assistant", "content": None},
+                {"role": "tool", "tool_call_id": "call_1", "name": "terminal", "content": "ok"},
+            ],
+        }
+    )
+    dumped = [m.model_dump(exclude_none=True) for m in req.messages]
+    assert dumped[1]["content"] == ""
+    assert dumped[1]["tool_calls"][0]["id"] == "call_1"
+    assert dumped[2]["content"] == ""
+    assert dumped[3]["tool_call_id"] == "call_1"
+    assert dumped[3]["name"] == "terminal"
