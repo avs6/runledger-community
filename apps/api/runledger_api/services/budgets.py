@@ -11,6 +11,8 @@ import hashlib
 import hmac
 import json
 import uuid
+from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -23,14 +25,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
 from runledger_api.models import AgentRun, ProviderCall
-from runledger_api.models.access_groups import AccessGroupMember
+from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.budgets import (
     Budget,
     BudgetBreach,
     BudgetNotification,
     BudgetNotificationDelivery,
 )
-from runledger_api.models.tenant import Workspace
+from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.budgets import BudgetCheckResponse, BudgetUserBreakdownEntry
 from runledger_api.services import kafka_export
 
@@ -257,14 +259,28 @@ async def get_budget_breakdown(
 # ── Scope matching ────────────────────────────────────────────────────────────
 
 
+@dataclass(frozen=True, slots=True)
+class BudgetScope:
+    """The scope dimensions of one model call, used to pick the budgets it counts against."""
+
+    end_user_id: str | None = None
+    feature_tag: str | None = None
+    app_id: str | None = None
+    api_key_id: str | None = None
+    access_group_ids: tuple[str, ...] = ()
+    provider_profile_id: str | None = None
+
+
 def _matching_budgets(
     budgets: list[dict[str, Any]],
-    end_user_id: str | None,
-    feature_tag: str | None,
-    app_id: str | None,
-    api_key_id: str | None,
-    access_group_id: str | None,
-    provider_profile_id: str | None,
+    end_user_id: str | None = None,
+    feature_tag: str | None = None,
+    app_id: str | None = None,
+    api_key_id: str | None = None,
+    access_group_id: str | None = None,
+    provider_profile_id: str | None = None,
+    *,
+    access_group_ids: Iterable[str] = (),
 ) -> list[dict[str, Any]]:
     """
     Filter budget list to those that match this specific call.
@@ -274,9 +290,13 @@ def _matching_budgets(
     - feature_tag scope: matches when scope_id == feature_tag
     - app scope: matches when scope_id == app_id
     - api_key scope: matches when scope_id == api_key_id
-    - access_group scope: matches when scope_id == access_group_id
+    - access_group scope: matches when scope_id is one of the caller's groups
+      (``access_group_id`` or any of ``access_group_ids``)
     - provider_profile scope: matches when scope_id == provider_profile_id
     """
+    groups = {g for g in access_group_ids if g}
+    if access_group_id:
+        groups.add(access_group_id)
     matched = []
     for b in budgets:
         scope_type = b["scope_type"]
@@ -286,11 +306,7 @@ def _matching_budgets(
             or (scope_type == "feature_tag" and feature_tag and b["scope_id"] == feature_tag)
             or (scope_type == "app" and app_id and b["scope_id"] == app_id)
             or (scope_type == "api_key" and api_key_id and b["scope_id"] == api_key_id)
-            or (
-                scope_type == "access_group"
-                and access_group_id
-                and b["scope_id"] == access_group_id
-            )
+            or (scope_type == "access_group" and b["scope_id"] in groups)
             or (
                 scope_type == "provider_profile"
                 and provider_profile_id
@@ -314,6 +330,9 @@ async def check_budgets(
     api_key_id: str | None = None,
     access_group_id: str | None = None,
     provider_profile_id: str | None = None,
+    *,
+    access_group_ids: Iterable[str] = (),
+    budgets: list[dict[str, Any]] | None = None,
 ) -> BudgetCheckResponse:
     """
     Hot-path budget check: reads cache + Redis counters only.
@@ -321,7 +340,8 @@ async def check_budgets(
     Returns BudgetCheckResponse with allowed=False when a blocking or
     downgrade budget is exceeded.  Notify-only budgets do not block.
     """
-    budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
+    if budgets is None:
+        budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
     matched = _matching_budgets(
         budgets,
         end_user_id,
@@ -330,8 +350,12 @@ async def check_budgets(
         api_key_id,
         access_group_id,
         provider_profile_id,
+        access_group_ids=access_group_ids,
     )
+    return await _evaluate_matched(redis, matched)
 
+
+async def _evaluate_matched(redis: Redis, matched: list[dict[str, Any]]) -> BudgetCheckResponse:
     throttled = False
     throttle_budget_id: str | None = None
 
@@ -382,6 +406,292 @@ async def check_budgets(
         )
 
     return BudgetCheckResponse(allowed=True)
+
+
+# ── Scope resolution ──────────────────────────────────────────────────────────
+
+
+async def resolve_access_group_ids(
+    db: AsyncSession, workspace_id: uuid.UUID, user_id: uuid.UUID
+) -> tuple[str, ...]:
+    """Active access groups in the workspace that the user belongs to."""
+    rows = await db.execute(
+        select(AccessGroup.id)
+        .join(AccessGroupMember, AccessGroupMember.group_id == AccessGroup.id)
+        .where(
+            AccessGroup.workspace_id == workspace_id,
+            AccessGroup.is_active.is_(True),
+            AccessGroupMember.user_id == user_id,
+        )
+    )
+    return tuple(str(group_id) for group_id in rows.scalars())
+
+
+async def resolve_provider_profile_id(
+    db: AsyncSession, workspace_id: uuid.UUID, provider: str | None, model: str | None
+) -> str | None:
+    """The provider-pricing row (provider profile) a call to provider/model is billed under.
+
+    Workspace-specific rows win over global rows, then the most recent effective date.
+    """
+    if not model:
+        return None
+    from runledger_api.models.metering import ProviderPricing  # noqa: PLC0415
+
+    stmt = select(ProviderPricing.id).where(
+        ProviderPricing.model == model,
+        (ProviderPricing.workspace_id == workspace_id) | (ProviderPricing.workspace_id.is_(None)),
+    )
+    if provider:
+        stmt = stmt.where(ProviderPricing.provider == provider)
+    stmt = stmt.order_by(
+        ProviderPricing.workspace_id.is_(None).asc(),
+        ProviderPricing.effective_from.desc().nulls_last(),
+    ).limit(1)
+    pricing_id = (await db.execute(stmt)).scalar_one_or_none()
+    return str(pricing_id) if pricing_id else None
+
+
+def _has_scope(budgets: list[dict[str, Any]], scope_type: str) -> bool:
+    return any(b.get("scope_type") == scope_type for b in budgets)
+
+
+async def build_budget_scope(
+    db: AsyncSession,
+    budgets: list[dict[str, Any]],
+    *,
+    workspace_id: uuid.UUID,
+    api_key_id: uuid.UUID | str | None = None,
+    end_user_id: str | None = None,
+    feature_tag: str | None = None,
+    app_id: uuid.UUID | str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    principal_user_id: uuid.UUID | None = None,
+) -> BudgetScope:
+    """Resolve every scope dimension a call can be budgeted on.
+
+    Access-group membership is resolved from the calling user — the session key's
+    owner, a user-owned key's creator, or an ``end_user_id`` that is a workspace
+    member's id or email (the same mapping the gateway uses for guardrail
+    profiles). The DB lookups only run when the workspace has budgets of that scope.
+    """
+    group_ids: tuple[str, ...] = ()
+    if _has_scope(budgets, "access_group"):
+        user_id = principal_user_id
+        if user_id is None:
+            from runledger_api.services.sessions import resolve_principal_user_id  # noqa: PLC0415
+
+            workspace = await db.get(Workspace, workspace_id)
+            api_key = None
+            if api_key_id is not None:
+                api_key = await db.get(ApiKey, uuid.UUID(str(api_key_id)))
+            if workspace is not None:
+                user_id = await resolve_principal_user_id(
+                    db, api_key=api_key, end_user_id=end_user_id, workspace=workspace
+                )
+        if user_id is not None:
+            group_ids = await resolve_access_group_ids(db, workspace_id, user_id)
+
+    profile_id = None
+    if _has_scope(budgets, "provider_profile"):
+        profile_id = await resolve_provider_profile_id(db, workspace_id, provider, model)
+
+    return BudgetScope(
+        end_user_id=end_user_id,
+        feature_tag=feature_tag,
+        app_id=str(app_id) if app_id else None,
+        api_key_id=str(api_key_id) if api_key_id else None,
+        access_group_ids=group_ids,
+        provider_profile_id=profile_id,
+    )
+
+
+def _match_scope(budgets: list[dict[str, Any]], scope: BudgetScope) -> list[dict[str, Any]]:
+    return _matching_budgets(
+        budgets,
+        end_user_id=scope.end_user_id,
+        feature_tag=scope.feature_tag,
+        app_id=scope.app_id,
+        api_key_id=scope.api_key_id,
+        provider_profile_id=scope.provider_profile_id,
+        access_group_ids=scope.access_group_ids,
+    )
+
+
+# ── Gateway enforcement ───────────────────────────────────────────────────────
+
+
+async def check_request_budgets(
+    redis: Redis,
+    db: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    api_key_id: uuid.UUID | None,
+    end_user_id: str | None,
+    feature_tag: str | None,
+    principal_user_id: uuid.UUID | None = None,
+) -> BudgetCheckResponse:
+    """Route-independent budget check for a gateway request.
+
+    Covers workspace, end_user, feature_tag, api_key and access_group budgets.
+    Provider-profile budgets depend on the route and are checked per route with
+    :func:`check_provider_profile_budgets`.
+    """
+    budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
+    request_budgets = [b for b in budgets if b.get("scope_type") != "provider_profile"]
+    if not request_budgets:
+        return BudgetCheckResponse(allowed=True)
+    scope = await build_budget_scope(
+        db,
+        request_budgets,
+        workspace_id=workspace_id,
+        api_key_id=api_key_id,
+        end_user_id=end_user_id,
+        feature_tag=feature_tag,
+        principal_user_id=principal_user_id,
+    )
+    return await _evaluate_matched(redis, _match_scope(request_budgets, scope))
+
+
+async def check_provider_profile_budgets(
+    redis: Redis,
+    db: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    provider: str | None,
+    model: str | None,
+) -> BudgetCheckResponse:
+    """Check the provider-profile budgets that apply to one candidate route."""
+    budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
+    profile_budgets = [b for b in budgets if b.get("scope_type") == "provider_profile"]
+    if not profile_budgets:
+        return BudgetCheckResponse(allowed=True)
+    profile_id = await resolve_provider_profile_id(db, workspace_id, provider, model)
+    if profile_id is None:
+        return BudgetCheckResponse(allowed=True)
+    matched = [b for b in profile_budgets if b.get("scope_id") == profile_id]
+    return await _evaluate_matched(redis, matched)
+
+
+async def check_budget_throttle(redis: Redis, budget_id: str, rpm_limit: int) -> bool:
+    """Count one request against a throttled budget; True when it is over the limit.
+
+    A budget with ``action="throttle"`` that has reached its limit slows traffic to
+    ``rpm_limit`` requests per minute instead of blocking it outright.
+    """
+    epoch_minute = int(datetime.now(UTC).timestamp()) // 60
+    key = f"rl:budget:{budget_id}:throttle:{epoch_minute}"
+    count = await redis.incr(key)
+    if count == 1:
+        await redis.expire(key, 60)
+    return int(count) > rpm_limit
+
+
+# ── Spend recording ───────────────────────────────────────────────────────────
+
+_COUNTED_TTL = 86400 * 40  # longer than the longest period window (monthly)
+
+
+def _flag_ttl(period_type: str) -> int:
+    if period_type == "daily":
+        return 86400 * 2
+    return 86400 * 35
+
+
+async def record_budget_spend(
+    db: AsyncSession,
+    redis: Redis,
+    *,
+    workspace_id: uuid.UUID,
+    provider_call_id: uuid.UUID,
+    cost_usd: Decimal | None,
+    run_id: uuid.UUID | None = None,
+    api_key_id: uuid.UUID | str | None = None,
+    end_user_id: str | None = None,
+    feature_tag: str | None = None,
+    app_id: uuid.UUID | str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    principal_user_id: uuid.UUID | None = None,
+) -> int:
+    """Add one priced model call to every budget it counts against.
+
+    This is the single write path for budget spend counters. It is called wherever
+    a provider call gets its cost: gateway finalize, ingest (SDK/OTLP calls that
+    carry a cost) and the metering worker (calls priced after the fact).
+
+    - Idempotent per provider call: a call is counted at most once, so ingest
+      retries, re-enrichment and ``replay_backfill`` cannot double count.
+    - Emits ``budget.threshold_crossed`` at 80% and records a breach (with
+      notifications) when the limit is reached — each at most once per budget period.
+    - Does not commit; the caller owns the transaction.
+
+    Returns the number of budgets the call was counted against.
+    """
+    if cost_usd is None or cost_usd <= 0:
+        return 0
+    budgets = await get_workspace_budgets_cached(redis, db, workspace_id)
+    if not budgets:
+        return 0
+    counted_key = f"rl:budget:counted:{provider_call_id}"
+    if not await redis.set(counted_key, "1", nx=True, ex=_COUNTED_TTL):
+        return 0
+    try:
+        scope = await build_budget_scope(
+            db,
+            budgets,
+            workspace_id=workspace_id,
+            api_key_id=api_key_id,
+            end_user_id=end_user_id,
+            feature_tag=feature_tag,
+            app_id=app_id,
+            provider=provider,
+            model=model,
+            principal_user_id=principal_user_id,
+        )
+        matched = _match_scope(budgets, scope)
+        for b in matched:
+            budget_id = uuid.UUID(b["id"])
+            period_type = b["period_type"]
+            await incr_budget_spend(redis, budget_id, period_type, cost_usd)
+            spend = await get_budget_spend(redis, budget_id, period_type)
+            limit = Decimal(b["limit_usd"])
+            pk = _period_key(period_type, datetime.now(UTC))
+            if limit <= 0:
+                continue
+            if limit * Decimal("0.80") <= spend < limit and await redis.set(
+                f"rl:budget:{budget_id}:threshold:{pk}", "1", nx=True, ex=_flag_ttl(period_type)
+            ):
+                await kafka_export.publish_event(
+                    db,
+                    workspace_id=workspace_id,
+                    event_type="budget.threshold_crossed",
+                    payload={
+                        "budget_id": str(budget_id),
+                        "run_id": str(run_id) if run_id else None,
+                        "trace_id": None,
+                        "provider_call_id": str(provider_call_id),
+                        "scope_type": b.get("scope_type"),
+                        "scope_id": b.get("scope_id"),
+                        "period_type": period_type,
+                        "limit_usd": b.get("limit_usd"),
+                        "spend_usd": str(spend),
+                        "threshold_pct": "80",
+                        "idempotency_key": f"budget-threshold:{budget_id}:{pk}",
+                        "source": "runledger.budgets",
+                        "event_summary": "Budget threshold crossed",
+                    },
+                )
+            if spend >= limit and await redis.set(
+                f"rl:budget:{budget_id}:breached:{pk}", "1", nx=True, ex=_flag_ttl(period_type)
+            ):
+                await fire_breach(db, redis, b, spend, b["action"], commit=False)
+        return len(matched)
+    except Exception:
+        # Let a later attempt (retry / re-enrichment) count this call.
+        await redis.delete(counted_key)
+        raise
 
 
 # ── Model-specific budget check ──────────────────────────────────────────────
@@ -477,11 +787,14 @@ async def fire_breach(
     budget_dict: dict[str, Any],
     spend: Decimal,
     action_taken: str,
+    *,
+    commit: bool = True,
 ) -> None:
     """
     Record a breach in Postgres and send notifications.
 
     budget_dict is the serialised dict from the Redis cache (not the ORM obj).
+    Pass ``commit=False`` when the caller owns the transaction.
     """
     budget_id = uuid.UUID(budget_dict["id"])
 
@@ -577,7 +890,10 @@ async def fire_breach(
                     error=str(exc),
                 )
 
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     log.info(
         "budget_breach_recorded",
         budget_id=str(budget_id),

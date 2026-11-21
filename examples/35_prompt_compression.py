@@ -36,6 +36,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COMPRESSION_URL = os.getenv("COMPRESSION_URL", "http://localhost:8209")
+# Internal services only accept calls carrying the shared internal token, and their
+# ports are bound to 127.0.0.1 — run this on the RunLedger host as an operator.
+INTERNAL_HEADERS = {"x-internal-token": os.getenv("INTERNAL_SERVICE_TOKEN", "")}
 
 TEXT = (
     "The parental leave policy grants sixteen weeks of fully paid leave to all full-time "
@@ -52,7 +55,7 @@ def sep(t: str) -> None:
 
 
 sep("POST /compress  (keep rate 0.5)")
-with httpx.Client(timeout=180.0) as client:
+with httpx.Client(timeout=180.0, headers=INTERNAL_HEADERS) as client:
     resp = client.post(f"{COMPRESSION_URL}/compress", json={"text": TEXT, "rate": 0.5})
 
 if resp.status_code != 200:

@@ -27,6 +27,8 @@ import type {
   PolicyCheckResponse, PolicyDryRunReport,
 } from '@/types/api'
 import { num } from '@/lib/utils'
+import { useRole } from '@/components/rbac/useRole'
+import ReadOnlyNotice from '@/components/rbac/ReadOnlyNotice'
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500'
@@ -93,6 +95,7 @@ export default function ToolGovernancePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const apiKey = (session as { apiKey?: string })?.apiKey
+  const { canWrite, isWorkspaceAdmin } = useRole()
   const [tab, setTab] = useState<Tab>(parseTab(searchParams.get('tab')))
 
   const [tools, setTools] = useState<ToolRegistryResponse[]>([])
@@ -322,6 +325,15 @@ export default function ToolGovernancePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-3">
+      {!isWorkspaceAdmin && (
+        <ReadOnlyNotice
+          message={
+            canWrite
+              ? 'You can register and edit tools. Tool policies, search tools and enforcement promotion need a workspace admin.'
+              : undefined
+          }
+        />
+      )}
       {/* ── Hero Header ── */}
       <div className="rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
         <div className="flex items-center justify-between gap-4">

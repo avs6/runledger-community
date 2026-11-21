@@ -1,8 +1,25 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
+import structlog
 from fastapi import APIRouter
 
+from runledger_api.core.config import settings
+from runledger_api.core.redis import get_redis
+from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
+from runledger_api.core.scopes import normalize_scopes
+from runledger_api.services.budgets import (
+    check_budget_throttle,
+    check_provider_profile_budgets,
+    check_request_budgets,
+    record_budget_spend,
+)
+from runledger_api.services.sessions import resolve_principal_user_id
+
 from .gateway_shared import *
+
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -13,6 +30,122 @@ def _metadata_text(metadata: dict[str, Any], *keys: str) -> str | None:
         if value not in (None, "", []):
             return str(value)[:255]
     return None
+
+
+def _feature_tag_from(metadata: dict[str, Any], request_tags: list[str]) -> str | None:
+    """The workflow / feature tag a gateway request is attributed to."""
+    feature_tag = _metadata_text(
+        metadata,
+        "runledger.feature_tag",
+        "feature_tag",
+        "feature",
+        "workflow",
+        "workflow_type",
+    )
+    if feature_tag is None and request_tags:
+        feature_tag = request_tags[0][:255]
+    return feature_tag
+
+
+async def _route_alias_for_model(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    model: str,
+    request_tags: list[str],
+    preferred_region: str | None,
+) -> str | None:
+    """Resolve a budget's downgrade model to a gateway alias.
+
+    The model may be given as a route alias or as a provider model name.
+    """
+    if await select_routes(
+        db, workspace_id, model, request_tags=request_tags, preferred_region=preferred_region
+    ):
+        return model
+    alias = (
+        await db.execute(
+            select(GatewayRoute.alias)
+            .where(
+                GatewayRoute.workspace_id == workspace_id,
+                GatewayRoute.target_model == model,
+                GatewayRoute.is_active.is_(True),
+            )
+            .order_by(GatewayRoute.priority.asc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    return str(alias) if alias else None
+
+
+def _budget_exceeded(budget_id: str | None, detail: str) -> HTTPException:
+    headers = {"X-Cost-Cap-Reason": "budget_exceeded"}
+    if budget_id:
+        headers["X-Budget-Id"] = budget_id
+    return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, detail, headers=headers)
+
+
+async def _enforce_request_budgets(
+    db: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    api_key_id: uuid.UUID | None,
+    end_user_id: str | None,
+    feature_tag: str | None,
+    principal_user_id: uuid.UUID | None,
+    route_alias: str,
+    request_tags: list[str],
+    preferred_region: str | None,
+) -> tuple[str, str | None]:
+    """Apply workspace / end-user / feature-tag / API-key / access-group budgets.
+
+    Returns ``(route_alias, decision_note)``. Raises 429 when a ``block`` budget is
+    exhausted, when a ``downgrade``/``fallback`` budget names a model with no active
+    route, or when a ``throttle`` budget is over its per-minute allowance. Fails open
+    if Redis is unavailable.
+    """
+    redis = await get_redis()
+    try:
+        check = await check_request_budgets(
+            redis,
+            db,
+            workspace_id=workspace_id,
+            api_key_id=api_key_id,
+            end_user_id=end_user_id,
+            feature_tag=feature_tag,
+            principal_user_id=principal_user_id,
+        )
+    except Exception:
+        log.warning("gateway_budget_check_failed", workspace_id=str(workspace_id), exc_info=True)
+        return route_alias, None
+
+    if check.allowed and not check.throttled:
+        return route_alias, None
+    if check.action == "block":
+        raise _budget_exceeded(check.budget_id, "Budget limit reached")
+    if check.action in {"downgrade", "fallback"}:
+        target = check.downgrade_model or check.fallback_model
+        alias = (
+            await _route_alias_for_model(db, workspace_id, target, request_tags, preferred_region)
+            if target
+            else None
+        )
+        if alias is None:
+            raise _budget_exceeded(
+                check.budget_id,
+                f"Budget limit reached and no active route serves the downgrade model '{target}'",
+            )
+        return alias, f"budget_{check.action}:{check.budget_id}"
+    if check.throttled and check.budget_id:
+        try:
+            over = await check_budget_throttle(redis, check.budget_id, settings.budget_throttle_rpm)
+        except Exception:
+            over = False
+        if over:
+            exc = _budget_exceeded(check.budget_id, "Budget limit reached: request throttled")
+            exc.headers = {**(exc.headers or {}), "Retry-After": "60"}
+            raise exc
+        return route_alias, f"budget_throttle:{check.budget_id}"
+    return route_alias, None
 
 
 def _optional_int(value: Any) -> int | None:
@@ -32,7 +165,8 @@ async def _record_canonical_gateway_run(
     body: GatewayRuntimeFinalizeRequest,
     input_tokens: int | None,
     output_tokens: int | None,
-) -> None:
+) -> tuple[Decimal | None, uuid.UUID, uuid.UUID, str | None]:
+    """Record the gateway call as a run; returns (cost, run_id, provider_call_id, feature_tag)."""
     ended_at = datetime.now(UTC)
     latency_ms = body.latency_ms if body.latency_ms is not None else body.total_wall_ms
     started_at = ended_at - timedelta(milliseconds=latency_ms or 0)
@@ -63,16 +197,7 @@ async def _record_canonical_gateway_run(
         "ir_decision": body.ir_decision,
         "response_id": response_id,
     }
-    feature_tag = _metadata_text(
-        metadata,
-        "runledger.feature_tag",
-        "feature_tag",
-        "feature",
-        "workflow",
-        "workflow_type",
-    )
-    if feature_tag is None and body.request_tags:
-        feature_tag = body.request_tags[0][:255]
+    feature_tag = _feature_tag_from(metadata, body.request_tags)
 
     run = AgentRun(
         workspace_id=workspace_id,
@@ -120,8 +245,10 @@ async def _record_canonical_gateway_run(
     db.add(span)
     await db.flush()
 
+    provider_call_id = uuid.uuid4()
     db.add(
         ProviderCall(
+            id=provider_call_id,
             span_id=span.id,
             run_id=run.id,
             workspace_id=workspace_id,
@@ -141,6 +268,7 @@ async def _record_canonical_gateway_run(
         )
     )
     await db.flush()
+    return cost, run.id, provider_call_id, feature_tag
 
 
 @router.get("/runtime/snapshot", response_model=GatewayRuntimeSnapshotResponse)
@@ -172,7 +300,13 @@ async def resolve_gateway_runtime_api_key(
     _: AdminDep,
     db: DbDep,
 ) -> GatewayRuntimeApiKeyResolveResponse:
-    workspace, api_key, oidc_auth = await _resolve_gateway_bearer_token(body.raw_key, db)
+    needed = None
+    if body.required_scope:
+        try:
+            needed = frozenset(normalize_scopes([body.required_scope]))
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    workspace, api_key, oidc_auth = await _resolve_gateway_bearer_token(body.raw_key, db, needed)
     return GatewayRuntimeApiKeyResolveResponse(
         api_key_id=api_key.id if api_key is not None else None,
         workspace_id=workspace.id,
@@ -200,7 +334,9 @@ async def gateway_runtime_preflight(
     _: AdminDep,
     db: DbDep,
 ) -> GatewayRuntimePreflightResponse:
-    workspace, api_key, _oidc_auth = await _resolve_gateway_bearer_token(body.raw_key, db)
+    workspace, api_key, _oidc_auth = await _resolve_gateway_bearer_token(
+        body.raw_key, db, GATEWAY_SCOPE
+    )
 
     metadata = body.body.metadata or {}
     team_name = str(metadata.get("team")) if metadata.get("team") else None
@@ -350,6 +486,7 @@ async def gateway_runtime_preflight(
         (getattr(api_key, "guardrail_config", {}) or {}).get("disabled", False)
     )
     key_guardrail_ids = (getattr(api_key, "guardrail_config", {}) or {}).get("guardrail_ids")
+    principal_user_id: uuid.UUID | None = None
     if guardrails_enabled:
         guardrail_ids = (
             [uuid.UUID(g) for g in body.body.guardrails]
@@ -357,6 +494,9 @@ async def gateway_runtime_preflight(
             else ([uuid.UUID(g) for g in key_guardrail_ids] if key_guardrail_ids else None)
         )
         pre_texts = [str(m.get("content", "")) for m in messages if m.get("content")]
+        principal_user_id = await resolve_principal_user_id(
+            db, api_key=api_key, end_user_id=body.end_user_id, workspace=workspace
+        )
         gr_decision, gr_results, _ = await evaluate_guardrails(
             db,
             workspace.id,
@@ -365,6 +505,7 @@ async def gateway_runtime_preflight(
             structured_messages=messages,
             model=body.body.model,
             end_user_id=body.end_user_id,
+            user_id=str(principal_user_id) if principal_user_id else None,
             guardrail_ids=guardrail_ids,
         )
         if gr_decision == "block":
@@ -379,6 +520,18 @@ async def gateway_runtime_preflight(
                     for idx, message in enumerate(messages):
                         if message.get("content") and idx < len(result["modified_texts"]):
                             messages[idx]["content"] = result["modified_texts"][idx]
+
+    route_alias, budget_note = await _enforce_request_budgets(
+        db,
+        workspace_id=workspace.id,
+        api_key_id=api_key.id if api_key is not None else None,
+        end_user_id=body.end_user_id,
+        feature_tag=_feature_tag_from(metadata, request_tags),
+        principal_user_id=principal_user_id,
+        route_alias=route_alias,
+        request_tags=request_tags,
+        preferred_region=preferred_region,
+    )
 
     primary_route, primary_reason = await choose_route_for_alias(
         db,
@@ -398,6 +551,8 @@ async def gateway_runtime_preflight(
         if ir_decision and ir_decision.get("reason")
         else primary_reason
     )
+    if budget_note:
+        decision_reason = f"{decision_reason}|{budget_note}"
     if missing_metadata:
         decision_reason = f"{decision_reason}|metadata_warn:{','.join(missing_metadata)}"
 
@@ -423,6 +578,28 @@ async def gateway_runtime_preflight(
             visited_aliases.add(alias)
 
     execution_steps = []
+    provider_budget_blocked = False
+
+    async def _route_within_provider_budgets(
+        db: AsyncSession, workspace_id: uuid.UUID, route: GatewayRoute
+    ) -> bool:
+        nonlocal provider_budget_blocked
+        try:
+            result = await check_provider_profile_budgets(
+                await get_redis(),
+                db,
+                workspace_id=workspace_id,
+                provider=route.provider,
+                model=route.target_model,
+            )
+        except Exception:
+            log.warning("gateway_provider_budget_check_failed", route_id=str(route.id))
+            return True
+        if result.allowed:
+            return True
+        provider_budget_blocked = True
+        return False
+
     queue_index = 0
     while queue_index < len(queue):
         step = queue[queue_index]
@@ -488,9 +665,9 @@ async def gateway_runtime_preflight(
                 continue
             try:
                 await check_cost_cap(db, route, workspace.id)
+                if not await _route_within_provider_budgets(db, workspace.id, route):
+                    continue
                 if body.end_user_id and route.per_user_rpm_limit:
-                    from runledger_api.core.redis import get_redis  # noqa: PLC0415
-
                     redis = await get_redis()
                     await check_per_user_rpm(
                         redis,
@@ -568,6 +745,10 @@ async def gateway_runtime_preflight(
             execution_steps.append(step_entry)
 
     if not execution_steps:
+        if provider_budget_blocked:
+            raise _budget_exceeded(
+                None, "Provider budget limit reached for every route serving this request"
+            )
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
             f"No runnable gateway routes remained for alias '{route_alias}'",
@@ -613,6 +794,10 @@ async def gateway_runtime_finalize(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
 
     if body.guardrails_enabled:
+        finalize_key = await db.get(ApiKey, body.api_key_id) if body.api_key_id else None
+        principal_user_id = await resolve_principal_user_id(
+            db, api_key=finalize_key, end_user_id=body.end_user_id, workspace=workspace
+        )
         response_content = ""
         choices = body.response_json.get("choices", [])
         if choices:
@@ -627,6 +812,7 @@ async def gateway_runtime_finalize(
                 structured_messages=body.prepared_messages,
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
+                user_id=str(principal_user_id) if principal_user_id else None,
             )
             during_result = await evaluate_guardrails(
                 db,
@@ -639,6 +825,7 @@ async def gateway_runtime_finalize(
                 structured_messages=body.prepared_messages,
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
+                user_id=str(principal_user_id) if principal_user_id else None,
             )
             for phase_decision, phase_results, _ in [post_result, during_result]:
                 if phase_decision == "block":
@@ -674,7 +861,7 @@ async def gateway_runtime_finalize(
             completion_tokens=output_tokens,
         )
     gateway_overhead_ms = max((body.total_wall_ms or 0) - (body.latency_ms or 0), 0)
-    await _record_canonical_gateway_run(
+    cost, run_id, provider_call_id, feature_tag = await _record_canonical_gateway_run(
         db,
         workspace_id=workspace.id,
         route=route,
@@ -709,6 +896,24 @@ async def gateway_runtime_finalize(
         },
         segment_key=_segment_key(body.model_requested, body.ir_decision),
     )
+    try:
+        async with db.begin_nested():
+            await record_budget_spend(
+                db,
+                await get_redis(),
+                workspace_id=workspace.id,
+                provider_call_id=provider_call_id,
+                cost_usd=cost,
+                run_id=run_id,
+                api_key_id=body.api_key_id,
+                end_user_id=body.end_user_id,
+                feature_tag=feature_tag,
+                provider=route.provider,
+                model=route.target_model,
+            )
+        await db.commit()
+    except Exception:
+        log.exception("gateway_budget_spend_failed", provider_call_id=str(provider_call_id))
     return GatewayRuntimeFinalizeResponse(ok=True)
 
 

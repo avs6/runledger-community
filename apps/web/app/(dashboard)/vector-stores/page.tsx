@@ -15,6 +15,7 @@ import {
 } from '@/lib/api'
 import type { VectorCollectionResponse, VectorStoresLifecyclePosture } from '@/types/api'
 import { num } from '@/lib/utils'
+import { useRole } from '@/components/rbac/useRole'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
@@ -71,6 +72,7 @@ type ViewTab = 'stores' | 'register' | 'guide'
 export default function VectorStoresPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
+  const { canWrite } = useRole()
 
   const [tab, setTab] = useState<ViewTab>('stores')
   const [loading, setLoading] = useState(true)
@@ -236,7 +238,7 @@ export default function VectorStoresPage() {
           { id: 'stores' as ViewTab, label: 'Collections', icon: <Database className="h-3.5 w-3.5" />, count: total },
           { id: 'register' as ViewTab, label: 'Register Store', icon: <Plus className="h-3.5 w-3.5" /> },
           { id: 'guide' as ViewTab, label: 'Setup Guide', icon: <BookOpen className="h-3.5 w-3.5" /> },
-        ]).map((t) => (
+        ]).filter((t) => canWrite || t.id !== 'register').map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
               tab === t.id ? 'bg-white dark:bg-slate-900 text-cyan-700 dark:text-cyan-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
@@ -256,9 +258,11 @@ export default function VectorStoresPage() {
             <button onClick={() => load()} disabled={loading} className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1">
               <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />Refresh
             </button>
+{canWrite && (
             <button onClick={() => setTab('register')} className="rounded-lg bg-cyan-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-cyan-700 flex items-center gap-1">
               <Plus className="h-3 w-3" />Register Store
             </button>
+            )}
           </div>
 
           {collections.length === 0 ? (
@@ -267,9 +271,11 @@ export default function VectorStoresPage() {
               <h2 className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">No vector stores registered</h2>
               <p className="mt-1 max-w-md text-xs text-slate-500">Register a Qdrant-backed collection to start tracking embeddings, queries, and cost. Use the Register tab or the API.</p>
               <div className="flex gap-2 mt-4">
+{canWrite && (
                 <button onClick={() => setTab('register')} className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-700 flex items-center gap-1">
                   <Plus className="h-3.5 w-3.5" />Register Store
                 </button>
+                )}
                 <button onClick={() => setTab('guide')} className="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center gap-1">
                   <BookOpen className="h-3.5 w-3.5" />Setup Guide
                 </button>
@@ -292,10 +298,12 @@ export default function VectorStoresPage() {
                       </Link>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${statusCls(c.status)}`}>{c.status}</span>
+{canWrite && (
                         <button onClick={() => handleDelete(c.id, c.name)} disabled={deleting === c.id}
                           className="rounded-lg p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 opacity-0 group-hover:opacity-100 transition-all">
                           {deleting === c.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                         </button>
+                        )}
                       </div>
                     </div>
                     {c.description && <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 pl-9">{c.description}</p>}
@@ -330,7 +338,7 @@ export default function VectorStoresPage() {
       )}
 
       {/* ── Register tab ───────────────────────────────── */}
-      {tab === 'register' && (
+      {tab === 'register' && canWrite && (
         <div className="max-w-2xl space-y-3">
           <div className="rounded-xl border border-cyan-200/60 dark:border-cyan-800/40 bg-cyan-50/30 dark:bg-cyan-950/20 p-5">
             <div className="flex items-center gap-2 mb-4">

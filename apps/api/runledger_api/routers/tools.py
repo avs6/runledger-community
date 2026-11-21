@@ -27,7 +27,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.redis import get_redis
 from runledger_api.models.ledger import SecurityEvent, ToolRegistry
 from runledger_api.models.tenant import Workspace
@@ -178,7 +178,12 @@ async def list_tool_registry(
 # ── POST /tools/registry ──────────────────────────────────────────────────────
 
 
-@router.post("/registry", response_model=ToolRegistryResponse, status_code=201)
+@router.post(
+    "/registry",
+    response_model=ToolRegistryResponse,
+    status_code=201,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def upsert_tool_registry(
     body: ToolRegistryCreate,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
@@ -231,7 +236,11 @@ async def upsert_tool_registry(
 # ── PATCH /tools/registry/{tool_name} ────────────────────────────────────────
 
 
-@router.patch("/registry/{tool_name}", response_model=ToolRegistryResponse)
+@router.patch(
+    "/registry/{tool_name}",
+    response_model=ToolRegistryResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def update_tool_registry(
     tool_name: str,
     body: ToolRegistryUpdate,
@@ -271,7 +280,9 @@ async def update_tool_registry(
 # ── DELETE /tools/registry/{tool_name} ───────────────────────────────────────
 
 
-@router.delete("/registry/{tool_name}", status_code=204)
+@router.delete(
+    "/registry/{tool_name}", status_code=204, dependencies=[Depends(require_workspace_writer)]
+)
 async def delete_tool_registry(
     tool_name: str,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],

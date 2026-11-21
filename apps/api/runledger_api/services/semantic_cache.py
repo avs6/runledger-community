@@ -18,6 +18,8 @@ from typing import Any
 
 import httpx
 
+from runledger_api.core.config import settings
+
 log = logging.getLogger(__name__)
 
 _SVC_URL = os.getenv("SEMANTIC_CACHE_SVC_URL", "").rstrip("/")
@@ -63,7 +65,9 @@ async def lookup(
             "text": _canonical_text(messages),
             "scope": _scope(workspace_id, model, messages),
         }
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers=settings.internal_service_headers
+        ) as client:
             resp = await client.post(f"{_SVC_URL}/lookup", json=payload)
             resp.raise_for_status()
             data: dict[str, Any] = resp.json()
@@ -94,7 +98,9 @@ async def store(
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
         }
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers=settings.internal_service_headers
+        ) as client:
             resp = await client.post(f"{_SVC_URL}/store", json=payload)
             resp.raise_for_status()
     except Exception as exc:  # noqa: BLE001 — fail-open

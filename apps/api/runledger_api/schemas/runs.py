@@ -272,3 +272,6 @@ class LoginResponse(BaseModel):
     tenant_role: str | None
     workspace_role: str | None
     workspace_ids: list[str]
+    # True when the account is using an admin-issued temporary password; the
+    # dashboard sends the user to change it before anything else.
+    must_change_password: bool = False

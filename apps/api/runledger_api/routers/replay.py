@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment
 from runledger_api.models.tenant import Workspace
@@ -74,7 +74,12 @@ def _experiment_response(exp: ReplayExperiment) -> ExperimentResponse:
 # ── POST /replay/datasets ─────────────────────────────────────────────────────
 
 
-@router.post("/datasets", response_model=DatasetResponse, status_code=201)
+@router.post(
+    "/datasets",
+    response_model=DatasetResponse,
+    status_code=201,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_dataset(
     body: DatasetCreate,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
@@ -141,7 +146,12 @@ async def get_dataset(
 # ── POST /replay/experiments ──────────────────────────────────────────────────
 
 
-@router.post("/experiments", response_model=ExperimentResponse, status_code=201)
+@router.post(
+    "/experiments",
+    response_model=ExperimentResponse,
+    status_code=201,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_experiment(
     body: ExperimentCreate,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
@@ -241,7 +251,11 @@ async def get_experiment(
 # ── POST /replay/experiments/{id}/run ────────────────────────────────────────
 
 
-@router.post("/experiments/{experiment_id}/run", response_model=ExperimentResponse)
+@router.post(
+    "/experiments/{experiment_id}/run",
+    response_model=ExperimentResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def run_experiment(
     experiment_id: str,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],

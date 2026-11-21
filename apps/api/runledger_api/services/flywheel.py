@@ -34,6 +34,7 @@ import httpx
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings
 from runledger_api.models.flywheel import FlywheelRecommendation, FlywheelSettings
 from runledger_api.models.gateway import GatewayRoute
 from runledger_api.services.pricing import calculate_cost
@@ -279,7 +280,9 @@ async def run_analysis(db: AsyncSession, workspace_id: Any) -> dict[str, Any]:
         "segments": segments,
     }
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers=settings.internal_service_headers
+        ) as client:
             resp = await client.post(f"{_SVC_URL}/analyze", json=payload)
             resp.raise_for_status()
             recs = resp.json().get("recommendations", [])

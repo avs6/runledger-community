@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createAnnotation } from '@/lib/api'
+import { useRole } from '@/components/rbac/useRole'
 import type { Annotation } from '@/types/api'
 
 const inputCls =
@@ -20,6 +21,7 @@ export default function AnnotationForm({ apiKey, onCreated }: Props) {
   const [version, setVersion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { canWrite } = useRole()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -41,6 +43,8 @@ export default function AnnotationForm({ apiKey, onCreated }: Props) {
       setLoading(false)
     }
   }
+
+  if (!canWrite) return null
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
+
 from .gateway_shared import *
 
 router = APIRouter()
@@ -293,7 +295,7 @@ async def execute_gateway_passthrough_endpoint(
     db: DbDep,
     upstream_path: str = "",
 ) -> Response:
-    workspace, api_key = await _resolve_gateway_workspace(request, db)
+    workspace, api_key = await _resolve_gateway_workspace(request, db, GATEWAY_SCOPE)
     await evaluate_ip_acl(
         db,
         workspace_id=workspace.id,

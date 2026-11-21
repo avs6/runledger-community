@@ -94,7 +94,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   // ── Members ───────────────────────────────────────────────────────────────────
   const [members, setMembers] = useState<OrgMember[]>([])
   const [showMemberForm, setShowMemberForm] = useState(false)
-  const [memberForm, setMemberForm] = useState({ email: '', full_name: '', password: '', role: 'org_member' as OrgMember['role'] })
+  const [memberForm, setMemberForm] = useState({ email: '', full_name: '', password: '', role: 'org_member' as OrgMember['role'], skipVerification: false })
   const [submittingMember, setSubmittingMember] = useState(false)
   const [editMemberId, setEditMemberId] = useState<string | null>(null)
   const [savingMemberRole, setSavingMemberRole] = useState(false)
@@ -193,7 +193,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
   // ── Member handlers ───────────────────────────────────────────────────────────
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault()
-    if (!memberForm.email.trim() || !memberForm.password.trim()) return
+    if (!memberForm.email.trim()) return
     setSubmittingMember(true)
     try {
       const r = await fetch(`${apiBase}/org/members/invite`, {
@@ -201,19 +201,29 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
         body: JSON.stringify({
           email: memberForm.email.trim(),
           full_name: memberForm.full_name.trim() || null,
-          temporary_password: memberForm.password,
+          temporary_password: memberForm.password.trim() || null,
           role: memberForm.role,
+          skip_verification: memberForm.skipVerification,
         }),
       })
       if (!r.ok) {
         const msg = await r.json().catch(() => ({ detail: 'Unknown error' }))
         throw new Error(msg.detail || 'Failed')
       }
-      const member: OrgMember = await r.json()
+      const member: OrgMember & { status?: string; temporary_password?: string | null } = await r.json()
       setMembers((prev) => [...prev, member])
-      setMemberForm({ email: '', full_name: '', password: '', role: 'org_member' })
+      setMemberForm({ email: '', full_name: '', password: '', role: 'org_member', skipVerification: false })
       setShowMemberForm(false)
-      toast.success(`${member.email} added to organization`)
+      if (member.status === 'invited') {
+        toast.success(`Invitation sent to ${member.email}. They must accept it from their Account page.`)
+      } else if (member.temporary_password) {
+        toast.success(`${member.email} created. Temporary password: ${member.temporary_password}`, {
+          duration: 60000,
+          description: 'Shown once — share it securely. It must be changed at first sign-in.',
+        })
+      } else {
+        toast.success(`${member.email} added to organization`)
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to add member')
     } finally {
@@ -1054,10 +1064,18 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
                 type="password"
                 value={memberForm.password}
                 onChange={(e) => setMemberForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder="Temporary password *"
+                placeholder="Temporary password (new accounts; blank = generate)"
+                aria-label="Temporary password for new accounts"
                 className={inputCls + ' w-full'}
-                required
               />
+              <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={memberForm.skipVerification}
+                  onChange={(e) => setMemberForm((f) => ({ ...f, skipVerification: e.target.checked }))}
+                />
+                New accounts: mark email verified (use when SMTP is not configured)
+              </label>
               <div className="flex gap-2">
                 <select
                   value={memberForm.role}
@@ -1072,7 +1090,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
                 </select>
                 <button
                   type="submit"
-                  disabled={submittingMember || !memberForm.email.trim() || !memberForm.password.trim()}
+                  disabled={submittingMember || !memberForm.email.trim()}
                   className="flex items-center gap-1 rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
                 >
                   <UserPlus className="h-3.5 w-3.5" />

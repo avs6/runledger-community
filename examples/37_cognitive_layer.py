@@ -3,7 +3,9 @@ Example 37 — Cognitive Layer (memory · knowledge graph · skills)
 
 RunLedger's shared cognitive layer: persistent memory (Letta-backed), a knowledge graph (Kùzu),
 and a skill registry — all workspace-scoped and exposed over MCP so multiple clients share them.
-This example calls each microservice directly.
+This example calls each microservice directly, which only works from the host or cluster
+network: the services trust the workspace they are given and have no auth of their own.
+Clients should use the authenticated MCP gateway instead — see examples/181_mcp_gateway_access.py.
 
 Prerequisites
 ─────────────
@@ -30,6 +32,9 @@ load_dotenv()
 MEMORY_URL = os.getenv("MEMORY_URL", "http://localhost:8211")
 KG_URL = os.getenv("KG_URL", "http://localhost:8212")
 SKILL_URL = os.getenv("SKILL_URL", "http://localhost:8213")
+# Internal services only accept calls carrying the shared internal token, and their
+# ports are bound to 127.0.0.1 — run this on the RunLedger host as an operator.
+INTERNAL_HEADERS = {"x-internal-token": os.getenv("INTERNAL_SERVICE_TOKEN", "")}
 WS = "demo-workspace"
 
 
@@ -37,28 +42,61 @@ def sep(t: str) -> None:
     print(f"\n{'─' * 60}\n  {t}\n{'─' * 60}")
 
 
-with httpx.Client(timeout=120.0) as c:
+with httpx.Client(timeout=120.0, headers=INTERNAL_HEADERS) as c:
     sep("Skill Registry")
-    c.post(f"{SKILL_URL}/skills", json={"workspace": WS, "name": "deploy",
-           "description": "How to deploy the service", "content": "1. build 2. push 3. rollout", "version": 1})
+    c.post(
+        f"{SKILL_URL}/skills",
+        json={
+            "workspace": WS,
+            "name": "deploy",
+            "description": "How to deploy the service",
+            "content": "1. build 2. push 3. rollout",
+            "version": 1,
+        },
+    )
     print("  skills:", c.get(f"{SKILL_URL}/skills", params={"workspace": WS}).json())
 
     sep("Knowledge Graph")
-    c.post(f"{KG_URL}/entities", json={"workspace": WS, "id": "svc-api", "type": "service", "name": "API"})
-    c.post(f"{KG_URL}/entities", json={"workspace": WS, "id": "db-pg", "type": "database", "name": "Postgres"})
-    c.post(f"{KG_URL}/relations", json={"workspace": WS, "from_id": "svc-api", "to_id": "db-pg", "type": "depends_on"})
-    print("  neighbors(svc-api):", c.get(f"{KG_URL}/neighbors", params={"workspace": WS, "entity": "svc-api"}).json())
+    c.post(
+        f"{KG_URL}/entities",
+        json={"workspace": WS, "id": "svc-api", "type": "service", "name": "API"},
+    )
+    c.post(
+        f"{KG_URL}/entities",
+        json={"workspace": WS, "id": "db-pg", "type": "database", "name": "Postgres"},
+    )
+    c.post(
+        f"{KG_URL}/relations",
+        json={"workspace": WS, "from_id": "svc-api", "to_id": "db-pg", "type": "depends_on"},
+    )
+    print(
+        "  neighbors(svc-api):",
+        c.get(f"{KG_URL}/neighbors", params={"workspace": WS, "entity": "svc-api"}).json(),
+    )
 
     sep("Memory (Letta-backed)")
-    r = c.post(f"{MEMORY_URL}/memory", json={"workspace": WS, "kind": "decision",
-               "text": "We standardized on Qdrant for all vector search."})
+    r = c.post(
+        f"{MEMORY_URL}/memory",
+        json={
+            "workspace": WS,
+            "kind": "decision",
+            "text": "We standardized on Qdrant for all vector search.",
+        },
+    )
     print("  store:", r.json())
-    r = c.post(f"{MEMORY_URL}/recall", json={"workspace": WS, "query": "what vector database do we use?", "k": 3})
+    r = c.post(
+        f"{MEMORY_URL}/recall",
+        json={"workspace": WS, "query": "what vector database do we use?", "k": 3},
+    )
     print("  recall:", r.json())
-    print("  (memory is Letta-backed; if it shows empty/unavailable, give Letta a moment to warm up)")
+    print(
+        "  (memory is Letta-backed; if it shows empty/unavailable, give Letta a moment to warm up)"
+    )
 
 sep("Over MCP")
 print("  All of the above are also MCP tools on the RunLedger MCP server:")
-print("  memory_store · memory_recall · kg_add_entity · kg_add_relation · kg_neighbors · skill_list · skill_get")
+print(
+    "  memory_store · memory_recall · kg_add_entity · kg_add_relation · kg_neighbors · skill_list · skill_get"
+)
 
 print("\n✓ Example 37 complete.\n")

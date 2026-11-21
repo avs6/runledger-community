@@ -20,6 +20,7 @@ ApprovalRequestType = Literal[
     "sensitive_export",
     "route_policy_change",
     "chargeback_rule",
+    "model_access",
 ]
 
 ApprovalStatus = Literal["pending", "approved", "denied", "cancelled"]

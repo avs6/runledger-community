@@ -24,7 +24,7 @@ It is the lighter REST-only feature seed. It creates the canonical local foundat
 
 - `HomeLab` with `AgentTest`
 - `LocalAIAgentStack` with `LiteLLM Gateway`, `OpenWebUI`, `Codex`, `Langgraph`, `HermesAgent`, `Claude Desktop`, `OpenAICodes`, and `PythonAgents`
-- seeded org admins and users for both orgs, all using password `runledger`
+- seeded org admins and users for both orgs, all using password `runledger-demo-1` (platform admin: `runledger`)
 - realistic AI runs, traces, prompts, budgets, alerts, outcomes, approvals, and analytics
 - gateway routes, tool registry entries, replay assets, and governance examples
 

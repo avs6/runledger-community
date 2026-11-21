@@ -20,10 +20,12 @@ import Link from 'next/link'
 import { Beaker, Network, Plus, Play, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { num } from '@/lib/utils'
+import { useRole } from '@/components/rbac/useRole'
 
 export default function ReplayLabPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
+  const { canWrite } = useRole()
 
   const [tab, setTab] = useState<'datasets' | 'experiments'>('datasets')
   const [datasets, setDatasets] = useState<EvalDataset[]>([])
@@ -399,15 +401,17 @@ export default function ReplayLabPage() {
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Datasets</h2>
+            {canWrite && (
             <button
               onClick={() => setShowNewDataset(!showNewDataset)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
               <Plus className="h-4 w-4" /> New Dataset
             </button>
+            )}
           </div>
 
-          {showNewDataset && (
+          {showNewDataset && canWrite && (
             <div className="mb-4 flex items-center gap-2">
               <input
                 value={newDsName}
@@ -472,15 +476,17 @@ export default function ReplayLabPage() {
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Experiments</h2>
+            {canWrite && (
             <button
               onClick={() => setShowNewExperiment(!showNewExperiment)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
               <Plus className="h-4 w-4" /> New Experiment
             </button>
+            )}
           </div>
 
-          {showNewExperiment && (
+          {showNewExperiment && canWrite && (
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <input
                 value={newExpName}
@@ -587,7 +593,7 @@ export default function ReplayLabPage() {
                           {new Date(e.created_at).toLocaleDateString()}
                         </td>
                         <td className="py-2">
-                          {e.status === 'pending' && (
+                          {e.status === 'pending' && canWrite && (
                             <button
                               onClick={() => handleRun(e.id)}
                               className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useTheme } from 'next-themes'
@@ -48,11 +49,11 @@ export default function LoginPage() {
     setError('')
     try {
       const isOauth2 = provider.type === 'oauth2'
-      const callbackPath = isOauth2 ? '/auth/oauth2/callback' : '/auth/oidc/callback'
-      const redirectUri = `${window.location.origin}${callbackPath}`
+      // The API pins the redirect URI to APP_BASE_URL and keeps state, nonce and the
+      // PKCE verifier server-side, so no redirect_uri is sent from the browser.
       const apiPath = isOauth2
-        ? `${API_URL}/auth/oauth2/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`
-        : `${API_URL}/auth/oidc/${provider.id}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`
+        ? `${API_URL}/auth/oauth2/${provider.id}/authorize`
+        : `${API_URL}/auth/oidc/${provider.id}/authorize`
       const res = await fetch(apiPath)
       if (!res.ok) {
         setError('Failed to start SSO login.')
@@ -84,7 +85,7 @@ export default function LoginPage() {
     setSsoLoading(null)
 
     if (result?.error) {
-      setError('LDAP authentication failed.')
+      setError(result.error === 'CredentialsSignin' ? 'LDAP authentication failed.' : result.error)
     } else {
       router.push('/dashboard')
     }
@@ -104,7 +105,7 @@ export default function LoginPage() {
     setLoading(false)
 
     if (result?.error) {
-      setError('Invalid email or password.')
+      setError(result.error === 'CredentialsSignin' ? 'Invalid email or password.' : result.error)
     } else {
       router.push('/dashboard')
     }
@@ -212,9 +213,14 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Password
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Password
+                    </Label>
+                    <Link href="/forgot-password" className="text-xs font-medium text-blue-700 hover:underline dark:text-blue-400">
+                      Forgot password?
+                    </Link>
+                  </div>
                   <Input
                     id="password"
                     type="password"

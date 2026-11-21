@@ -135,6 +135,12 @@ env a given pod doesn't read is harmless; it keeps wiring in one place.
   value: {{ printf "http://%s-flywheel:8109" $full | quote }}
 - name: QDRANT_URL
   value: {{ include "runledger.qdrantUrl" . | quote }}
+# MCP gateway: resolves each caller's RunLedger API key to its workspace.
+- name: RUNLEDGER_CONTROL_PLANE_URL
+  value: {{ printf "http://%s-api:%v" $full .Values.service.api.port | quote }}
+- name: RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET
+  {{- include "runledger.secretRef" (list . "ADMIN_SECRET" .Values.secrets.adminSecret) | nindent 2 }}
+{{ include "runledger.internalServiceTokenEnv" . }}
 - name: LETTA_BASE_URL
   value: {{ include "runledger.lettaUrl" . | quote }}
 - name: OLLAMA_BASE_URL
@@ -206,24 +212,42 @@ value: {{ $val | quote }}
 {{- end }}
 
 {{/*
+INTERNAL_SERVICE_TOKEN — required by every optimization microservice on non-health
+requests and sent by its callers. With an existing secret it reads the
+INTERNAL_SERVICE_TOKEN key when internalServiceToken is set, otherwise ADMIN_SECRET.
+*/}}
+{{- define "runledger.internalServiceTokenEnv" -}}
+- name: INTERNAL_SERVICE_TOKEN
+{{- if .Values.secrets.existingSecret }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.secrets.existingSecret }}
+      key: {{ ternary "INTERNAL_SERVICE_TOKEN" "ADMIN_SECRET" (ne (default "" .Values.secrets.internalServiceToken) "") }}
+{{- else }}
+  value: {{ .Values.secrets.internalServiceToken | default .Values.secrets.adminSecret | default .Values.secrets.secretKey | quote }}
+{{- end }}
+{{- end }}
+
+{{/*
 Common environment variables shared by api, worker, and beat.
 */}}
 {{- define "runledger.commonEnv" -}}
 - name: DATABASE_URL
-  {{ include "runledger.databaseUrl" . }}
+  {{- include "runledger.databaseUrl" . | nindent 2 }}
 - name: REDIS_URL
-  {{ include "runledger.redisUrl" . }}
+  {{- include "runledger.redisUrl" . | nindent 2 }}
 - name: SECRET_KEY
-  {{ include "runledger.secretRef" (list . "SECRET_KEY" .Values.secrets.secretKey) }}
+  {{- include "runledger.secretRef" (list . "SECRET_KEY" .Values.secrets.secretKey) | nindent 2 }}
 - name: ADMIN_SECRET
-  {{ include "runledger.secretRef" (list . "ADMIN_SECRET" .Values.secrets.adminSecret) }}
+  {{- include "runledger.secretRef" (list . "ADMIN_SECRET" .Values.secrets.adminSecret) | nindent 2 }}
 - name: METRICS_TOKEN
-  {{ include "runledger.secretRef" (list . "METRICS_TOKEN" .Values.secrets.metricsToken) }}
+  {{- include "runledger.secretRef" (list . "METRICS_TOKEN" .Values.secrets.metricsToken) | nindent 2 }}
+{{ include "runledger.internalServiceTokenEnv" . }}
 - name: KMS_PROVIDER
   value: {{ .Values.secrets.kmsProvider | quote }}
 {{- if eq .Values.secrets.kmsProvider "aws_kms" }}
 - name: AWS_KMS_KEY_ID
-  {{ include "runledger.secretRef" (list . "AWS_KMS_KEY_ID" .Values.secrets.awsKmsKeyId) }}
+  {{- include "runledger.secretRef" (list . "AWS_KMS_KEY_ID" .Values.secrets.awsKmsKeyId) | nindent 2 }}
 - name: AWS_KMS_REGION
   value: {{ .Values.secrets.awsKmsRegion | quote }}
 {{- end }}
@@ -231,7 +255,7 @@ Common environment variables shared by api, worker, and beat.
 - name: VAULT_ADDR
   value: {{ .Values.secrets.vaultAddr | quote }}
 - name: VAULT_TOKEN
-  {{ include "runledger.secretRef" (list . "VAULT_TOKEN" .Values.secrets.vaultToken) }}
+  {{- include "runledger.secretRef" (list . "VAULT_TOKEN" .Values.secrets.vaultToken) | nindent 2 }}
 - name: VAULT_TRANSIT_KEY
   value: {{ .Values.secrets.vaultTransitKey | quote }}
 {{- end }}
@@ -242,9 +266,9 @@ Common environment variables shared by api, worker, and beat.
 - name: SMTP_PORT
   value: {{ .Values.email.smtpPort | quote }}
 - name: SMTP_USER
-  {{ include "runledger.secretRef" (list . "SMTP_USER" .Values.email.smtpUser) }}
+  {{- include "runledger.secretRef" (list . "SMTP_USER" .Values.email.smtpUser) | nindent 2 }}
 - name: SMTP_PASSWORD
-  {{ include "runledger.secretRef" (list . "SMTP_PASSWORD" .Values.email.smtpPassword) }}
+  {{- include "runledger.secretRef" (list . "SMTP_PASSWORD" .Values.email.smtpPassword) | nindent 2 }}
 - name: SMTP_FROM
   value: {{ .Values.email.smtpFrom | quote }}
 - name: APP_BASE_URL

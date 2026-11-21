@@ -33,7 +33,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment
 from runledger_api.models.prompts import Prompt, PromptVersion
@@ -63,7 +63,12 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 # ── Datasets ──────────────────────────────────────────────────────────────────
 
 
-@router.post("/datasets", response_model=EvalDatasetResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/datasets",
+    response_model=EvalDatasetResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_dataset(
     body: EvalDatasetCreate, workspace: WorkspaceDep, db: DbDep
 ) -> EvalDataset:
@@ -109,7 +114,11 @@ async def get_dataset(dataset_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep)
     return ds
 
 
-@router.put("/datasets/{dataset_id}", response_model=EvalDatasetResponse)
+@router.put(
+    "/datasets/{dataset_id}",
+    response_model=EvalDatasetResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def update_dataset(
     dataset_id: uuid.UUID, body: EvalDatasetUpdate, workspace: WorkspaceDep, db: DbDep
 ) -> EvalDataset:
@@ -130,7 +139,11 @@ async def update_dataset(
     return ds
 
 
-@router.delete("/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/datasets/{dataset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def delete_dataset(dataset_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) -> None:
     ds = await db.get(EvalDataset, dataset_id)
     if not ds or ds.workspace_id != workspace.id:
@@ -143,7 +156,10 @@ async def delete_dataset(dataset_id: uuid.UUID, workspace: WorkspaceDep, db: DbD
 
 
 @router.post(
-    "/experiments", response_model=EvalExperimentResponse, status_code=status.HTTP_201_CREATED
+    "/experiments",
+    response_model=EvalExperimentResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
 )
 async def create_experiment(
     body: EvalExperimentCreate, workspace: WorkspaceDep, db: DbDep
@@ -231,7 +247,11 @@ async def get_experiment(
     return exp
 
 
-@router.put("/experiments/{experiment_id}", response_model=EvalExperimentResponse)
+@router.put(
+    "/experiments/{experiment_id}",
+    response_model=EvalExperimentResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def update_experiment(
     experiment_id: uuid.UUID, body: EvalExperimentUpdate, workspace: WorkspaceDep, db: DbDep
 ) -> EvalExperiment:
@@ -259,7 +279,11 @@ async def update_experiment(
     return exp
 
 
-@router.delete("/experiments/{experiment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/experiments/{experiment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def delete_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep) -> None:
     exp = await db.get(EvalExperiment, experiment_id)
     if not exp or exp.workspace_id != workspace.id:
@@ -268,7 +292,11 @@ async def delete_experiment(experiment_id: uuid.UUID, workspace: WorkspaceDep, d
     await db.commit()
 
 
-@router.post("/experiments/{experiment_id}/run", response_model=EvalExperimentResponse)
+@router.post(
+    "/experiments/{experiment_id}/run",
+    response_model=EvalExperimentResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def run_experiment(
     experiment_id: uuid.UUID, workspace: WorkspaceDep, db: DbDep
 ) -> EvalExperiment:

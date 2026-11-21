@@ -45,15 +45,7 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.metering import DataQualityIssue, UsageDaily, UsageHourly
-from runledger_api.services import kafka_export
-from runledger_api.services.budgets import (
-    _matching_budgets,
-    _period_key,
-    fire_breach,
-    get_budget_spend,
-    get_workspace_budgets_cached,
-    incr_budget_spend,
-)
+from runledger_api.services.budgets import record_budget_spend
 from runledger_api.services.pricing import calculate_cost
 
 log = structlog.get_logger()
@@ -132,52 +124,26 @@ async def _run_cost_enrichment() -> dict[str, int]:
                 )
                 enriched += 1
 
-                # Increment Redis budget spend counters for matching budgets
+                # Count the newly priced call against every matching budget.
                 try:
-                    # Resolve feature_tag from the parent AgentRun
-                    ft_result = await session.execute(
-                        select(AgentRun.feature_tag).where(AgentRun.id == pc.run_id)
-                    )
-                    feature_tag = ft_result.scalar_one_or_none()
-
-                    budgets = await get_workspace_budgets_cached(redis, session, pc.workspace_id)
-                    matched = _matching_budgets(
-                        budgets,
-                        end_user_id=pc.end_user_id,
-                        feature_tag=feature_tag,
-                    )
-                    import uuid  # noqa: PLC0415
-
-                    for b in matched:
-                        budget_id = uuid.UUID(b["id"])
-                        await incr_budget_spend(redis, budget_id, b["period_type"], cost)
-                        spend = await get_budget_spend(redis, budget_id, b["period_type"])
-                        limit = Decimal(b["limit_usd"])
-                        if limit > 0 and spend >= (limit * Decimal("0.80")) and spend < limit:
-                            await kafka_export.publish_event(
-                                session,
-                                workspace_id=pc.workspace_id,
-                                event_type="budget.threshold_crossed",
-                                payload={
-                                    "budget_id": str(budget_id),
-                                    "run_id": str(pc.run_id),
-                                    "trace_id": None,
-                                    "provider_call_id": str(pc.id),
-                                    "scope_type": b.get("scope_type"),
-                                    "scope_id": b.get("scope_id"),
-                                    "period_type": b.get("period_type"),
-                                    "limit_usd": b.get("limit_usd"),
-                                    "spend_usd": str(spend),
-                                    "threshold_pct": "80",
-                                    "idempotency_key": f"budget-threshold:{budget_id}:{_period_key(b['period_type'], datetime.now(UTC))}",
-                                    "source": "runledger.metering",
-                                    "event_summary": "Budget threshold crossed",
-                                },
-                            )
-                        if spend >= Decimal(b["limit_usd"]) and b["action"] != "notify":
-                            await fire_breach(session, redis, b, spend, b["action"])
-                except Exception as exc:
-                    log.warning("budget_incr_failed", error=str(exc))
+                    run = await session.get(AgentRun, pc.run_id)
+                    async with session.begin_nested():
+                        await record_budget_spend(
+                            session,
+                            redis,
+                            workspace_id=pc.workspace_id,
+                            provider_call_id=pc.id,
+                            cost_usd=cost,
+                            run_id=pc.run_id,
+                            api_key_id=pc.api_key_id or (run.api_key_id if run else None),
+                            end_user_id=pc.end_user_id or (run.end_user_id if run else None),
+                            feature_tag=run.feature_tag if run else None,
+                            app_id=run.application_id if run else None,
+                            provider=pc.provider,
+                            model=pc.model,
+                        )
+                except Exception:
+                    log.exception("budget_spend_record_failed", provider_call_id=str(pc.id))
 
             await session.commit()
     finally:

@@ -1080,7 +1080,7 @@ export async function listApiKeys(apiKey: string): Promise<ApiKeyResponse[]> {
 
 export async function createApiKey(
   apiKey: string,
-  body: { name?: string | null; workspace_id?: string; scopes?: string[]; ownership_type?: string; owner_reference?: string | null }
+  body: { name?: string | null; workspace_id?: string; scopes?: string[]; ownership_type?: string; owner_reference?: string | null; expires_at?: string | null }
 ): Promise<ApiKeyCreateResponse> {
   return apiFetch<ApiKeyCreateResponse>('/settings/api-keys', apiKey, {
     method: 'POST',
@@ -1118,8 +1118,14 @@ export interface OrgUser {
   is_active: boolean
   email_verified: boolean
   org_role: string | null
+  org_status?: string | null
   last_login_at: string | null
   created_at: string
+  /** False when the account is shared with another org or is a platform admin. */
+  can_manage_identity?: boolean
+  must_change_password?: boolean
+  /** Only returned once, by createOrgUser, when a password was generated. */
+  temporary_password?: string | null
 }
 
 export async function listOrgUsers(apiKey: string): Promise<OrgUser[]> {
@@ -1128,7 +1134,7 @@ export async function listOrgUsers(apiKey: string): Promise<OrgUser[]> {
 
 export async function createOrgUser(
   apiKey: string,
-  body: { email: string; full_name?: string | null; temporary_password?: string; skip_verification?: boolean }
+  body: { email: string; full_name?: string | null; temporary_password?: string | null; skip_verification?: boolean }
 ): Promise<OrgUser> {
   return apiFetch<OrgUser>('/users', apiKey, { method: 'POST', body: JSON.stringify(body) })
 }
@@ -1155,12 +1161,12 @@ export async function createOrganization(
   body: {
     name: string
     admin_email: string
-    admin_password: string
+    admin_password?: string | null
     admin_full_name?: string | null
     skip_verification?: boolean
   }
-): Promise<{ id: string; name: string }> {
-  return apiFetch<{ id: string; name: string }>('/org/tenants', apiKey, {
+): Promise<{ id: string; name: string; temporary_password?: string | null }> {
+  return apiFetch<{ id: string; name: string; temporary_password?: string | null }>('/org/tenants', apiKey, {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -4647,8 +4653,10 @@ export async function deleteHubModel(apiKey: string, id: string): Promise<void> 
   await apiFetch<void>(`/hub/models/${id}`, apiKey, { method: 'DELETE' })
 }
 
-export async function requestHubAccess(apiKey: string, id: string): Promise<{ status: string; model_id: string; total_requests: number }> {
-  return apiFetch<{ status: string; model_id: string; total_requests: number }>(`/hub/models/${id}/request-access`, apiKey, { method: 'POST' })
+export interface HubAccessRequestResult { status: 'requested' | 'pending'; approval_id: string; model_id: string; total_requests: number }
+
+export async function requestHubAccess(apiKey: string, id: string): Promise<HubAccessRequestResult> {
+  return apiFetch<HubAccessRequestResult>(`/hub/models/${id}/request-access`, apiKey, { method: 'POST' })
 }
 
 export async function getHubModelCostPosture(apiKey: string, modelId: string): Promise<import('@/types/api').HubModelCostPosture> {
@@ -4969,8 +4977,6 @@ export async function createAccessGroup(
   data: {
     name: string
     description?: string
-    budget_usd?: number
-    budget_period?: string
     guardrail_profile?: string
     is_active?: boolean
     permissions?: Record<string, any>
@@ -4988,8 +4994,6 @@ export async function updateAccessGroup(
   data: {
     name?: string
     description?: string
-    budget_usd?: number
-    budget_period?: string
     guardrail_profile?: string
     is_active?: boolean
     permissions?: Record<string, any>
@@ -5531,4 +5535,76 @@ export async function getDesignSystemRefreshPosture(apiKey: string): Promise<imp
 
 export async function getDocsIaRefreshPosture(apiKey: string): Promise<import('@/types/api').DocsIaRefreshPosture> {
   return apiFetch<import('@/types/api').DocsIaRefreshPosture>('/analytics/docs-ia-refresh-posture', apiKey)
+}
+
+// ── Account, sessions & invitations ─────────────────────────────────────────
+
+/** Extract the API's `detail` message from an apiFetch error ("API 403: {...}"). */
+export function apiErrorMessage(err: unknown, fallback = 'Request failed'): string {
+  if (!(err instanceof Error)) return fallback
+  const match = err.message.match(/^API \d+: ([\s\S]*)$/)
+  if (!match) return err.message || fallback
+  try {
+    const body = JSON.parse(match[1])
+    if (typeof body?.detail === 'string') return body.detail
+    if (Array.isArray(body?.detail) && body.detail[0]?.msg) return String(body.detail[0].msg)
+  } catch {
+    /* not JSON */
+  }
+  return match[1] || fallback
+}
+
+export interface SessionKey {
+  id: string
+  workspace_id: string
+  workspace_name: string | null
+  key_prefix: string
+  name: string | null
+  created_at: string
+  expires_at: string | null
+  last_used_at: string | null
+  current: boolean
+}
+
+export interface PendingInvitation {
+  tenant_id: string
+  tenant_name: string
+  role: string
+  invited_by_email: string | null
+  created_at: string
+}
+
+export async function getMySessions(apiKey: string): Promise<SessionKey[]> {
+  return apiFetch<SessionKey[]>('/auth/sessions', apiKey)
+}
+
+export async function revokeMySession(apiKey: string, keyId: string): Promise<void> {
+  return apiFetch<void>(`/auth/sessions/${keyId}`, apiKey, { method: 'DELETE' })
+}
+
+export async function changeMyPassword(
+  apiKey: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await apiFetch('/users/me', apiKey, {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: currentPassword, password: newPassword }),
+  })
+}
+
+export async function getMyInvitations(apiKey: string): Promise<PendingInvitation[]> {
+  return apiFetch<PendingInvitation[]>('/org/invitations', apiKey)
+}
+
+export async function acceptInvitation(apiKey: string, tenantId: string): Promise<void> {
+  await apiFetch(`/org/invitations/${tenantId}/accept`, apiKey, { method: 'POST' })
+}
+
+export async function declineInvitation(apiKey: string, tenantId: string): Promise<void> {
+  return apiFetch<void>(`/org/invitations/${tenantId}/decline`, apiKey, { method: 'POST' })
+}
+
+export async function revokeUserSessionsInOrg(apiKey: string, userId: string): Promise<{ revoked: number }> {
+  return apiFetch<{ revoked: number }>(`/users/${userId}/sessions/revoke`, apiKey, { method: 'POST' })
 }

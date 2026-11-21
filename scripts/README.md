@@ -55,7 +55,7 @@ All manual labs and the normalized quick seed share one foundation:
   - Users: `user1@localstack.com`, `user2@localstack.com`
   - Workspaces: `LiteLLM Gateway`, `OpenWebUI`, `Codex`, `Langgraph`, `HermesAgent`, `Claude Desktop`, `OpenAICodes`, `PythonAgents`
 
-Every local account in this scenario uses password `runledger`.
+Org admins and users in this scenario use password `runledger-demo-1` (the API password policy requires at least 12 characters with a letter and a digit). The platform admin is seeded directly and keeps `runledger`.
 
 ## Master entry point — `run_demo.py`
 
@@ -68,6 +68,8 @@ python scripts/run_demo.py scenario          # print canonical scenario
 python scripts/run_demo.py cleanup            # truncate data (preserves admin + pricing)
 python scripts/run_demo.py cleanup --hard     # wipe ALL volumes
 python scripts/run_demo.py seed-demo          # REST demo seed (quick, ~30s)
+python scripts/run_demo.py verify-org-access  # assert org/invite/session/lockout controls
+python scripts/run_demo.py verify-budgets     # assert scoped budget counting + enforcement
 python scripts/run_demo.py full-simulate      # full cluster simulation
 python scripts/run_demo.py all                # cleanup → seed-demo
 python scripts/run_demo.py all --full         # cleanup → full-simulate
@@ -111,6 +113,8 @@ python scripts/run_demo.py backup --list      # list existing backups
 | `run_demo.py all --full` | One-shot pipeline: cleanup → full-simulate |
 | `run_demo.py seed-demo` | Fast UI and admin validation against the fixed HomeLab + LocalAIAgentStack layout |
 | `run_demo.py full-simulate` | Broad synthetic traffic, observability depth, and richer cross-surface demo data |
+| `run_demo.py verify-org-access` | Asserts Org & Access controls end to end: temporary passwords, password policy, pending invitations, cross-org identity guard, session revocation, audit events, viewer/editor write enforcement, API key scopes, platform-only backups and pricing import, cross-org ingest isolation, closed unauthenticated surfaces, sign-in throttling (creates and deletes two throwaway orgs) |
+| `run_demo.py verify-budgets` | Asserts scoped budgets end to end: priced ingest calls counted exactly once against feature-tag, end-user and API-key budgets, retries not double counted, one breach recorded, `/budgets/check` blocks the exhausted workflow. With `--gateway-url` and `--alias`, also expects the gateway to return 429. Needs the pipeline worker running |
 | `run_demo.py traffic --continuous` | Keep dashboards moving with indefinite agent traffic |
 | `run_demo.py cleanup` | Reset the stack to a blank slate |
 | [`labs/README.md`](./labs/README.md) | Manual operator training with the same org/user/workspace story |

@@ -19,8 +19,40 @@ function buildUserFromApiResponse(data: Record<string, unknown>) {
     tenantRole: (data.tenant_role as string | null) ?? null,
     workspaceRole: (data.workspace_role as string | null) ?? null,
     workspaceIds: (data.workspace_ids as string[]) ?? [],
+    mustChangePassword: (data.must_change_password as boolean) ?? false,
   }
 }
+
+/** Turn a failed auth response into an Error whose message NextAuth hands back to
+ *  signIn() as `result.error`, so the login page can show the real reason
+ *  (unverified email, too many attempts, no workspace access, …). */
+async function authError(res: Response): Promise<Error> {
+  try {
+    const body = await res.json()
+    if (typeof body?.detail === 'string') return new Error(body.detail)
+  } catch {
+    /* fall through */
+  }
+  if (res.status === 429) return new Error('Too many failed sign-in attempts. Try again later.')
+  return new Error('Invalid email or password')
+}
+
+/** Server-side session refresh: roles and workspace are always re-read from the API,
+ *  never taken from client-supplied update() payloads. */
+async function fetchSessionInfo(apiKey: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: 'no-store',
+    })
+    if (!res.ok) return null
+    return (await res.json()) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -46,10 +78,11 @@ export const authOptions: AuthOptions = {
             }),
           })
 
-          if (!res.ok) return null
+          if (!res.ok) throw await authError(res)
           return buildUserFromApiResponse(await res.json())
-        } catch {
-          return null
+        } catch (err) {
+          if (err instanceof Error) throw err
+          throw new Error('Sign-in service unavailable')
         }
       },
     }),
@@ -75,10 +108,11 @@ export const authOptions: AuthOptions = {
             }),
           })
 
-          if (!res.ok) return null
+          if (!res.ok) throw await authError(res)
           return buildUserFromApiResponse(await res.json())
-        } catch {
-          return null
+        } catch (err) {
+          if (err instanceof Error) throw err
+          throw new Error('Sign-in service unavailable')
         }
       },
     }),
@@ -104,10 +138,11 @@ export const authOptions: AuthOptions = {
             }),
           })
 
-          if (!res.ok) return null
+          if (!res.ok) throw await authError(res)
           return buildUserFromApiResponse(await res.json())
-        } catch {
-          return null
+        } catch (err) {
+          if (err instanceof Error) throw err
+          throw new Error('Sign-in service unavailable')
         }
       },
     }),
@@ -133,10 +168,11 @@ export const authOptions: AuthOptions = {
             }),
           })
 
-          if (!res.ok) return null
+          if (!res.ok) throw await authError(res)
           return buildUserFromApiResponse(await res.json())
-        } catch {
-          return null
+        } catch (err) {
+          if (err instanceof Error) throw err
+          throw new Error('Sign-in service unavailable')
         }
       },
     }),
@@ -156,18 +192,31 @@ export const authOptions: AuthOptions = {
         token.tenantRole = u.tenantRole as string | null
         token.workspaceRole = u.workspaceRole as string | null
         token.workspaceIds = u.workspaceIds as string[]
+        token.mustChangePassword = (u.mustChangePassword as boolean) ?? false
       }
-      // Support session update() for workspace switching
+      // session update(): used after switching workspace ({ apiKey }) or after a
+      // password change ({ refresh: true }). Only the API key is taken from the
+      // client; everything else is re-read from GET /auth/me with that key.
       if (trigger === 'update' && session) {
         const s = session as Record<string, unknown>
-        if (s.apiKey) token.apiKey = s.apiKey as string
-        if (s.workspaceId) token.workspaceId = s.workspaceId as string
-        if (s.workspaceName) token.workspaceName = s.workspaceName as string
-        if (s.tenantId) token.tenantId = s.tenantId as string
-        if (s.tenantName !== undefined) token.tenantName = (s.tenantName as string) ?? ''
-        if (s.workspaceRole !== undefined) token.workspaceRole = s.workspaceRole as string | null
-        if (s.tenantRole !== undefined) token.tenantRole = s.tenantRole as string | null
-        if (s.workspaceIds) token.workspaceIds = s.workspaceIds as string[]
+        const candidateKey = (s.apiKey as string | undefined) ?? (token.apiKey as string | undefined)
+        if (candidateKey && (s.apiKey || s.refresh)) {
+          const info = await fetchSessionInfo(candidateKey)
+          if (info) {
+            token.apiKey = candidateKey
+            token.workspaceId = info.workspace_id as string
+            token.workspaceName = info.workspace_name as string
+            token.tenantId = info.tenant_id as string
+            token.tenantName = (info.tenant_name as string) ?? ''
+            token.userId = info.user_id as string
+            token.fullName = (info.full_name as string | null) ?? null
+            token.isPlatformAdmin = (info.is_platform_admin as boolean) ?? false
+            token.tenantRole = (info.tenant_role as string | null) ?? null
+            token.workspaceRole = (info.workspace_role as string | null) ?? null
+            token.workspaceIds = (info.workspace_ids as string[]) ?? []
+            token.mustChangePassword = (info.must_change_password as boolean) ?? false
+          }
+        }
       }
       return token
     },
@@ -183,6 +232,7 @@ export const authOptions: AuthOptions = {
       session.tenantRole = (token.tenantRole as string | null) ?? null
       session.workspaceRole = (token.workspaceRole as string | null) ?? null
       session.workspaceIds = (token.workspaceIds as string[]) ?? []
+      session.mustChangePassword = (token.mustChangePassword as boolean) ?? false
       return session
     },
   },
@@ -191,7 +241,8 @@ export const authOptions: AuthOptions = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
+    // Matches the API's SESSION_TTL_DAYS (dashboard session keys expire with it).
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
 }
 
@@ -208,6 +259,7 @@ declare module 'next-auth' {
     tenantRole: string | null
     workspaceRole: string | null
     workspaceIds: string[]
+    mustChangePassword: boolean
   }
 }
 
@@ -224,5 +276,6 @@ declare module 'next-auth/jwt' {
     tenantRole?: string | null
     workspaceRole?: string | null
     workspaceIds?: string[]
+    mustChangePassword?: boolean
   }
 }

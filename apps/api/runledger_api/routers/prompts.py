@@ -33,7 +33,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import (
+    get_current_workspace,
+    require_workspace_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.eval_experiments import PromptGithubConfig
 from runledger_api.models.events import AgentRun
@@ -60,6 +64,7 @@ from runledger_api.schemas.prompts import (
 )
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.github_sync import pull_prompts_from_github, push_prompts_to_github
+from runledger_api.services.kafka_export import encrypt_secret_value, resolve_secret_value
 
 router = APIRouter(
     prefix="/prompts",
@@ -88,7 +93,12 @@ async def _get_prompt_or_404(name: str, workspace_id: uuid.UUID, db: AsyncSessio
 # ── POST /prompts ──────────────────────────────────────────────────────────────
 
 
-@router.post("", response_model=PromptResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=PromptResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_prompt(
     body: PromptCreate,
     workspace: WorkspaceDep,
@@ -138,7 +148,9 @@ async def list_prompts(
 def _decrypt_token(token_enc: str | None) -> str | None:
     """Decrypt stored token or fall back to env var."""
     if token_enc:
-        if token_enc.startswith("b64:"):
+        if token_enc.startswith("enc::"):
+            return resolve_secret_value(token_enc)
+        if token_enc.startswith("b64:"):  # legacy, written before encryption at rest
             return base64.b64decode(token_enc[4:]).decode()
         return token_enc
     return os.environ.get("GITHUB_TOKEN")
@@ -154,7 +166,10 @@ async def get_github_config(workspace: WorkspaceDep, db: DbDep) -> PromptGithubC
 
 
 @router.post(
-    "/github-config", response_model=GithubConfigResponse, status_code=status.HTTP_201_CREATED
+    "/github-config",
+    response_model=GithubConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_admin)],
 )
 async def create_github_config(
     body: GithubConfigCreate, workspace: WorkspaceDep, db: DbDep
@@ -170,7 +185,7 @@ async def create_github_config(
 
     token_enc: str | None = None
     if body.token:
-        token_enc = "b64:" + base64.b64encode(body.token.encode()).decode()
+        token_enc = encrypt_secret_value(body.token)
 
     cfg = PromptGithubConfig(
         workspace_id=workspace.id,
@@ -186,7 +201,11 @@ async def create_github_config(
     return cfg
 
 
-@router.put("/github-config", response_model=GithubConfigResponse)
+@router.put(
+    "/github-config",
+    response_model=GithubConfigResponse,
+    dependencies=[Depends(require_workspace_admin)],
+)
 async def update_github_config(
     body: GithubConfigUpdate, workspace: WorkspaceDep, db: DbDep
 ) -> PromptGithubConfig:
@@ -205,7 +224,7 @@ async def update_github_config(
     if body.path_prefix is not None:
         cfg.path_prefix = body.path_prefix
     if body.token is not None:
-        cfg.token_enc = "b64:" + base64.b64encode(body.token.encode()).decode()
+        cfg.token_enc = encrypt_secret_value(body.token)
     if body.auto_sync is not None:
         cfg.auto_sync = body.auto_sync
     cfg.updated_at = datetime.now(UTC)
@@ -214,7 +233,9 @@ async def update_github_config(
     return cfg
 
 
-@router.post("/sync/push", response_model=GithubSyncResult)
+@router.post(
+    "/sync/push", response_model=GithubSyncResult, dependencies=[Depends(require_workspace_writer)]
+)
 async def push_to_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult:
     """Push all workspace prompts to GitHub."""
     result = await db.execute(
@@ -276,7 +297,9 @@ async def push_to_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult
     )
 
 
-@router.post("/sync/pull", response_model=GithubSyncResult)
+@router.post(
+    "/sync/pull", response_model=GithubSyncResult, dependencies=[Depends(require_workspace_writer)]
+)
 async def pull_from_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResult:
     """Pull prompts from GitHub and upsert into workspace."""
     result = await db.execute(
@@ -354,7 +377,11 @@ async def get_prompt(
 # ── DELETE /prompts/{name} ─────────────────────────────────────────────────────
 
 
-@router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def delete_prompt(
     name: str,
     workspace: WorkspaceDep,
@@ -374,6 +401,7 @@ async def delete_prompt(
     "/{name}/versions",
     response_model=VersionResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
 )
 async def create_version(
     name: str,
@@ -510,6 +538,7 @@ async def get_version(
     "/{name}/promote",
     response_model=VersionResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
 )
 async def promote_version(
     name: str,
@@ -675,7 +704,10 @@ async def get_prompt_metrics(
 
 
 @router.put(
-    "/{name}/versions/{v}", response_model=VersionResponse, status_code=status.HTTP_201_CREATED
+    "/{name}/versions/{v}",
+    response_model=VersionResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
 )
 async def edit_version(
     name: str,

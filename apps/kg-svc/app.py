@@ -16,17 +16,42 @@ GET  /neighbors  ?workspace=&entity=&limit=                      (1-hop out-neig
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from typing import Any
 
 import kuzu
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 DB_PATH = os.getenv("KUZU_DB_PATH", "/data/kg")
 
 app = FastAPI(title="RunLedger Knowledge Graph", version="0.1.0")
+
+
+# ── Internal access control ──────────────────────────────────────────────────
+# Only RunLedger components may call this service: every request except the
+# /health probes must carry X-Internal-Token == INTERNAL_SERVICE_TOKEN. Callers pass
+# workspace ids they have already authorized, so this service must never be
+# reachable by end users directly. With no token configured the service refuses
+# all non-health traffic rather than running open.
+_INTERNAL_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "")
+
+
+@app.middleware("http")
+async def _require_internal_token(request: Request, call_next: Any) -> Any:
+    if request.url.path.startswith("/health"):
+        return await call_next(request)
+    if not _INTERNAL_TOKEN:
+        return JSONResponse({"detail": "INTERNAL_SERVICE_TOKEN is not configured"}, status_code=503)
+    supplied = request.headers.get("x-internal-token", "")
+    if not hmac.compare_digest(supplied.encode(), _INTERNAL_TOKEN.encode()):
+        return JSONResponse({"detail": "Internal service token required"}, status_code=401)
+    return await call_next(request)
+
+
 _db = kuzu.Database(DB_PATH)
 _conn = kuzu.Connection(_db)
 
@@ -36,7 +61,9 @@ def _init_schema() -> None:
         "CREATE NODE TABLE IF NOT EXISTS Entity("
         "id STRING, ws STRING, type STRING, name STRING, props STRING, PRIMARY KEY(id))"
     )
-    _conn.execute("CREATE REL TABLE IF NOT EXISTS Rel(FROM Entity TO Entity, ws STRING, type STRING)")
+    _conn.execute(
+        "CREATE REL TABLE IF NOT EXISTS Rel(FROM Entity TO Entity, ws STRING, type STRING)"
+    )
 
 
 @app.on_event("startup")
@@ -93,7 +120,13 @@ def upsert_entity(e: Entity) -> dict[str, str]:
     eid = f"{e.workspace}:{e.id}"
     _conn.execute(
         "MERGE (n:Entity {id: $id}) SET n.ws=$ws, n.type=$type, n.name=$name, n.props=$props",
-        {"id": eid, "ws": e.workspace, "type": e.type, "name": e.name, "props": json.dumps(e.props)},
+        {
+            "id": eid,
+            "ws": e.workspace,
+            "type": e.type,
+            "name": e.name,
+            "props": json.dumps(e.props),
+        },
     )
     return {"id": e.id, "status": "upserted"}
 

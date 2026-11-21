@@ -19,7 +19,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
     get_current_workspace,
+    require_member,
     require_org_admin,
     require_workspace_admin,
 )
@@ -186,9 +187,16 @@ async def remove_model(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None
 
 @router.post(
     "/models/{model_id}/request-access",
-    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+    dependencies=[Depends(management_rate_limit)],
 )
-async def request_access(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> dict:
+async def request_access(
+    model_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_member)],
+    db: DbDep,
+) -> dict:
+    """Ask for access to a catalog model. Creates a ``model_access`` approval that a
+    workspace admin decides in Approvals (requester, decider and note are recorded)."""
+    ws, user, _ = auth
     m = (
         await db.execute(
             select(HubModel).where(HubModel.id == model_id, HubModel.workspace_id == ws.id)
@@ -196,10 +204,37 @@ async def request_access(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> di
     ).scalar_one_or_none()
     if not m:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Model not found")
+    pending = (
+        await db.execute(
+            select(Approval).where(
+                Approval.workspace_id == ws.id,
+                Approval.request_type == "model_access",
+                Approval.status == "pending",
+                Approval.requested_by == user.email,
+                Approval.request["model_id"].astext == str(model_id),
+            )
+        )
+    ).scalar_one_or_none()
+    if pending is not None:
+        return {
+            "status": "pending",
+            "approval_id": str(pending.id),
+            "model_id": str(model_id),
+            "total_requests": m.access_request_count or 0,
+        }
+    approval = Approval(
+        workspace_id=ws.id,
+        request_type="model_access",
+        request={"model_id": str(model_id), "model_name": m.name, "provider": m.provider},
+        requested_by=user.email,
+    )
+    db.add(approval)
     m.access_request_count = (m.access_request_count or 0) + 1
     await db.commit()
+    await db.refresh(approval)
     return {
         "status": "requested",
+        "approval_id": str(approval.id),
         "model_id": str(model_id),
         "total_requests": m.access_request_count,
     }
@@ -208,7 +243,6 @@ async def request_access(model_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> di
 class ProviderSyncRequest(BaseModel):
     provider: str
     token: str | None = None
-    endpoint_url: str | None = None
 
 
 DEFAULT_PROVIDER_MODELS: dict[str, list[dict]] = {
@@ -363,8 +397,35 @@ async def sync_provider_models(body: ProviderSyncRequest, ws: WorkspaceDep, db: 
         except Exception as err:
             log.warning("hf_hub_sync_failed", error=str(err))
 
+    # Prefer the workspace/global pricing table over catalog list prices.
+    from runledger_api.models.metering import ProviderPricing  # noqa: PLC0415
+
+    priced: dict[str, tuple[float, float]] = {}
+    pricing_rows = (
+        await db.execute(
+            select(ProviderPricing)
+            .where(
+                ProviderPricing.model.in_([t["name"] for t in model_templates]),
+                (ProviderPricing.workspace_id == ws.id) | (ProviderPricing.workspace_id.is_(None)),
+                ProviderPricing.effective_to.is_(None),
+            )
+            .order_by(ProviderPricing.workspace_id.is_(None).asc())
+        )
+    ).scalars()
+    for row in pricing_rows:
+        priced.setdefault(
+            row.model,
+            (float(row.input_cost_per_1m) / 1000, float(row.output_cost_per_1m) / 1000),
+        )
+
     added_count = 0
     for tpl in model_templates:
+        if tpl["name"] in priced:
+            tpl = {
+                **tpl,
+                "input_cost": priced[tpl["name"]][0],
+                "output_cost": priced[tpl["name"]][1],
+            }
         existing = (
             await db.execute(
                 select(HubModel).where(HubModel.workspace_id == ws.id, HubModel.name == tpl["name"])

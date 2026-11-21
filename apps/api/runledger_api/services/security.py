@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import base64
 import hashlib
 import hmac
 import ipaddress
@@ -14,7 +16,7 @@ from urllib.parse import urlencode
 import httpx
 import jwt
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.models.security import (
@@ -69,9 +71,46 @@ async def _resolve_oidc_urls(provider: OIDCProvider) -> tuple[str, str]:
     return discovery_url, jwks_uri
 
 
+async def _find_jwk(jwks_uri: str, kid: str | None) -> dict[str, Any] | None:
+    """Find the signing key; refetch the JWKS once when the kid is unknown (key rotation)."""
+    for attempt in range(2):
+        if attempt == 1:
+            _oidc_jwks_cache.pop(jwks_uri, None)
+        jwks = await _cached_json(jwks_uri, _oidc_jwks_cache)
+        keys = jwks.get("keys") or []
+        jwk = next((item for item in keys if item.get("kid") == kid), None)
+        if jwk is None and kid is None and len(keys) == 1:
+            jwk = keys[0]
+        if jwk is not None:
+            return jwk
+    return None
+
+
+def _looks_like_jwt(token: str) -> bool:
+    parts = token.split(".")
+    return len(parts) == 3 and all(parts)
+
+
 async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResult | None:
+    # API keys and other opaque tokens never reach the IdP-discovery path.
+    if not _looks_like_jwt(token):
+        return None
+    try:
+        unverified_iss = jwt.decode(token, options={"verify_signature": False}).get("iss")
+    except jwt.PyJWTError:
+        return None
+    if not unverified_iss:
+        return None
+
     providers = (
-        (await db.execute(select(OIDCProvider).where(OIDCProvider.is_active.is_(True))))
+        (
+            await db.execute(
+                select(OIDCProvider).where(
+                    OIDCProvider.is_active.is_(True),
+                    OIDCProvider.issuer_url == unverified_iss,
+                )
+            )
+        )
         .scalars()
         .all()
     )
@@ -80,15 +119,14 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
 
     last_error: Exception | None = None
     for provider in providers:
+        # The token must be addressed to us: audience (or client_id) is mandatory.
+        expected_aud = provider.audience or provider.client_id
+        if not expected_aud:
+            continue
         try:
             _, jwks_uri = await _resolve_oidc_urls(provider)
-            jwks = await _cached_json(jwks_uri, _oidc_jwks_cache)
             header = jwt.get_unverified_header(token)
-            kid = header.get("kid")
-            keys = jwks.get("keys") or []
-            jwk = next((item for item in keys if item.get("kid") == kid), None)
-            if jwk is None and len(keys) == 1:
-                jwk = keys[0]
+            jwk = await _find_jwk(jwks_uri, header.get("kid"))
             if jwk is None:
                 continue
             public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
@@ -96,9 +134,8 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
                 token,
                 key=public_key,
                 algorithms=["RS256", "RS384", "RS512"],
-                audience=provider.audience if provider.audience else None,
+                audience=expected_aud,
                 issuer=provider.issuer_url,
-                options={"verify_aud": bool(provider.audience)},
             )
             claim_mappings = provider.claim_mappings or {}
             workspace_claim = claim_mappings.get("workspace_id") or "workspace_id"
@@ -200,8 +237,68 @@ async def get_or_create_security_settings(
 
 # ── OIDC Authorization Code Flow ──────────────────────────────────────────────
 
-_STATE_TTL_SECONDS = 600
-_oidc_state_store: dict[str, tuple[datetime, uuid.UUID]] = {}
+
+@dataclass
+class AuthFlowState:
+    """Server-side half of an SSO authorization request (never sent to the browser
+    except ``state`` itself; the PKCE verifier stays in Redis)."""
+
+    state: str
+    nonce: str
+    code_verifier: str
+    provider_id: uuid.UUID
+
+    @property
+    def code_challenge(self) -> str:
+        digest = hashlib.sha256(self.code_verifier.encode()).digest()
+        return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+def _state_key(kind: str, state: str) -> str:
+    return f"rl:auth:state:{kind}:{state}"
+
+
+async def create_auth_state(redis: Any, kind: str, provider_id: uuid.UUID) -> AuthFlowState:
+    """Create a single-use SSO state (kind = "oidc" | "oauth2") stored in Redis.
+
+    Redis makes the flow work across API workers/replicas; the entry expires after
+    ``auth_state_ttl_seconds`` and is deleted when consumed.
+    """
+    from runledger_api.core.config import settings  # noqa: PLC0415
+
+    flow = AuthFlowState(
+        state=secrets.token_urlsafe(32),
+        nonce=secrets.token_urlsafe(24),
+        code_verifier=secrets.token_urlsafe(64),
+        provider_id=provider_id,
+    )
+    payload = json.dumps(
+        {"provider_id": str(provider_id), "nonce": flow.nonce, "verifier": flow.code_verifier}
+    )
+    await redis.set(_state_key(kind, flow.state), payload, ex=settings.auth_state_ttl_seconds)
+    return flow
+
+
+async def consume_auth_state(redis: Any, kind: str, state: str) -> AuthFlowState:
+    """Atomically fetch-and-delete the SSO state. Raises 400 when missing/expired."""
+    key = _state_key(kind, state)
+    raw = await redis.getdel(key)
+    if not raw:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Invalid or expired {kind} state")
+    data = json.loads(raw)
+    return AuthFlowState(
+        state=state,
+        nonce=data["nonce"],
+        code_verifier=data["verifier"],
+        provider_id=uuid.UUID(data["provider_id"]),
+    )
+
+
+def sso_callback_url(kind: str) -> str:
+    """The only redirect URI RunLedger registers with IdPs (pinned to APP_BASE_URL)."""
+    from runledger_api.core.config import settings  # noqa: PLC0415
+
+    return f"{settings.app_base_url.rstrip('/')}/auth/{kind}/callback"
 
 
 def _encrypt_client_secret(plain: str) -> str:
@@ -217,35 +314,9 @@ def _decrypt_client_secret(stored: str) -> str:
     return stored
 
 
-def generate_oidc_state(provider_id: uuid.UUID) -> str:
-    state = secrets.token_urlsafe(32)
-    _oidc_state_store[state] = (datetime.now(UTC), provider_id)
-    _gc_expired_states()
-    return state
-
-
-def validate_oidc_state(state: str) -> uuid.UUID:
-    entry = _oidc_state_store.pop(state, None)
-    if entry is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired OIDC state")
-    created, provider_id = entry
-    if (datetime.now(UTC) - created).total_seconds() > _STATE_TTL_SECONDS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "OIDC state has expired")
-    return provider_id
-
-
-def _gc_expired_states() -> None:
-    now = datetime.now(UTC)
-    expired = [
-        k
-        for k, (t, _) in _oidc_state_store.items()
-        if (now - t).total_seconds() > _STATE_TTL_SECONDS * 2
-    ]
-    for k in expired:
-        _oidc_state_store.pop(k, None)
-
-
-async def build_oidc_authorize_url(provider: OIDCProvider, redirect_uri: str, state: str) -> str:
+async def build_oidc_authorize_url(
+    provider: OIDCProvider, redirect_uri: str, flow: AuthFlowState
+) -> str:
     discovery_url = (
         provider.discovery_url
         or f"{provider.issuer_url.rstrip('/')}/.well-known/openid-configuration"
@@ -262,7 +333,10 @@ async def build_oidc_authorize_url(provider: OIDCProvider, redirect_uri: str, st
         "client_id": provider.client_id,
         "redirect_uri": redirect_uri,
         "scope": provider.scopes or "openid email profile",
-        "state": state,
+        "state": flow.state,
+        "nonce": flow.nonce,
+        "code_challenge": flow.code_challenge,
+        "code_challenge_method": "S256",
     }
     if provider.audience:
         params["audience"] = provider.audience
@@ -270,7 +344,7 @@ async def build_oidc_authorize_url(provider: OIDCProvider, redirect_uri: str, st
 
 
 async def exchange_oidc_code(
-    provider: OIDCProvider, code: str, redirect_uri: str
+    provider: OIDCProvider, code: str, redirect_uri: str, code_verifier: str
 ) -> dict[str, Any]:
     discovery_url = (
         provider.discovery_url
@@ -293,6 +367,7 @@ async def exchange_oidc_code(
                 "redirect_uri": redirect_uri,
                 "client_id": provider.client_id,
                 "client_secret": client_secret,
+                "code_verifier": code_verifier,
             },
         )
         if resp.status_code != 200:
@@ -303,33 +378,62 @@ async def exchange_oidc_code(
         return resp.json()
 
 
-async def validate_oidc_id_token(provider: OIDCProvider, id_token: str) -> dict[str, Any]:
+async def validate_oidc_id_token(
+    provider: OIDCProvider, id_token: str, expected_nonce: str
+) -> dict[str, Any]:
+    if not provider.client_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "OIDC provider has no client_id")
     _, jwks_uri = await _resolve_oidc_urls(provider)
-    jwks = await _cached_json(jwks_uri, _oidc_jwks_cache)
     header = jwt.get_unverified_header(id_token)
-    kid = header.get("kid")
-    keys = jwks.get("keys") or []
-    jwk = next((item for item in keys if item.get("kid") == kid), None)
-    if jwk is None and len(keys) == 1:
-        jwk = keys[0]
+    jwk = await _find_jwk(jwks_uri, header.get("kid"))
     if jwk is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "No matching JWKS key for id_token")
     public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
-    return jwt.decode(
-        id_token,
-        key=public_key,
-        algorithms=["RS256", "RS384", "RS512"],
-        audience=provider.client_id,
-        issuer=provider.issuer_url,
-        options={"verify_aud": bool(provider.client_id)},
-    )
+    try:
+        claims = jwt.decode(
+            id_token,
+            key=public_key,
+            algorithms=["RS256", "RS384", "RS512"],
+            audience=provider.client_id,
+            issuer=provider.issuer_url,
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid OIDC id_token") from exc
+    if not hmac.compare_digest(str(claims.get("nonce") or ""), expected_nonce):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "OIDC id_token nonce mismatch")
+    return claims
 
 
-async def find_or_create_user_from_oidc(
+async def _provider_tenant_id(db: AsyncSession, provider: Any) -> uuid.UUID | None:
+    if getattr(provider, "tenant_id", None):
+        return provider.tenant_id
+    workspace = await db.get(Workspace, provider.workspace_id)
+    return workspace.tenant_id if workspace else None
+
+
+async def resolve_external_user(
     db: AsyncSession,
-    provider: OIDCProvider,
-    claims: dict[str, Any],
+    *,
+    provider_type: str,
+    provider: Any,
+    subject: str,
+    email: str | None,
+    full_name: str | None,
+    email_trusted: bool,
 ) -> tuple[Any, ExternalIdentity]:
+    """Map an external identity (OIDC/OAuth2/LDAP) to a RunLedger user.
+
+    Rules (closes cross-tenant account takeover through admin-configured IdPs):
+
+    1. A previously linked identity (provider + subject) signs in as its user.
+    2. Otherwise, an existing account with the same email is linked **only** when the
+       IdP asserts the email as verified (``email_trusted``) and the account is
+       managed solely by the provider's organization (not a platform admin, active
+       membership there, no memberships elsewhere).
+    3. Otherwise, a new account is provisioned in the provider's org when
+       ``auto_provision`` is on. An email that already belongs to an account outside
+       the org is refused rather than provisioned.
+    """
     from runledger_api.models.tenant import (  # noqa: PLC0415
         MemberStatusEnum,
         TenantRoleEnum,
@@ -338,25 +442,16 @@ async def find_or_create_user_from_oidc(
         WorkspaceRoleEnum,
         WorkspaceUser,
     )
-
-    sub = claims.get("sub")
-    if not sub:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "OIDC token missing 'sub' claim")
-
-    email_claim = (provider.claim_mappings or {}).get("email", "email")
-    name_claim = (provider.claim_mappings or {}).get("name", "name")
-    email = claims.get(email_claim)
-    full_name = claims.get(name_claim)
+    from runledger_api.services.sessions import is_tenant_managed_user  # noqa: PLC0415
 
     result = await db.execute(
         select(ExternalIdentity).where(
-            ExternalIdentity.provider_type == "oidc",
+            ExternalIdentity.provider_type == provider_type,
             ExternalIdentity.provider_id == provider.id,
-            ExternalIdentity.external_subject == str(sub),
+            ExternalIdentity.external_subject == subject,
         )
     )
     ext_id = result.scalar_one_or_none()
-
     if ext_id is not None:
         user = await db.get(User, ext_id.user_id)
         if user is None:
@@ -366,57 +461,61 @@ async def find_or_create_user_from_oidc(
             ext_id.external_email = email
         return user, ext_id
 
-    if email:
-        user_result = await db.execute(select(User).where(User.email == email))
-        user = user_result.scalar_one_or_none()
-    else:
-        user = None
+    tenant_id = await _provider_tenant_id(db, provider)
+    if tenant_id is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Identity provider has no organization")
 
-    if user is None:
+    user = None
+    if email:
+        user = (
+            await db.execute(select(User).where(func.lower(User.email) == email.lower()))
+        ).scalar_one_or_none()
+
+    if user is not None:
+        if not email_trusted or not await is_tenant_managed_user(db, user, tenant_id):
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "An account with this email already exists and cannot be linked to this "
+                "sign-in provider. Sign in with your password, or ask a platform "
+                "administrator to link the account.",
+            )
+    else:
         if not provider.auto_provision:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                "No account linked to this identity. Ask your administrator to enable auto-provisioning or create your account.",
+                "No account linked to this identity. Ask your administrator to enable "
+                "auto-provisioning or create your account.",
             )
         user = User(
-            email=email or f"oidc-{sub}@external",
+            email=email or f"{provider_type}-{subject}@external",
             full_name=full_name,
             is_active=True,
-            email_verified=True,
+            email_verified=bool(email and email_trusted),
         )
         db.add(user)
         await db.flush()
-
-        tenant_id = provider.tenant_id
-        if tenant_id is None:
-            workspace = await db.get(Workspace, provider.workspace_id)
-            tenant_id = workspace.tenant_id if workspace else None
-
-        if tenant_id:
-            db.add(
-                TenantUser(
-                    tenant_id=tenant_id,
-                    user_id=user.id,
-                    role=TenantRoleEnum(provider.default_tenant_role),
-                    status=MemberStatusEnum.active,
-                )
+        db.add(
+            TenantUser(
+                tenant_id=tenant_id,
+                user_id=user.id,
+                role=TenantRoleEnum(provider.default_tenant_role),
+                status=MemberStatusEnum.active,
             )
-
-        ws_role = WorkspaceRoleEnum(provider.default_workspace_role)
+        )
         db.add(
             WorkspaceUser(
                 workspace_id=provider.workspace_id,
                 user_id=user.id,
-                role=ws_role,
+                role=WorkspaceRoleEnum(provider.default_workspace_role),
                 status=MemberStatusEnum.active,
             )
         )
 
     ext_id = ExternalIdentity(
         user_id=user.id,
-        provider_type="oidc",
+        provider_type=provider_type,
         provider_id=provider.id,
-        external_subject=str(sub),
+        external_subject=subject,
         external_email=email,
         last_login_at=datetime.now(UTC),
     )
@@ -424,52 +523,54 @@ async def find_or_create_user_from_oidc(
     return user, ext_id
 
 
+def _truthy_claim(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"true", "1", "yes"}
+
+
+async def find_or_create_user_from_oidc(
+    db: AsyncSession,
+    provider: OIDCProvider,
+    claims: dict[str, Any],
+) -> tuple[Any, ExternalIdentity]:
+    sub = claims.get("sub")
+    if not sub:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "OIDC token missing 'sub' claim")
+    mappings = provider.claim_mappings or {}
+    email = claims.get(mappings.get("email", "email"))
+    full_name = claims.get(mappings.get("name", "name"))
+    return await resolve_external_user(
+        db,
+        provider_type="oidc",
+        provider=provider,
+        subject=str(sub),
+        email=str(email) if email else None,
+        full_name=full_name,
+        email_trusted=_truthy_claim(claims.get("email_verified", False)),
+    )
+
+
 # ── OAuth2 Authorization Code Flow ────────────────────────────────────────────
 
-_oauth2_state_store: dict[str, tuple[datetime, uuid.UUID]] = {}
 
-
-def generate_oauth2_state(provider_id: uuid.UUID) -> str:
-    state = secrets.token_urlsafe(32)
-    _oauth2_state_store[state] = (datetime.now(UTC), provider_id)
-    _gc_oauth2_expired_states()
-    return state
-
-
-def validate_oauth2_state(state: str) -> uuid.UUID:
-    entry = _oauth2_state_store.pop(state, None)
-    if entry is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or expired OAuth2 state")
-    created, provider_id = entry
-    if (datetime.now(UTC) - created).total_seconds() > _STATE_TTL_SECONDS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "OAuth2 state has expired")
-    return provider_id
-
-
-def _gc_oauth2_expired_states() -> None:
-    now = datetime.now(UTC)
-    expired = [
-        k
-        for k, (t, _) in _oauth2_state_store.items()
-        if (now - t).total_seconds() > _STATE_TTL_SECONDS * 2
-    ]
-    for k in expired:
-        _oauth2_state_store.pop(k, None)
-
-
-def build_oauth2_authorize_url(provider: OAuth2Provider, redirect_uri: str, state: str) -> str:
+def build_oauth2_authorize_url(
+    provider: OAuth2Provider, redirect_uri: str, flow: AuthFlowState
+) -> str:
     params = {
         "response_type": "code",
         "client_id": provider.client_id,
         "redirect_uri": redirect_uri,
         "scope": provider.scopes or "openid email profile",
-        "state": state,
+        "state": flow.state,
+        "code_challenge": flow.code_challenge,
+        "code_challenge_method": "S256",
     }
     return f"{provider.authorization_endpoint}?{urlencode(params)}"
 
 
 async def exchange_oauth2_code(
-    provider: OAuth2Provider, code: str, redirect_uri: str
+    provider: OAuth2Provider, code: str, redirect_uri: str, code_verifier: str
 ) -> dict[str, Any]:
     client_secret = _decrypt_client_secret(provider.client_secret_encrypted or "")
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -481,6 +582,7 @@ async def exchange_oauth2_code(
                 "redirect_uri": redirect_uri,
                 "client_id": provider.client_id,
                 "client_secret": client_secret,
+                "code_verifier": code_verifier,
             },
         )
         if resp.status_code != 200:
@@ -510,115 +612,35 @@ async def find_or_create_user_from_oauth2(
     provider: OAuth2Provider,
     userinfo: dict[str, Any],
 ) -> tuple[Any, ExternalIdentity]:
-    from runledger_api.models.tenant import (  # noqa: PLC0415
-        MemberStatusEnum,
-        TenantRoleEnum,
-        TenantUser,
-        User,
-        WorkspaceRoleEnum,
-        WorkspaceUser,
-    )
-
     subject = userinfo.get(provider.userinfo_id_field)
     if not subject:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             f"OAuth2 userinfo missing '{provider.userinfo_id_field}' field",
         )
-
     email = userinfo.get(provider.userinfo_email_field)
-    full_name = userinfo.get(provider.userinfo_name_field)
-
-    result = await db.execute(
-        select(ExternalIdentity).where(
-            ExternalIdentity.provider_type == "oauth2",
-            ExternalIdentity.provider_id == provider.id,
-            ExternalIdentity.external_subject == str(subject),
-        )
-    )
-    ext_id = result.scalar_one_or_none()
-
-    if ext_id is not None:
-        user = await db.get(User, ext_id.user_id)
-        if user is None:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Linked user account not found")
-        ext_id.last_login_at = datetime.now(UTC)
-        if email:
-            ext_id.external_email = email
-        return user, ext_id
-
-    if email:
-        user_result = await db.execute(select(User).where(User.email == email))
-        user = user_result.scalar_one_or_none()
-    else:
-        user = None
-
-    if user is None:
-        if not provider.auto_provision:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "No account linked to this identity. Ask your administrator to enable auto-provisioning or create your account.",
-            )
-        user = User(
-            email=email or f"oauth2-{subject}@external",
-            full_name=full_name,
-            is_active=True,
-            email_verified=True,
-        )
-        db.add(user)
-        await db.flush()
-
-        tenant_id = provider.tenant_id
-        if tenant_id is None:
-            workspace = await db.get(Workspace, provider.workspace_id)
-            tenant_id = workspace.tenant_id if workspace else None
-
-        if tenant_id:
-            db.add(
-                TenantUser(
-                    tenant_id=tenant_id,
-                    user_id=user.id,
-                    role=TenantRoleEnum(provider.default_tenant_role),
-                    status=MemberStatusEnum.active,
-                )
-            )
-
-        db.add(
-            WorkspaceUser(
-                workspace_id=provider.workspace_id,
-                user_id=user.id,
-                role=WorkspaceRoleEnum(provider.default_workspace_role),
-                status=MemberStatusEnum.active,
-            )
-        )
-
-    ext_id = ExternalIdentity(
-        user_id=user.id,
+    return await resolve_external_user(
+        db,
         provider_type="oauth2",
-        provider_id=provider.id,
-        external_subject=str(subject),
-        external_email=email,
-        last_login_at=datetime.now(UTC),
+        provider=provider,
+        subject=str(subject),
+        email=str(email) if email else None,
+        full_name=userinfo.get(provider.userinfo_name_field),
+        # Plain OAuth2 has no standard verified-email claim; trust it only when the
+        # provider explicitly asserts email_verified.
+        email_trusted=_truthy_claim(userinfo.get("email_verified", False)),
     )
-    db.add(ext_id)
-    return user, ext_id
 
 
 # ── LDAP Authentication ──────────────────────────────────────────────────────
 
 
-async def authenticate_ldap(
+def _authenticate_ldap_sync(
     provider: LDAPProvider,
     username: str,
     password: str,
 ) -> dict[str, str]:
-    try:
-        import ldap3  # noqa: PLC0415
-    except ImportError as exc:
-        raise HTTPException(
-            status.HTTP_501_NOT_IMPLEMENTED,
-            "LDAP support requires the ldap3 package. Install with: pip install ldap3",
-        ) from exc
+    import ldap3  # noqa: PLC0415
 
     use_ssl = provider.use_ssl
     server = ldap3.Server(provider.server_url, use_ssl=use_ssl, get_info=ldap3.NONE)
@@ -671,8 +693,32 @@ async def authenticate_ldap(
             "email": _attr(provider.email_attribute),
             "name": _attr(provider.name_attribute),
         }
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — directory/network errors
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "LDAP directory unavailable") from exc
     finally:
         conn.unbind()
+
+
+async def authenticate_ldap(
+    provider: LDAPProvider,
+    username: str,
+    password: str,
+) -> dict[str, str]:
+    # An empty password would make the user bind an anonymous ("unauthenticated")
+    # bind, which many directories accept. Reject it before touching LDAP.
+    if not username or not password:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid LDAP credentials")
+    try:
+        import ldap3  # noqa: F401, PLC0415
+    except ImportError as exc:
+        raise HTTPException(
+            status.HTTP_501_NOT_IMPLEMENTED,
+            "LDAP support requires the ldap3 package. Install with: pip install ldap3",
+        ) from exc
+    # ldap3 is synchronous; keep the event loop free.
+    return await asyncio.to_thread(_authenticate_ldap_sync, provider, username, password)
 
 
 async def find_or_create_user_from_ldap(
@@ -680,95 +726,22 @@ async def find_or_create_user_from_ldap(
     provider: LDAPProvider,
     ldap_user: dict[str, str],
 ) -> tuple[Any, ExternalIdentity]:
-    from runledger_api.models.tenant import (  # noqa: PLC0415
-        MemberStatusEnum,
-        TenantRoleEnum,
-        TenantUser,
-        User,
-        WorkspaceRoleEnum,
-        WorkspaceUser,
-    )
-
     uid = ldap_user.get("uid", "")
-    email = ldap_user.get("email", "")
-    full_name = ldap_user.get("name", "")
-
     if not uid:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "LDAP user missing uid")
-
-    result = await db.execute(
-        select(ExternalIdentity).where(
-            ExternalIdentity.provider_type == "ldap",
-            ExternalIdentity.provider_id == provider.id,
-            ExternalIdentity.external_subject == uid,
-        )
-    )
-    ext_id = result.scalar_one_or_none()
-
-    if ext_id is not None:
-        user = await db.get(User, ext_id.user_id)
-        if user is None:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Linked user account not found")
-        ext_id.last_login_at = datetime.now(UTC)
-        if email:
-            ext_id.external_email = email
-        return user, ext_id
-
-    if email:
-        user_result = await db.execute(select(User).where(User.email == email))
-        user = user_result.scalar_one_or_none()
-    else:
-        user = None
-
-    if user is None:
-        if not provider.auto_provision:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "No account linked to this identity. Ask your administrator to enable auto-provisioning or create your account.",
-            )
-        user = User(
-            email=email or f"ldap-{uid}@external",
-            full_name=full_name,
-            is_active=True,
-            email_verified=True,
-        )
-        db.add(user)
-        await db.flush()
-
-        tenant_id = provider.tenant_id
-        if tenant_id is None:
-            workspace = await db.get(Workspace, provider.workspace_id)
-            tenant_id = workspace.tenant_id if workspace else None
-
-        if tenant_id:
-            db.add(
-                TenantUser(
-                    tenant_id=tenant_id,
-                    user_id=user.id,
-                    role=TenantRoleEnum(provider.default_tenant_role),
-                    status=MemberStatusEnum.active,
-                )
-            )
-
-        db.add(
-            WorkspaceUser(
-                workspace_id=provider.workspace_id,
-                user_id=user.id,
-                role=WorkspaceRoleEnum(provider.default_workspace_role),
-                status=MemberStatusEnum.active,
-            )
-        )
-
-    ext_id = ExternalIdentity(
-        user_id=user.id,
+    email = ldap_user.get("email") or None
+    return await resolve_external_user(
+        db,
         provider_type="ldap",
-        provider_id=provider.id,
-        external_subject=uid,
-        external_email=email,
-        last_login_at=datetime.now(UTC),
+        provider=provider,
+        subject=uid,
+        email=email,
+        full_name=ldap_user.get("name") or None,
+        # The directory is operated by the org that configured it, so its email
+        # attribute is only trusted for accounts that org already manages exclusively
+        # (enforced inside resolve_external_user).
+        email_trusted=True,
     )
-    db.add(ext_id)
-    return user, ext_id
 
 
 async def enforce_required_metadata(

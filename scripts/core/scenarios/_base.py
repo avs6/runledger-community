@@ -1767,6 +1767,26 @@ class Sim:
             body["workspace_id"] = workspace_id
         return self.post("/auth/login", body, label=f"login {email}", expect=(200,))
 
+    def complete_first_sign_in(self, email: str, password: str) -> str:
+        """Sign in as a newly created account and clear its forced password change.
+
+        Accounts created by an admin get ``must_change_password``. The simulator keeps
+        the canonical demo password, so it "changes" it to the same value through the
+        real self-service endpoint (PUT /users/me), exactly as a user would at first
+        sign-in. Returns the user's session key ("" when sign-in failed).
+        """
+        login = self._login(email, password)
+        key = login.get("api_key", "")
+        if key and login.get("must_change_password"):
+            self.put(
+                "/users/me",
+                {"current_password": password, "password": password},
+                key=key,
+                label=f"first sign-in {email}",
+                expect=(200,),
+            )
+        return key
+
     def _switch_workspace(self, key: str, workspace_id: str) -> dict[str, Any]:
         return self.post(
             "/auth/switch-workspace",
@@ -1912,6 +1932,7 @@ class Sim:
                 expect=(200,),
             )
 
+        self.complete_first_sign_in(admin_email, admin_password)
         login = self._login(admin_email, admin_password)
         admin_key = login.get("api_key", "")
         default_ws_id = login.get("workspace_id", "")
@@ -1924,13 +1945,21 @@ class Sim:
         for email, full_name, role in (users or []):
             if email == admin_email:
                 continue
-            self.post(
+            invited = self.post(
                 "/org/members/invite",
-                {"email": email, "full_name": full_name, "role": role, "temporary_password": admin_password},
+                {
+                    "email": email,
+                    "full_name": full_name,
+                    "role": role,
+                    "temporary_password": admin_password,
+                    "skip_verification": True,
+                },
                 key=admin_key,
                 label="invite " + email,
                 expect=(200, 201, 409),
             )
+            if isinstance(invited, dict) and invited.get("temporary_password"):
+                self.complete_first_sign_in(email, admin_password)
 
         ws_names = workspaces or []
         existing = self.get("/org/workspaces", key=admin_key) or []

@@ -18,6 +18,7 @@ import {
   triggerDemoSeed,
 } from '@/lib/api'
 import type { DemoModeStatus, OnboardingStatus } from '@/types/api'
+import { useRole } from '@/components/rbac/useRole'
 
 /* ------------------------------------------------------------------ */
 /*  Steps                                                              */
@@ -240,6 +241,7 @@ export default function OnboardingPage() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
+  const { isPlatformAdmin } = useRole()
   const [status, setStatus] = useState<OnboardingStatus | null>(null)
   const [demoStatus, setDemoStatus] = useState<DemoModeStatus | null>(null)
   const [selectedDemoProfile, setSelectedDemoProfile] = useState<'full' | 'quick'>('full')
@@ -251,11 +253,12 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (!apiKey) return
     getOnboardingStatus(apiKey).then(setStatus).catch(() => toast.error('Failed to load onboarding status'))
+    if (!isPlatformAdmin) return
     getDemoModeStatus(apiKey).then((state) => {
       setDemoStatus(state)
       if (state.profile === 'quick' || state.profile === 'full') setSelectedDemoProfile(state.profile)
     }).catch(() => {})
-  }, [apiKey])
+  }, [apiKey, isPlatformAdmin])
 
   useEffect(() => {
     if (!apiKey || !demoStatus || !['queued', 'running'].includes(demoStatus.status)) return
@@ -580,7 +583,8 @@ export default function OnboardingPage() {
         )}
       </section>
 
-      {/* ── Demo Mode ── */}
+      {/* ── Demo Mode (platform admins only; the API refuses everyone else) ── */}
+      {isPlatformAdmin && (
       <section className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -670,6 +674,7 @@ export default function OnboardingPage() {
           </button>
         </div>
       </section>
+      )}
     </div>
   )
 }

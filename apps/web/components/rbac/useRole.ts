@@ -19,10 +19,14 @@ export interface RoleContext {
   canManageOrgSettings: boolean
   /** True if user can manage platform-only settings and actions */
   canManagePlatformSettings: boolean
-  /** True for elevated users and workspace roles that may mutate data */
+  /** True for elevated users and every workspace role except viewer (mirrors the API's require_workspace_writer) */
   canWrite: boolean
   /** True if user can view settings tabs */
   canAccessSettings: boolean
+  /** Billing and chargeback reads (mirrors the API's require_billing_access) */
+  canAccessBilling: boolean
+  /** Audit log and audit pack reads (mirrors the API's require_audit_access) */
+  canAccessAudit: boolean
 }
 
 export function useRole(): RoleContext {
@@ -42,8 +46,11 @@ export function useRole(): RoleContext {
     workspaceRole === 'workspace_admin'
     || workspaceRole === 'workspace_editor'
     || workspaceRole === 'workspace_contributor'
+    || workspaceRole === 'member' // legacy alias for workspace_editor
   )
   const canAccessSettings = canManagePlatformSettings
+  const canAccessBilling = isWorkspaceAdmin || tenantRole === 'org_billing_admin'
+  const canAccessAudit = isWorkspaceAdmin || tenantRole === 'org_auditor'
 
   return {
     isPlatformAdmin,
@@ -56,5 +63,7 @@ export function useRole(): RoleContext {
     canManagePlatformSettings,
     canWrite,
     canAccessSettings,
+    canAccessBilling,
+    canAccessAudit,
   }
 }

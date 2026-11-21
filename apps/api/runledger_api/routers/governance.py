@@ -15,7 +15,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import require_workspace_admin
+from runledger_api.core.deps import require_audit_access
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.alerts import AlertFiring
 from runledger_api.models.approvals import Approval
@@ -40,7 +40,8 @@ router = APIRouter(
 )
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
+# Workspace admins, org admins/managers and org auditors read the audit trail.
+AdminDep = Annotated[tuple[Any, ...], Depends(require_audit_access)]
 
 
 def _range_bounds(

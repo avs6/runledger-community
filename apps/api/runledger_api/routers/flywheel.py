@@ -23,7 +23,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import (
+    get_current_workspace,
+    require_workspace_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.flywheel import FlywheelRecommendation
 from runledger_api.models.tenant import Workspace
@@ -55,7 +59,11 @@ async def get_flywheel_settings(db: DbDep, workspace: WorkspaceDep) -> FlywheelS
     return FlywheelSettingsResponse.model_validate(s)
 
 
-@router.put("/settings", response_model=FlywheelSettingsResponse)
+@router.put(
+    "/settings",
+    response_model=FlywheelSettingsResponse,
+    dependencies=[Depends(require_workspace_admin)],
+)
 async def update_flywheel_settings(
     body: FlywheelSettingsUpdate, db: DbDep, workspace: WorkspaceDep
 ) -> FlywheelSettingsResponse:
@@ -110,7 +118,11 @@ async def list_recommendations(
     )
 
 
-@router.post("/recommendations/{rec_id}/apply", response_model=FlywheelRecommendationResponse)
+@router.post(
+    "/recommendations/{rec_id}/apply",
+    response_model=FlywheelRecommendationResponse,
+    dependencies=[Depends(require_workspace_admin)],
+)
 async def apply_recommendation(
     rec_id: str, db: DbDep, workspace: WorkspaceDep
 ) -> FlywheelRecommendationResponse:
@@ -123,7 +135,11 @@ async def apply_recommendation(
     return FlywheelRecommendationResponse.model_validate(rec)
 
 
-@router.post("/recommendations/{rec_id}/dismiss", response_model=FlywheelRecommendationResponse)
+@router.post(
+    "/recommendations/{rec_id}/dismiss",
+    response_model=FlywheelRecommendationResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def dismiss_recommendation(
     rec_id: str, db: DbDep, workspace: WorkspaceDep
 ) -> FlywheelRecommendationResponse:
@@ -136,7 +152,9 @@ async def dismiss_recommendation(
     return FlywheelRecommendationResponse.model_validate(rec)
 
 
-@router.post("/run", response_model=FlywheelRunResponse)
+@router.post(
+    "/run", response_model=FlywheelRunResponse, dependencies=[Depends(require_workspace_writer)]
+)
 async def run_flywheel(db: DbDep, workspace: WorkspaceDep) -> FlywheelRunResponse:
     if not flywheel.enabled():
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "flywheel service not configured")

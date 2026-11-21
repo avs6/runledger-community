@@ -30,24 +30,50 @@ Access-group budgets are especially useful when a workspace wants one shared fin
 
 ```mermaid
 flowchart LR
-  req[Request] --> chk[Budget pre-check · Redis counter]
-  chk -- under --> allow[Allow]
-  chk -- near --> action1[Throttle / downgrade]
-  chk -- over --> action2[Block]
-  allow --> meter[Meter spend → increment counter]
+  req[Gateway request] --> chk[Budget pre-check · Redis counters]
+  chk -- under limit --> allow[Route + call provider]
+  chk -- over · throttle --> thr[Admit BUDGET_THROTTLE_RPM / min]
+  chk -- over · downgrade --> dg[Reroute to downgrade model]
+  chk -- over · block --> blk[429]
+  allow --> meter[Price call → add to every matching budget]
 ```
 
-Spend is tracked against the budget in Redis on the hot path and reconciled from Postgres on a schedule
-(so a Redis eviction can't lose accounting). The **runaway protection** worker runs every few minutes to
-catch spikes that would otherwise slip between rollups.
+### Counting spend
+
+Every priced model call is added to every budget it matches. This happens in exactly one place (`record_budget_spend`), called wherever a call gets its cost:
+
+| Source | When it is counted |
+|---|---|
+| Gateway (`gateway-rs`) | At finalize, right after the call is priced |
+| SDK / OTLP / ingest | When the provider-call event carries a `cost_usd` |
+| Calls priced later | By the `metering.enrich_costs` worker once pricing is available |
+
+Each call is counted at most once, so ingest retries, re-enrichment and `metering.replay_backfill` cannot double count. Counters live in Redis per budget and period (`daily`, `monthly`, `total`).
+
+When a counter crosses 80% of the limit, a `budget.threshold_crossed` event is published. When it reaches the limit, a breach is recorded and budget notifications are sent. Both happen once per budget per period, for every action including `notify`.
+
+### Gateway enforcement
+
+Before routing, the gateway checks every budget that matches the request: `workspace`, `end_user`, `feature_tag` (from `metadata.feature_tag`/`workflow` or the first request tag), `api_key` and `access_group`. `provider_profile` budgets are checked per candidate route, so an exhausted provider budget skips that route and the request falls through to the next one.
+
+If Redis is unavailable, the check fails open and the request proceeds.
 
 ## Actions
 
-| Action | Effect when the threshold is hit |
+| Action | Effect once the limit is reached |
 |---|---|
-| **Throttle** | Rate-limit further requests on the scope. |
-| **Block** | Reject requests until the window resets. |
-| **Downgrade** | Route to a cheaper alias (see [budget_aware routing](/gateway/routing)). |
+| **Notify** | Records the breach and sends notifications. Traffic is not affected. |
+| **Throttle** | The gateway admits `BUDGET_THROTTLE_RPM` requests per minute (default 10) for that budget and rejects the rest with `429` and `Retry-After: 60`. |
+| **Block** | The gateway rejects requests with `429` until the period resets or the limit is raised. |
+| **Downgrade** / **Fallback** | The gateway reroutes to `downgrade_to_model`, given as a route alias or as a route's target model. If no active route serves it, the request is rejected with `429`. |
+
+Rejected requests carry `X-Cost-Cap-Reason: budget_exceeded` and `X-Budget-Id`. Rerouted and throttled requests record `budget_downgrade:<id>` or `budget_throttle:<id>` in the request's decision reason.
+
+See [`examples/180_workflow_budget_gateway.py`](https://github.com/avs6/runledger-community/blob/master/examples/180_workflow_budget_gateway.py) for a workflow budget enforced by the gateway. To verify counting, breaches and enforcement end to end against a running stack:
+
+```powershell
+python scripts/run_demo.py verify-budgets
+```
 
 ## Per-user spend breakdown
 
@@ -57,12 +83,20 @@ Platform users can also view their own financial exposure at `/users/{id}`, whic
 
 ## Enforcement modes
 
-- **Inline (gateway)** — blocking, enforced before the provider call.
-- **Out-of-band (SDK)** — an advisory pre-check you can choose to block on.
+- **Inline (gateway)** — enforced before the provider call, as described above.
+- **Out-of-band (SDK)** — an advisory pre-check (`GET /budgets/check`) you can choose to block on. Spend from SDK traffic still counts toward the budget.
 
 ## Access-group budget scoping
 
-Access groups are first-class budget scopes. When you set `scope_type: access_group` and point `scope_id` at an access-group UUID, every request authenticated by a member of that group is metered against the budget. This works with all enforcement modes and breach actions.
+Access groups are first-class budget scopes. When you set `scope_type: access_group` and point `scope_id` at an access-group UUID, every call made by a member of that group is counted against the budget and enforced in the gateway.
+
+A call is attributed to a member in this order:
+
+1. the owner of the dashboard session key;
+2. the creator of a user-owned API key;
+3. an `end_user_id` that is a workspace member's user id or email.
+
+This is the same mapping the gateway uses for access-group guardrail profiles. A user in several groups counts against each group's budgets.
 
 Typical workflow:
 

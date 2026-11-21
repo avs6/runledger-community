@@ -38,6 +38,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COMPILER_URL = os.getenv("CONTEXT_COMPILER_URL", "http://localhost:8207")
+# Internal services only accept calls carrying the shared internal token, and their
+# ports are bound to 127.0.0.1 — run this on the RunLedger host as an operator.
+INTERNAL_HEADERS = {"x-internal-token": os.getenv("INTERNAL_SERVICE_TOKEN", "")}
 
 
 def sep(title: str) -> None:
@@ -54,26 +57,31 @@ RAG = (
     "Reimbursement for home-office equipment is capped at $500 per calendar year.\n\n"
     "Employees on parental leave keep full health benefits during the leave period.\n\n"
 )
-TOOL_OUTPUT = "\n".join(["INFO heartbeat ok"] * 200) + "\nERROR disk usage 94% on /var\n" + "\n".join(
-    ["INFO heartbeat ok"] * 200
+TOOL_OUTPUT = (
+    "\n".join(["INFO heartbeat ok"] * 200)
+    + "\nERROR disk usage 94% on /var\n"
+    + "\n".join(["INFO heartbeat ok"] * 200)
 )
 
 messages = [
     {"role": "system", "content": "You are a concise HR assistant.\n\n" + RAG},
     {"role": "system", "content": "You are a concise HR assistant.\n\n" + RAG},  # duplicate → dedup
     {"role": "tool", "content": TOOL_OUTPUT},  # verbose → tool-output compression
-    {"role": "user", "content": "How much parental leave do employees get, and do benefits continue?"},
+    {
+        "role": "user",
+        "content": "How much parental leave do employees get, and do benefits continue?",
+    },
 ]
 
 config = {
     "reranker_model": "flashrank",
-    "token_threshold": 0,   # 0 = always engage
-    "token_budget": 400,    # low, so rerank + compaction actively prune
+    "token_threshold": 0,  # 0 = always engage
+    "token_budget": 400,  # low, so rerank + compaction actively prune
     "stages": {"dedup": True, "tool_output": True, "rerank": True, "compaction": True},
 }
 
 sep("POST /compile")
-with httpx.Client(timeout=60.0) as client:
+with httpx.Client(timeout=60.0, headers=INTERNAL_HEADERS) as client:
     resp = client.post(f"{COMPILER_URL}/compile", json={"messages": messages, "config": config})
 
 if resp.status_code != 200:
@@ -93,8 +101,8 @@ if data.get("dropped"):
 print(f"  Degraded (a stage was skipped on error): {data.get('degraded')}")
 
 sep("Enable it on a gateway route")
-print("  Persistent:  POST /gateway/routes  with  \"context_compiler_enabled\": true")
+print('  Persistent:  POST /gateway/routes  with  "context_compiler_enabled": true')
 print("               (or toggle the 'Compiler ON/OFF' badge on the dashboard Gateway page)")
-print("  Ad-hoc:      add  \"context_compiler\": true  to a /gateway/chat/completions body")
+print('  Ad-hoc:      add  "context_compiler": true  to a /gateway/chat/completions body')
 
 print("\n✓ Example 34 complete.\n")

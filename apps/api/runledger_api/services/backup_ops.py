@@ -19,6 +19,7 @@ from sqlalchemy.pool import NullPool
 from runledger_api.core.config import settings
 from runledger_api.models.backup_ops import BackupRun, BackupSnapshot, BackupTargetConfig
 from runledger_api.services import kafka_export
+from runledger_api.services.kafka_export import encrypt_secret_value, resolve_secret_value
 
 log = structlog.get_logger()
 
@@ -80,7 +81,9 @@ def _command_env(config: BackupTargetConfig | None) -> dict[str, str]:
     if config.access_key_id:
         env["RUNLEDGER_BACKUP_ACCESS_KEY_ID"] = config.access_key_id
     if config.secret_access_key:
-        env["RUNLEDGER_BACKUP_SECRET_ACCESS_KEY"] = config.secret_access_key
+        env["RUNLEDGER_BACKUP_SECRET_ACCESS_KEY"] = (
+            resolve_secret_value(config.secret_access_key) or ""
+        )
     env["RUNLEDGER_BACKUP_FORCE_PATH_STYLE"] = "true" if config.force_path_style else "false"
     env["RUNLEDGER_BACKUP_INCLUDE_MEMORY_DB"] = "true" if config.include_memory_db else "false"
     env["RUNLEDGER_BACKUP_ENCRYPTION_MODE"] = config.encryption_mode
@@ -177,7 +180,11 @@ async def get_backup_config(db: AsyncSession, workspace_id: uuid.UUID) -> Backup
 async def upsert_backup_config(
     db: AsyncSession, workspace_id: uuid.UUID, payload: dict[str, Any]
 ) -> BackupTargetConfig:
+    payload = dict(payload)
+    secret = payload.pop("secret_access_key", None)
     config = await get_backup_config(db, workspace_id)
+    if secret:  # write-only: blank keeps the stored secret
+        payload["secret_access_key"] = encrypt_secret_value(secret)
     if config is None:
         config = BackupTargetConfig(workspace_id=workspace_id, **payload)
         db.add(config)

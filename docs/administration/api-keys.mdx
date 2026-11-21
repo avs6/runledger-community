@@ -13,10 +13,44 @@ The **API Keys** page is the control-plane entry point for long-lived workspace 
 
 ## Key Lifecycle
 
-- Create a key and save the raw secret immediately because it is only shown once.
-- Edit key metadata such as name, ownership type, and owner reference.
-- Rotate a key with a grace window and inspect the rotation history.
+- Create a key and save the raw secret immediately because it is only shown once. Choose an expiry (30 days, 90 days, 1 year, or never; `expires_at` on `POST /settings/api-keys`). Expired keys stop authenticating.
+- The list shows **Last used** (updated at most every 5 minutes) and **Expires**, with keys expiring within 14 days highlighted.
+- Pick the key's **scopes** when you create it (see [Key Scopes](#key-scopes)). Leave them all unticked for full access.
+- Edit key metadata such as name, ownership type, owner reference and scopes.
+- Rotate a key with a grace window and inspect the rotation history. The replacement keeps the original key's expiry and scopes; revoked keys cannot be rotated. Rotation requires workspace-admin access.
 - Revoke a key when it should no longer authorize traffic.
+- Create, edit, rotate, and revoke are written to the audit log.
+
+Dashboard sign-in sessions are also stored as keys, but they are hidden here; manage them under **Account → Sessions** (see [Sign-in & Sessions](/administration/authentication)).
+
+## Key Scopes
+
+Scopes limit what a workload key can do. Give each integration only what it needs.
+
+| Scope | Allows |
+|---|---|
+| `read` | Reading workspace data: runs, analytics, budgets, prompts, `GET /budgets/check`, policy checks and simulations |
+| `write` | Creating and changing workspace content (prompts, agents, workflows, evaluations, datasets, outcomes, …). Includes `read` |
+| `ingest` | Telemetry: `/ingest/*`, OTLP (`/v1/traces`, `/v1/metrics`, `/v1/logs`), outcomes and scores |
+| `gateway` | Model calls through the gateway (`gateway-rs` and pass-through endpoints) |
+| `mcp` | Connecting to the RunLedger MCP servers (`/mcp` and the optimization MCP gateway) |
+
+- **No scopes = full access.** Keys created before scopes existed keep working unchanged.
+- Scopes only narrow a key. Admin endpoints (keys, budgets, guardrails, users, …) still need a dashboard session whatever the scopes.
+- A request outside the key's scopes gets `403 API key scope does not allow this request (needs: …)`.
+- `mcp` only opens the MCP endpoint. Each MCP tool still needs the matching data scope, so an MCP client key is usually `read` + `ingest` + `mcp`.
+- Dashboard sessions are not scope-limited; they follow the user's role.
+
+Common presets in the create form:
+
+| Preset | Scopes | Use for |
+|---|---|---|
+| SDK telemetry | `read`, `ingest` | SDK / OpenTelemetry instrumentation with budget checks |
+| Gateway only | `gateway` | Apps that only call models through the gateway |
+| MCP client | `read`, `ingest`, `mcp` | Claude Code, Claude Desktop, Codex |
+| Read only | `read` | Dashboards, BI exports, reporting jobs |
+
+Set scopes with `scopes` on `POST /settings/api-keys` and change them with `PUT /settings/api-keys/{key_id}` (`[]` removes all limits). Unknown values are rejected with `422`.
 
 ## Scope Rules
 

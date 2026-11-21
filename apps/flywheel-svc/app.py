@@ -25,12 +25,37 @@ POST /analyze { segment_by, min_quality, min_sample_size, action_space, segments
 
 from __future__ import annotations
 
+import hmac
+import os
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="RunLedger Flywheel Service", version="0.1.0")
+
+
+# ── Internal access control ──────────────────────────────────────────────────
+# Only RunLedger components may call this service: every request except the
+# /health probes must carry X-Internal-Token == INTERNAL_SERVICE_TOKEN. Callers pass
+# workspace ids they have already authorized, so this service must never be
+# reachable by end users directly. With no token configured the service refuses
+# all non-health traffic rather than running open.
+_INTERNAL_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "")
+
+
+@app.middleware("http")
+async def _require_internal_token(request: Request, call_next: Any) -> Any:
+    if request.url.path.startswith("/health"):
+        return await call_next(request)
+    if not _INTERNAL_TOKEN:
+        return JSONResponse({"detail": "INTERNAL_SERVICE_TOKEN is not configured"}, status_code=503)
+    supplied = request.headers.get("x-internal-token", "")
+    if not hmac.compare_digest(supplied.encode(), _INTERNAL_TOKEN.encode()):
+        return JSONResponse({"detail": "Internal service token required"}, status_code=401)
+    return await call_next(request)
+
 
 # A minimum cost improvement worth recommending a switch/explore for (fraction).
 MIN_SAVING_PCT = 0.05
@@ -66,7 +91,13 @@ class AnalyzeRequest(BaseModel):
     min_quality: float = 0.8
     min_sample_size: int = 20
     action_space: list[str] = Field(
-        default_factory=lambda: ["model", "stages", "compression_rate", "cache_threshold", "routing"]
+        default_factory=lambda: [
+            "model",
+            "stages",
+            "compression_rate",
+            "cache_threshold",
+            "routing",
+        ]
     )
     segments: list[Segment]
 
@@ -89,7 +120,9 @@ class AnalyzeResponse(BaseModel):
     recommendations: list[Recommendation]
 
 
-def _config_diff_allowed(current: dict[str, Any], proposed: dict[str, Any], action_space: list[str]) -> bool:
+def _config_diff_allowed(
+    current: dict[str, Any], proposed: dict[str, Any], action_space: list[str]
+) -> bool:
     """True iff every key where the two configs differ maps to a permitted action."""
     keys = set(current) | set(proposed)
     for k in keys:
@@ -182,11 +215,7 @@ def _analyze_segment(seg: Segment, req: AnalyzeRequest) -> Recommendation | None
         )
 
     # ── Explore: a cheaper config looks promising but is under-sampled ───────
-    promising = [
-        o
-        for o in cheaper
-        if o.n < min_n and (o.quality is None or o.quality >= min_q)
-    ]
+    promising = [o for o in cheaper if o.n < min_n and (o.quality is None or o.quality >= min_q)]
     if promising:
         best = min(promising, key=lambda o: o.avg_cost_per_req)
         delta = best.avg_cost_per_req - current.avg_cost_per_req

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import hmac
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
+from runledger_api.core.scopes import key_allows, required_scopes
 from runledger_api.models.tenant import (
     ApiKey,
+    MemberStatusEnum,
     Tenant,
     TenantRoleEnum,
     TenantStatusEnum,
@@ -24,11 +28,14 @@ from runledger_api.models.tenant import (
 )
 from runledger_api.services.auth import verify_api_key
 from runledger_api.services.security import authenticate_oidc_token
+from runledger_api.services.sessions import ORG_ADMIN_ROLES, has_workspace_access
 
 _bearer = HTTPBearer()
 
 # Roles that have org-admin level access
-_ORG_ADMIN_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
+_ORG_ADMIN_ROLES = set(ORG_ADMIN_ROLES)
+
+_SESSION_INVALID = "Session is no longer valid. Please sign in again."
 
 
 async def _validate_workspace_status(workspace: Workspace, db: AsyncSession) -> Workspace:
@@ -53,25 +60,117 @@ async def _validate_workspace_status(workspace: Workspace, db: AsyncSession) -> 
     return workspace
 
 
+async def _session_owner(api_key: ApiKey, db: AsyncSession) -> User | None:
+    """Resolve the owner of a session key (``user_id``; creator email for old keys)."""
+    if api_key.user_id is not None:
+        return await db.get(User, api_key.user_id)
+    if api_key.created_by:
+        return (
+            await db.execute(select(User).where(User.email == api_key.created_by))
+        ).scalar_one_or_none()
+    return None
+
+
+async def authorize_api_key(api_key: ApiKey, db: AsyncSession) -> tuple[Workspace, User | None]:
+    """Apply the access rules every API-key credential must pass, wherever it is used.
+
+    Shared by the control-plane API and the gateway (runtime preflight, passthrough):
+
+    - the key's workspace must exist and not be suspended or archived, and its org
+      must not be suspended (403);
+    - a dashboard session key is re-validated against its owner: the account must be
+      active and still have access to the workspace (401 otherwise).
+
+    Returns the workspace and, for session keys, the owning user.
+    """
+    result = await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
+    workspace = result.scalar_one_or_none()
+    if workspace is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Workspace not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    owner: User | None = None
+    if api_key.is_session:
+        owner = await _session_owner(api_key, db)
+        if (
+            owner is None
+            or not owner.is_active
+            or not await has_workspace_access(db, owner, workspace)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=_SESSION_INVALID,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    return await _validate_workspace_status(workspace, db), owner
+
+
+async def validate_workspace_status(workspace: Workspace, db: AsyncSession) -> Workspace:
+    """Public alias: reject suspended/archived workspaces and suspended orgs (403)."""
+    return await _validate_workspace_status(workspace, db)
+
+
+def require_key_scope(api_key: ApiKey | None, needed: frozenset[str]) -> None:
+    """Raise 403 when a workload key's scopes do not cover ``needed`` (any one of).
+
+    Session keys and OIDC tokens (``api_key`` None) are not scope-limited.
+    """
+    if api_key is None or api_key.is_session:
+        return
+    if not key_allows(api_key.scopes, needed):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"API key scope does not allow this request (needs: {' or '.join(sorted(needed))})"
+            ),
+        )
+
+
+def _enforce_route_scope(request: Request, api_key: ApiKey) -> None:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None) or request.url.path
+    needed = required_scopes(request.method, route_path)
+    if needed is not None:
+        require_key_scope(api_key, needed)
+
+
+async def _verified_key(request: Request, token: str, db: AsyncSession) -> ApiKey | None:
+    """Verify an API key once per request and cache the result on request.state.
+
+    Workload keys are also checked against the scopes this route needs.
+    """
+    if getattr(request.state, "api_key_checked", False):
+        return getattr(request.state, "api_key", None)
+    api_key = await verify_api_key(token, db)
+    request.state.api_key_checked = True
+    request.state.api_key = api_key
+    if api_key is not None:
+        _enforce_route_scope(request, api_key)
+    return api_key
+
+
 async def get_current_workspace(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Workspace:
-    """Validates Bearer token (API key or OIDC JWT) and returns the associated Workspace."""
+    """Validates Bearer token (API key or OIDC JWT) and returns the associated Workspace.
+
+    Dashboard session keys are additionally checked against their owner: the account
+    must be active and must still have access to the workspace (active membership or
+    an active org-level role). Otherwise the session is rejected with 401.
+    """
     token = credentials.credentials
 
     # Try API key first
-    api_key = await verify_api_key(token, db)
+    api_key = await _verified_key(request, token, db)
     if api_key is not None:
-        result = await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
-        workspace = result.scalar_one_or_none()
-        if workspace is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Workspace not found",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return await _validate_workspace_status(workspace, db)
+        workspace, owner = await authorize_api_key(api_key, db)
+        if owner is not None:
+            request.state.session_user = owner
+        return workspace
 
     # Fallback: try OIDC bearer token validation
     oidc_result = await authenticate_oidc_token(token, db)
@@ -86,11 +185,12 @@ async def get_current_workspace(
 
 
 async def get_current_api_key(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(_bearer)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ApiKey:
     """Returns the validated ApiKey object."""
-    api_key = await verify_api_key(credentials.credentials, db)
+    api_key = await _verified_key(request, credentials.credentials, db)
     if api_key is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -101,14 +201,17 @@ async def get_current_api_key(
 
 
 async def get_current_user(
+    request: Request,
     api_key: Annotated[ApiKey, Depends(get_current_api_key)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User | None:
     """Returns the User who owns the session key, or None for non-session keys."""
-    if not api_key.is_session or not api_key.created_by:
+    if not api_key.is_session:
         return None
-    result = await db.execute(select(User).where(User.email == api_key.created_by))
-    return result.scalar_one_or_none()
+    cached = getattr(request.state, "session_user", None)
+    if cached is not None:
+        return cached
+    return await _session_owner(api_key, db)
 
 
 async def require_user(
@@ -145,10 +248,12 @@ async def require_platform_admin(
 async def _get_tenant_user(
     user_id: uuid.UUID, tenant_id: uuid.UUID, db: AsyncSession
 ) -> TenantUser | None:
+    """Active org membership only — suspended/invited members hold no role power."""
     result = await db.execute(
         select(TenantUser).where(
             TenantUser.user_id == user_id,
             TenantUser.tenant_id == tenant_id,
+            TenantUser.status == MemberStatusEnum.active,
         )
     )
     return result.scalar_one_or_none()
@@ -157,10 +262,12 @@ async def _get_tenant_user(
 async def _get_workspace_user(
     user_id: uuid.UUID, workspace_id: uuid.UUID, db: AsyncSession
 ) -> WorkspaceUser | None:
+    """Active workspace membership only."""
     result = await db.execute(
         select(WorkspaceUser).where(
             WorkspaceUser.user_id == user_id,
             WorkspaceUser.workspace_id == workspace_id,
+            WorkspaceUser.status == MemberStatusEnum.active,
         )
     )
     return result.scalar_one_or_none()
@@ -223,6 +330,85 @@ async def require_member(
     return workspace, user, wu
 
 
+_READ_ONLY_WORKSPACE_ROLES = frozenset({WorkspaceRoleEnum.viewer})
+
+
+async def can_write_workspace(db: AsyncSession, user: User, workspace: Workspace) -> bool:
+    """Whether a dashboard user may change data in ``workspace``.
+
+    Platform admins, org admins/managers, and workspace members with any role other
+    than ``viewer`` may write. Org billing admins and auditors see every workspace in
+    the org but read only, unless they also hold a writable workspace role.
+    """
+    if user.is_platform_admin:
+        return True
+    tu = await _get_tenant_user(user.id, workspace.tenant_id, db)
+    if tu is not None and tu.role in _ORG_ADMIN_ROLES:
+        return True
+    wu = await _get_workspace_user(user.id, workspace.id, db)
+    return wu is not None and wu.role not in _READ_ONLY_WORKSPACE_ROLES
+
+
+async def require_workspace_writer(
+    request: Request,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Workspace:
+    """Allow writes from workload credentials and from users with a writable role.
+
+    Workload API keys and OIDC workload tokens are workspace credentials and keep full
+    write access (SDK, OTLP, ingest, automation). Dashboard sessions are checked
+    against the signed-in user's role: viewers and read-only org roles get 403.
+    """
+    api_key = getattr(request.state, "api_key", None)
+    if api_key is None or not api_key.is_session:
+        return workspace
+    user = getattr(request.state, "session_user", None) or await _session_owner(api_key, db)
+    if user is None or not await can_write_workspace(db, user, workspace):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your role in this workspace is read-only",
+        )
+    return workspace
+
+
+def _org_role_or_workspace_admin(
+    org_roles: frozenset[TenantRoleEnum], detail: str
+) -> Callable[..., Awaitable[tuple[Workspace, User, TenantUser | None]]]:
+    """Dependency factory: workspace admin, platform admin, or one of ``org_roles``."""
+
+    async def _dep(
+        workspace_user: Annotated[tuple[Workspace, User], Depends(require_user)],
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> tuple[Workspace, User, TenantUser | None]:
+        workspace, user = workspace_user
+        if user.is_platform_admin:
+            return workspace, user, None
+        tu = await _get_tenant_user(user.id, workspace.tenant_id, db)
+        if tu is not None and tu.role in org_roles:
+            return workspace, user, tu
+        wu = await _get_workspace_user(user.id, workspace.id, db)
+        if wu is not None and wu.role == WorkspaceRoleEnum.workspace_admin:
+            return workspace, user, tu
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+    return _dep
+
+
+# Billing admins read and export billing/chargeback data across the org's workspaces.
+require_billing_access = _org_role_or_workspace_admin(
+    frozenset(
+        {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager, TenantRoleEnum.org_billing_admin}
+    ),
+    "Billing access required",
+)
+# Auditors read audit logs and the governance audit pack across the org's workspaces.
+require_audit_access = _org_role_or_workspace_admin(
+    frozenset({TenantRoleEnum.org_admin, TenantRoleEnum.org_manager, TenantRoleEnum.org_auditor}),
+    "Audit access required",
+)
+
+
 async def resolve_workspace_ids(
     workspace: Workspace,
     tenant_id: uuid.UUID | None,
@@ -254,7 +440,7 @@ async def resolve_workspace_ids(
 
 async def require_admin(x_admin_secret: Annotated[str, Header()]) -> None:
     """Validates X-Admin-Secret header for admin-only endpoints (backward compat)."""
-    if x_admin_secret != settings.effective_admin_secret:
+    if not hmac.compare_digest(x_admin_secret.encode(), settings.effective_admin_secret.encode()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid admin secret",

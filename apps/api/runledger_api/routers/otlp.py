@@ -27,7 +27,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_org_admin
+from runledger_api.core.deps import (
+    get_current_workspace,
+    require_org_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
 from runledger_api.services.claude_code_logs import synthesize_claude_code_events
@@ -225,9 +229,12 @@ async def _handle_traces(
     # Enqueue canonical events via Celery pipeline (lazy import to avoid circular)
     if all_events:
         try:
+            from runledger_api.routers.ingest import attribute_to_sending_key  # noqa: PLC0415
             from runledger_api.workers.pipeline import process_events_task  # noqa: PLC0415
 
-            process_events_task.delay(str(workspace.id), all_events)
+            process_events_task.delay(
+                str(workspace.id), attribute_to_sending_key(request, all_events)
+            )
         except Exception as exc:
             # Non-fatal — batch is already persisted; events can be re-synthesized from raw
             log.warning("otlp_pipeline_enqueue_failed", error=str(exc))
@@ -320,9 +327,10 @@ async def _handle_logs(
         log.warning("otlp_logs_synthesis_failed", error=str(exc), workspace_id=str(workspace.id))
     if events:
         try:
+            from runledger_api.routers.ingest import attribute_to_sending_key  # noqa: PLC0415
             from runledger_api.workers.pipeline import process_events_task  # noqa: PLC0415
 
-            process_events_task.delay(str(workspace.id), events)
+            process_events_task.delay(str(workspace.id), attribute_to_sending_key(request, events))
         except Exception as exc:
             log.warning("otlp_pipeline_enqueue_failed", error=str(exc))
 
@@ -338,7 +346,7 @@ async def _handle_logs(
 @router.post(
     "/v1/traces",
     status_code=200,
-    dependencies=[Depends(ingest_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(ingest_rate_limit)],
     summary="OTLP/HTTP trace receiver",
 )
 async def receive_traces(
@@ -360,7 +368,7 @@ async def receive_traces(
 @router.post(
     "/otlp/v1/traces",
     status_code=200,
-    dependencies=[Depends(ingest_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(ingest_rate_limit)],
     summary="OTLP/HTTP trace receiver (collector-prefix alias)",
     include_in_schema=False,
 )
@@ -376,7 +384,7 @@ async def receive_traces_alias(
 @router.post(
     "/v1/metrics",
     status_code=200,
-    dependencies=[Depends(ingest_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(ingest_rate_limit)],
     summary="OTLP/HTTP metrics receiver",
 )
 async def receive_metrics(
@@ -391,7 +399,7 @@ async def receive_metrics(
 @router.post(
     "/otlp/v1/metrics",
     status_code=200,
-    dependencies=[Depends(ingest_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(ingest_rate_limit)],
     summary="OTLP/HTTP metrics receiver (collector-prefix alias)",
     include_in_schema=False,
 )
@@ -407,7 +415,7 @@ async def receive_metrics_alias(
 @router.post(
     "/v1/logs",
     status_code=200,
-    dependencies=[Depends(ingest_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(ingest_rate_limit)],
     summary="OTLP/HTTP logs receiver",
 )
 async def receive_logs(
@@ -422,7 +430,7 @@ async def receive_logs(
 @router.post(
     "/otlp/v1/logs",
     status_code=200,
-    dependencies=[Depends(ingest_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(ingest_rate_limit)],
     summary="OTLP/HTTP logs receiver (collector-prefix alias)",
     include_in_schema=False,
 )

@@ -122,6 +122,8 @@ async def test_revoke_api_key(
         workspace_id=mock_workspace.id,
         revoked_at=None,
         is_session=False,
+        name="ci-key",
+        key_prefix="rl_test_abcd",
     )
     mock_db_session.get.return_value = mock_api_key
 
@@ -150,6 +152,8 @@ async def test_get_api_key(
         created_by="owner@example.com",
         ownership_type="service_account",
         owner_reference="svc-observe",
+        expires_at=None,
+        last_used_at=None,
         budget_tier_id=None,
     )
     mock_db_session.get.return_value = mock_api_key
@@ -182,6 +186,8 @@ async def test_update_api_key(
         created_by="owner@example.com",
         ownership_type="service_account",
         owner_reference="svc-observe",
+        expires_at=None,
+        last_used_at=None,
         budget_tier_id=None,
     )
     mock_db_session.get.return_value = mock_api_key
@@ -201,7 +207,8 @@ async def test_update_api_key(
     assert data["name"] == "Renamed key"
     assert data["ownership_type"] == "agent"
     assert data["owner_reference"] == "router-agent"
-    assert data["scopes"] == ["gateway", "ingest"]
+    # Scopes are validated and stored in canonical order.
+    assert data["scopes"] == ["ingest", "gateway"]
     assert mock_api_key.name == "Renamed key"
     assert mock_api_key.owner_reference == "router-agent"
 

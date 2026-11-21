@@ -60,12 +60,15 @@ class BackupTargetConfigBase(BaseModel):
 
 
 class BackupTargetConfigUpdate(BackupTargetConfigBase):
-    pass
+    """``secret_access_key`` is write-only: omit it (or send "") to keep the stored one."""
 
 
 class BackupTargetConfigResponse(BackupTargetConfigBase):
     model_config = ConfigDict(from_attributes=True)
 
+    # Never returned; ``has_secret_access_key`` says whether one is stored.
+    secret_access_key: str | None = None
+    has_secret_access_key: bool = False
     id: uuid.UUID
     workspace_id: uuid.UUID
     last_verified_at: datetime | None

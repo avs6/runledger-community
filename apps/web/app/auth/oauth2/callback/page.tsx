@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 
-export default function OAuth2CallbackPage() {
+function OAuth2CallbackPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [error, setError] = useState<string | null>(null)
@@ -64,5 +64,14 @@ export default function OAuth2CallbackPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400">Completing sign-in...</p>
       </div>
     </main>
+  )
+}
+
+// useSearchParams() needs a Suspense boundary for the production build to prerender this page.
+export default function OAuth2CallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <OAuth2CallbackPageInner />
+    </Suspense>
   )
 }

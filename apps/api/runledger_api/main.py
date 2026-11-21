@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from runledger_api.core.config import settings
 from runledger_api.core.db import engine
 from runledger_api.core.logging import configure_logging
+from runledger_api.core.mcp_guard import McpScopeGuard
 from runledger_api.core.redis import redis_client
 from runledger_api.mcp_server import mcp as _mcp_server
 from runledger_api.routers import agents as agents_router
@@ -146,7 +147,8 @@ app.include_router(hub_router.router)
 #   claude mcp add --transport http runledger http://localhost:8201/mcp
 # Or in claude_desktop_config.json:
 #   { "mcpServers": { "runledger": { "url": "http://localhost:8201/mcp" } } }
-app.mount("/mcp", _mcp_http_app)
+# Workload keys need the "mcp" scope to connect (see core/mcp_guard.py).
+app.mount("/mcp", McpScopeGuard(_mcp_http_app))
 
 # ── API Reference UI — Scalar (richer DX than Swagger UI) ────────────────────
 

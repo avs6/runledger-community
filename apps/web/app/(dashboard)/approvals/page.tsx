@@ -50,6 +50,7 @@ const REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
   long_agent_session: 'Long Agent Session',
   sensitive_export: 'Sensitive Data Export',
   route_policy_change: 'Route Policy Change',
+  model_access: 'Model Access (AI Hub)',
 }
 
 const STATUS_CHIP: Record<string, { cls: string; icon: typeof Clock }> = {

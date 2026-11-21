@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html as _html
 import smtplib
 import textwrap
 import uuid
@@ -997,3 +998,60 @@ async def send_verification_email(to_email: str, full_name: str, verify_url: str
 </html>"""
 
     await send_email(to_email, subject, html, text, event_type="verification")
+
+
+def _simple_email_html(heading: str, body_html: str, button_label: str, url: str) -> str:
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden;">
+        <tr><td style="padding:36px 40px;">
+          <p style="margin:0 0 16px;font-size:18px;font-weight:600;color:#f1f5f9;">{heading}</p>
+          <div style="margin:0 0 24px;font-size:14px;color:#cbd5e1;">{body_html}</div>
+          <a href="{_html.escape(url, quote=True)}" style="display:inline-block;padding:12px 28px;border-radius:8px;background:#0d9488;font-size:14px;font-weight:600;color:#fff;text-decoration:none;">{button_label}</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+async def send_password_reset_email(to_email: str, full_name: str | None, reset_url: str) -> None:
+    name = _html.escape(full_name or to_email)
+    subject = "Reset your RunLedger password"
+    text = (
+        f"Hi {full_name or to_email},\n\nReset your password: {reset_url}\n\n"
+        "If you did not request this, ignore this email.\n\n— RunLedger"
+    )
+    html = _simple_email_html(
+        f"Reset your password, {name}",
+        "Use the button below to choose a new password. The link expires soon and "
+        "works once. If you did not request this, you can ignore this email.",
+        "Reset password",
+        reset_url,
+    )
+    await send_email(to_email, subject, html, text, event_type="password_reset")
+
+
+async def send_org_invitation_email(
+    to_email: str, org_name: str, invited_by: str | None, accept_url: str
+) -> None:
+    org = _html.escape(org_name)
+    by = _html.escape(invited_by or "An administrator")
+    subject = f"You've been invited to {org_name} on RunLedger"
+    text = (
+        f"{invited_by or 'An administrator'} invited you to join {org_name} on RunLedger.\n"
+        f"Sign in and accept the invitation: {accept_url}\n\n— RunLedger"
+    )
+    html = _simple_email_html(
+        f"Join {org}",
+        f"{by} invited you to join <b>{org}</b>. Sign in to RunLedger and accept the "
+        "invitation from your account page.",
+        "Review invitation",
+        accept_url,
+    )
+    await send_email(to_email, subject, html, text, event_type="org_invitation")

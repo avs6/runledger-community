@@ -130,6 +130,11 @@ celery_app.conf.update(
             "task": "retention.apply_policies",
             "schedule": 86400.0,
         },
+        # Expired / revoked dashboard session keys: daily purge (7-day grace).
+        "auth-purge-session-keys-daily": {
+            "task": "auth.purge_session_keys",
+            "schedule": 86400.0,
+        },
         # Scheduled analytics email reports: hourly check, workspace prefs decide cadence.
         "email-report-weekly": {
             "task": "email_reports.send_weekly_analytics",

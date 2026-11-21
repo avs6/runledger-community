@@ -518,6 +518,8 @@ class GatewayRuntimeEventBatchResponse(BaseModel):
 
 class GatewayRuntimeApiKeyResolveRequest(BaseModel):
     raw_key: str = Field(..., min_length=1)
+    # Scope the caller requires (e.g. "mcp" for the MCP gateway); 403 if the key lacks it.
+    required_scope: str | None = None
 
 
 class GatewayRuntimeApiKeyResolveResponse(BaseModel):

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
+import { ScopeBadges } from '@/components/api-keys/ScopePicker'
 import {
   getApiKeyDetail,
   getBudgets,
@@ -83,6 +84,15 @@ export default async function ApiKeyDetailPage({
             {apiKeyDetail.workspace_name ?? 'Workspace'} · {apiKeyDetail.ownership_type}
             {apiKeyDetail.owner_reference ? ` · ${apiKeyDetail.owner_reference}` : ''}
           </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Last used {apiKeyDetail.last_used_at ? new Date(apiKeyDetail.last_used_at).toLocaleString() : 'never'}
+            {' · '}
+            {apiKeyDetail.expires_at ? `Expires ${new Date(apiKeyDetail.expires_at).toLocaleString()}` : 'Never expires'}
+          </p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span>Scopes</span>
+            <ScopeBadges scopes={apiKeyDetail.scopes} />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link

@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { Loader2, Square } from 'lucide-react'
 import { cancelRun } from '@/lib/api'
+import { useRole } from '@/components/rbac/useRole'
 
 export default function CancelRunButton({
   runId,
@@ -19,8 +20,9 @@ export default function CancelRunButton({
   const [confirming, setConfirming] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { canWrite } = useRole()
 
-  if (status !== 'running') return null
+  if (status !== 'running' || !canWrite) return null
 
   const apiKey = (session as { apiKey?: string } | null)?.apiKey
 
