@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -173,17 +173,21 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
 async def _handle_run_end(session: AsyncSession, e: dict[str, Any]) -> None:
     status = e["status"]
     run_id = uuid.UUID(e["run_id"])
-    await session.execute(
-        update(AgentRun)
-        .where(AgentRun.id == run_id)
-        .values(
-            status=RunStatusEnum(status),
-            ended_at=_dt(e["ended_at"]),
-            total_cost_usd=_dec(e.get("total_cost_usd")),
-            total_input_tokens=e.get("total_input_tokens"),
-            total_output_tokens=e.get("total_output_tokens"),
-        )
-    )
+    values: dict[str, Any] = {
+        "status": RunStatusEnum(status),
+        # A run can receive several run_end events (e.g. one per Claude Code API
+        # request in a prompt); only ever move ended_at forward. GREATEST ignores NULL.
+        "ended_at": func.greatest(AgentRun.ended_at, _dt(e["ended_at"])),
+    }
+    # Totals are usually filled in later by the cost rollup; don't overwrite
+    # them with NULL when the event doesn't carry them.
+    if e.get("total_cost_usd") is not None:
+        values["total_cost_usd"] = _dec(e["total_cost_usd"])
+    if e.get("total_input_tokens") is not None:
+        values["total_input_tokens"] = e["total_input_tokens"]
+    if e.get("total_output_tokens") is not None:
+        values["total_output_tokens"] = e["total_output_tokens"]
+    await session.execute(update(AgentRun).where(AgentRun.id == run_id).values(**values))
     run = await session.get(AgentRun, run_id)
     if run is None:
         return

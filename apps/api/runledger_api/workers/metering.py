@@ -79,6 +79,25 @@ def cost_enrichment_worker() -> dict[str, int]:
     return asyncio.run(_run_cost_enrichment())
 
 
+async def _provider_call_cost(session: AsyncSession, pc: ProviderCall) -> Decimal | None:
+    """Cost of a provider call: the client's reported cost when marked as such,
+    otherwise the pricing engine's estimate (None if no pricing row exists)."""
+    if pc.cost_source == "reported" and pc.reported_cost_usd is not None:
+        # E.g. Claude Code reports the exact cost, including cache-write
+        # pricing that the pricing table can't express.
+        return Decimal(pc.reported_cost_usd)
+    return await calculate_cost(
+        session,
+        provider=pc.provider,
+        model=pc.model,
+        input_tokens=pc.input_tokens,
+        output_tokens=pc.output_tokens,
+        cached_input_tokens=pc.cached_input_tokens,
+        at_time=pc.created_at,
+        workspace_id=pc.workspace_id,
+    )
+
+
 async def _run_cost_enrichment() -> dict[str, int]:
     from redis.asyncio import Redis  # noqa: PLC0415
 
@@ -102,16 +121,7 @@ async def _run_cost_enrichment() -> dict[str, int]:
             calls: list[ProviderCall] = list(result.scalars())
 
             for pc in calls:
-                cost = await calculate_cost(
-                    session,
-                    provider=pc.provider,
-                    model=pc.model,
-                    input_tokens=pc.input_tokens,
-                    output_tokens=pc.output_tokens,
-                    cached_input_tokens=pc.cached_input_tokens,
-                    at_time=pc.created_at,
-                    workspace_id=pc.workspace_id,
-                )
+                cost = await _provider_call_cost(session, pc)
                 if cost is None:
                     # No pricing row found — leave cost_usd as NULL so it will
                     # be re-enriched once pricing is configured.

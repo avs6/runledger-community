@@ -30,6 +30,7 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_org_admin
 from runledger_api.core.ratelimit import ingest_rate_limit
 from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
+from runledger_api.services.claude_code_logs import synthesize_claude_code_events
 from runledger_api.services.otlp_parse import (
     OtlpTrace,
     parse_otlp_json,
@@ -310,10 +311,26 @@ async def _handle_logs(
     )
     await db.commit()
 
+    # Claude Code reports model usage as log events; turn them into runs.
+    events: list[dict[str, Any]] = []
+    try:
+        events = synthesize_claude_code_events(workspace.id, payload)
+    except Exception as exc:
+        # Non-fatal — the raw batch is persisted and can be re-synthesized.
+        log.warning("otlp_logs_synthesis_failed", error=str(exc), workspace_id=str(workspace.id))
+    if events:
+        try:
+            from runledger_api.workers.pipeline import process_events_task  # noqa: PLC0415
+
+            process_events_task.delay(str(workspace.id), events)
+        except Exception as exc:
+            log.warning("otlp_pipeline_enqueue_failed", error=str(exc))
+
     log.info(
         "otlp_logs_accepted",
         workspace_id=str(workspace.id),
         log_records=log_record_count,
+        events=len(events),
     )
     return {"partialSuccess": {}}
 
