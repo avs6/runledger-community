@@ -15,6 +15,7 @@ import functools
 import os
 import uuid
 from collections.abc import Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -38,17 +39,44 @@ mcp = FastMCP(
 )
 
 
+# Authorization header of the MCP client behind the current call. None means the
+# call did not arrive over HTTP (stdio mode), where the server's own key is used.
+_CALLER_AUTHORIZATION: ContextVar[str | None] = ContextVar("_CALLER_AUTHORIZATION", default=None)
+
+
+def _caller_authorization() -> str | None:
+    """Return the Authorization header of the HTTP request behind this MCP call."""
+    try:
+        request = mcp.get_context().request_context.request
+    except (LookupError, ValueError):
+        return None
+    if request is None:
+        return None
+    return cast(str, request.headers.get("authorization", ""))
+
+
+def _run_as_caller(authorization: str | None, call: Callable[[], Any]) -> Any:
+    _CALLER_AUTHORIZATION.set(authorization)
+    return call()
+
+
 def _off_event_loop(fn: Callable[..., Any]) -> Callable[..., Any]:
     """Wrap a blocking handler so FastMCP awaits it in a worker thread.
 
     FastMCP calls sync handlers directly on the event loop. These handlers make
     blocking HTTP calls back into this same API process, so running them inline
     blocks the loop that has to serve that request and every call times out.
+
+    The caller's Authorization header is captured here, while the MCP request is
+    still in context, so API calls made by the handler act as that caller.
     """
 
     @functools.wraps(fn)
     async def run_in_thread(*args: Any, **kwargs: Any) -> Any:
-        return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+        call = functools.partial(fn, *args, **kwargs)
+        return await anyio.to_thread.run_sync(
+            functools.partial(_run_as_caller, _caller_authorization(), call)
+        )
 
     return run_in_thread
 
@@ -77,7 +105,15 @@ def _resource(uri: str, **kwargs: Any) -> Callable[[Callable[..., Any]], Callabl
 
 
 def _headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+    """Headers for API calls: the MCP client's credentials, or the server key in stdio mode.
+
+    Over HTTP the caller's Authorization header is forwarded as-is, never replaced
+    by the server's key, so each client only sees its own workspace and a client
+    without a valid key is rejected by the API.
+    """
+    caller = _CALLER_AUTHORIZATION.get()
+    authorization = caller if caller is not None else f"Bearer {API_KEY}"
+    return {"Authorization": authorization, "Content-Type": "application/json"}
 
 
 def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
