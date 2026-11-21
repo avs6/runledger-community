@@ -12,6 +12,7 @@ from runledger_api.core.config import settings
 from runledger_api.models.tenant import ApiKey, EnvironmentEnum
 
 _KEY_BYTES = 32  # 256-bit random token
+_LAST_USED_WRITE_INTERVAL_S = 300
 
 
 def _pepper() -> bytes:
@@ -58,8 +59,21 @@ async def verify_api_key(raw_key: str, db: AsyncSession) -> ApiKey | None:
         )
         api_key = result.scalar_one_or_none()
         if api_key is not None:
+            now = datetime.now(UTC)
+            dirty = False
             if hash_fn is _legacy_hash:
                 api_key.key_hash = _hmac_hash(raw_key)
+                dirty = True
+            # Throttled usage stamp: at most one write per key per interval.
+            last = api_key.last_used_at
+            if last is None or (now - last).total_seconds() >= _LAST_USED_WRITE_INTERVAL_S:
+                api_key.last_used_at = now
+                dirty = True
+            if dirty:
                 await db.commit()
             return api_key
+        # Tokens that are not RunLedger keys at all (e.g. OIDC JWTs) cannot match a
+        # legacy hash either, so skip the second lookup for them.
+        if not raw_key.startswith(("rl_live_", "rl_test_")):
+            break
     return None

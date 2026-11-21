@@ -75,7 +75,7 @@ async def _distill(episodes: list[str]) -> str | None:
 async def _consolidate() -> dict[str, int]:
     workspaces = 0
     facts = 0
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=60.0, headers=settings.internal_service_headers) as client:
         for ws in await _active_workspaces():
             try:
                 r = await client.post(

@@ -22,7 +22,7 @@ Platform admin: `admin@runledger.local` / `runledger`
 - Workspaces: `LiteLLM Gateway`, `OpenWebUI`, `Codex`, `Langgraph`, `HermesAgent`, `Claude Desktop`, `OpenAICodes`, `PythonAgents`
 - Focus: gateway routing, OTLP, MCP, integration testing
 
-Every account uses password `runledger`.
+Org admins and users in this scenario use password `runledger-demo-1` (the API password policy requires at least 12 characters with a letter and a digit). The platform admin is seeded directly and keeps `runledger`.
 
 ## Prerequisites
 

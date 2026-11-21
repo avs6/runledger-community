@@ -123,9 +123,9 @@ async def test_check_cost_cap_daily_under_limit():
     mock_result = MagicMock()
     mock_result.one.return_value = mock_row
     db = AsyncMock()
-    db.execute = AsyncMock(
-        side_effect=[empty_result, mock_result, mock_result, empty_result, empty_result]
-    )
+    # Queries: monthly SUM, daily SUM, workspace budget tier (no pricing lookup —
+    # the route has no target_model; legacy project/team-model checks were removed).
+    db.execute = AsyncMock(side_effect=[mock_result, mock_result, empty_result])
 
     await check_cost_cap(db, route, uuid.uuid4())  # should not raise
 

@@ -24,19 +24,25 @@ POST /compile { messages, query?, config } -> { messages, token_report, dropped[
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
 from typing import Any
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 RERANKER_SVC_URL = os.getenv("RERANKER_SVC_URL", "http://runledger-reranker:8102").rstrip("/")
-COMPRESSION_SVC_URL = os.getenv("COMPRESSION_SVC_URL", "http://runledger-compression:8104").rstrip("/")
+COMPRESSION_SVC_URL = os.getenv("COMPRESSION_SVC_URL", "http://runledger-compression:8104").rstrip(
+    "/"
+)
 MEMORY_SVC_URL = os.getenv("MEMORY_SVC_URL", "http://runledger-memory-svc:8107").rstrip("/")
-SKILL_REGISTRY_URL = os.getenv("SKILL_REGISTRY_URL", "http://runledger-skill-registry:8108").rstrip("/")
+SKILL_REGISTRY_URL = os.getenv("SKILL_REGISTRY_URL", "http://runledger-skill-registry:8108").rstrip(
+    "/"
+)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1").rstrip("/")
 DEFAULT_LLM_MODEL = os.getenv("COMPILER_LLM_MODEL", "llama3.1:8b")
 DEFAULT_RERANKER = os.getenv("RERANKER_MODEL", "flashrank")
@@ -44,6 +50,32 @@ DEFAULT_COMPRESSION_MODEL = os.getenv("COMPRESSION_MODEL", "bert-base-multilingu
 TIMEOUT = float(os.getenv("COMPILER_TIMEOUT_SECONDS", "20"))
 
 app = FastAPI(title="RunLedger Context Compiler", version="0.1.0")
+
+
+# ── Internal access control ──────────────────────────────────────────────────
+# Only RunLedger components may call this service: every request except the
+# /health probes must carry X-Internal-Token == INTERNAL_SERVICE_TOKEN. Callers pass
+# workspace ids they have already authorized, so this service must never be
+# reachable by end users directly. With no token configured the service refuses
+# all non-health traffic rather than running open.
+_INTERNAL_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "")
+
+
+def _internal_headers() -> dict[str, str]:
+    """Headers for calls to other RunLedger internal services."""
+    return {"x-internal-token": _INTERNAL_TOKEN}
+
+
+@app.middleware("http")
+async def _require_internal_token(request: Request, call_next: Any) -> Any:
+    if request.url.path.startswith("/health"):
+        return await call_next(request)
+    if not _INTERNAL_TOKEN:
+        return JSONResponse({"detail": "INTERNAL_SERVICE_TOKEN is not configured"}, status_code=503)
+    supplied = request.headers.get("x-internal-token", "")
+    if not hmac.compare_digest(supplied.encode(), _INTERNAL_TOKEN.encode()):
+        return JSONResponse({"detail": "Internal service token required"}, status_code=401)
+    return await call_next(request)
 
 
 # ── Token estimate ────────────────────────────────────────────────────────────
@@ -133,7 +165,7 @@ def _split_chunks(text: str, max_chars: int = 1200) -> list[str]:
 
 async def _rerank(query: str, passages: list[str], model: str) -> list[float] | None:
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+        async with httpx.AsyncClient(timeout=TIMEOUT, headers=_internal_headers()) as c:
             r = await c.post(
                 f"{RERANKER_SVC_URL}/rerank",
                 json={"query": query, "passages": passages, "model": model},
@@ -150,7 +182,7 @@ async def _rerank(query: str, passages: list[str], model: str) -> list[float] | 
 
 async def _recall_memory(workspace: str, query: str, k: int) -> list[dict[str, Any]]:
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+        async with httpx.AsyncClient(timeout=TIMEOUT, headers=_internal_headers()) as c:
             r = await c.post(
                 f"{MEMORY_SVC_URL}/recall",
                 json={"workspace": workspace, "query": query, "k": k},
@@ -163,7 +195,7 @@ async def _recall_memory(workspace: str, query: str, k: int) -> list[dict[str, A
 
 async def _list_skills(workspace: str) -> list[dict[str, Any]]:
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+        async with httpx.AsyncClient(timeout=TIMEOUT, headers=_internal_headers()) as c:
             r = await c.get(f"{SKILL_REGISTRY_URL}/skills", params={"workspace": workspace})
             r.raise_for_status()
             return r.json().get("skills", [])
@@ -173,7 +205,7 @@ async def _list_skills(workspace: str) -> list[dict[str, Any]]:
 
 async def _get_skill(workspace: str, name: str) -> dict[str, Any] | None:
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+        async with httpx.AsyncClient(timeout=TIMEOUT, headers=_internal_headers()) as c:
             r = await c.get(f"{SKILL_REGISTRY_URL}/skills/{name}", params={"workspace": workspace})
             r.raise_for_status()
             return r.json()
@@ -192,7 +224,7 @@ def _tool_name(tool: dict[str, Any]) -> str:
 
 async def _compress(text: str, rate: float, model: str) -> str | None:
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as c:
+        async with httpx.AsyncClient(timeout=TIMEOUT, headers=_internal_headers()) as c:
             r = await c.post(
                 f"{COMPRESSION_SVC_URL}/compress",
                 json={"text": text, "rate": rate, "model": model},
@@ -320,7 +352,9 @@ async def stage_rerank(
             used += t
         dropped_n = len(chunks) - len(kept_idx)
         if dropped_n:
-            dropped.append(f"rerank: pruned {dropped_n} low-relevance chunk(s) from {m.get('role')}")
+            dropped.append(
+                f"rerank: pruned {dropped_n} low-relevance chunk(s) from {m.get('role')}"
+            )
         nm = dict(m)
         nm["content"] = "\n\n".join(chunks[k] for k in sorted(kept_idx))
         out.append(nm)
@@ -376,7 +410,10 @@ async def stage_compaction(
 
 # ── Skill injection (opt-in, inject-body-on-match) ───────────────────────────
 async def stage_skills(
-    messages: list[dict[str, Any]], workspace: str | None, query: str, cfg: CompileConfig,
+    messages: list[dict[str, Any]],
+    workspace: str | None,
+    query: str,
+    cfg: CompileConfig,
     dropped: list[str],
 ) -> list[dict[str, Any]]:
     if not workspace:
@@ -429,7 +466,10 @@ async def stage_tools(
 
 # ── Stage 0: memory recall (opt-in, augments context) ────────────────────────
 async def stage_memory(
-    messages: list[dict[str, Any]], workspace: str | None, query: str, cfg: CompileConfig,
+    messages: list[dict[str, Any]],
+    workspace: str | None,
+    query: str,
+    cfg: CompileConfig,
     dropped: list[str],
 ) -> list[dict[str, Any]]:
     if not workspace:
@@ -560,7 +600,12 @@ async def compile_context(req: CompileRequest) -> CompileResponse:
     return CompileResponse(
         messages=messages,
         tools=tools if tools is not req.tools else None,
-        token_report={"before": before, "after": after, "saved": before - after, "per_stage": per_stage},
+        token_report={
+            "before": before,
+            "after": after,
+            "saved": before - after,
+            "per_stage": per_stage,
+        },
         dropped=dropped,
         degraded=degraded,
     )

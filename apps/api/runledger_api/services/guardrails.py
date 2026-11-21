@@ -952,7 +952,9 @@ async def evaluate_guardrails(
     result = await db.execute(stmt)
     rules = list(result.scalars().all())
 
-    # ── Resolve Access Group Guardrail Profile if user_id is provided ───────
+    # ── Access-group guardrail profiles ────────────────────────────────────
+    # Every active group the principal belongs to contributes its profile
+    # (``rule:<name>``); the matching rules are added to the evaluation set.
     if user_id:
         try:
             from runledger_api.models.access_groups import (  # noqa: PLC0415
@@ -966,24 +968,31 @@ async def evaluate_guardrails(
                 .where(
                     AccessGroup.workspace_id == workspace_id,
                     AccessGroup.is_active.is_(True),
-                    AccessGroupMember.user_id == user_id,
+                    AccessGroupMember.user_id == uuid.UUID(str(user_id)),
                     AccessGroup.guardrail_profile.isnot(None),
                 )
-                .limit(1)
             )
-            ag_profile = (await db.execute(ag_stmt)).scalar_one_or_none()
-            if ag_profile and ag_profile.startswith("rule:"):
-                target_rule_name = ag_profile.split("rule:", 1)[1].strip()
-                rule_match = await db.execute(
-                    select(GuardrailRule).where(
-                        GuardrailRule.workspace_id == workspace_id,
-                        GuardrailRule.name == target_rule_name,
+            profiles = {p for p in (await db.execute(ag_stmt)).scalars().all() if p}
+            rule_names = [p.split("rule:", 1)[1].strip() for p in profiles if p.startswith("rule:")]
+            if rule_names:
+                extra = (
+                    (
+                        await db.execute(
+                            select(GuardrailRule).where(
+                                GuardrailRule.workspace_id == workspace_id,
+                                GuardrailRule.name.in_(rule_names),
+                                GuardrailRule.status == "active",
+                                GuardrailRule.mode.in_([mode, "both"]),
+                            )
+                        )
                     )
+                    .scalars()
+                    .all()
                 )
-                found_rule = rule_match.scalar_one_or_none()
-                if found_rule and found_rule not in rules:
-                    rules.append(found_rule)
-        except Exception as exc:
+                known = {r.id for r in rules}
+                rules.extend(r for r in extra if r.id not in known)
+                rules.sort(key=lambda r: r.priority)
+        except Exception as exc:  # noqa: BLE001
             log.warning("access_group_guardrail_resolution_failed", error=str(exc))
 
     results: list[dict[str, Any]] = []

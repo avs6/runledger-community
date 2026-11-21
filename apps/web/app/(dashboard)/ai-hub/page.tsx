@@ -27,6 +27,7 @@ import {
   getHubModelGovernance,
   listHubModels,
   requestHubAccess,
+  apiErrorMessage,
   syncHubProvider,
   updateHubModel,
 } from '@/lib/api'
@@ -288,11 +289,16 @@ export default function AiHubPage() {
   async function handleRequestAccess(id: string) {
     if (!apiKey) return
     try {
-      await requestHubAccess(apiKey, id)
-      toast.success('Access request recorded')
+      const result = await requestHubAccess(apiKey, id)
+      toast.success(
+        result.status === 'pending'
+          ? 'You already have a pending access request for this model.'
+          : 'Access request sent to workspace admins for approval.',
+        { action: { label: 'View approvals', onClick: () => { window.location.href = '/approvals' } } },
+      )
       await load()
-    } catch {
-      toast.error('Failed to record access request')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to record access request'))
     }
   }
 

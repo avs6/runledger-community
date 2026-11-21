@@ -18,6 +18,8 @@ from typing import Any
 
 import httpx
 
+from runledger_api.core.config import settings
+
 log = logging.getLogger(__name__)
 
 _GATEWAY_RS_URL = os.getenv("GATEWAY_RS_URL", "http://runledger-gateway-rs:8210").rstrip("/")
@@ -42,7 +44,9 @@ async def classify(
         payload: dict[str, Any] = {"messages": messages}
         if config:
             payload["config"] = config
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers=settings.internal_service_headers
+        ) as client:
             resp = await client.post(f"{_SVC_URL}/classify", json=payload)
             resp.raise_for_status()
             decision: dict[str, Any] = resp.json()

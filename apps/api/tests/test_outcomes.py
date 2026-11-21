@@ -175,6 +175,9 @@ async def test_create_outcome_with_run_id(
         obj.created_at = outcome.created_at  # type: ignore[attr-defined]
 
     mock_db_session.refresh = mock_refresh
+    owner = MagicMock()
+    owner.scalar_one_or_none.return_value = mock_workspace.id  # run belongs to this workspace
+    mock_db_session.execute = AsyncMock(return_value=owner)
 
     resp = await authed_client.post(
         "/outcomes",
@@ -188,6 +191,21 @@ async def test_create_outcome_with_run_id(
     data = resp.json()
     assert data["outcome_type"] == "lead_qualified"
     assert data["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_create_outcome_rejects_another_workspaces_run(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    owner = MagicMock()
+    owner.scalar_one_or_none.return_value = uuid.uuid4()  # someone else's run
+    mock_db_session.execute = AsyncMock(return_value=owner)
+    resp = await authed_client.post(
+        "/outcomes",
+        json={"outcome_type": "lead_qualified", "success": True, "run_id": str(uuid.uuid4())},
+    )
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

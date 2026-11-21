@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-change-in-production"
     # Admin secret for /admin/* endpoints.  If empty, falls back to secret_key.
     admin_secret: str = ""
+    # Shared token the optimization microservices (memory, knowledge graph, skills,
+    # semantic cache, context compiler, ...) require on every non-health request.
+    # Falls back to ADMIN_SECRET, matching the docker-compose default.
+    internal_service_token: str = ""
     # Shared secret used to verify HMAC-signed webhook ingest payloads.
     ingest_signing_secret: str = ""
     # Pepper for API key HMAC hashing (falls back to secret_key if empty).
@@ -84,6 +88,26 @@ class Settings(BaseSettings):
     deployment_profile: str = "core"
     local_tls_enabled: bool = False
 
+    # ── Identity & sessions ───────────────────────────────────────────────────
+    # Dashboard session keys expire after this many days (NextAuth maxAge matches).
+    session_ttl_days: int = 7
+    # Failed password/LDAP logins allowed per email (and per client IP) inside the
+    # window before further attempts are rejected with 429.
+    login_max_failures_per_account: int = 10
+    login_max_failures_per_ip: int = 50
+    login_failure_window_seconds: int = 900
+    password_min_length: int = 12
+    # Lifetime of SSO state (state + nonce + PKCE verifier) held in Redis.
+    auth_state_ttl_seconds: int = 600
+    # Verification / password-reset link lifetimes.
+    email_verify_ttl_hours: int = 24
+    password_reset_ttl_minutes: int = 60
+
+    # ── Budgets ───────────────────────────────────────────────────────────────
+    # Requests per minute the gateway still admits for a budget whose action is
+    # "throttle" once it has reached its limit.
+    budget_throttle_rpm: int = 10
+
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""
     ingest_rate_limit_per_minute: int = 10000
@@ -99,6 +123,11 @@ class Settings(BaseSettings):
     def effective_admin_secret(self) -> str:
         """Returns ADMIN_SECRET if set, otherwise falls back to SECRET_KEY."""
         return self.admin_secret or self.secret_key
+
+    @property
+    def internal_service_headers(self) -> dict[str, str]:
+        """Headers for calls from the API/workers to internal optimization services."""
+        return {"x-internal-token": self.internal_service_token or self.effective_admin_secret}
 
     @property
     def effective_ingest_signing_secret(self) -> str:

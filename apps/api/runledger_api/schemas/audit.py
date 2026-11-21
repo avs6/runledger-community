@@ -11,7 +11,9 @@ from pydantic import BaseModel
 
 class AuditEventResponse(BaseModel):
     id: uuid.UUID
-    workspace_id: uuid.UUID
+    # NULL for org-scoped events (membership/identity changes); tenant_id is set.
+    workspace_id: uuid.UUID | None = None
+    tenant_id: uuid.UUID | None = None
     actor_user_id: uuid.UUID | None
     actor_api_key_prefix: str | None
     action: str

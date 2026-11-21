@@ -28,8 +28,7 @@ flowchart TB
   consol --> local[local LLM]
 ```
 
-Everything is **workspace-scoped** (the same isolation model as the semantic cache), and every path is
-**fail-open** — a client session is never broken by a downstream service being unavailable.
+Everything is **workspace-scoped**: the MCP gateway derives the workspace from the caller's RunLedger API key (see [Access control](#access-control)). Downstream calls are **fail-open**, so a client session is never broken by a backing service being unavailable. Authentication is never fail-open.
 
 ## Memory (Letta-backed)
 
@@ -76,10 +75,41 @@ memory stays compact and reusable instead of growing without bound, like human m
 
 ## Over MCP
 
-All of it is exposed as MCP tools on the RunLedger MCP server, so **memory is shared across clients**:
+All of it is exposed as MCP tools on the optimization MCP gateway (`runledger-mcp-gateway`, port 8206), so **memory is shared across clients**:
 
 `memory_store` · `memory_recall` · `kg_add_entity` · `kg_add_relation` · `kg_neighbors` ·
-`skill_list` · `skill_get` (alongside `compile_context`).
+`skill_list` · `skill_get` (alongside `compile_context`, `select_tools` and `flywheel_analyze`).
+
+### Access control
+
+Every tool call must carry a RunLedger API key:
+
+```json
+{
+  "mcpServers": {
+    "runledger-optimization": {
+      "type": "http",
+      "url": "http://localhost:8206/mcp",
+      "headers": { "Authorization": "Bearer rl_live_..." }
+    }
+  }
+}
+```
+
+Use a key with the `mcp` scope (or no scopes). The gateway resolves the key through the control plane, so the same rules as the API apply: revoked and expired keys, suspended orgs and workspaces, and stale dashboard sessions are refused. Calls without a valid key get `{ "error": ..., "status": 401 }`.
+
+All data is stored under the **key's workspace**. The optional `workspace` argument only names a sub-namespace inside it (`<workspace_id>:<name>`), so a client can never read or write another tenant's memory, graph or skills. Memories written before this change under a bare name are not visible through the gateway.
+
+`MCP_REQUIRE_AUTH=false` disables the check for isolated local development only.
+
+### Backing services are internal-only
+
+The memory (8211), knowledge-graph (8212) and skill (8213) services — like every optimization microservice — trust the `workspace` they are given, so they are locked down two ways:
+
+- **Internal token.** Every request except `/health` must carry `X-Internal-Token` equal to `INTERNAL_SERVICE_TOKEN` (defaults to `ADMIN_SECRET`). Missing or wrong tokens get `401`; a service started without a token refuses all traffic (`503`) rather than running open.
+- **Localhost ports.** docker-compose publishes their ports on `127.0.0.1` only (`RUNLEDGER_INTERNAL_BIND`). In Kubernetes they are `ClusterIP` services.
+
+Clients reach memory, the graph and skills only through the MCP gateway, which authenticates the caller and fixes the workspace.
 
 ## Context Compiler integration
 

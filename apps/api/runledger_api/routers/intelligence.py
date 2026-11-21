@@ -15,7 +15,11 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import (
+    get_current_workspace,
+    require_workspace_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.ml import (
     MLAnomaly,
@@ -155,7 +159,11 @@ async def anomaly_summary(
     )
 
 
-@router.post("/anomalies/{anomaly_id}/acknowledge", response_model=AnomalyResponse)
+@router.post(
+    "/anomalies/{anomaly_id}/acknowledge",
+    response_model=AnomalyResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def acknowledge_anomaly(
     anomaly_id: uuid.UUID,
     workspace: WorkspaceDep,
@@ -176,7 +184,7 @@ async def acknowledge_anomaly(
     return _anomaly_to_response(anomaly)
 
 
-@router.post("/anomalies/train-isolation-forest")
+@router.post("/anomalies/train-isolation-forest", dependencies=[Depends(require_workspace_writer)])
 async def train_isolation_forest_endpoint(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -271,7 +279,7 @@ async def get_token_forecast(
 @router.post(
     "/forecasts/generate",
     response_model=dict[str, Any],
-    dependencies=[Depends(analytics_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(analytics_rate_limit)],
 )
 async def generate_forecast(
     workspace: WorkspaceDep,
@@ -404,7 +412,11 @@ async def feature_importances(
     return await get_feature_importances(db, workspace.id)
 
 
-@router.post("/complexity/retrain", response_model=dict[str, Any])
+@router.post(
+    "/complexity/retrain",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def retrain_complexity(
     workspace: WorkspaceDep,
     db: DbDep,
@@ -457,7 +469,11 @@ async def adaptive_suggestions(
     return await suggest_thresholds(db, workspace.id)
 
 
-@router.post("/alerts/{rule_id}/enable-adaptive", response_model=dict[str, Any])
+@router.post(
+    "/alerts/{rule_id}/enable-adaptive",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_workspace_admin)],
+)
 async def enable_adaptive(
     rule_id: uuid.UUID,
     workspace: WorkspaceDep,

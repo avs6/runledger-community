@@ -194,7 +194,11 @@ def main() -> int:
     parser.add_argument("--platform-password", default=os.getenv("RUNLEDGER_PLATFORM_PASSWORD", "runledger"))
     parser.add_argument("--org-name", default="LocalAIAgentStack")
     parser.add_argument("--org-admin-email", default="admin@localstack.com")
-    parser.add_argument("--org-admin-password", default="runledger")
+    parser.add_argument(
+        "--org-admin-password",
+        default="runledger-demo-1",
+        help="Must meet the API password policy (>= 12 chars, a letter and a digit).",
+    )
     parser.add_argument("--org-admin-name", default="LocalAI Stack Admin")
     parser.add_argument("--state-file", default="scripts/.localai-runledger.json")
     parser.add_argument("--localai-stack", default=r"C:\Users\Abi\Desktop\LocalAIAgentStack")
@@ -252,6 +256,14 @@ def main() -> int:
         {"email": args.org_admin_email, "password": args.org_admin_password},
     )
     org_key = org_login["api_key"]
+    if org_login.get("must_change_password"):
+        # First sign-in for a newly created admin: keep the chosen password.
+        _json_request(
+            "PUT",
+            f"{base_url}/users/me",
+            {"current_password": args.org_admin_password, "password": args.org_admin_password},
+            api_key=org_key,
+        )
     existing_workspaces = _json_request("GET", f"{base_url}/org/workspaces", api_key=org_key)
     by_name = {item["name"]: item for item in existing_workspaces}
 

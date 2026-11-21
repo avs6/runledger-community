@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.playground import PlaygroundRequest, PlaygroundSession
 from runledger_api.models.tenant import Workspace
@@ -97,7 +97,7 @@ def _request_to_response(r: PlaygroundRequest) -> PlaygroundRequestResponse:
     "/sessions",
     response_model=PlaygroundSessionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_session(
     body: PlaygroundSessionCreate, ws: WorkspaceDep, db: DbDep
@@ -195,7 +195,7 @@ async def get_session(
 @router.put(
     "/sessions/{session_id}",
     response_model=PlaygroundSessionResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_session(
     session_id: uuid.UUID,
@@ -225,7 +225,7 @@ async def update_session(
 @router.delete(
     "/sessions/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def delete_session(session_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     result = await db.execute(
@@ -248,7 +248,7 @@ async def delete_session(session_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> 
     "/send",
     response_model=PlaygroundRequestResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def send_request(
     body: PlaygroundSendRequest, ws: WorkspaceDep, db: DbDep
@@ -342,7 +342,7 @@ async def get_request(
 @router.post(
     "/compare",
     response_model=PlaygroundCompareResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def compare_models(
     body: PlaygroundCompareRequest, ws: WorkspaceDep, db: DbDep

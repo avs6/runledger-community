@@ -96,7 +96,7 @@ const buildNav = [
 export default function Sidebar() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { isPlatformAdmin, isOrgElevated, isWorkspaceAdmin, canAccessSettings } = useRole()
+  const { isPlatformAdmin, isOrgElevated, isWorkspaceAdmin, canAccessSettings, canAccessBilling, canAccessAudit } = useRole()
   const canAccessFinance = isWorkspaceAdmin || isOrgElevated || isPlatformAdmin
   const canAccessOrgControl = isOrgElevated || isPlatformAdmin
   const canAccessApiKeys = isWorkspaceAdmin || canAccessOrgControl
@@ -263,19 +263,27 @@ export default function Sidebar() {
               <NavLink href="/data-capture" label="Data Capture" icon={Shield} />
               <NavLink href="/security" label="Security" icon={ShieldAlert} />
               {isWorkspaceAdmin && <NavLink href="/approvals" label="Approvals" icon={ShieldCheck} />}
-              {isWorkspaceAdmin && <NavLink href="/audit" label="Audit Log" icon={ScrollText} />}
-              {isWorkspaceAdmin && <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />}
+              {canAccessAudit && <NavLink href="/audit" label="Audit Log" icon={ScrollText} />}
+              {canAccessAudit && <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />}
               <NavLink href="/alert-rules" label="Alert Rules" icon={Bell} />
               <NavLink href="/tags" label="Tags" icon={BookOpen} />
             </Section>
           )}
 
-          {canAccessFinance && (
+          {/* Org auditors: read-only access to the audit trail. */}
+          {!canAccessApiKeys && canAccessAudit && (
+            <Section id="governance" label="Safety & Governance">
+              <NavLink href="/audit" label="Audit Log" icon={ScrollText} />
+              <NavLink href="/governance-pack" label="Audit Pack" icon={FileCheck} />
+            </Section>
+          )}
+
+          {(canAccessFinance || canAccessBilling) && (
             <Section id="finance" label="FinOps">
               <NavLink href="/cost-savings" label="Cost & Savings" icon={PiggyBank} />
               <NavLink href="/budgets" label="Budgets" icon={Wallet} />
               <NavLink href="/billing" label="Billing" icon={FileSpreadsheet} />
-              {canAccessOrgControl && <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />}
+              {(canAccessOrgControl || canAccessBilling) && <NavLink href="/chargeback" label="Chargeback" icon={Receipt} />}
             </Section>
           )}
         </nav>

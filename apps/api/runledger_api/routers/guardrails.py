@@ -124,7 +124,7 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
     "",
     response_model=GuardrailRuleResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_admin), Depends(management_rate_limit)],
 )
 async def create_guardrail(
     body: GuardrailRuleCreate,

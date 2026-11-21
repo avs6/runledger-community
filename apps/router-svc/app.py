@@ -21,13 +21,15 @@ POST /classify { messages, config? } → { complexity, risk, reasoning_effort, t
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import re
 from typing import Any
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1").rstrip("/")
@@ -35,9 +37,28 @@ DEFAULT_LLM_MODEL = os.getenv("ROUTER_LLM_MODEL", "llama3.1:8b")
 TIMEOUT = float(os.getenv("ROUTER_TIMEOUT_SECONDS", "20"))
 
 DEFAULT_RISK_KEYWORDS = [
-    "regulatory", "regulation", "compliance", "contract", "legal", "lawsuit", "liability",
-    "financial", "invoice", "tax", "audit", "medical", "diagnosis", "patient", "security",
-    "vulnerability", "credential", "password", "pii", "gdpr", "hipaa", "breach",
+    "regulatory",
+    "regulation",
+    "compliance",
+    "contract",
+    "legal",
+    "lawsuit",
+    "liability",
+    "financial",
+    "invoice",
+    "tax",
+    "audit",
+    "medical",
+    "diagnosis",
+    "patient",
+    "security",
+    "vulnerability",
+    "credential",
+    "password",
+    "pii",
+    "gdpr",
+    "hipaa",
+    "breach",
 ]
 DEFAULT_MATRIX = {
     "simple": {"low": "cheap", "high": "mid"},
@@ -48,6 +69,27 @@ DEFAULT_TIERS = {"cheap": "gpt-4o-mini", "mid": "gpt-4o", "frontier": "o1"}
 EFFORT_BY_COMPLEXITY = {"simple": "low", "medium": "medium", "complex": "high"}
 
 app = FastAPI(title="RunLedger Router Service", version="0.1.0")
+
+
+# ── Internal access control ──────────────────────────────────────────────────
+# Only RunLedger components may call this service: every request except the
+# /health probes must carry X-Internal-Token == INTERNAL_SERVICE_TOKEN. Callers pass
+# workspace ids they have already authorized, so this service must never be
+# reachable by end users directly. With no token configured the service refuses
+# all non-health traffic rather than running open.
+_INTERNAL_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "")
+
+
+@app.middleware("http")
+async def _require_internal_token(request: Request, call_next: Any) -> Any:
+    if request.url.path.startswith("/health"):
+        return await call_next(request)
+    if not _INTERNAL_TOKEN:
+        return JSONResponse({"detail": "INTERNAL_SERVICE_TOKEN is not configured"}, status_code=503)
+    supplied = request.headers.get("x-internal-token", "")
+    if not hmac.compare_digest(supplied.encode(), _INTERNAL_TOKEN.encode()):
+        return JSONResponse({"detail": "Internal service token required"}, status_code=401)
+    return await call_next(request)
 
 
 def est(text: str) -> int:

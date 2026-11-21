@@ -1,9 +1,9 @@
 ---
 title: "Access Groups"
-description: "Workspace-scoped governance groups for member assignment, budgets, and guardrail envelopes."
+description: "Workspace-scoped governance groups for member assignment, guardrail profiles, and access-group budget scope."
 ---
 
-The **Access Groups** page lets workspace admins define reusable governance bundles for a workspace. Each group can carry a budget envelope, guardrail profile, and dashboard filter context, then map users into that policy surface.
+The **Access Groups** page lets workspace admins define reusable governance bundles for a workspace. Each group carries a guardrail profile and dashboard filter context, maps users into that policy surface, and can be the scope of budget policies.
 
 ## Who Can Manage Access Groups
 
@@ -15,15 +15,15 @@ The **Access Groups** page lets workspace admins define reusable governance bund
 
 - Create and update access groups.
 - Deactivate groups that should no longer grant membership.
-- Add and remove members.
-- Attach budget and guardrail posture to a reusable workspace group.
+- Add and remove members. Only users with access to the workspace can be added; a user can be in a group once (duplicates return `409`), and archived groups accept no members.
+- Attach a guardrail profile to a reusable workspace group.
 - Drill directly into the group's scoped budget, billing, and chargeback posture.
 
 ## Financial Scope
 
 Access groups are now a real financial scope primitive in the product, not just a visual grouping helper.
 
-- **Budgets** can be created and filtered with `scope_type=access_group`.
+- **Budgets** can be created and filtered with `scope_type=access_group`. This is the only place group spend limits live — the old per-group `budget_usd`/`budget_period` fields were migrated into budget policies (action `notify`) and removed, so groups share one budget system with every other scope. Members' spend is counted against the group's budgets, and the gateway enforces them (block, throttle, downgrade). See [Budgets](/finops/budgets#access-group-budget-scoping) for how calls are attributed to members.
 - **Billing periods** can be filtered to traffic attributable to access-group members.
 - **Chargeback** can report directly on the `access_group` dimension and compare those allocations to matching budgets.
 
@@ -41,7 +41,9 @@ The access-groups dashboard links into `/analytics`, `/runs`, `/request-flow`, `
 
 - `GET /analytics/access-group-gateway-posture?access_group_id={id}` returns the workspace gateway posture relevant to the access group: route count, active routes, distinct providers, routing policies, guardrail count and active guardrails, and passthrough endpoint count. The response also surfaces the group's `guardrail_profile` for quick reference.
 - The Access Groups page links directly to Gateway, Provider Profiles, Rate Limits, and Guardrails for workspace-level runtime context.
-- Access groups carry a `guardrail_profile` field that the guardrails engine resolves at runtime, making the group a first-class runtime governance scope.
+- Access groups carry a `guardrail_profile` that the gateway applies at runtime. The gateway maps each request to a user (the session key's owner, the creator of a user-owned key, or an `end_user_id` that matches a workspace member) and applies the active guardrail rules of every active group that user belongs to.
+
+Access-group changes (create, update, archive, member add/remove) are written to the audit log.
 
 ## Product Fit
 

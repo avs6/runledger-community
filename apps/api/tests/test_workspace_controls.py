@@ -362,12 +362,23 @@ async def test_access_groups_dashboard_and_members(
 async def test_create_access_group_member(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     group = _make_group(member_count=0)
     group_result = MagicMock()
     group_result.scalar_one_or_none.return_value = group
-    mock_db_session.execute = AsyncMock(return_value=group_result)
+    no_duplicate = MagicMock()
+    no_duplicate.scalar_one_or_none.return_value = None
+    count_result = MagicMock()
+    count_result.scalar.return_value = 1
+    mock_db_session.execute = AsyncMock(side_effect=[group_result, no_duplicate, count_result])
     mock_db_session.refresh = AsyncMock(side_effect=_refresh_defaults)
+    mock_db_session.get = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
+
+    async def _member(*_args: object, **_kwargs: object) -> bool:
+        return True
+
+    monkeypatch.setattr("runledger_api.services.sessions.has_workspace_access", _member)
 
     user_id = str(uuid.uuid4())
     resp = await authed_client.post(
@@ -378,6 +389,31 @@ async def test_create_access_group_member(
     assert resp.status_code == 201
     assert resp.json()["role"] == "admin"
     assert group.member_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_access_group_member_rejects_non_member(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    group = _make_group(member_count=0)
+    group_result = MagicMock()
+    group_result.scalar_one_or_none.return_value = group
+    mock_db_session.execute = AsyncMock(return_value=group_result)
+    mock_db_session.get = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
+
+    async def _outsider(*_args: object, **_kwargs: object) -> bool:
+        return False
+
+    monkeypatch.setattr("runledger_api.services.sessions.has_workspace_access", _outsider)
+
+    resp = await authed_client.post(
+        f"/access-groups/{group.id}/members",
+        headers={"Authorization": "Bearer test-key"},
+        json={"user_id": str(uuid.uuid4()), "role": "member"},
+    )
+    assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

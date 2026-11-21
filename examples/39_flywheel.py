@@ -35,6 +35,9 @@ load_dotenv()
 
 FLYWHEEL_URL = os.getenv("FLYWHEEL_URL", "http://localhost:8215")
 API_URL = os.getenv("RUNLEDGER_BASE_URL_LOCAL", "http://localhost:8201")
+# Internal services only accept calls carrying the shared internal token, and their
+# ports are bound to 127.0.0.1 — run this on the RunLedger host as an operator.
+INTERNAL_HEADERS = {"x-internal-token": os.getenv("INTERNAL_SERVICE_TOKEN", "")}
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
 
 
@@ -52,14 +55,24 @@ def part1_analyzer() -> None:
                 "segment_key": "refund_resolved",
                 "observations": [
                     # Expensive frontier model — most traffic runs here (the "current" config).
-                    {"config": {"model": "gpt-4o"}, "n": 140, "avg_cost_per_req": 0.028, "quality": 0.94},
+                    {
+                        "config": {"model": "gpt-4o"},
+                        "n": 140,
+                        "avg_cost_per_req": 0.028,
+                        "quality": 0.94,
+                    },
                     # Cheaper model that still clears the 0.85 SLA.
-                    {"config": {"model": "gpt-4o-mini"}, "n": 90, "avg_cost_per_req": 0.006, "quality": 0.90},
+                    {
+                        "config": {"model": "gpt-4o-mini"},
+                        "n": 90,
+                        "avg_cost_per_req": 0.006,
+                        "quality": 0.90,
+                    },
                 ],
             },
         ],
     }
-    r = httpx.post(f"{FLYWHEEL_URL}/analyze", json=payload, timeout=30)
+    r = httpx.post(f"{FLYWHEEL_URL}/analyze", json=payload, headers=INTERNAL_HEADERS, timeout=30)
     r.raise_for_status()
     for rec in r.json()["recommendations"]:
         pct = rec["est_cost_delta_pct"]
@@ -93,7 +106,9 @@ def part2_api() -> None:
         },
         timeout=30,
     ).json()
-    print(f"  settings: enabled={settings['enabled']} SLA={settings['min_quality']} mode={settings['apply_mode']}")
+    print(
+        f"  settings: enabled={settings['enabled']} SLA={settings['min_quality']} mode={settings['apply_mode']}"
+    )
 
     # Run the analysis now (normally a nightly beat job does this).
     run = httpx.post(f"{API_URL}/gateway/flywheel/run", headers=h, timeout=60).json()

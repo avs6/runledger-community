@@ -24,7 +24,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-import sqlalchemy as sa
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -418,28 +417,6 @@ async def choose_route_for_alias(
         preferred_region=preferred_region,
     )
     if not filtered:
-        from runledger_api.models.projects import TeamModel  # noqa: PLC0415
-
-        tm_stmt = (
-            select(TeamModel)
-            .where(
-                TeamModel.workspace_id == workspace_id,
-                sa.or_(TeamModel.model_name == alias, TeamModel.team_name == alias),
-            )
-            .limit(1)
-        )
-        tm = (await db.execute(tm_stmt)).scalar_one_or_none()
-        if tm and tm.api_base_url:
-            dynamic_route = GatewayRoute(
-                id=tm.id,
-                workspace_id=workspace_id,
-                alias=tm.model_name,
-                target_model=tm.model_name,
-                provider=tm.provider or "custom",
-                endpoint_url=tm.api_base_url,
-                is_active=True,
-            )
-            return dynamic_route, f"team_model:{tm.team_name}"
         return None, "no-routes"
 
     groups = await list_routing_groups_for_alias(db, workspace_id, alias)

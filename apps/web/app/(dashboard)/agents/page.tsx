@@ -13,6 +13,7 @@ import {
 import { getAgents, createAgent, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentsListPosture } from '@/lib/api'
 import type { AgentResponse, BudgetDetailBuildPosture } from '@/types/api'
 import { num } from '@/lib/utils'
+import { useRole } from '@/components/rbac/useRole'
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500'
@@ -101,6 +102,7 @@ export default function AgentsPage() {
   const { data: session } = useSession()
   const apiKey = (session as Record<string, unknown> | null)?.apiKey as string | undefined
   const router = useRouter()
+  const { canWrite } = useRole()
 
   const [agents, setAgents] = useState<AgentResponse[]>([])
   const [total, setTotal] = useState(0)
@@ -193,12 +195,14 @@ export default function AgentsPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:from-blue-700 hover:to-cyan-600 transition-colors"
-          >
-            <Plus className="h-3 w-3" /> Register Agent
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:from-blue-700 hover:to-cyan-600 transition-colors"
+            >
+              <Plus className="h-3 w-3" /> Register Agent
+            </button>
+          )}
           {[
             { href: '/workflows', label: 'Workflows', icon: GitBranch },
             { href: '/runs', label: 'Runs', icon: Zap },
@@ -213,7 +217,7 @@ export default function AgentsPage() {
       </div>
 
       {/* ── Registration Modal ────────────────────── */}
-      {showForm && (
+      {showForm && canWrite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowForm(false)}>
           <div className="w-full max-w-lg rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl" onClick={e => e.stopPropagation()}>
             {/* Modal header */}
@@ -473,9 +477,11 @@ export default function AgentsPage() {
           <BrainCircuit className="h-8 w-8 text-slate-400" />
           <h2 className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">No agents registered</h2>
           <p className="mt-1 max-w-md text-xs text-slate-500">Click &ldquo;Register Agent&rdquo; above to create your first agent, or use the API.</p>
-          <button onClick={() => setShowForm(true)} className="mt-3 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-blue-700 hover:to-cyan-600 transition-colors">
-            <Plus className="mr-1 inline h-3 w-3" /> Register Agent
-          </button>
+          {canWrite && (
+            <button onClick={() => setShowForm(true)} className="mt-3 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-blue-700 hover:to-cyan-600 transition-colors">
+              <Plus className="mr-1 inline h-3 w-3" /> Register Agent
+            </button>
+          )}
         </div>
       )}
 

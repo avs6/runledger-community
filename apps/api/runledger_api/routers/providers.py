@@ -25,7 +25,7 @@ from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_org_admin
+from runledger_api.core.deps import get_current_workspace, require_org_admin, require_platform_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.budgets import Budget
 from runledger_api.models.events import ProviderCall
@@ -49,6 +49,8 @@ router = APIRouter(
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 OrgAdminDep = Annotated[tuple[Workspace, User, TenantUser | None], Depends(require_org_admin)]
+# The global pricing catalog prices every tenant's spend: platform admins only.
+PlatformAdminDep = Annotated[tuple[Workspace, User], Depends(require_platform_admin)]
 
 
 @router.get("/pricing", response_model=ProviderPricingList)
@@ -115,12 +117,12 @@ async def list_pricing(auth: OrgAdminDep, db: DbDep) -> ProviderPricingList:
 
 @router.post("/pricing/import", response_model=PricingImportResult)
 async def import_pricing(
-    auth: OrgAdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
     file: Annotated[UploadFile, File(description="A pricing YAML file")],
 ) -> PricingImportResult:
     """
-    Import a pricing YAML — idempotently upserts the **global** pricing catalog
+    Import a pricing YAML (platform admins only) — idempotently upserts the **global** pricing catalog
     (update-in-place; re-importing the same file is a no-op). This is the DB-backed
     source of truth; the file is only the transport.
     """

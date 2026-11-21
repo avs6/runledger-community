@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
 import SessionProvider from '@/components/layout/SessionProvider'
+import PasswordChangeGate from '@/components/layout/PasswordChangeGate'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { Toaster } from 'sonner'
 
@@ -11,13 +12,14 @@ const API_URL =
   process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
 
 /**
- * Lightweight API key probe. Returns false if the key is invalid (401),
- * true on success or any non-401 error (fail-open so a network blip
- * doesn't log everyone out).
+ * Lightweight session probe (GET /auth/me). Returns false if the session key is
+ * invalid (401: revoked, expired, user deactivated, access removed), true on
+ * success or any non-401 error (fail-open so a network blip doesn't log everyone
+ * out).
  */
 async function isApiKeyValid(apiKey: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_URL}/settings/api-keys?limit=1`, {
+    const res = await fetch(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       cache: 'no-store',
     })
@@ -43,6 +45,7 @@ export default async function DashboardLayout({
   return (
     <ThemeProvider>
       <SessionProvider session={session}>
+        <PasswordChangeGate />
         <div className="flex h-screen overflow-hidden bg-transparent">
           <Sidebar />
           <div className="flex flex-1 flex-col overflow-hidden">

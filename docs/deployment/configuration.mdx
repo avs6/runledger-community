@@ -11,10 +11,13 @@ This page is the reference for the ones you'll actually touch.
 | Variable | Default | Notes |
 |---|---|---|
 | `SECRET_KEY` | — | **Required.** 32-byte hex; signs tokens and the ledger. |
-| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/bootstrap`. |
+| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/*` and the internal gateway/MCP endpoints that resolve API keys. |
 | `DATABASE_URL` | in-compose Postgres | `postgresql+asyncpg://…` |
 | `REDIS_URL` | in-compose Redis | Queue + budget hot-path. |
 | `CORS_ORIGINS` | `http://localhost:3201` | Dashboard origin(s). |
+| `INTERNAL_SERVICE_TOKEN` | `ADMIN_SECRET` | Shared token every optimization microservice requires on non-health requests; the API, workers, MCP gateway and context compiler send it. |
+| `RUNLEDGER_INTERNAL_BIND` | `127.0.0.1` | Host address for internal ports (databases, queues, Letta, optimization microservices). Only the API, gateway, web, Caddy, MCP gateway and OTLP ports listen on all interfaces. |
+| `BUDGET_THROTTLE_RPM` | `10` | Requests per minute the gateway still admits for a `throttle` budget past its limit. |
 
 Payload capture is **off by default** and is controlled by the SDK's `privacy_mode` argument (not a
 server env var) — see [Data retention](/governance/retention).
@@ -54,6 +57,7 @@ MinIO (9010/9011), Redpanda (19092/18082), Redpanda Console (19091), OTel Collec
 | `EMBEDDING_MODEL` / `EMBEDDING_DIM` | `bge-small-en-v1.5` / 384 | Shared embedding model of record. |
 | `SEMANTIC_CACHE_THRESHOLD` | `0.95` | Similarity floor for a cache hit. |
 | `RERANKER_MODEL` / `COMPRESSION_MODEL` | `flashrank` / `bert-base-multilingual` | Model choices for those services. |
+| `MCP_REQUIRE_AUTH` | `true` | MCP gateway requires a RunLedger API key on every tool call. Set `false` only for isolated local development. |
 
 ## Local LLMs (external)
 

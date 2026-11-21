@@ -35,7 +35,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.agents import (
     WorkflowDefinition,
@@ -134,7 +134,7 @@ def _run_to_response(
     "",
     response_model=WorkflowDefinitionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_workflow(
     body: WorkflowDefinitionCreate, ws: WorkspaceDep, db: DbDep
@@ -228,7 +228,7 @@ async def get_workflow(
 @router.put(
     "/{workflow_id}",
     response_model=WorkflowDefinitionResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_workflow(
     workflow_id: uuid.UUID,
@@ -257,7 +257,7 @@ async def update_workflow(
 @router.delete(
     "/{workflow_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def archive_workflow(workflow_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     result = await db.execute(
@@ -281,7 +281,7 @@ async def archive_workflow(workflow_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) 
     "/{workflow_id}/runs",
     response_model=WorkflowRunResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_run(
     workflow_id: uuid.UUID,
@@ -411,7 +411,7 @@ async def get_run(
 @router.put(
     "/{workflow_id}/runs/{run_id}",
     response_model=WorkflowRunResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_run(
     workflow_id: uuid.UUID,
@@ -459,7 +459,7 @@ async def update_run(
     "/runs/{run_id}/steps",
     response_model=WorkflowStepResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_step(
     run_id: uuid.UUID,
@@ -498,7 +498,7 @@ async def create_step(
 @router.put(
     "/runs/{run_id}/steps/{step_id}",
     response_model=WorkflowStepResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_step(
     run_id: uuid.UUID,

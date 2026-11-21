@@ -21,7 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import get_current_workspace, require_audit_access
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.tenant import Workspace
@@ -35,7 +35,8 @@ router = APIRouter(
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WsDep = Annotated[Workspace, Depends(get_current_workspace)]
-AdminDep = Annotated[tuple[Any, ...], Depends(require_workspace_admin)]
+# Workspace admins, org admins/managers and org auditors read the audit trail.
+AdminDep = Annotated[tuple[Any, ...], Depends(require_audit_access)]
 
 
 @router.get("/events", response_model=AuditEventList)

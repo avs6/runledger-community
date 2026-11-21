@@ -67,6 +67,18 @@ class Client:
         except Exception:
             return {}
 
+    async def put(self, path: str, *, json_body: dict | None = None) -> dict:
+        assert self._http is not None
+        response = await self._http.put(
+            path,
+            headers={**self._headers(), "Content-Type": "application/json"},
+            content=json.dumps(json_body or {}),
+        )
+        try:
+            return response.json()
+        except Exception:
+            return {}
+
 
 @dataclass
 class WorkspaceContext:
@@ -121,15 +133,33 @@ async def _workspace_names(admin: Client) -> set[str]:
 async def _invite_users(admin: Client) -> None:
     for org in ORGS:
         for email, full_name, role in org["users"]:
-            await admin.post(
+            invited = await admin.post(
                 "/org/members/invite",
                 json_body={
                     "email": email,
                     "full_name": full_name,
                     "role": role,
-                    "password": DEMO_PASSWORD,
+                    "temporary_password": DEMO_PASSWORD,
+                    "skip_verification": True,
                 },
             )
+            if invited.get("temporary_password"):
+                await _complete_first_sign_in(admin.base_url, email)
+
+
+async def _complete_first_sign_in(base_url: str, email: str) -> None:
+    """New accounts must change their temporary password at first sign-in; keep the
+    canonical demo password by setting it again through PUT /users/me."""
+    async with Client(base_url) as anon:
+        login = await anon.post("/auth/login", json_body={"email": email, "password": DEMO_PASSWORD})
+    token = login.get("api_key")
+    if not token or not login.get("must_change_password"):
+        return
+    async with Client(base_url, token) as user:
+        await user.put(
+            "/users/me",
+            json_body={"current_password": DEMO_PASSWORD, "password": DEMO_PASSWORD},
+        )
 
 
 async def _create_workspace(admin: Client, org_name: str, workspace_name: str) -> WorkspaceContext:

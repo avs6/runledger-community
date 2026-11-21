@@ -29,6 +29,9 @@ load_dotenv()
 
 COMPILER_URL = os.getenv("CONTEXT_COMPILER_URL", "http://localhost:8207")
 SKILL_URL = os.getenv("SKILL_URL", "http://localhost:8213")
+# Internal services only accept calls carrying the shared internal token, and their
+# ports are bound to 127.0.0.1 — run this on the RunLedger host as an operator.
+INTERNAL_HEADERS = {"x-internal-token": os.getenv("INTERNAL_SERVICE_TOKEN", "")}
 WS = "demo-p6"
 
 
@@ -58,27 +61,54 @@ def sep(t: str) -> None:
     print(f"\n{'─' * 60}\n  {t}\n{'─' * 60}")
 
 
-with httpx.Client(timeout=120.0) as c:
+with httpx.Client(timeout=120.0, headers=INTERNAL_HEADERS) as c:
     sep(f"Tool filtering — {len(TOOLS)} tools → relevant subset")
-    r = c.post(f"{COMPILER_URL}/select-tools",
-               json={"query": "Check my Salesforce opportunity for Acme Corp", "tools": TOOLS})
+    r = c.post(
+        f"{COMPILER_URL}/select-tools",
+        json={"query": "Check my Salesforce opportunity for Acme Corp", "tools": TOOLS},
+    )
     d = r.json()
     kept = [t["function"]["name"] for t in d.get("tools", [])]
     print(f"  kept {len(kept)} tools: {kept}")
     print(f"  saved ~{d.get('saved_tokens')} tokens of tool schema")
 
     sep("Skill injection (inject-body-on-match)")
-    c.post(f"{SKILL_URL}/skills", json={"workspace": WS, "name": "refund-policy",
-           "description": "How to process a customer refund and the approval thresholds",
-           "content": "Refunds under $100 are auto-approved. $100-1000 need manager sign-off. "
-                      "Over $1000 need finance approval. Always log the reason.", "version": 1})
+    c.post(
+        f"{SKILL_URL}/skills",
+        json={
+            "workspace": WS,
+            "name": "refund-policy",
+            "description": "How to process a customer refund and the approval thresholds",
+            "content": "Refunds under $100 are auto-approved. $100-1000 need manager sign-off. "
+            "Over $1000 need finance approval. Always log the reason.",
+            "version": 1,
+        },
+    )
     msgs = [{"role": "user", "content": "A customer wants a $250 refund — what's the process?"}]
-    r = c.post(f"{COMPILER_URL}/compile", json={"messages": msgs, "workspace": WS,
-               "config": {"token_threshold": 0, "stages": {"skills": True, "rerank": False,
-                          "tool_output": False, "dedup": False, "compaction": False}}})
+    r = c.post(
+        f"{COMPILER_URL}/compile",
+        json={
+            "messages": msgs,
+            "workspace": WS,
+            "config": {
+                "token_threshold": 0,
+                "stages": {
+                    "skills": True,
+                    "rerank": False,
+                    "tool_output": False,
+                    "dedup": False,
+                    "compaction": False,
+                },
+            },
+        },
+    )
     d = r.json()
     print("  what changed:", d.get("dropped"))
-    injected = [m for m in d["messages"] if m["role"] == "system" and "Relevant skill" in m.get("content", "")]
+    injected = [
+        m
+        for m in d["messages"]
+        if m["role"] == "system" and "Relevant skill" in m.get("content", "")
+    ]
     if injected:
         print("  injected skill block:\n   ", injected[0]["content"][:160], "…")
 

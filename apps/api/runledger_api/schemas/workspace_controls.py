@@ -268,8 +268,6 @@ class AccessGroupCreate(BaseModel):
     name: str = Field(..., max_length=200)
     description: str | None = Field(None, max_length=2000)
     permissions: dict[str, Any] = Field(default_factory=dict)
-    budget_usd: Decimal | None = None
-    budget_period: str | None = Field(None, max_length=20)
     guardrail_profile: str | None = Field(None, max_length=100)
     is_active: bool = True
 
@@ -278,8 +276,6 @@ class AccessGroupUpdate(BaseModel):
     name: str | None = Field(None, max_length=200)
     description: str | None = Field(None, max_length=2000)
     permissions: dict[str, Any] | None = None
-    budget_usd: Decimal | None = None
-    budget_period: str | None = Field(None, max_length=20)
     guardrail_profile: str | None = Field(None, max_length=100)
     is_active: bool | None = None
 
@@ -303,8 +299,6 @@ class AccessGroupResponse(BaseModel):
     name: str
     description: str | None = None
     permissions: dict[str, Any]
-    budget_usd: Decimal | None = None
-    budget_period: str | None = None
     guardrail_profile: str | None = None
     is_active: bool
     member_count: int
@@ -326,8 +320,6 @@ class AccessGroupDashboardItem(BaseModel):
     id: uuid.UUID
     name: str
     member_count: int
-    budget_usd: Decimal | None = None
-    budget_period: str | None = None
     guardrail_profile: str | None = None
     dashboard_filters: dict[str, Any]
     is_active: bool

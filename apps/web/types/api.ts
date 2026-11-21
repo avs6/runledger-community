@@ -627,7 +627,7 @@ export interface CapturePolicyResponse { id: string; workspace_id: string; priva
 
 // ── Phase 12 — Settings ────────────────────────────────────────────────────────
 
-export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; budget_tier_id: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null; ownership_type: string; owner_reference: string | null }
+export interface ApiKeyResponse { id: string; workspace_id: string; workspace_name?: string | null; budget_tier_id: string | null; key_prefix: string; name: string | null; scopes: string[]; is_session: boolean; created_at: string; created_by: string | null; ownership_type: string; owner_reference: string | null; expires_at?: string | null; last_used_at?: string | null }
 export interface ApiKeyCreateResponse extends ApiKeyResponse { key: string }
 export interface ApiKeyUpdateRequest { name?: string | null; ownership_type?: string | null; owner_reference?: string | null; scopes?: string[] }
 
@@ -1620,6 +1620,7 @@ export interface QualityOutcomeCorrelation {
 // ── Approvals ─────────────────────────────────────────────────────────────────
 
 export type ApprovalRequestType =
+  | 'model_access'
   | 'budget_increase'
   | 'prompt_promote'
   | 'tool_allow'
@@ -2057,6 +2058,8 @@ export interface BackupTargetConfig {
   endpoint_url: string | null
   access_key_id: string | null
   secret_access_key: string | null
+  /** Read-only: whether a secret is stored (the secret itself is never returned). */
+  has_secret_access_key?: boolean
   force_path_style: boolean
   schedule_enabled: boolean
   cadence: 'daily' | 'weekly' | 'monthly'
@@ -4022,8 +4025,6 @@ export interface AccessGroupResponse {
   name: string
   description: string | null
   permissions: Record<string, unknown>
-  budget_usd: number | null
-  budget_period: string | null
   guardrail_profile: string | null
   is_active: boolean
   member_count: number
@@ -4053,8 +4054,6 @@ export interface AccessGroupDashboardItem {
   id: string
   name: string
   member_count: number
-  budget_usd: number | null
-  budget_period: string | null
   guardrail_profile: string | null
   dashboard_filters: Record<string, unknown>
   is_active: boolean

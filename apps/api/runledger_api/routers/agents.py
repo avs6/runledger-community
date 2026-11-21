@@ -37,7 +37,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.agents import (
     Agent,
@@ -98,7 +98,7 @@ def _agent_to_response(a: Agent) -> AgentResponse:
     "",
     response_model=AgentResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_agent(body: AgentCreate, ws: WorkspaceDep, db: DbDep) -> AgentResponse:
     agent = Agent(
@@ -191,7 +191,7 @@ async def get_agent(agent_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> AgentRe
 @router.put(
     "/{agent_id}",
     response_model=AgentResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_agent(
     agent_id: uuid.UUID, body: AgentUpdate, ws: WorkspaceDep, db: DbDep
@@ -215,7 +215,7 @@ async def update_agent(
 @router.delete(
     "/{agent_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def retire_agent(agent_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     result = await db.execute(
@@ -453,7 +453,7 @@ async def _audit_log(
     "/{agent_id}/memory",
     response_model=AgentMemoryResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def store_memory(
     agent_id: uuid.UUID,
@@ -542,7 +542,7 @@ async def list_memories(
 @router.put(
     "/{agent_id}/memory/{key:path}",
     response_model=AgentMemoryResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_memory(
     agent_id: uuid.UUID,
@@ -599,7 +599,7 @@ async def update_memory(
 @router.delete(
     "/{agent_id}/memory/{key:path}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def delete_memory(
     agent_id: uuid.UUID,

@@ -36,7 +36,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-runledger}
       POSTGRES_DB: runledger
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -54,7 +54,7 @@ services:
       - -c
       - redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly ${RUNLEDGER_REDIS_APPENDONLY:-no} --appendfsync ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec} --save "${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}" ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -69,8 +69,8 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${QDRANT_HTTP_PORT:-8202}:6333"
-      - "${QDRANT_GRPC_PORT:-8203}:6334"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${QDRANT_HTTP_PORT:-8202}:6333"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${QDRANT_GRPC_PORT:-8203}:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
@@ -89,8 +89,8 @@ services:
       MINIO_ROOT_USER: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
       MINIO_ROOT_PASSWORD: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
     ports:
-      - "9010:9000"
-      - "9011:9001"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:9010:9000"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:9011:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -132,8 +132,8 @@ services:
       - --advertise-rpc-addr
       - runledger-redpanda:33145
     ports:
-      - "19092:19092"
-      - "18082:18082"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:19092:19092"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:18082:18082"
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     healthcheck:
@@ -161,7 +161,7 @@ services:
         EOF
         /app/console
     ports:
-      - "19091:8080"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:19091:8080"
     depends_on:
       runledger-redpanda:
         condition: service_healthy
@@ -176,6 +176,7 @@ services:
     ports:
       - "${API_PORT:-8201}:8000"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
@@ -327,6 +328,7 @@ services:
     restart: unless-stopped
     command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
@@ -389,6 +391,7 @@ services:
     restart: unless-stopped
     command: celery -A runledger_api.core.celery_app beat --loglevel=info
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
@@ -484,8 +487,9 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${EMBEDDING_PORT:-8204}:8100"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${EMBEDDING_PORT:-8204}:8100"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
     volumes:
       - embedding_cache:/app/.cache/fastembed
@@ -504,8 +508,9 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${SEMANTIC_CACHE_PORT:-8205}:8101"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${SEMANTIC_CACHE_PORT:-8205}:8101"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       QDRANT_URL: http://runledger-qdrant:6333
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_THRESHOLD: ${SEMANTIC_CACHE_THRESHOLD:-0.95}
@@ -532,8 +537,14 @@ services:
     ports:
       - "${MCP_PORT:-8206}:8200"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8200
+      # Every tool call must carry a RunLedger API key; it is resolved here and all
+      # memory / knowledge-graph / skill data is namespaced under its workspace.
+      RUNLEDGER_CONTROL_PLANE_URL: http://runledger-api:8000
+      RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
+      MCP_REQUIRE_AUTH: ${MCP_REQUIRE_AUTH:-true}
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       ROUTER_SVC_URL: http://runledger-gateway-rs:8210
       GATEWAY_RS_URL: http://runledger-gateway-rs:8210
@@ -571,7 +582,7 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${LETTA_PORT:-8214}:8283"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${LETTA_PORT:-8214}:8283"
     environment:
       LETTA_PG_URI: postgresql://letta:letta@runledger-memory-db:5432/letta
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_HOST:-http://host.docker.internal:11434}
@@ -589,8 +600,9 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${MEMORY_PORT:-8211}:8107"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${MEMORY_PORT:-8211}:8107"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       LETTA_BASE_URL: http://runledger-letta:8283
       LETTA_MODEL: ${LETTA_MODEL:-ollama/llama3.1:8b}
       # Local text embedding model for memory (configurable — any model you've pulled in Ollama).
@@ -605,10 +617,12 @@ services:
     build:
       context: ./apps/kg-svc
     container_name: runledger-kg-svc
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${KG_PORT:-8212}:8106"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${KG_PORT:-8212}:8106"
     volumes:
       - kuzu_data:/data
     healthcheck:
@@ -623,10 +637,12 @@ services:
     build:
       context: ./apps/skill-registry
     container_name: runledger-skill-registry
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${SKILL_PORT:-8213}:8108"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${SKILL_PORT:-8213}:8108"
     volumes:
       - skills_data:/data/skills
 
@@ -638,8 +654,9 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${RERANKER_PORT:-8208}:8102"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${RERANKER_PORT:-8208}:8102"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       RERANKER_MODEL: ${RERANKER_MODEL:-flashrank}
     volumes:
       - reranker_cache:/app/.cache/fastembed
@@ -658,8 +675,9 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${COMPRESSION_PORT:-8209}:8104"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${COMPRESSION_PORT:-8209}:8104"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       COMPRESSION_MODEL: ${COMPRESSION_MODEL:-bert-base-multilingual}
     volumes:
       - hf_cache:/app/.cache/huggingface
@@ -683,8 +701,9 @@ services:
     restart: unless-stopped
     profiles: ["deprecated"]
     ports:
-      - "${ROUTER_PORT:-8105}:8105"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${ROUTER_PORT:-8105}:8105"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
       ROUTER_LLM_MODEL: ${LOCAL_LLM_MODEL:-llama3.1:8b}
     extra_hosts:
@@ -704,8 +723,9 @@ services:
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${CONTEXT_COMPILER_PORT:-8207}:8103"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${CONTEXT_COMPILER_PORT:-8207}:8103"
     environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       RERANKER_SVC_URL: http://runledger-reranker:8102
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       SKILL_REGISTRY_URL: http://runledger-skill-registry:8108
@@ -729,10 +749,12 @@ services:
     build:
       context: ./apps/flywheel-svc
     container_name: runledger-flywheel
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
     restart: unless-stopped
     # profiles: removed — always starts
     ports:
-      - "${FLYWHEEL_PORT:-8215}:8109"
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${FLYWHEEL_PORT:-8215}:8109"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8109/health/ready')\" || exit 1"]
       interval: 15s
@@ -755,10 +777,10 @@ services:
     ports:
       - "4317:4317"    # OTLP/gRPC
       - "4318:4318"    # OTLP/HTTP
-      - "13133:13133"  # Health probe
-      - "8888:8888"    # Collector self-metrics
-      - "8889:8889"    # Span-derived metrics
-      - "55679:55679"  # zPages
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:13133:13133"  # Health probe
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:8888:8888"    # Collector self-metrics
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:8889:8889"    # Span-derived metrics
+      - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:55679:55679"  # zPages
     environment:
       RUNLEDGER_API_KEY: ${RUNLEDGER_API_KEY:-}
       RUNLEDGER_OTEL_WORKSPACE_NAME: ${RUNLEDGER_OTEL_WORKSPACE_NAME:-Local Demo Workspace}

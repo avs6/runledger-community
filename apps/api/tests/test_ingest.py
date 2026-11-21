@@ -148,30 +148,14 @@ async def test_list_runs(authed_client: AsyncClient, mock_db_session: AsyncMock)
 
 
 @pytest.mark.asyncio
-async def test_ingest_webhook_accepts_workspace_payload(
+async def test_unsigned_ingest_webhook_is_removed(
     client: AsyncClient,
-    mock_db_session: AsyncMock,
     mock_workspace: SimpleNamespace,
 ) -> None:
-    run_id = str(uuid.uuid4())
-    mock_db_session.get = AsyncMock(return_value=mock_workspace)
-    payload = {
-        "workspace_id": str(mock_workspace.id),
-        "events": [
-            {
-                "event_type": "run_start",
-                "run_id": run_id,
-                "started_at": datetime.now(UTC).isoformat(),
-            }
-        ],
-    }
-    with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
-        mock_task.delay = MagicMock()
-        response = await client.post("/ingest/v1/webhook", json=payload)
-
-    assert response.status_code == 202
-    assert response.json() == {"accepted": 1}
-    mock_task.delay.assert_called_once()
+    """An unauthenticated endpoint that let anyone write into any workspace by UUID."""
+    payload = {"workspace_id": str(mock_workspace.id), "events": []}
+    response = await client.post("/ingest/v1/webhook", json=payload)
+    assert response.status_code in (404, 405)
 
 
 @pytest.mark.asyncio
@@ -182,6 +166,10 @@ async def test_ingest_signed_accepts_valid_signature(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "ingest_signing_secret", "phase1a-secret")
+    monkeypatch.setattr(
+        "runledger_api.routers.ingest.validate_workspace_status",
+        AsyncMock(return_value=mock_workspace),
+    )
     mock_db_session.get = AsyncMock(return_value=mock_workspace)
     payload = {
         "workspace_id": str(mock_workspace.id),
@@ -215,3 +203,23 @@ async def test_ingest_signed_accepts_valid_signature(
     assert response.status_code == 202
     assert response.json() == {"accepted": 1}
     mock_task.delay.assert_called_once()
+
+
+def test_ingest_events_are_attributed_to_the_sending_key() -> None:
+    from runledger_api.routers.ingest import attribute_to_sending_key
+
+    key_id = uuid.uuid4()
+    request = SimpleNamespace(state=SimpleNamespace(api_key=SimpleNamespace(id=key_id)))
+    events = [
+        {"event_type": "run_start", "run_id": "r"},
+        # A client cannot claim another key's id.
+        {"event_type": "provider_call", "run_id": "r", "api_key_id": str(uuid.uuid4())},
+        {"event_type": "span_start", "run_id": "r"},
+    ]
+    out = attribute_to_sending_key(request, events)  # type: ignore[arg-type]
+    assert out[0]["api_key_id"] == str(key_id)
+    assert out[1]["api_key_id"] == str(key_id)
+    assert "api_key_id" not in out[2]
+
+    oidc = SimpleNamespace(state=SimpleNamespace(api_key=None))
+    assert attribute_to_sending_key(oidc, [{"event_type": "run_start"}])[0]["api_key_id"] is None  # type: ignore[arg-type]

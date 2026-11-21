@@ -114,6 +114,12 @@ For contributor workflows — hot-reload dev servers, tests, lint, and type-chec
 | `runledger-worker` | — | — | Celery async worker |
 | `runledger-beat` | — | — | Celery periodic scheduler |
 
+### Network exposure
+
+Only client-facing ports listen on all interfaces: API (8201), gateway (8210), web (3201), Caddy (3443/8443), MCP gateway (8206) and OTLP (4317/4318). Every other host port below — Postgres, Redis, Qdrant, MinIO, Redpanda, Letta, the optimization microservices and the collector's internal endpoints — is published on `127.0.0.1` only (`RUNLEDGER_INTERNAL_BIND`). Set it to `0.0.0.0` only on a trusted network where another machine must reach them directly.
+
+The optimization microservices also require `X-Internal-Token` (`INTERNAL_SERVICE_TOKEN`, default `ADMIN_SECRET`) on every non-health request, so reaching a port is not enough to read or write workspace data.
+
 ### Infrastructure (`infra` / `full-demo`)
 
 | Component | Host port | Env override | Role |

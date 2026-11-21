@@ -12,7 +12,7 @@ The **AI Hub** page is the workspace model catalog for RunLedger. It is where ad
 - Mark cards as featured, private, or deprecated.
 - Add deprecation notices so model transitions are visible to operators.
 - Sync a baseline catalog from supported providers, then tune the resulting cards locally.
-- Record access requests for sensitive or gated model entries.
+- Request access to a gated model. Any workspace member can request; the request creates a pending `model_access` approval for workspace admins (a repeat request while one is pending returns the existing approval instead of creating another).
 - Review per-model cost posture linking to budget detail, billing periods, and chargeback.
 - Review per-model governance status linking to approvals, audit log, governance pack, and tool policies.
 - View a cross-org model capability summary from the platform admin perspective.
@@ -56,7 +56,7 @@ Members can review downstream usage surfaces, but they should not treat AI Hub a
 
 ### Safety & Governance
 - **Tool Registry / Tool Policies**: AI Hub model access requests participate in tool governance. The governance status panel shows active tool policy count.
-- **Approvals**: model access requests feed the approvals workflow. AI Hub links to approvals filtered by model target.
+- **Approvals**: `POST /hub/models/{id}/request-access` creates a `model_access` approval (shown as *Model Access (AI Hub)* on the Approvals page) and returns its `approval_id`. Approving records the decision; enforcing which models a workspace may call is done with gateway model allowlists and guardrails.
 - **Audit Log**: model lifecycle actions (create, update, deprecate, delete) appear in the audit log. AI Hub links to audit events filtered by hub_model target type.
 - **Governance Pack**: model governance evidence is available in the governance pack scoped to the specific model.
 - **Tags**: model tags participate in the tag taxonomy and can be reviewed from the Tags page.

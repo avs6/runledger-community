@@ -14,6 +14,8 @@ from typing import Any
 
 import httpx
 
+from runledger_api.core.config import settings
+
 log = logging.getLogger(__name__)
 
 _SVC_URL = os.getenv("CONTEXT_COMPILER_SVC_URL", "").rstrip("/")
@@ -45,7 +47,9 @@ async def compile_messages(
             payload["workspace"] = workspace
         if tools:
             payload["tools"] = tools
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(
+            timeout=_TIMEOUT, headers=settings.internal_service_headers
+        ) as client:
             resp = await client.post(f"{_SVC_URL}/compile", json=payload)
             resp.raise_for_status()
             data = resp.json()

@@ -110,6 +110,7 @@ secrets:
   existingSecret: ""        # Name of an existing Secret; all keys below are read from it
   secretKey: ""             # SECRET_KEY — required, min 32 chars
   adminSecret: ""           # ADMIN_SECRET — optional, falls back to secretKey
+  internalServiceToken: ""  # INTERNAL_SERVICE_TOKEN — shared token for optimization microservices; defaults to adminSecret (or secretKey)
   metricsToken: ""          # METRICS_TOKEN — protects /metrics endpoint
 
   # KMS / BYOK (optional — leave kmsProvider=local for default Fernet)

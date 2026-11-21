@@ -274,8 +274,9 @@ class LDAPProviderList(BaseModel):
 
 class LDAPLoginRequest(BaseModel):
     provider_id: uuid.UUID
-    username: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=255)
+    # Non-empty: an empty password turns an LDAP bind into an anonymous bind.
+    password: str = Field(..., min_length=1, max_length=1024)
 
 
 class IpAclRuleCreate(BaseModel):

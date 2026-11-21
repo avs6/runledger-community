@@ -10,7 +10,9 @@ PLATFORM_ADMIN = {
     "full_name": "RunLedger Platform Admin",
 }
 
-DEMO_PASSWORD = "runledger"
+# Org admins and users. Must satisfy the API password policy (>= 12 chars, a
+# letter and a digit); the platform admin is seeded directly and keeps "runledger".
+DEMO_PASSWORD = "runledger-demo-1"
 
 ORGS = [
     {

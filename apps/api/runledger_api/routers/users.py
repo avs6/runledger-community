@@ -7,20 +7,26 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
-import bcrypt
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import require_org_admin, require_user, require_workspace_admin
+from runledger_api.core.deps import (
+    get_current_api_key,
+    require_org_admin,
+    require_user,
+    require_workspace_admin,
+)
 from runledger_api.models.approvals import Approval
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.budgets import Budget
 from runledger_api.models.events import ProviderCall
 from runledger_api.models.tenant import (
+    ApiKey,
+    MemberStatusEnum,
     TenantRoleEnum,
     TenantUser,
     User,
@@ -31,12 +37,25 @@ from runledger_api.schemas.auth import (
     AdminUserCreate,
     AdminUserUpdate,
     InviteUserRequest,
+    OrgUserCreateResponse,
     OrgUserResponse,
     RoleUpdateRequest,
     UserResponse,
     UserUpdate,
     WorkspaceMemberResponse,
 )
+from runledger_api.services.passwords import (  # noqa: E402
+    generate_temporary_password,
+    hash_password_async,
+    validate_password_policy,
+    verify_password,
+)
+from runledger_api.services.sessions import (  # noqa: E402
+    is_tenant_managed_user,
+    revoke_user_sessions,
+    tenant_workspace_ids,
+)
+from runledger_api.services.tenancy import log_audit  # noqa: E402
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/users", tags=["users"])
@@ -77,13 +96,23 @@ async def get_me(
 async def update_me(
     body: UserUpdate,
     workspace_user: Annotated[tuple[Workspace, User], Depends(require_user)],
+    current_key: Annotated[ApiKey, Depends(get_current_api_key)],
     db: DbDep,
 ) -> User:
+    """Update your own profile. Changing the password requires the current one
+    (unless the account has none yet) and signs out your other sessions."""
     _, user = workspace_user
     if body.full_name is not None:
         user.full_name = body.full_name
     if body.password is not None:
-        user.password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+        if user.password_hash is not None and not await verify_password(
+            body.current_password or "", user.password_hash
+        ):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Current password is incorrect")
+        validate_password_policy(body.password)
+        user.password_hash = await hash_password_async(body.password)
+        user.must_change_password = False
+        await revoke_user_sessions(db, user.id, except_key_id=current_key.id)
     await db.commit()
     await db.refresh(user)
     return user
@@ -92,23 +121,52 @@ async def update_me(
 OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 
 
-def _org_user_response(u: User, org_role: Any | None) -> OrgUserResponse:
+def _org_user_response(
+    u: User,
+    org_role: Any | None,
+    *,
+    org_status: Any | None = None,
+    can_manage_identity: bool = True,
+) -> OrgUserResponse:
     return OrgUserResponse(
         id=u.id,
         email=u.email,
         full_name=u.full_name,
         is_active=u.is_active,
         email_verified=u.email_verified,
-        org_role=(org_role.value if org_role is not None else None),
+        org_role=(str(org_role) if org_role is not None else None),
+        org_status=(str(org_status) if org_status is not None else None),
         last_login_at=u.last_login_at,
         created_at=u.created_at,
+        can_manage_identity=can_manage_identity,
+        must_change_password=bool(getattr(u, "must_change_password", False)),
     )
 
 
+async def _assert_identity_manageable(
+    db: AsyncSession, actor: User, target: User, tenant_id: uuid.UUID
+) -> None:
+    """Only the org that exclusively owns an identity (or a platform admin) may change
+    its password, active or verified flags."""
+    if actor.is_platform_admin:
+        return
+    if not await is_tenant_managed_user(db, target, tenant_id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This account is shared with another organization (or is a platform admin). "
+            "You can manage its membership here, but not its password or account status.",
+        )
+
+
 @router.get("/all", response_model=list[OrgUserResponse])
-async def list_org_users(auth: OrgAdminDep, db: DbDep) -> list[OrgUserResponse]:
+async def list_org_users(
+    auth: OrgAdminDep,
+    db: DbDep,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> list[OrgUserResponse]:
     """Every user in the caller's org — the identity registry (org-admin)."""
-    workspace, _u, _tu = auth
+    workspace, actor, _tu = auth
     tenant_id = workspace.tenant_id
     tu_rows = (
         (await db.execute(select(TenantUser).where(TenantUser.tenant_id == tenant_id)))
@@ -116,6 +174,7 @@ async def list_org_users(auth: OrgAdminDep, db: DbDep) -> list[OrgUserResponse]:
         .all()
     )
     role_by_user = {tu.user_id: tu.role for tu in tu_rows}
+    status_by_user = {tu.user_id: tu.status for tu in tu_rows}
     ws_ids = (
         (await db.execute(select(Workspace.id).where(Workspace.tenant_id == tenant_id)))
         .scalars()
@@ -140,33 +199,52 @@ async def list_org_users(auth: OrgAdminDep, db: DbDep) -> list[OrgUserResponse]:
     users = (
         (
             await db.execute(
-                select(User).where(User.id.in_(list(user_ids))).order_by(User.created_at)
+                select(User)
+                .where(User.id.in_(list(user_ids)))
+                .order_by(User.created_at)
+                .limit(limit)
+                .offset(offset)
             )
         )
         .scalars()
         .all()
     )
-    return [_org_user_response(u, role_by_user.get(u.id)) for u in users]
+    out = []
+    for u in users:
+        manageable = actor.is_platform_admin or await is_tenant_managed_user(db, u, tenant_id)
+        out.append(
+            _org_user_response(
+                u,
+                role_by_user.get(u.id),
+                org_status=status_by_user.get(u.id),
+                can_manage_identity=manageable,
+            )
+        )
+    return out
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, response_model=OrgUserResponse)
-async def create_user(body: AdminUserCreate, auth: OrgAdminDep, db: DbDep) -> OrgUserResponse:
-    """Create a user identity and add them to the caller's org as a member (org-admin).
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=OrgUserCreateResponse)
+async def create_user(body: AdminUserCreate, auth: OrgAdminDep, db: DbDep) -> OrgUserCreateResponse:
+    """Create an account and add it to the caller's org as a member (org-admin).
 
-    ``skip_verification`` (default true here) marks the account verified so it can sign
-    in immediately when no SMTP is configured.
+    The temporary password (generated unless supplied) is returned once and must be
+    changed at first sign-in. Unless ``skip_verification`` is set, a verification
+    email is sent and the user can sign in after confirming it.
     """
-    workspace, _u, _tu = auth
+    workspace, actor, _tu = auth
     existing = (await db.execute(select(User).where(User.email == body.email))).scalar_one_or_none()
     if existing is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Email '{body.email}' already exists")
-    pw_hash = bcrypt.hashpw(body.temporary_password.encode(), bcrypt.gensalt()).decode()
+    temporary_password = body.temporary_password or generate_temporary_password()
+    if body.temporary_password:
+        validate_password_policy(body.temporary_password)
     user = User(
         email=body.email,
-        password_hash=pw_hash,
+        password_hash=await hash_password_async(temporary_password),
         full_name=body.full_name or body.email.split("@")[0],
         is_active=True,
         email_verified=body.skip_verification,
+        must_change_password=True,
     )
     db.add(user)
     await db.flush()
@@ -174,18 +252,38 @@ async def create_user(body: AdminUserCreate, auth: OrgAdminDep, db: DbDep) -> Or
     db.add(
         TenantUser(tenant_id=workspace.tenant_id, user_id=user.id, role=TenantRoleEnum.org_member)
     )
+    log_audit(
+        db,
+        actor_user_id=actor.id,
+        scope_type="tenant",
+        scope_id=workspace.tenant_id,
+        action="user.created",
+        target_user_id=user.id,
+    )
+    if not body.skip_verification:
+        from runledger_api.routers.login import issue_verification_email  # noqa: PLC0415
+
+        await issue_verification_email(db, user)
     await db.commit()
     await db.refresh(user)
     log.info("user_created", user_id=str(user.id), verified=body.skip_verification)
-    return _org_user_response(user, TenantRoleEnum.org_member)
+    base = _org_user_response(user, TenantRoleEnum.org_member, org_status=MemberStatusEnum.active)
+    return OrgUserCreateResponse(**base.model_dump(), temporary_password=temporary_password)
 
 
 @router.put("/{user_id}", response_model=OrgUserResponse)
 async def admin_update_user(
     user_id: uuid.UUID, body: AdminUserUpdate, auth: OrgAdminDep, db: DbDep
 ) -> OrgUserResponse:
-    """Edit another user's identity (name / password / active / verified) — org-admin."""
-    workspace, _u, _tu = auth
+    """Edit another user's identity (name / password / active / verified) — org-admin.
+
+    Allowed only for accounts this org manages exclusively (see
+    ``is_tenant_managed_user``); platform admins may edit anyone. Password resets set a
+    temporary password and sign the user out everywhere; deactivation does too.
+    """
+    workspace, actor, _tu = auth
+    if user_id == actor.id and body.is_active is False:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "You cannot deactivate yourself")
     membership = (
         await db.execute(
             select(TenantUser).where(
@@ -198,18 +296,46 @@ async def admin_update_user(
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    touches_identity = (
+        body.password is not None
+        or body.is_active is not None
+        or body.email_verified is not None
+        or body.full_name is not None
+    )
+    if touches_identity and user_id != actor.id:
+        await _assert_identity_manageable(db, actor, user, workspace.tenant_id)
+    changed: list[str] = []
     if body.full_name is not None:
         user.full_name = body.full_name
+        changed.append("full_name")
     if body.password is not None:
-        user.password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+        validate_password_policy(body.password)
+        user.password_hash = await hash_password_async(body.password)
+        user.must_change_password = user_id != actor.id
+        await revoke_user_sessions(db, user.id)
+        changed.append("password")
     if body.is_active is not None:
         user.is_active = body.is_active
+        if not body.is_active:
+            await revoke_user_sessions(db, user.id)
+        changed.append(f"is_active={body.is_active}")
     if body.email_verified is not None:
         user.email_verified = body.email_verified
+        changed.append(f"email_verified={body.email_verified}")
+    if changed:
+        log_audit(
+            db,
+            actor_user_id=actor.id,
+            scope_type="tenant",
+            scope_id=workspace.tenant_id,
+            action="user.identity_updated",
+            target_user_id=user.id,
+            new_value=", ".join(changed),
+        )
     await db.commit()
     await db.refresh(user)
     log.info("user_updated", user_id=str(user.id))
-    return _org_user_response(user, membership.role)
+    return _org_user_response(user, membership.role, org_status=membership.status)
 
 
 @router.get("/{user_id}", response_model=OrgUserResponse)
@@ -332,6 +458,8 @@ async def get_user_finance(
 async def list_workspace_users(
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: DbDep,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ) -> list[WorkspaceMemberResponse]:
     workspace, _, __ = auth
     result = await db.execute(
@@ -339,6 +467,8 @@ async def list_workspace_users(
         .join(User, WorkspaceUser.user_id == User.id)
         .where(WorkspaceUser.workspace_id == workspace.id)
         .order_by(WorkspaceUser.created_at)
+        .limit(limit)
+        .offset(offset)
     )
     return [
         WorkspaceMemberResponse(
@@ -365,13 +495,49 @@ async def invite_user(
 
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
+    temporary_password: str | None = None
     if user is None:
-        pw_hash = bcrypt.hashpw(body.temporary_password.encode(), bcrypt.gensalt()).decode()
+        temporary_password = body.temporary_password or generate_temporary_password()
+        if body.temporary_password:
+            validate_password_policy(body.temporary_password)
         user = User(
-            email=body.email, password_hash=pw_hash, full_name=body.full_name, is_active=True
+            email=body.email,
+            password_hash=await hash_password_async(temporary_password),
+            full_name=body.full_name,
+            is_active=True,
+            email_verified=body.skip_verification,
+            must_change_password=True,
         )
         db.add(user)
         await db.flush()
+        if not body.skip_verification:
+            from runledger_api.routers.login import issue_verification_email  # noqa: PLC0415
+
+            await issue_verification_email(db, user)
+        db.add(
+            TenantUser(
+                tenant_id=workspace.tenant_id,
+                user_id=user.id,
+                role=TenantRoleEnum.org_member,
+                invited_by=inviting_user.id,
+            )
+        )
+    else:
+        org_member = (
+            await db.execute(
+                select(TenantUser).where(
+                    TenantUser.tenant_id == workspace.tenant_id,
+                    TenantUser.user_id == user.id,
+                    TenantUser.status == MemberStatusEnum.active,
+                )
+            )
+        ).scalar_one_or_none()
+        if org_member is None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "This person is not an active member of your organization. Invite them to "
+                "the organization first; they must accept before joining a workspace.",
+            )
 
     existing = await db.execute(
         select(WorkspaceUser).where(
@@ -385,6 +551,16 @@ async def invite_user(
         workspace_id=workspace.id, user_id=user.id, role=body.role, invited_by=inviting_user.id
     )
     db.add(wu)
+    log_audit(
+        db,
+        actor_user_id=inviting_user.id,
+        scope_type="workspace",
+        scope_id=workspace.id,
+        tenant_id=workspace.tenant_id,
+        action="workspace.member.added",
+        target_user_id=user.id,
+        new_value=str(body.role),
+    )
     await db.commit()
     await db.refresh(wu)
     return WorkspaceMemberResponse(
@@ -396,6 +572,7 @@ async def invite_user(
         is_active=user.is_active,
         last_login_at=user.last_login_at,
         joined_at=wu.created_at,
+        temporary_password=temporary_password,
     )
 
 
@@ -418,7 +595,19 @@ async def update_workspace_role(
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found in this workspace")
     wu, u = row
+    old_role = wu.role
     wu.role = body.role
+    log_audit(
+        db,
+        actor_user_id=current_user.id,
+        scope_type="workspace",
+        scope_id=workspace.id,
+        tenant_id=workspace.tenant_id,
+        action="workspace.member.role_changed",
+        target_user_id=user_id,
+        old_value=str(old_role),
+        new_value=str(body.role),
+    )
     await db.commit()
     await db.refresh(wu)
     return WorkspaceMemberResponse(
@@ -450,8 +639,50 @@ async def remove_workspace_user(
     wu = result.scalar_one_or_none()
     if wu is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found in this workspace")
+    log_audit(
+        db,
+        actor_user_id=current_user.id,
+        scope_type="workspace",
+        scope_id=workspace.id,
+        tenant_id=workspace.tenant_id,
+        action="workspace.member.removed",
+        target_user_id=user_id,
+        old_value=str(wu.role),
+    )
     await db.delete(wu)
+    await revoke_user_sessions(db, user_id, workspace_ids=[workspace.id])
     await db.commit()
+
+
+@router.post("/{user_id}/sessions/revoke", status_code=status.HTTP_200_OK)
+async def revoke_user_sessions_in_org(
+    user_id: uuid.UUID, auth: OrgAdminDep, db: DbDep
+) -> dict[str, Any]:
+    """Sign a member out of every workspace in this org (org-admin)."""
+    workspace, actor, _tu = auth
+    membership = (
+        await db.execute(
+            select(TenantUser).where(
+                TenantUser.tenant_id == workspace.tenant_id, TenantUser.user_id == user_id
+            )
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User is not a member of your organization")
+    revoked = await revoke_user_sessions(
+        db, user_id, workspace_ids=await tenant_workspace_ids(db, workspace.tenant_id)
+    )
+    log_audit(
+        db,
+        actor_user_id=actor.id,
+        scope_type="tenant",
+        scope_id=workspace.tenant_id,
+        action="user.sessions_revoked",
+        target_user_id=user_id,
+        new_value=str(revoked),
+    )
+    await db.commit()
+    return {"revoked": revoked}
 
 
 class UserGovernanceSummary(BaseModel):

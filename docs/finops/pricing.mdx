@@ -33,6 +33,8 @@ global catalogue.
 A fresh install starts with an **empty** catalog. Load your models in one shot from the dashboard:
 open **Provider Profiles -> Import YAML** instead of adding them one at a time.
 
+The YAML import writes the **global** catalog that prices every organization's spend, so it is **platform-admin only** (`POST /providers/pricing/import`). Org admins add, edit and delete workspace-specific rates, which take precedence over global rows for their workspace.
+
 ```yaml
 models:
   - provider: openai

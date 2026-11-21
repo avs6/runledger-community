@@ -78,7 +78,7 @@ export default function OrganizationsPage() {
 
   const [orgName, setOrgName] = useState('')
   const [orgAdminEmail, setOrgAdminEmail] = useState('')
-  const [orgAdminPassword, setOrgAdminPassword] = useState('ChangeMe123!')
+  const [orgAdminPassword, setOrgAdminPassword] = useState('')
   const [orgAdminName, setOrgAdminName] = useState('')
   const [skipVerification, setSkipVerification] = useState(true)
 
@@ -129,13 +129,13 @@ export default function OrganizationsPage() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault()
-    if (!orgName.trim() || !orgAdminEmail.trim() || !orgAdminPassword.trim()) return
+    if (!orgName.trim() || !orgAdminEmail.trim()) return
     setBusyId('create')
     try {
-      await createOrganization(apiKey, {
+      const created = await createOrganization(apiKey, {
         name: orgName.trim(),
         admin_email: orgAdminEmail.trim(),
-        admin_password: orgAdminPassword,
+        admin_password: orgAdminPassword.trim() || null,
         admin_full_name: orgAdminName.trim() || null,
         skip_verification: skipVerification,
       })
@@ -143,10 +143,17 @@ export default function OrganizationsPage() {
       setShowCreate(false)
       setOrgName('')
       setOrgAdminEmail('')
-      setOrgAdminPassword('ChangeMe123!')
+      setOrgAdminPassword('')
       setOrgAdminName('')
       setSkipVerification(true)
-      toast.success('Organization created')
+      if (created.temporary_password) {
+        toast.success(`Organization created. Admin temporary password: ${created.temporary_password}`, {
+          duration: 60000,
+          description: 'Shown once — share it securely. It must be changed at first sign-in.',
+        })
+      } else {
+        toast.success('Organization created')
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create organization')
     } finally {
@@ -543,7 +550,7 @@ export default function OrganizationsPage() {
             <input autoFocus type="text" required placeholder="Organization name" value={orgName} onChange={(e) => setOrgName(e.target.value)} className={`${inputCls} w-full`} />
             <input type="email" required placeholder="Org admin email" value={orgAdminEmail} onChange={(e) => setOrgAdminEmail(e.target.value)} className={`${inputCls} w-full`} />
             <input type="text" placeholder="Org admin full name (optional)" value={orgAdminName} onChange={(e) => setOrgAdminName(e.target.value)} className={`${inputCls} w-full`} />
-            <input type="text" required placeholder="Temporary password" value={orgAdminPassword} onChange={(e) => setOrgAdminPassword(e.target.value)} className={`${inputCls} w-full`} />
+            <input type="text" placeholder="Temporary password (blank = generate)" value={orgAdminPassword} onChange={(e) => setOrgAdminPassword(e.target.value)} className={`${inputCls} w-full`} />
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
               <input type="checkbox" checked={skipVerification} onChange={(e) => setSkipVerification(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Mark seeded admin as verified

@@ -29,7 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.tenant import Workspace
 from runledger_api.models.vector_stores import VectorStoreCollection, VectorStoreQuery
@@ -100,7 +100,7 @@ def _query_to_response(q: VectorStoreQuery) -> VectorQueryResponse:
     "",
     response_model=VectorCollectionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_collection(
     body: VectorCollectionCreate, ws: WorkspaceDep, db: DbDep
@@ -181,7 +181,7 @@ async def get_collection(
 @router.put(
     "/{collection_id}",
     response_model=VectorCollectionResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_collection(
     collection_id: uuid.UUID,
@@ -211,7 +211,7 @@ async def update_collection(
 @router.delete(
     "/{collection_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def delete_collection(collection_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
     result = await db.execute(

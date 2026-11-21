@@ -46,9 +46,9 @@ spec:
             {{- include "runledger.commonEnv" . | nindent 12 }}
             {{- if .Values.secrets.stripeSecretKey }}
             - name: STRIPE_SECRET_KEY
-              {{ include "runledger.secretRef" (list . "STRIPE_SECRET_KEY" .Values.secrets.stripeSecretKey) }}
+              {{- include "runledger.secretRef" (list . "STRIPE_SECRET_KEY" .Values.secrets.stripeSecretKey) | nindent 14 }}
             - name: STRIPE_WEBHOOK_SECRET
-              {{ include "runledger.secretRef" (list . "STRIPE_WEBHOOK_SECRET" .Values.secrets.stripeWebhookSecret) }}
+              {{- include "runledger.secretRef" (list . "STRIPE_WEBHOOK_SECRET" .Values.secrets.stripeWebhookSecret) | nindent 14 }}
             {{- end }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}

@@ -1,12 +1,14 @@
 """
 examples/41_access_foundation.py
 
-Exercise the core access-management flow with a dashboard session key:
-  1. create a user
-  2. create a workspace
-  3. add the user to the workspace
-  4. create an access group and assign the user
-  5. create, update, rotate, and revoke an API key
+Exercise the core access-management flow with a dashboard session key
+(an org admin's key from signing in):
+  1. create a user (RunLedger generates a temporary password, shown once)
+  2. create a workspace and add the user to it
+  3. add the user to the current workspace, create an access group, assign the user,
+     and attach a budget policy scoped to the group
+  4. create (with expiry), update, rotate, and revoke an API key
+  5. sign the user out everywhere
 
 Required env vars:
   RUNLEDGER_BASE_URL
@@ -18,6 +20,7 @@ from __future__ import annotations
 import os
 import sys
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -52,16 +55,16 @@ def main() -> None:
         user = expect_ok(
             client.post(
                 "/users",
-                json={
-                    "email": email,
-                    "full_name": "Foundation User",
-                    "temporary_password": "ChangeMe123!",
-                    "skip_verification": True,
-                },
+                # No password: one is generated and returned once; the user must
+                # change it at first sign-in.
+                json={"email": email, "full_name": "Foundation User", "skip_verification": True},
             ),
             "create user",
         )
-        print(f"[ok] created user {user['email']}")
+        print(
+            f"[ok] created user {user['email']} (must_change_password={user['must_change_password']})"
+        )
+        current = expect_ok(client.get("/auth/me"), "current session")
 
         workspace = expect_ok(
             client.post("/org/workspaces", json={"name": workspace_name}),
@@ -78,14 +81,21 @@ def main() -> None:
         )
         print("[ok] added user to workspace")
 
+        # Access-group members must have access to the group's workspace.
+        expect_ok(
+            client.post(
+                f"/org/workspaces/{current['workspace_id']}/members",
+                json={"user_id": user["id"], "role": "member"},
+            ),
+            "add current-workspace member",
+        )
+
         group = expect_ok(
             client.post(
                 "/access-groups",
                 json={
                     "name": group_name,
                     "description": "Foundation smoke group",
-                    "budget_usd": 50,
-                    "budget_period": "monthly",
                     "guardrail_profile": "default",
                 },
             ),
@@ -102,6 +112,22 @@ def main() -> None:
         )
         print("[ok] assigned user to access group")
 
+        # Group spend limits are ordinary budget policies scoped to the group.
+        budget = expect_ok(
+            client.post(
+                "/budgets",
+                json={
+                    "scope_type": "access_group",
+                    "scope_id": group["id"],
+                    "period_type": "monthly",
+                    "limit_usd": "50.00",
+                    "action": "notify",
+                },
+            ),
+            "create access-group budget",
+        )
+        print(f"[ok] created access-group budget {budget['id']}")
+
         created_key = expect_ok(
             client.post(
                 "/settings/api-keys",
@@ -110,12 +136,29 @@ def main() -> None:
                     "workspace_id": workspace["id"],
                     "ownership_type": "service_account",
                     "owner_reference": "foundation-smoke",
-                    "scopes": [],
+                    # Only what an SDK integration needs. [] would mean full access.
+                    "scopes": ["read", "ingest"],
+                    "expires_at": (datetime.now(UTC) + timedelta(days=90)).isoformat(),
                 },
             ),
             "create api key",
         )
-        print(f"[ok] created api key {created_key['key_prefix']}")
+        print(
+            f"[ok] created api key {created_key['key_prefix']} scopes={created_key['scopes']} "
+            f"(expires {created_key['expires_at']})"
+        )
+
+        # The scoped key can ingest telemetry but cannot change workspace content.
+        scoped = {"Authorization": f"Bearer {created_key['key']}"}
+        ingest = httpx.post(
+            f"{BASE_URL}/ingest/v1/batch", headers=scoped, json={"events": []}, timeout=20
+        )
+        write = httpx.post(
+            f"{BASE_URL}/prompts", headers=scoped, json={"name": f"x-{suffix}"}, timeout=20
+        )
+        print(
+            f"[ok] scoped key: ingest -> {ingest.status_code}, create prompt -> {write.status_code} (403 expected)"
+        )
 
         updated_key = expect_ok(
             client.put(
@@ -149,19 +192,25 @@ def main() -> None:
             client.get(f"/analytics/api-key-footprint/{created_key['id']}"),
             "api key observe footprint",
         )
-        print(f"[ok] api key footprint: {footprint['run_count']} runs, ${footprint['total_cost_usd']:.4f}")
+        print(
+            f"[ok] api key footprint: {footprint['run_count']} runs, ${footprint['total_cost_usd']:.4f}"
+        )
 
         posture = expect_ok(
             client.get("/analytics/workspace-observe-posture"),
             "workspace observe posture",
         )
-        print(f"[ok] workspace posture: {posture['run_count']} runs, {posture['model_count']} models")
+        print(
+            f"[ok] workspace posture: {posture['run_count']} runs, {posture['model_count']} models"
+        )
 
         gov_posture = expect_ok(
             client.get("/analytics/workspace-governance-posture"),
             "workspace governance posture",
         )
-        print(f"[ok] governance posture: {gov_posture['tool_policy_count']} policies, {gov_posture['approval_count']} approvals, {gov_posture['audit_event_count']} audit events")
+        print(
+            f"[ok] governance posture: {gov_posture['tool_policy_count']} policies, {gov_posture['approval_count']} approvals, {gov_posture['audit_event_count']} audit events"
+        )
 
         scoped_runs = expect_ok(
             client.get(f"/runs?api_key_id={created_key['id']}&limit=5"),
@@ -173,31 +222,47 @@ def main() -> None:
             client.get(f"/analytics/access-group-gateway-posture?access_group_id={group['id']}"),
             "access group gateway posture",
         )
-        print(f"[ok] access group gateway: {ag_gateway['active_route_count']} active routes, {ag_gateway['active_guardrail_count']} active guardrails, profile={ag_gateway['guardrail_profile']}")
+        print(
+            f"[ok] access group gateway: {ag_gateway['active_route_count']} active routes, {ag_gateway['active_guardrail_count']} active guardrails, profile={ag_gateway['guardrail_profile']}"
+        )
 
         ak_gateway = expect_ok(
             client.get(f"/analytics/api-key-gateway-posture?api_key_id={created_key['id']}"),
             "api key gateway posture",
         )
-        print(f"[ok] api key gateway: {ak_gateway['active_route_count']} active routes, {ak_gateway['distinct_providers']} providers, {ak_gateway['active_guardrail_count']} active guardrails")
+        print(
+            f"[ok] api key gateway: {ak_gateway['active_route_count']} active routes, {ak_gateway['distinct_providers']} providers, {ak_gateway['active_guardrail_count']} active guardrails"
+        )
 
         tel_downstream = expect_ok(
             client.get("/analytics/telemetry-downstream-posture"),
             "telemetry downstream posture",
         )
-        print(f"[ok] telemetry downstream: finops budgets={tel_downstream['finops']['budget_count']}, safety alerts={tel_downstream['safety']['active_alert_count']}")
+        print(
+            f"[ok] telemetry downstream: finops budgets={tel_downstream['finops']['budget_count']}, safety alerts={tel_downstream['safety']['active_alert_count']}"
+        )
 
         mcp_posture = expect_ok(
             client.get("/analytics/mcp-registry-posture"),
             "mcp registry posture",
         )
-        print(f"[ok] mcp registry: {mcp_posture['active_server_count']} active servers, {mcp_posture['tool_call_count_30d']} calls 30d, gateway routes={mcp_posture['gateway']['route_count']}")
+        print(
+            f"[ok] mcp registry: {mcp_posture['active_server_count']} active servers, {mcp_posture['tool_call_count_30d']} calls 30d, gateway routes={mcp_posture['gateway']['route_count']}"
+        )
 
         hub_posture = expect_ok(
             client.get("/analytics/ai-hub-runtime-posture"),
             "ai hub runtime posture",
         )
-        print(f"[ok] ai hub runtime: {hub_posture['model_count']} models, {hub_posture['observe']['run_count_30d']} runs 30d, finops budgets={hub_posture['finops']['budget_count']}")
+        print(
+            f"[ok] ai hub runtime: {hub_posture['model_count']} models, {hub_posture['observe']['run_count_30d']} runs 30d, finops budgets={hub_posture['finops']['budget_count']}"
+        )
+
+        expect_ok(client.post(f"/users/{user['id']}/sessions/revoke"), "revoke user sessions")
+        print("[ok] signed the user out everywhere")
+
+        expect_ok(client.delete(f"/budgets/{budget['id']}"), "delete budget")
+        print("[ok] removed the access-group budget")
 
         expect_ok(
             client.delete(f"/access-groups/{group['id']}/members/{user['id']}"),

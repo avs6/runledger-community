@@ -166,59 +166,6 @@ async def check_cost_cap(
                 headers={"X-Cost-Cap-Reason": "monthly_limit_exceeded"},
             )
 
-    # ── Project budget check ──────────────────────────────────────────────────
-    from runledger_api.models.projects import Project, ProjectKey, TeamModel  # noqa: PLC0415
-
-    pkey_stmt = (
-        select(Project)
-        .join(ProjectKey, ProjectKey.project_id == Project.id)
-        .where(Project.workspace_id == workspace_id, Project.is_active.is_(True))
-        .limit(1)
-    )
-    proj_res = await db.execute(pkey_stmt)
-    proj = proj_res.scalar_one_or_none()
-    if proj and isinstance(proj.budget_usd, Decimal):
-        p_cost = _estimate_cost(monthly_row, input_rate, output_rate)
-        if p_cost >= proj.budget_usd:
-            log.warning(
-                "gateway_project_budget_exceeded",
-                project_id=str(proj.id),
-                project_cost=str(p_cost),
-                limit=str(proj.budget_usd),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Project '{proj.name}' budget limit breached (${proj.budget_usd:.2f})",
-                headers={"X-Cost-Cap-Reason": "project_budget_exceeded"},
-            )
-
-    # ── Team Model budget check ───────────────────────────────────────────────
-    tm_stmt = (
-        select(TeamModel)
-        .where(
-            TeamModel.workspace_id == workspace_id,
-            TeamModel.model_name == getattr(route, "target_model", None),
-            TeamModel.budget_usd.isnot(None),
-        )
-        .limit(1)
-    )
-    tm_res = await db.execute(tm_stmt)
-    tm = tm_res.scalar_one_or_none()
-    if tm and isinstance(tm.budget_usd, Decimal):
-        tm_cost = _estimate_cost(monthly_row, input_rate, output_rate)
-        if tm_cost >= tm.budget_usd:
-            log.warning(
-                "gateway_team_model_budget_exceeded",
-                team_model_id=str(tm.id),
-                tm_cost=str(tm_cost),
-                limit=str(tm.budget_usd),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Team Model '{tm.team_name}/{tm.model_name}' budget limit breached (${tm.budget_usd:.2f})",
-                headers={"X-Cost-Cap-Reason": "team_model_budget_exceeded"},
-            )
-
     # ── Budget Tier check ─────────────────────────────────────────────────────
     from runledger_api.models.budget_tiers import BudgetTier  # noqa: PLC0415
 

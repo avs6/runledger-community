@@ -40,7 +40,7 @@ spec:
               imagePullPolicy: IfNotPresent
               env:
                 - name: DATABASE_URL
-                  {{ include "runledger.databaseUrl" . }}
+                  {{- include "runledger.databaseUrl" . | nindent 18 }}
                 - name: MEMORY_DB_URL
                   value: {{ include "runledger.memoryDbUrl" . | quote }}
                 - name: QDRANT_URL

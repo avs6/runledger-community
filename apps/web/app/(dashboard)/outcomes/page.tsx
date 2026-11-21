@@ -38,6 +38,7 @@ import {
 import Link from 'next/link'
 import { Building2, ChevronDown, ChevronUp, Pencil, Plus, Save, Trash2, Wallet, X } from 'lucide-react'
 import { num } from '@/lib/utils'
+import { useRole } from '@/components/rbac/useRole'
 
 const WINDOWS = [7, 14, 30, 90]
 const LEDGER_PAGE_SIZE = 12
@@ -192,6 +193,7 @@ function OutcomeForm({
 export default function OutcomesPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
+  const { canWrite } = useRole()
 
   const [windowDays, setWindowDays] = useState(30)
   const [summary, setSummary] = useState<OutcomeSummary | null>(null)
@@ -381,18 +383,20 @@ export default function OutcomesPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-          >
-            <Plus className="h-3 w-3" />
-            Record
-          </button>
+          {canWrite && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              <Plus className="h-3 w-3" />
+              Record
+            </button>
+          )}
         </div>
       </div>
 
       {/* Collapsible create form */}
-      {showForm && (
+      {showForm && canWrite && (
         <OutcomeForm
           title="Record Outcome"
           submitLabel="Create"
@@ -653,7 +657,7 @@ export default function OutcomesPage() {
                     <span className="text-[10px] text-slate-400">{formatDate(item.created_at)}</span>
                     {item.value_usd && <span className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{money(item.value_usd, 2)}</span>}
                   </div>
-                  <div className="flex items-center gap-1">
+                  {canWrite && <div className="flex items-center gap-1">
                     <button
                       onClick={() => { setEditingId(item.id); setEditDraft(draftFromOutcome(item)) }}
                       className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
@@ -667,7 +671,7 @@ export default function OutcomesPage() {
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
-                  </div>
+                  </div>}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-3 text-[10px] text-slate-400">
                   {item.run_id && <span>Run: <span className="font-mono">{item.run_id.slice(0, 8)}</span></span>}

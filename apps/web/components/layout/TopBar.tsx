@@ -6,6 +6,8 @@ import { useTheme } from 'next-themes'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
 
 interface Workspace {
@@ -43,6 +45,7 @@ export default function TopBar() {
   const orgName = (s?.tenantName as string) || (s?.orgName as string) || ''
   const email = (s?.email as string) || ''
   const apiKey = (s?.apiKey as string) || ''
+  const currentWorkspaceId = (s?.workspaceId as string) || ''
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
   const badge = roleBadge(workspaceRole || tenantRole, isPlatformAdmin)
@@ -121,8 +124,20 @@ export default function TopBar() {
       .catch(() => {})
   }, [wsMenuOpen, apiKey, apiBase, workspaces.length])
 
+  async function handleSignOut() {
+    // Revoke the server-side session key first so a copied token stops working too.
+    try {
+      if (apiKey) {
+        await fetch(`${apiBase}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` } })
+      }
+    } catch {
+      /* sign out locally even if the API is unreachable */
+    }
+    signOut({ callbackUrl: '/login' })
+  }
+
   async function handleSwitchWorkspace(ws: Workspace) {
-    if (ws.name === workspaceName) { setWsMenuOpen(false); return }
+    if (ws.id === currentWorkspaceId) { setWsMenuOpen(false); return }
     setSwitching(true)
     setWsMenuOpen(false)
     try {
@@ -131,21 +146,21 @@ export default function TopBar() {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspace_id: ws.id }),
       })
-      if (!r.ok) throw new Error('Switch failed')
+      if (r.status === 401) {
+        // Session is no longer valid (revoked, expired, access removed).
+        signOut({ callbackUrl: '/login' })
+        return
+      }
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not switch workspace')
+      }
       const data = await r.json()
-      await update({
-        apiKey: data.api_key,
-        workspaceId: data.workspace_id,
-        workspaceName: data.workspace_name,
-        tenantId: data.tenant_id,
-        tenantName: data.tenant_name,
-        workspaceRole: data.workspace_role,
-        tenantRole: data.tenant_role,
-        workspaceIds: data.workspace_ids,
-      })
+      // Only the new key is passed; the session callback re-reads roles from /auth/me.
+      await update({ apiKey: data.api_key })
       window.location.reload()
-    } catch {
-      signOut({ callbackUrl: '/login' })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not switch workspace')
     } finally {
       setSwitching(false)
     }
@@ -165,7 +180,7 @@ export default function TopBar() {
         <div className="px-3 py-3 text-xs text-slate-400">Loading workspaces…</div>
       ) : (
         workspaces.map((ws) => {
-          const isCurrent = ws.name === workspaceName
+          const isCurrent = ws.id === currentWorkspaceId
           return (
             <button
               key={ws.id}
@@ -279,8 +294,15 @@ export default function TopBar() {
                     </span>
                   )}
                 </div>
+                <Link
+                  href="/account"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60 transition-colors"
+                >
+                  <User className="h-4 w-4" />
+                  Account &amp; sessions
+                </Link>
                 <button
-                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  onClick={handleSignOut}
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />

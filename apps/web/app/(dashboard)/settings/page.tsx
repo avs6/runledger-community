@@ -1289,8 +1289,10 @@ export default function SettingsPage() {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">Secret key</label>
                   <input
+                    type="password"
+                    autoComplete="new-password"
                     className={`${inputCls} w-full`}
-                    placeholder="runledgerminio"
+                    placeholder={backupConfig.has_secret_access_key ? 'Stored — leave blank to keep' : 'Secret access key'}
                     value={backupConfig.secret_access_key ?? ''}
                     onChange={(e) => setBackupConfig((prev) => ({ ...prev, secret_access_key: e.target.value }))}
                   />

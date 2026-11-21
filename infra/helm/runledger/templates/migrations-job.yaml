@@ -37,9 +37,9 @@ spec:
           command: ["alembic", "upgrade", "head"]
           env:
             - name: DATABASE_URL
-              {{ include "runledger.databaseUrl" . }}
+              {{- include "runledger.databaseUrl" . | nindent 14 }}
             - name: SECRET_KEY
-              {{ include "runledger.secretRef" (list . "SECRET_KEY" .Values.secrets.secretKey) }}
+              {{- include "runledger.secretRef" (list . "SECRET_KEY" .Values.secrets.secretKey) | nindent 14 }}
           resources:
             requests:
               cpu: 100m

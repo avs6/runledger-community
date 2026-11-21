@@ -13,6 +13,10 @@ Single entry point for the entire demo lifecycle:
     python scripts/run_demo.py all                # cleanup → seed-demo
     python scripts/run_demo.py all --full         # cleanup → full-simulate
 
+  ── Verification ──────────────────────────────────────────────
+    python scripts/run_demo.py verify-org-access  # assert org/invite/session/lockout controls
+    python scripts/run_demo.py verify-budgets     # assert scoped budget counting + enforcement
+
   ── Traffic & Agents ──────────────────────────────────────────
     python scripts/run_demo.py traffic            # generate agent traffic (batch mode)
     python scripts/run_demo.py traffic --continuous  # continuous traffic loop
@@ -96,6 +100,14 @@ def cmd_seed_demo(args: argparse.Namespace) -> int:
 
 def cmd_full_simulate(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "full_simulate.py", getattr(args, "args", []))
+
+
+def cmd_verify_org_access(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_org_access.py", getattr(args, "args", []))
+
+
+def cmd_verify_budgets(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_budgets.py", getattr(args, "args", []))
 
 
 def cmd_all(args: argparse.Namespace) -> int:
@@ -314,6 +326,18 @@ def main() -> int:
     p.add_argument("--rotate-keys", action="store_true", help="Mint fresh API keys.")
     p.add_argument("--base-url", default=None)
 
+    p = sub.add_parser(
+        "verify-org-access",
+        help="End-to-end check of org lifecycle, invitations, sessions and lockout.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
+    p = sub.add_parser(
+        "verify-budgets",
+        help="End-to-end check of scoped budget counting, breaches and enforcement.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("mcp-validate", help="Validate MCP endpoint connectivity and tools.")
     p.add_argument("--endpoint", default=None)
     p.add_argument("--api-key", default=None)
@@ -329,7 +353,13 @@ def main() -> int:
     p.add_argument("--confirm", action="store_true", help="Confirm destructive restore.")
     p.add_argument("--bucket", default=None)
 
-    args = parser.parse_args()
+    # Pass-through subcommands forward their flags (e.g. --gateway-url) verbatim to the
+    # underlying script; argparse.REMAINDER alone rejects a leading option.
+    passthrough = {"verify-org-access", "verify-budgets"}
+    if len(sys.argv) > 1 and sys.argv[1] in passthrough:
+        args = argparse.Namespace(command=sys.argv[1], args=sys.argv[2:])
+    else:
+        args = parser.parse_args()
 
     dispatch = {
         "scenario": cmd_scenario,
@@ -337,6 +367,8 @@ def main() -> int:
         "cleanup": cmd_cleanup,
         "seed-demo": cmd_seed_demo,
         "full-simulate": cmd_full_simulate,
+        "verify-org-access": cmd_verify_org_access,
+        "verify-budgets": cmd_verify_budgets,
         "all": cmd_all,
         "traffic": cmd_traffic,
         "otlp-traffic": cmd_otlp_traffic,

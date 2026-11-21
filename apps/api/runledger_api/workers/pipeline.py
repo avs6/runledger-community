@@ -52,14 +52,57 @@ async def _process_events(workspace_id: str, events: list[dict[str, Any]]) -> No
     try:
         async with session_factory() as session:
             privacy_mode, sampled_rate = await _get_capture_policy(session, workspace_id)
+            priced_calls: list[dict[str, Any]] = []
+            owned_runs: dict[str, bool] = {}
             for raw in events:
                 try:
-                    await _dispatch(session, workspace_id, raw, privacy_mode, sampled_rate)
+                    if not await _event_run_in_workspace(session, workspace_id, raw, owned_runs):
+                        log.warning(
+                            "event_run_not_in_workspace",
+                            event_type=raw.get("event_type"),
+                            run_id=raw.get("run_id"),
+                            workspace_id=workspace_id,
+                        )
+                        continue
+                    await _dispatch(
+                        session, workspace_id, raw, privacy_mode, sampled_rate, priced_calls
+                    )
                 except Exception:
                     log.exception("event_dispatch_error", event_type=raw.get("event_type"))
+            if priced_calls:
+                await _record_budget_spend(session, workspace_id, priced_calls)
             await session.commit()
     finally:
         await engine.dispose()
+
+
+async def _event_run_in_workspace(
+    session: AsyncSession, workspace_id: str, event: dict[str, Any], cache: dict[str, bool]
+) -> bool:
+    """Tenant isolation: an event may only touch a run owned by the sending workspace.
+
+    ``run_start`` creates the run (an existing run id from another workspace is left
+    untouched by its ON CONFLICT DO NOTHING). Every other event must reference a run
+    that already belongs to ``workspace_id``; otherwise it is dropped, so one tenant
+    cannot end, annotate or add spans and cost to another tenant's run by id.
+    """
+    if event.get("event_type") == "run_start":
+        return True
+    run_id = event.get("run_id")
+    if not run_id:
+        return True
+    key = str(run_id)
+    if key not in cache:
+        try:
+            owner = (
+                await session.execute(
+                    select(AgentRun.workspace_id).where(AgentRun.id == uuid.UUID(key))
+                )
+            ).scalar_one_or_none()
+        except ValueError:
+            owner = None
+        cache[key] = owner is not None and str(owner) == str(workspace_id)
+    return cache[key]
 
 
 async def _get_capture_policy(session: AsyncSession, workspace_id: str) -> tuple[str, float]:
@@ -88,6 +131,7 @@ async def _dispatch(
     event: dict[str, Any],
     privacy_mode: str,
     sampled_rate: float,
+    priced_calls: list[dict[str, Any]] | None = None,
 ) -> None:
     match event.get("event_type"):
         case "run_start":
@@ -99,13 +143,52 @@ async def _dispatch(
         case "span_end":
             await _handle_span_end(session, event, privacy_mode, sampled_rate)
         case "provider_call":
-            await _handle_provider_call(session, workspace_id, event)
+            await _handle_provider_call(session, workspace_id, event, priced_calls)
         case "tool_call":
             await _handle_tool_call(session, workspace_id, event)
         case "outcome":
             await _handle_outcome(session, event)
         case unknown:
             log.warning("unknown_event_type", event_type=unknown)
+
+
+async def _record_budget_spend(
+    session: AsyncSession, workspace_id: str, priced_calls: list[dict[str, Any]]
+) -> None:
+    """Count provider calls that arrived with a cost against matching budgets.
+
+    Fails open: a Redis or lookup error never drops the ingest batch.
+    """
+    from redis.asyncio import Redis  # noqa: PLC0415
+
+    from runledger_api.services.budgets import record_budget_spend  # noqa: PLC0415
+
+    redis = Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
+    try:
+        for call in priced_calls:
+            try:
+                run = await session.get(AgentRun, call["run_id"])
+                async with session.begin_nested():
+                    await record_budget_spend(
+                        session,
+                        redis,
+                        workspace_id=uuid.UUID(workspace_id),
+                        provider_call_id=call["provider_call_id"],
+                        cost_usd=call["cost_usd"],
+                        run_id=call["run_id"],
+                        api_key_id=call["api_key_id"] or (run.api_key_id if run else None),
+                        end_user_id=call["end_user_id"] or (run.end_user_id if run else None),
+                        feature_tag=run.feature_tag if run else None,
+                        app_id=run.application_id if run else None,
+                        provider=call["provider"],
+                        model=call["model"],
+                    )
+            except Exception:
+                log.exception(
+                    "budget_spend_record_failed", provider_call_id=str(call["provider_call_id"])
+                )
+    finally:
+        await redis.aclose()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -270,7 +353,8 @@ async def _handle_span_end(
     )
     await session.execute(
         update(Span)
-        .where(Span.id == uuid.UUID(e["span_id"]))
+        # Match the run too: the run's ownership was checked, the span id alone was not.
+        .where(Span.id == uuid.UUID(e["span_id"]), Span.run_id == uuid.UUID(e["run_id"]))
         .values(
             status=SpanStatusEnum(e["status"]),
             ended_at=_dt(e["ended_at"]),
@@ -288,7 +372,10 @@ def _provider_call_id(run_id: str, span_id: str | None) -> uuid.UUID:
 
 
 async def _handle_provider_call(
-    session: AsyncSession, workspace_id: str, e: dict[str, Any]
+    session: AsyncSession,
+    workspace_id: str,
+    e: dict[str, Any],
+    priced_calls: list[dict[str, Any]] | None = None,
 ) -> None:
     span_id = e.get("span_id")
     pc_id = _provider_call_id(e["run_id"], span_id)
@@ -325,6 +412,20 @@ async def _handle_provider_call(
         .on_conflict_do_nothing(index_elements=["id"])
     )
     await session.execute(stmt)
+    cost = _dec(e.get("cost_usd"))
+    if priced_calls is not None and cost is not None and e.get("status") == "success":
+        # Calls without a cost are counted later by metering.enrich_costs.
+        priced_calls.append(
+            {
+                "provider_call_id": pc_id,
+                "run_id": uuid.UUID(e["run_id"]),
+                "cost_usd": cost,
+                "api_key_id": _uuid(e.get("api_key_id")),
+                "end_user_id": e.get("end_user_id"),
+                "provider": e.get("provider"),
+                "model": e.get("model"),
+            }
+        )
     if e.get("optimization_applied"):
         try:
             await kafka_export.publish_event(

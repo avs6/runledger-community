@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.evaluators import Evaluator
 from runledger_api.models.scores import ScoreEvent
@@ -56,7 +56,12 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 # ── Scores ────────────────────────────────────────────────────────────────────
 
 
-@router.post("/scores", response_model=ScoreResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/scores",
+    response_model=ScoreResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_score(
     body: ScoreCreate,
     workspace: WorkspaceDep,
@@ -158,7 +163,12 @@ async def list_scores(
 # ── Evaluators ────────────────────────────────────────────────────────────────
 
 
-@router.post("/evaluators", response_model=EvaluatorResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/evaluators",
+    response_model=EvaluatorResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_evaluator(
     body: EvaluatorCreate,
     workspace: WorkspaceDep,
@@ -215,7 +225,11 @@ async def get_evaluator(
     return EvaluatorResponse.model_validate(ev)
 
 
-@router.put("/evaluators/{evaluator_id}", response_model=EvaluatorResponse)
+@router.put(
+    "/evaluators/{evaluator_id}",
+    response_model=EvaluatorResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def update_evaluator(
     evaluator_id: uuid.UUID,
     body: EvaluatorUpdate,
@@ -247,7 +261,11 @@ async def update_evaluator(
     return EvaluatorResponse.model_validate(ev)
 
 
-@router.delete("/evaluators/{evaluator_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/evaluators/{evaluator_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def delete_evaluator(
     evaluator_id: uuid.UUID,
     workspace: WorkspaceDep,
@@ -267,7 +285,11 @@ async def delete_evaluator(
     await db.commit()
 
 
-@router.post("/evaluators/{evaluator_id}/run", response_model=EvaluatorRunResult)
+@router.post(
+    "/evaluators/{evaluator_id}/run",
+    response_model=EvaluatorRunResult,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def run_evaluator(
     evaluator_id: uuid.UUID,
     body: EvaluatorRunRequest,

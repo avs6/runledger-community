@@ -14,7 +14,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_user, get_current_workspace
+from runledger_api.core.deps import (
+    get_current_user,
+    get_current_workspace,
+    require_workspace_writer,
+)
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.approvals import Approval
@@ -1040,7 +1044,9 @@ async def get_run_flow(
 # ── Cancel a stuck run ────────────────────────────────────────────────────────
 
 
-@router.patch("/{run_id}/cancel", response_model=RunListItem)
+@router.patch(
+    "/{run_id}/cancel", response_model=RunListItem, dependencies=[Depends(require_workspace_writer)]
+)
 async def cancel_run(
     run_id: uuid.UUID,
     workspace: WorkspaceDep,
@@ -1606,7 +1612,10 @@ async def get_run_graph(
 
 
 @router.post(
-    "/{run_id}/runbook", response_model=RunbookResponse, status_code=status.HTTP_201_CREATED
+    "/{run_id}/runbook",
+    response_model=RunbookResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
 )
 async def create_runbook(
     run_id: uuid.UUID,

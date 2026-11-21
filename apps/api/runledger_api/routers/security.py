@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import require_org_admin
+from runledger_api.core.deps import require_org_admin, require_workspace_admin
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.security import (
     IpAclRule,
@@ -46,6 +46,7 @@ from runledger_api.schemas.security import (
     WorkspaceSecuritySettingsResponse,
     WorkspaceSecuritySettingsUpdate,
 )
+from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.auth import generate_api_key
 from runledger_api.services.security import (
     _encrypt_client_secret,
@@ -61,6 +62,9 @@ router = APIRouter(
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 OrgAdminDep = Annotated[tuple[Workspace, Any, Any], Depends(require_org_admin)]
+# Key rotation follows API-key management: workspace admins rotate keys in their
+# workspace, org admins (membership None) across the org.
+WorkspaceAdminDep = Annotated[tuple[Workspace, Any, Any], Depends(require_workspace_admin)]
 
 
 async def _visible_workspace_ids(
@@ -83,7 +87,7 @@ async def _get_rotatable_key(
     membership: WorkspaceUser | None,
 ) -> ApiKey:
     key = await db.get(ApiKey, key_id)
-    if key is None or key.is_session:
+    if key is None or key.is_session or key.revoked_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
     visible_workspace_ids = await _visible_workspace_ids(db, workspace, membership)
     if key.workspace_id not in visible_workspace_ids:
@@ -110,6 +114,14 @@ async def update_security_settings(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(settings, field, value)
     settings.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "security.settings_updated",
+        actor_user_id=auth[1].id,
+        target_type="security_settings",
+        target_id=str(workspace.id),
+    )
     await db.commit()
     await db.refresh(settings)
     return WorkspaceSecuritySettingsResponse.model_validate(settings)
@@ -141,6 +153,15 @@ async def create_oidc_provider(
     data["tenant_id"] = workspace.tenant_id
     item = OIDCProvider(workspace_id=workspace.id, **data)
     db.add(item)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.created",
+        actor_user_id=auth[1].id,
+        target_type="oidc_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return OIDCProviderResponse.model_validate(item)
@@ -163,6 +184,14 @@ async def update_oidc_provider(
     if body.client_secret is not None:
         item.client_secret_encrypted = _encrypt_client_secret(body.client_secret)
     item.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.updated",
+        actor_user_id=auth[1].id,
+        target_type="oidc_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return OIDCProviderResponse.model_validate(item)
@@ -179,6 +208,14 @@ async def delete_oidc_provider(
     if item is None or item.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "OIDC provider not found")
     await db.delete(item)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.deleted",
+        actor_user_id=auth[1].id,
+        target_type="oidc_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
 
 
@@ -215,6 +252,15 @@ async def create_oauth2_provider(
     data["tenant_id"] = workspace.tenant_id
     item = OAuth2Provider(workspace_id=workspace.id, **data)
     db.add(item)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.created",
+        actor_user_id=auth[1].id,
+        target_type="oauth2_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return OAuth2ProviderResponse.model_validate(item)
@@ -237,6 +283,14 @@ async def update_oauth2_provider(
     if body.client_secret is not None:
         item.client_secret_encrypted = _encrypt_client_secret(body.client_secret)
     item.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.updated",
+        actor_user_id=auth[1].id,
+        target_type="oauth2_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return OAuth2ProviderResponse.model_validate(item)
@@ -253,6 +307,14 @@ async def delete_oauth2_provider(
     if item is None or item.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "OAuth2 provider not found")
     await db.delete(item)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.deleted",
+        actor_user_id=auth[1].id,
+        target_type="oauth2_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
 
 
@@ -285,6 +347,15 @@ async def create_ldap_provider(
     data["tenant_id"] = workspace.tenant_id
     item = LDAPProvider(workspace_id=workspace.id, **data)
     db.add(item)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.created",
+        actor_user_id=auth[1].id,
+        target_type="ldap_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return LDAPProviderResponse.model_validate(item)
@@ -307,6 +378,14 @@ async def update_ldap_provider(
     if body.bind_password is not None:
         item.bind_password_encrypted = _encrypt_client_secret(body.bind_password)
     item.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.updated",
+        actor_user_id=auth[1].id,
+        target_type="ldap_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return LDAPProviderResponse.model_validate(item)
@@ -323,6 +402,14 @@ async def delete_ldap_provider(
     if item is None or item.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "LDAP provider not found")
     await db.delete(item)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "identity_provider.deleted",
+        actor_user_id=auth[1].id,
+        target_type="ldap_provider",
+        target_id=str(item.id),
+    )
     await db.commit()
 
 
@@ -353,6 +440,15 @@ async def create_ip_acl_rule(
     workspace_id = None if body.scope_type == "global" else workspace.id
     item = IpAclRule(workspace_id=workspace_id, **body.model_dump())
     db.add(item)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "ip_acl.created",
+        actor_user_id=auth[1].id,
+        target_type="ip_acl_rule",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return IpAclRuleResponse.model_validate(item)
@@ -371,6 +467,14 @@ async def update_ip_acl_rule(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "IP ACL rule not found")
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(item, field, value)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "ip_acl.updated",
+        actor_user_id=auth[1].id,
+        target_type="ip_acl_rule",
+        target_id=str(item.id),
+    )
     await db.commit()
     await db.refresh(item)
     return IpAclRuleResponse.model_validate(item)
@@ -387,6 +491,14 @@ async def delete_ip_acl_rule(
     if item is None or (item.workspace_id not in (None, workspace.id)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "IP ACL rule not found")
     await db.delete(item)
+    await emit_audit_event(
+        db,
+        auth[0].id,
+        "ip_acl.deleted",
+        actor_user_id=auth[1].id,
+        target_type="ip_acl_rule",
+        target_id=str(item.id),
+    )
     await db.commit()
 
 
@@ -412,15 +524,21 @@ async def test_ip_acl(body: IpAclTestRequest, auth: OrgAdminDep, db: DbDep) -> I
 
 @router.get("/api-keys/{key_id}/rotation-history", response_model=KeyRotationEventList)
 async def get_key_rotation_history(
-    key_id: uuid.UUID, auth: OrgAdminDep, db: DbDep
+    key_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep
 ) -> KeyRotationEventList:
     workspace, _user, membership = auth
-    await _get_rotatable_key(db, key_id, workspace, membership)
+    key = await _get_rotatable_key(db, key_id, workspace, membership)
+    # Events are stored on the key a rotation produced; match both sides by prefix
+    # so the history is visible from the old and the new key.
     items = (
         (
             await db.execute(
                 select(KeyRotationEvent)
-                .where(KeyRotationEvent.api_key_id == key_id)
+                .where(
+                    (KeyRotationEvent.api_key_id == key_id)
+                    | (KeyRotationEvent.rotated_from_prefix == key.key_prefix)
+                    | (KeyRotationEvent.rotated_to_prefix == key.key_prefix)
+                )
                 .order_by(KeyRotationEvent.created_at.desc())
             )
         )
@@ -436,7 +554,7 @@ async def get_key_rotation_history(
 async def rotate_api_key(
     key_id: uuid.UUID,
     body: RotateApiKeyRequest,
-    auth: OrgAdminDep,
+    auth: WorkspaceAdminDep,
     db: DbDep,
 ) -> RotateApiKeyResponse:
     workspace, user, membership = auth
@@ -445,9 +563,10 @@ async def rotate_api_key(
         EnvironmentEnum.prod if key.key_prefix.startswith("rl_live_") else EnvironmentEnum.dev
     )
     raw_key, key_hash, key_prefix = generate_api_key(environment)
-    grace_expires_at = (
-        datetime.now(UTC) + timedelta(hours=body.grace_hours) if body.grace_hours > 0 else None
-    )
+    now = datetime.now(UTC)
+    grace_expires_at = now + timedelta(hours=body.grace_hours) if body.grace_hours > 0 else None
+    # The replacement keeps the original key's expiry policy (if it had one).
+    inherited_expiry = key.expires_at if key.expires_at and key.expires_at > now else None
 
     new_key = ApiKey(
         workspace_id=key.workspace_id,
@@ -460,8 +579,10 @@ async def rotate_api_key(
         owner_reference=key.owner_reference,
         guardrail_config=key.guardrail_config,
         budget_tier_id=key.budget_tier_id,
+        expires_at=inherited_expiry,
     )
-    key.expires_at = grace_expires_at or datetime.now(UTC)
+    old_expiry = grace_expires_at or now
+    key.expires_at = min(old_expiry, inherited_expiry) if inherited_expiry else old_expiry
     db.add(new_key)
     await db.flush()
     db.add(
@@ -472,6 +593,19 @@ async def rotate_api_key(
             triggered_by=getattr(user, "email", None),
             grace_expires_at=grace_expires_at,
         )
+    )
+    await emit_audit_event(
+        db,
+        key.workspace_id,
+        "api_key.rotated",
+        actor_user_id=user.id,
+        target_type="api_key",
+        target_id=str(new_key.id),
+        before={"key_prefix": key.key_prefix},
+        after={
+            "key_prefix": key_prefix,
+            "grace_expires_at": grace_expires_at.isoformat() if grace_expires_at else None,
+        },
     )
     await db.commit()
     return RotateApiKeyResponse(

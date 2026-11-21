@@ -76,3 +76,41 @@ async def _run_active_policies(session: AsyncSession) -> int:
             log.exception("retention_policy_failed", policy_id=str(policy.id))
 
     return total
+
+
+# ── Dashboard session cleanup ────────────────────────────────────────────────
+
+# Revoked/expired session keys are kept this long for audit/investigation, then purged.
+_SESSION_KEY_GRACE_DAYS = 7
+
+
+@celery_app.task(name="auth.purge_session_keys")  # type: ignore[untyped-decorator]
+def purge_session_keys() -> int:
+    """Delete dashboard session keys that expired or were revoked over a week ago."""
+    return asyncio.run(_purge_session_keys())
+
+
+async def _purge_session_keys() -> int:
+    from datetime import timedelta  # noqa: PLC0415
+
+    from sqlalchemy import delete, or_  # noqa: PLC0415
+
+    from runledger_api.models.tenant import ApiKey  # noqa: PLC0415
+
+    cutoff = datetime.now(UTC) - timedelta(days=_SESSION_KEY_GRACE_DAYS)
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            result = await session.execute(
+                delete(ApiKey).where(
+                    ApiKey.is_session.is_(True),
+                    or_(ApiKey.revoked_at < cutoff, ApiKey.expires_at < cutoff),
+                )
+            )
+            await session.commit()
+            purged = int(result.rowcount or 0)
+            log.info("session_keys_purged", count=purged)
+            return purged
+    finally:
+        await engine.dispose()

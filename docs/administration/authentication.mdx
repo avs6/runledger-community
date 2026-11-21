@@ -1,0 +1,154 @@
+---
+title: "Sign-in & Sessions"
+description: "How dashboard sign-in, sessions, passwords, invitations, and SSO work, and the /auth endpoints behind them."
+---
+
+This page covers how people sign in to the RunLedger dashboard and how their access is enforced on every request. Workload credentials (SDK, gateway, MCP) are covered in [API Keys](/administration/api-keys).
+
+## Dashboard Sessions
+
+Signing in (password, OIDC, OAuth2, or LDAP) issues a **session key**. This is a workspace-scoped key owned by the signed-in user.
+
+- Sessions last **7 days** (`SESSION_TTL_DAYS`). The browser session uses the same lifetime.
+- Access is **re-checked on every request** against current memberships. Suspending a member, removing them from the org or workspace, or deactivating the account takes effect immediately. The old key gets `401 Session is no longer valid`.
+- Session keys are also revoked eagerly on these events:
+  - sign-out
+  - switching workspace
+  - password change (other sessions only)
+  - password reset
+  - member removal or suspension
+  - account deactivation
+- Users can list their sessions and revoke any of them from **Account → Sessions** (`/account`). Org admins can sign a user out everywhere from **Users**.
+- Revoked and expired session keys are purged daily (`auth.purge_session_keys`, after a 7-day grace period).
+
+### Who can enter a workspace
+
+The same rule is used at sign-in, at workspace switch, and on every request:
+
+| Membership | Access |
+|---|---|
+| Platform admin | Any workspace |
+| Active org role `org_admin`, `org_manager`, `org_billing_admin`, `org_auditor` | Every workspace in that org |
+| Active workspace membership | That workspace |
+| Suspended org membership | Nothing in that org |
+| Pending (invited) membership | Nothing until accepted |
+
+## Roles and Write Access
+
+Every API route is authenticated, and every route that changes data checks a role. A test (`tests/test_access_control.py`) inventories all routes and fails if a new endpoint ships without both.
+
+| Credential | Read | Write workspace content | Governance config |
+|---|---|---|---|
+| Workload API key (SDK, gateway, OTLP, CI) | ✓ within its [scopes](/administration/api-keys#key-scopes) | ✓ with `write` (or no scopes) | — (needs a dashboard admin session) |
+| Session · workspace admin, org admin/manager, platform admin | ✓ | ✓ | ✓ |
+| Session · workspace editor / contributor / member | ✓ | ✓ | — |
+| Session · viewer, org billing admin, org auditor | ✓ | `403` | `403` |
+
+- **Workspace content** covers prompts, agents, workflows, evaluators, datasets, experiments, outcomes, vector stores, tool registry, playground sessions, replay experiments, run cancellation and annotations.
+- **Governance config** covers guardrails, tool policies, budgets, approvals decisions, routing/flywheel settings, prompt GitHub sync, API keys and audit.
+- Simulations, searches and policy checks stay open to any workspace credential because they change nothing.
+
+The gateway (`gateway-rs` preflight and pass-through endpoints) and the optimization MCP gateway apply the same credential rules as the API: revoked or expired keys, suspended workspaces and orgs, and stale dashboard sessions are refused.
+
+Ingested events are tenant-checked: after `run_start`, an event is applied only if its `run_id` belongs to the sending workspace, and outcomes can only reference runs of their own workspace. Run and model-call events are attributed to the API key that sent them.
+
+Ingest without a bearer key is only accepted at `POST /ingest/v1/signed`, which requires an HMAC signature. The former unsigned `POST /ingest/v1/webhook` has been removed: it let anyone write runs and spend into any workspace whose id they knew.
+
+## Passwords
+
+- **Policy:** at least `PASSWORD_MIN_LENGTH` characters (default 12), with at least one letter and one digit, and not a common password. The policy applies everywhere a password is set: self-service change, reset, admin-created accounts, org creation, and invites.
+- **No default passwords:** when an admin creates an account without supplying a password, RunLedger generates one. It is shown **once** in the response or UI.
+- **Forced change:** every admin-created account has `must_change_password`. The dashboard sends the user to `/account?changePassword=1` until they set their own password.
+- **Changing your password** requires your current password. It signs out your other sessions.
+- **Reset:** `/forgot-password` emails a single-use link that is valid for 60 minutes (`PASSWORD_RESET_TTL_MINUTES`). The response is identical whether or not the email exists. Completing a reset revokes all of the user's sessions.
+- **Email verification:** verification links are single-use and valid for 24 hours (`EMAIL_VERIFY_TTL_HOURS`). Only token hashes are stored. Admins can mark an address verified at creation (`skip_verification`) when SMTP is not configured.
+
+## Brute-Force Protection
+
+Failed password and LDAP sign-ins are counted in Redis per account and per client IP, over a window of `LOGIN_FAILURE_WINDOW_SECONDS` (default 900).
+
+- After `LOGIN_MAX_FAILURES_PER_ACCOUNT` failures (default 10) or `LOGIN_MAX_FAILURES_PER_IP` failures (default 50), further attempts get `429` with `Retry-After`.
+- A successful sign-in clears the account counter.
+- Password-reset and verification-resend requests use separate counters, so spamming them cannot lock a user out.
+- If Redis is unavailable, the check fails open, so an outage cannot lock everyone out.
+- Password checks run bcrypt even for unknown emails, so response time does not reveal which emails are registered.
+
+## Invitations
+
+Inviting someone to an organization depends on whether they already have an account:
+
+- **New email:** an account is created with a temporary password (generated unless supplied) and an active membership. A verification email is sent unless `skip_verification` is set.
+- **Existing account:** a **pending invitation** (`status: invited`) is created and the person is emailed. It grants no access until they accept it under **Account → Invitations**. Inviting an existing account never changes its password or account flags.
+
+### Who manages an identity
+
+An org may change an account's password, active flag, or verified flag, or link an external login to it, only when that org **exclusively owns** the account. That means the account:
+
+- is not a platform admin,
+- has an active membership in that org,
+- has no membership in any other org or in another org's workspaces.
+
+For shared accounts the Users page shows identity controls as read-only. The org can still manage the membership (role, status, removal). This prevents one org from taking over another org's users.
+
+### Role hierarchy
+
+Only org admins (and platform admins) can grant, change, or remove the `org_admin` role. Org managers manage every role below it.
+
+## Single Sign-On
+
+OIDC and OAuth2 flows are hardened as follows:
+
+- **State:** a single-use `state` value is stored in Redis, so flows work across API replicas.
+- **Nonce:** the OIDC `nonce` is checked against the ID token.
+- **PKCE:** PKCE (`S256`) is used on every flow.
+- **Redirect URI:** the redirect URI is fixed to `APP_BASE_URL` and ignores any client-supplied value.
+- **Key rotation:** signing-key rotation is handled by refetching JWKS when a token carries an unknown `kid`.
+
+External identities are linked to an existing account only when both hold:
+
+- the identity provider asserts the email as verified, and
+- the account is managed exclusively by the provider's org.
+
+Otherwise sign-in is refused. A new account is provisioned only when the provider has auto-provisioning enabled.
+
+LDAP sign-ins reject empty usernames and passwords, because an empty password triggers an anonymous bind.
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/auth/login` | Email + password sign-in (rate-limited) |
+| `POST` | `/auth/switch-workspace` | Switch workspace; revokes the current session key |
+| `POST` | `/auth/logout` | Revoke the current session key |
+| `GET` | `/auth/me` | Current user, workspace, org role, `must_change_password` |
+| `GET` | `/auth/sessions` | Your live sessions |
+| `DELETE` | `/auth/sessions/{key_id}` | Revoke one of your sessions |
+| `PUT` | `/users/me` | Update profile; password change needs `current_password` |
+| `POST` | `/auth/verify-email` | Confirm an email verification token |
+| `POST` | `/auth/resend-verification` | Re-send verification (always `202`) |
+| `POST` | `/auth/password-reset/request` | Email a reset link (always `202`) |
+| `POST` | `/auth/password-reset/confirm` | Set a new password with a reset token |
+| `GET` | `/org/invitations` | Your pending org invitations |
+| `POST` | `/org/invitations/{tenant_id}/accept` | Accept an invitation |
+| `POST` | `/org/invitations/{tenant_id}/decline` | Decline an invitation |
+| `POST` | `/users/{user_id}/sessions/revoke` | Org admin: sign a user out everywhere |
+
+## Verify End to End
+
+```powershell
+python scripts/run_demo.py verify-org-access
+```
+
+The script creates two throwaway orgs. It then checks the following controls end to end:
+
+- temporary passwords and the forced password change
+- the password policy
+- the pending-invitation flow and the cross-org identity guard
+- session revocation on member removal and on sign-out
+- audit events
+- viewer/editor write enforcement and admin-only governance config
+- API key scopes (read, ingest, unscoped)
+- closed unauthenticated surfaces
+- sign-in throttling
+
+The test orgs are deleted afterwards.

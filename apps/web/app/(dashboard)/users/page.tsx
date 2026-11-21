@@ -8,6 +8,7 @@ import {
   Circle,
   KeyRound,
   DollarSign,
+  LogOut,
   Pencil,
   RefreshCw,
   Search,
@@ -24,6 +25,8 @@ import {
   updateOrgUser,
   getAccessGroups,
   addAccessGroupMember,
+  apiErrorMessage,
+  revokeUserSessionsInOrg,
   type OrgUser,
 } from '@/lib/api'
 
@@ -69,8 +72,9 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [cEmail, setCEmail] = useState('')
   const [cName, setCName] = useState('')
-  const [cPassword, setCPassword] = useState('ChangeMe123!')
-  const [cSkipVerify, setCSkipVerify] = useState(true)
+  const [cPassword, setCPassword] = useState('')
+  const [cSkipVerify, setCSkipVerify] = useState(false)
+  const [issuedPassword, setIssuedPassword] = useState<{ email: string; password: string } | null>(null)
   const [cSelectedGroupIds, setCSelectedGroupIds] = useState<string[]>([])
   const [accessGroups, setAccessGroups] = useState<{ id: string; name: string }[]>([])
   const [creating, setCreating] = useState(false)
@@ -118,7 +122,7 @@ export default function UsersPage() {
       const u = await createOrgUser(apiKey, {
         email: cEmail.trim(),
         full_name: cName.trim() || null,
-        temporary_password: cPassword,
+        temporary_password: cPassword.trim() || null,
         skip_verification: cSkipVerify,
       })
       if (cSelectedGroupIds.length > 0) {
@@ -130,16 +134,17 @@ export default function UsersPage() {
       }
       setUsers((prev) => [...prev, u])
       setShowCreate(false)
+      if (u.temporary_password) setIssuedPassword({ email: u.email, password: u.temporary_password })
       setCEmail('')
       setCName('')
-      setCPassword('ChangeMe123!')
-      setCSkipVerify(true)
+      setCPassword('')
+      setCSkipVerify(false)
       setCSelectedGroupIds([])
       toast.success(
         `User ${u.email} created${cSelectedGroupIds.length > 0 ? ` and added to ${cSelectedGroupIds.length} Access Group(s)` : ''}.`
       )
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create user')
+      toast.error(apiErrorMessage(err, 'Failed to create user'))
     } finally {
       setCreating(false)
     }
@@ -164,18 +169,38 @@ export default function UsersPage() {
       setEditing(null)
       toast.success('User updated')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update user')
+      toast.error(apiErrorMessage(err, 'Failed to update user'))
     } finally {
       setSaving(false)
     }
   }
 
   async function toggleField(u: OrgUser, field: 'is_active' | 'email_verified') {
+    const next = !u[field]
+    const question =
+      field === 'is_active'
+        ? next
+          ? `Reactivate ${u.email}?`
+          : `Deactivate ${u.email}? They will be signed out everywhere and cannot sign in.`
+        : next
+          ? `Mark ${u.email} as verified without an email confirmation?`
+          : `Mark ${u.email} as unverified? They will not be able to sign in until they verify.`
+    if (!confirm(question)) return
     try {
-      const updated = await updateOrgUser(apiKey, u.id, { [field]: !u[field] })
+      const updated = await updateOrgUser(apiKey, u.id, { [field]: next })
       setUsers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
-    } catch {
-      toast.error('Update failed')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Update failed'))
+    }
+  }
+
+  async function handleSignOutEverywhere(u: OrgUser) {
+    if (!confirm(`Sign ${u.email} out of every workspace in this organization?`)) return
+    try {
+      const res = await revokeUserSessionsInOrg(apiKey, u.id)
+      toast.success(`Signed out ${res.revoked} session(s)`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Could not sign the user out'))
     }
   }
 
@@ -274,13 +299,31 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <button onClick={() => toggleField(u, 'email_verified')} title="Toggle verification" className={`inline-flex items-center gap-1 text-xs ${u.email_verified ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <button
+                    onClick={() => toggleField(u, 'email_verified')}
+                    disabled={u.can_manage_identity === false}
+                    title={u.can_manage_identity === false ? 'Account is managed outside this organization' : 'Toggle verification'}
+                    aria-label={`Toggle email verification for ${u.email}`}
+                    className={`inline-flex items-center gap-1 text-xs disabled:cursor-not-allowed disabled:opacity-60 ${u.email_verified ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
                     {u.email_verified ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
                     {u.email_verified ? 'Verified' : 'Unverified'}
                   </button>
                 </td>
                 <td className="px-4 py-3">
-                  <button onClick={() => toggleField(u, 'is_active')} title="Toggle active"><StatusBadge active={u.is_active} /></button>
+                  {u.org_status === 'invited' ? (
+                    <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">Invitation pending</span>
+                  ) : (
+                    <button
+                      onClick={() => toggleField(u, 'is_active')}
+                      disabled={u.can_manage_identity === false}
+                      title={u.can_manage_identity === false ? 'Account is managed outside this organization' : 'Toggle active'}
+                      aria-label={`Toggle active status for ${u.email}`}
+                      className="disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <StatusBadge active={u.is_active} />
+                    </button>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500">
                   {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}
@@ -288,8 +331,11 @@ export default function UsersPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-3">
                     <a href={`/users/${u.id}`} title="Financial exposure" className="text-slate-400 hover:text-emerald-600"><DollarSign className="h-4 w-4" /></a>
-                    <button onClick={() => openEdit(u)} title="Edit name / reset password" className="text-slate-400 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
-                    <button onClick={() => handleRemove(u)} title="Remove from org" className="text-slate-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                    {u.can_manage_identity !== false && (
+                      <button onClick={() => openEdit(u)} title="Edit name / reset password" aria-label={`Edit ${u.email}`} className="text-slate-400 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
+                    )}
+                    <button onClick={() => handleSignOutEverywhere(u)} title="Sign out everywhere" aria-label={`Sign ${u.email} out everywhere`} className="text-slate-400 hover:text-amber-600"><LogOut className="h-4 w-4" /></button>
+                    <button onClick={() => handleRemove(u)} title="Remove from org" aria-label={`Remove ${u.email} from organization`} className="text-slate-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </td>
               </tr>
@@ -304,12 +350,13 @@ export default function UsersPage() {
             <input autoFocus type="email" required placeholder="Email" value={cEmail} onChange={(e) => setCEmail(e.target.value)} className={`${inputCls} w-full`} />
             <input type="text" placeholder="Full name (optional)" value={cName} onChange={(e) => setCName(e.target.value)} className={`${inputCls} w-full`} />
             <div>
-              <label className="text-xs text-slate-500">Temporary password</label>
-              <input type="text" value={cPassword} onChange={(e) => setCPassword(e.target.value)} className={`${inputCls} w-full`} />
+              <label className="text-xs text-slate-500">Temporary password (leave blank to generate one)</label>
+              <input type="text" value={cPassword} onChange={(e) => setCPassword(e.target.value)} placeholder="Generated automatically" className={`${inputCls} w-full`} />
+              <p className="mt-1 text-xs text-slate-500">The user must change it at first sign-in.</p>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input type="checkbox" checked={cSkipVerify} onChange={(e) => setCSkipVerify(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-              Skip email verification
+              Mark email as verified (no verification email — use when SMTP is not configured)
             </label>
             {accessGroups.length > 0 && (
               <div className="pt-2">
@@ -345,6 +392,25 @@ export default function UsersPage() {
         </Modal>
       )}
 
+      {issuedPassword && (
+        <Modal title="Temporary password" onClose={() => setIssuedPassword(null)}>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Share this password with <b>{issuedPassword.email}</b> through a secure channel. It is shown only once and must be changed at first sign-in.
+          </p>
+          <code className="mt-3 block select-all rounded-lg bg-slate-100 px-3 py-2 font-mono text-sm dark:bg-slate-800">{issuedPassword.password}</code>
+          <div className="flex justify-end gap-2 pt-4">
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard?.writeText(issuedPassword.password); toast.success('Copied') }}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm dark:border-slate-700"
+            >
+              Copy
+            </button>
+            <button type="button" onClick={() => setIssuedPassword(null)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm text-white">Done</button>
+          </div>
+        </Modal>
+      )}
+
       {editing && (
         <Modal title={`Edit ${editing.email}`} onClose={() => setEditing(null)}>
           <form onSubmit={handleSaveEdit} className="space-y-3">
@@ -353,7 +419,7 @@ export default function UsersPage() {
               <input type="text" value={eName} onChange={(e) => setEName(e.target.value)} className={`${inputCls} w-full`} />
             </div>
             <div>
-              <label className="flex items-center gap-1 text-xs text-slate-500"><KeyRound className="h-3 w-3" /> New password (leave blank to keep)</label>
+              <label className="flex items-center gap-1 text-xs text-slate-500"><KeyRound className="h-3 w-3" /> Temporary password (leave blank to keep). The user is signed out and must change it.</label>
               <input type="text" placeholder="********" value={ePassword} onChange={(e) => setEPassword(e.target.value)} className={`${inputCls} w-full`} />
             </div>
             <div className="flex justify-end gap-2 pt-2">

@@ -53,6 +53,7 @@
         "administration/organizations",
         "administration/org-profile",
         "administration/users",
+        "administration/authentication",
         "administration/workspaces",
         "administration/access-groups",
         "administration/api-keys",

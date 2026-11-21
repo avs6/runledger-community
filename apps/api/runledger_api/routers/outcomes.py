@@ -27,7 +27,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace
+from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.outcomes import Outcome, OutcomeRollupDaily
@@ -74,11 +74,24 @@ def _default_to() -> datetime:
 # ── Submit outcome ─────────────────────────────────────────────────────────────
 
 
+async def _ensure_run_in_workspace(
+    db: AsyncSession, workspace_id: uuid.UUID, run_id: uuid.UUID | None
+) -> None:
+    """An outcome may only reference a run of the same workspace (tenant isolation)."""
+    if run_id is None:
+        return
+    owner = (
+        await db.execute(select(AgentRun.workspace_id).where(AgentRun.id == run_id))
+    ).scalar_one_or_none()
+    if owner != workspace_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found in this workspace")
+
+
 @router.post(
     "",
     response_model=OutcomeResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_outcome(
     body: OutcomeCreate,
@@ -86,6 +99,7 @@ async def create_outcome(
     db: DbDep,
 ) -> OutcomeResponse:
     """Record a business outcome linked to a run/session/end-user."""
+    await _ensure_run_in_workspace(db, workspace.id, body.run_id)
     outcome = Outcome(
         workspace_id=workspace.id,
         run_id=body.run_id,
@@ -240,6 +254,7 @@ async def outcome_summary(
         .join(ProviderCall, ProviderCall.run_id == Outcome.run_id)
         .where(
             Outcome.workspace_id == workspace.id,
+            ProviderCall.workspace_id == workspace.id,
             Outcome.run_id.isnot(None),
             Outcome.created_at >= t_from,
             Outcome.created_at < t_to,
@@ -406,6 +421,8 @@ async def workflow_roi(
         .join(ProviderCall, ProviderCall.run_id == AgentRun.id)
         .where(
             Outcome.workspace_id == workspace.id,
+            AgentRun.workspace_id == workspace.id,
+            ProviderCall.workspace_id == workspace.id,
             Outcome.created_at >= t_from,
             Outcome.created_at < t_to,
             AgentRun.feature_tag.in_([r.feature_tag for r in rows]),
@@ -560,7 +577,7 @@ async def get_outcome(
 @router.put(
     "/{outcome_id}",
     response_model=OutcomeResponse,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def update_outcome(
     outcome_id: uuid.UUID,
@@ -569,6 +586,7 @@ async def update_outcome(
     db: DbDep,
 ) -> OutcomeResponse:
     outcome = await _load_outcome_or_404(db, workspace.id, outcome_id)
+    await _ensure_run_in_workspace(db, workspace.id, body.run_id)
     outcome.outcome_type = body.outcome_type
     outcome.success = body.success
     outcome.run_id = body.run_id
@@ -585,7 +603,7 @@ async def update_outcome(
 @router.delete(
     "/{outcome_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit)],
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def delete_outcome(
     outcome_id: uuid.UUID,

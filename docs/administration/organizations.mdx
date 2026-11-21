@@ -8,7 +8,7 @@ The **Organizations** page is platform-admin-only. It is the canonical lifecycle
 ## What Platform Admins Can Do
 
 - List every organization across the platform.
-- Create a new organization with its own seeded org admin.
+- Create a new organization with its own seeded org admin. Leave the admin password empty to generate one; it is shown once and must be changed at first sign-in (see [Sign-in & Sessions](/administration/authentication)).
 - View workspace and member counts.
 - Edit organization name, plan, and lifecycle status.
 - Suspend or reactivate non-default, non-current organizations.
@@ -49,12 +49,13 @@ Each posture card links to the owning surface. Organizations summarizes but does
 
 The default organization and the organization you are currently switched into cannot be suspended or deleted. Switch to another organization before deleting a non-default org.
 
-Deleting an organization removes its workspaces and tenant memberships. Users who no longer belong to any organization or workspace are deactivated, while platform admins are preserved.
+Suspending an organization blocks sign-in to its workspaces immediately. Deleting an organization removes its workspaces and tenant memberships. Users who no longer belong to any organization or workspace are deactivated, while platform admins are preserved.
 
 ## Related Pages
 
 - [Org Profile](/administration/org-profile) — org-admin self-service inside one organization.
 - [Users](/administration/users) — user identity and membership management.
+- [Sign-in & Sessions](/administration/authentication) — sessions, passwords, invitations, and SSO.
 - [Workspaces](/administration/workspaces) — team/workspace management inside the active organization.
 - [Platform Settings](/administration/platform-settings) — compliance, retention, backup, and ops configuration.
 - [Onboarding](/administration/onboarding) — guided setup for new organizations.

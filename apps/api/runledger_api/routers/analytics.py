@@ -31,7 +31,12 @@ from sqlalchemy import String, case, cast, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_user, get_current_workspace, require_platform_admin
+from runledger_api.core.deps import (
+    get_current_user,
+    get_current_workspace,
+    require_platform_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.agents import Agent, WorkflowDefinition, WorkflowRun
@@ -1301,7 +1306,12 @@ async def regressions(
 # ── /analytics/annotations ────────────────────────────────────────────────────
 
 
-@router.post("/annotations", response_model=AnnotationResponse, status_code=201)
+@router.post(
+    "/annotations",
+    response_model=AnnotationResponse,
+    status_code=201,
+    dependencies=[Depends(require_workspace_writer)],
+)
 async def create_annotation(
     body: AnnotationCreate,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
@@ -1434,7 +1444,11 @@ async def analytics_export(
 # ── /analytics/email-report ───────────────────────────────────────────────────
 
 
-@router.post("/email-report", response_model=None, dependencies=[Depends(analytics_rate_limit)])
+@router.post(
+    "/email-report",
+    response_model=None,
+    dependencies=[Depends(require_workspace_writer), Depends(analytics_rate_limit)],
+)
 async def email_analytics_report(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -15174,7 +15188,7 @@ async def get_optimization_observe_posture(
     )
 
 
-@router.get("/analytics/optimization-finops-posture")
+@router.get("/optimization-finops-posture")
 async def optimization_finops_posture(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -15278,7 +15292,7 @@ async def optimization_finops_posture(
     )
 
 
-@router.get("/analytics/build-internal-posture")
+@router.get("/build-internal-posture")
 async def get_build_internal_posture(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -15425,15 +15439,15 @@ async def get_build_internal_posture(
 
 # ── WU-011  Prompts list observe posture ──────────────────────────
 @router.get(
-    "/analytics/prompts-list-observe-posture",
+    "/prompts-list-observe-posture",
     response_model=PromptsListObservePosture,
     tags=["analytics"],
 )
 async def prompts_list_observe_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> PromptsListObservePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -15507,15 +15521,15 @@ async def prompts_list_observe_posture(
 
 # ── WU-012  Prompt detail hub + FinOps posture ───────────────────
 @router.get(
-    "/analytics/prompt-detail-hub-finops-posture",
+    "/prompt-detail-hub-finops-posture",
     response_model=PromptDetailHubFinOpsPosture,
     tags=["analytics"],
 )
 async def prompt_detail_hub_finops_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> PromptDetailHubFinOpsPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -15569,15 +15583,15 @@ async def prompt_detail_hub_finops_posture(
 
 # ── WU-013  Agents list posture ───────────────────────────────────
 @router.get(
-    "/analytics/agents-list-posture",
+    "/agents-list-posture",
     response_model=AgentsListPosture,
     tags=["analytics"],
 )
 async def agents_list_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> AgentsListPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -15681,15 +15695,15 @@ async def agents_list_posture(
 
 # ── WU-014  Agent detail governance posture ───────────────────────
 @router.get(
-    "/analytics/agent-detail-governance-posture",
+    "/agent-detail-governance-posture",
     response_model=AgentDetailGovernancePosture,
     tags=["analytics"],
 )
 async def agent_detail_governance_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> AgentDetailGovernancePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -15774,15 +15788,15 @@ async def agent_detail_governance_posture(
 
 
 @router.get(
-    "/analytics/workflows-list-posture",
+    "/workflows-list-posture",
     response_model=WorkflowsListPosture,
     tags=["analytics"],
 )
 async def workflows_list_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> WorkflowsListPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -15881,15 +15895,15 @@ async def workflows_list_posture(
 
 
 @router.get(
-    "/analytics/workflow-detail-loop-posture",
+    "/workflow-detail-loop-posture",
     response_model=WorkflowDetailLoopPosture,
     tags=["analytics"],
 )
 async def workflow_detail_loop_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> WorkflowDetailLoopPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -15965,15 +15979,15 @@ async def workflow_detail_loop_posture(
 
 
 @router.get(
-    "/analytics/workflow-run-evidence-posture",
+    "/workflow-run-evidence-posture",
     response_model=WorkflowRunEvidencePosture,
     tags=["analytics"],
 )
 async def workflow_run_evidence_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> WorkflowRunEvidencePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16069,15 +16083,15 @@ async def workflow_run_evidence_posture(
 
 
 @router.get(
-    "/analytics/datasets-eval-asset-posture",
+    "/datasets-eval-asset-posture",
     response_model=DatasetsEvalAssetPosture,
     tags=["analytics"],
 )
 async def datasets_eval_asset_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> DatasetsEvalAssetPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16157,15 +16171,15 @@ async def datasets_eval_asset_posture(
 
 
 @router.get(
-    "/analytics/eval-studio-parent-posture",
+    "/eval-studio-parent-posture",
     response_model=EvalStudioParentPosture,
     tags=["analytics"],
 )
 async def eval_studio_parent_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> EvalStudioParentPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16247,15 +16261,15 @@ async def eval_studio_parent_posture(
 
 
 @router.get(
-    "/analytics/experiments-comparison-posture",
+    "/experiments-comparison-posture",
     response_model=ExperimentsComparisonPosture,
     tags=["analytics"],
 )
 async def experiments_comparison_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> ExperimentsComparisonPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16337,15 +16351,15 @@ async def experiments_comparison_posture(
 
 
 @router.get(
-    "/analytics/replay-lab-mode-posture",
+    "/replay-lab-mode-posture",
     response_model=ReplayLabModePosture,
     tags=["analytics"],
 )
 async def replay_lab_mode_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> ReplayLabModePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16397,15 +16411,15 @@ async def replay_lab_mode_posture(
 
 
 @router.get(
-    "/analytics/replay-result-analysis-posture",
+    "/replay-result-analysis-posture",
     response_model=ReplayResultAnalysisPosture,
     tags=["analytics"],
 )
 async def replay_result_analysis_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> ReplayResultAnalysisPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16479,15 +16493,15 @@ async def replay_result_analysis_posture(
 
 
 @router.get(
-    "/analytics/runbooks-remediation-posture",
+    "/runbooks-remediation-posture",
     response_model=RunbooksRemediationPosture,
     tags=["analytics"],
 )
 async def runbooks_remediation_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> RunbooksRemediationPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16573,15 +16587,15 @@ async def runbooks_remediation_posture(
 
 
 @router.get(
-    "/analytics/opt-opps-rationale-posture",
+    "/opt-opps-rationale-posture",
     response_model=OptOppsRationalePosture,
     tags=["analytics"],
 )
 async def opt_opps_rationale_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> OptOppsRationalePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16634,15 +16648,15 @@ async def opt_opps_rationale_posture(
 
 
 @router.get(
-    "/analytics/opt-sim-decision-posture",
+    "/opt-sim-decision-posture",
     response_model=OptSimDecisionPosture,
     tags=["analytics"],
 )
 async def opt_sim_decision_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> OptSimDecisionPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16695,15 +16709,15 @@ async def opt_sim_decision_posture(
 
 
 @router.get(
-    "/analytics/model-scorecards-intel-posture",
+    "/model-scorecards-intel-posture",
     response_model=ModelScorecardsIntelPosture,
     tags=["analytics"],
 )
 async def model_scorecards_intel_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> ModelScorecardsIntelPosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16768,15 +16782,15 @@ async def model_scorecards_intel_posture(
 
 
 @router.get(
-    "/analytics/vector-stores-lifecycle-posture",
+    "/vector-stores-lifecycle-posture",
     response_model=VectorStoresLifecyclePosture,
     tags=["analytics"],
 )
 async def vector_stores_lifecycle_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> VectorStoresLifecyclePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -16847,15 +16861,15 @@ async def vector_stores_lifecycle_posture(
 
 
 @router.get(
-    "/analytics/vector-store-detail-evidence-posture",
+    "/vector-store-detail-evidence-posture",
     response_model=VectorStoreDetailEvidencePosture,
     tags=["analytics"],
 )
 async def vector_store_detail_evidence_posture(
-    request: Request,
+    workspace: Workspace = Depends(get_current_workspace),
     db: AsyncSession = Depends(get_db),
 ) -> VectorStoreDetailEvidencePosture:
-    workspace_id = request.state.workspace_id
+    workspace_id = workspace.id
     period_days = 30
     since = datetime.utcnow() - timedelta(days=period_days)
 
@@ -17693,10 +17707,10 @@ async def runtime_scope_model_posture(
 
     groups_with_budget = (
         await db.execute(
-            select(func.count(AccessGroup.id)).where(
-                AccessGroup.workspace_id == ws,
-                AccessGroup.is_active.is_(True),
-                AccessGroup.budget_usd.isnot(None),
+            select(func.count(func.distinct(Budget.scope_id))).where(
+                Budget.workspace_id == ws,
+                Budget.scope_type == "access_group",
+                Budget.is_active.is_(True),
             )
         )
     ).scalar() or 0

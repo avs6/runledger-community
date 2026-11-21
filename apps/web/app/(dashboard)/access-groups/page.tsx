@@ -39,11 +39,6 @@ import type {
 import { useRole } from '@/components/rbac/useRole'
 import { num } from '@/lib/utils'
 
-function budgetLabel(budget: number | null, period: string | null) {
-  if (budget == null) return 'No budget cap'
-  return `$${num(budget).toFixed(2)}${period ? ` / ${period}` : ''}`
-}
-
 const inputCls =
   'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100'
 
@@ -61,8 +56,6 @@ export default function AccessGroupsPage() {
   const [editingGroup, setEditingGroup] = useState<AccessGroupDashboardItem | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [budgetUsd, setBudgetUsd] = useState<number | ''>('')
-  const [budgetPeriod, setBudgetPeriod] = useState('monthly')
   const [guardrailProfile, setGuardrailProfile] = useState('default')
   const [saving, setSaving] = useState(false)
 
@@ -103,8 +96,6 @@ export default function AccessGroupsPage() {
   function resetForm() {
     setName('')
     setDescription('')
-    setBudgetUsd('')
-    setBudgetPeriod('monthly')
     setGuardrailProfile('default')
     setEditingGroup(null)
   }
@@ -114,8 +105,6 @@ export default function AccessGroupsPage() {
     setEditingGroup(group)
     setName(group.name)
     setDescription('')
-    setBudgetUsd(group.budget_usd ?? '')
-    setBudgetPeriod(group.budget_period ?? 'monthly')
     setGuardrailProfile(group.guardrail_profile ?? 'default')
     setShowCreateModal(true)
   }
@@ -128,8 +117,6 @@ export default function AccessGroupsPage() {
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
-        budget_usd: budgetUsd !== '' ? Number(budgetUsd) : undefined,
-        budget_period: budgetPeriod,
         guardrail_profile: guardrailProfile,
       }
 
@@ -232,7 +219,7 @@ export default function AccessGroupsPage() {
                 Access Groups
               </h1>
               <p className="mt-0.5 text-sm text-slate-500">
-                Group-based permissions with dashboard filtering profiles, guardrails, and budget envelopes.
+                Group-based permissions with dashboard filtering profiles, guardrails, and budget policies.
               </p>
             </div>
           </div>
@@ -330,7 +317,12 @@ export default function AccessGroupsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-slate-400" />
-                    <span>{budgetLabel(group.budget_usd, group.budget_period)}</span>
+                    <Link
+                      href={`/budgets?tab=policies&scope_type=access_group&scope_id=${encodeURIComponent(group.id)}`}
+                      className="text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      Manage budget policies
+                    </Link>
                   </div>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-slate-400" />
@@ -424,37 +416,10 @@ export default function AccessGroupsPage() {
                 />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Budget Cap (USD)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 500.00"
-                    value={budgetUsd}
-                    onChange={(e) => setBudgetUsd(e.target.value ? Number(e.target.value) : '')}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Budget Period
-                  </label>
-                  <select
-                    value={budgetPeriod}
-                    onChange={(e) => setBudgetPeriod(e.target.value)}
-                    className={inputCls}
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
-              </div>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+                Spend limits for this group are managed as budget policies (scope: access group) on the Budgets page,
+                so they share the same enforcement and alerting as every other budget.
+              </p>
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">

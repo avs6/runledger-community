@@ -68,6 +68,7 @@ from runledger_api.schemas.privacy import (
     RetentionPreviewResponse,
 )
 from runledger_api.services import backup_ops
+from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.auth import generate_api_key
 from runledger_api.services.demo_mode import launch_demo_process, read_demo_state
 from runledger_api.services.email import send_email
@@ -569,6 +570,8 @@ async def list_api_keys(auth: WorkspaceAdminDep, db: DbDep) -> list[dict[str, An
             "is_session": k.is_session,
             "ownership_type": k.ownership_type,
             "owner_reference": k.owner_reference,
+            "expires_at": k.expires_at,
+            "last_used_at": k.last_used_at,
         }
         for k in result.scalars().all()
     ]
@@ -586,6 +589,10 @@ async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep)
     target_id = body.workspace_id or workspace.id
     if target_id not in ws:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Workspace is outside your API key scope")
+    if body.expires_at is not None and body.expires_at <= datetime.now(UTC):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "expires_at must be in the future"
+        )
     raw_key, key_hash, key_prefix = generate_api_key(body.environment)
     api_key = ApiKey(
         workspace_id=target_id,
@@ -596,9 +603,24 @@ async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep)
         created_by=user.email,
         ownership_type=body.ownership_type,
         owner_reference=body.owner_reference,
+        expires_at=body.expires_at,
     )
     db.add(api_key)
     await db.flush()
+    await emit_audit_event(
+        db,
+        target_id,
+        "api_key.created",
+        actor_user_id=user.id,
+        target_type="api_key",
+        target_id=str(api_key.id),
+        after={
+            "name": api_key.name,
+            "key_prefix": api_key.key_prefix,
+            "ownership_type": api_key.ownership_type,
+            "expires_at": api_key.expires_at.isoformat() if api_key.expires_at else None,
+        },
+    )
     await db.commit()
     await db.refresh(api_key)
     log.info(
@@ -619,6 +641,8 @@ async def create_api_key(body: ApiKeyCreate, auth: WorkspaceAdminDep, db: DbDep)
         "created_by": api_key.created_by,
         "ownership_type": api_key.ownership_type,
         "owner_reference": api_key.owner_reference,
+        "expires_at": api_key.expires_at,
+        "last_used_at": api_key.last_used_at,
         "key": raw_key,
     }
 
@@ -648,6 +672,8 @@ async def get_api_key(
         "is_session": api_key.is_session,
         "ownership_type": api_key.ownership_type,
         "owner_reference": api_key.owner_reference,
+        "expires_at": api_key.expires_at,
+        "last_used_at": api_key.last_used_at,
     }
 
 
@@ -658,16 +684,28 @@ async def update_api_key(
     auth: WorkspaceAdminDep,
     db: DbDep,
 ) -> dict[str, Any]:
-    workspace, _user, workspace_membership = auth
+    workspace, user, workspace_membership = auth
     api_key, visible_workspaces = await _get_visible_api_key(
         db, key_id, workspace, workspace_membership
     )
     if api_key.revoked_at is not None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
 
-    for field, value in body.model_dump(exclude_none=True).items():
+    changes = body.model_dump(exclude_none=True)
+    before = {field: getattr(api_key, field) for field in changes}
+    for field, value in changes.items():
         setattr(api_key, field, value)
-
+    if changes:
+        await emit_audit_event(
+            db,
+            api_key.workspace_id,
+            "api_key.updated",
+            actor_user_id=user.id,
+            target_type="api_key",
+            target_id=str(api_key.id),
+            before={k: str(v) for k, v in before.items()},
+            after={k: str(v) for k, v in changes.items()},
+        )
     await db.commit()
     await db.refresh(api_key)
     return {
@@ -683,17 +721,28 @@ async def update_api_key(
         "is_session": api_key.is_session,
         "ownership_type": api_key.ownership_type,
         "owner_reference": api_key.owner_reference,
+        "expires_at": api_key.expires_at,
+        "last_used_at": api_key.last_used_at,
     }
 
 
 @router.delete("/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_api_key(key_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep) -> None:
     """Revoke a key belonging to the caller's org (org-admin only)."""
-    workspace, _user, workspace_membership = auth
+    workspace, user, workspace_membership = auth
     api_key, _visible_workspaces = await _get_visible_api_key(
         db, key_id, workspace, workspace_membership
     )
     api_key.revoked_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        api_key.workspace_id,
+        "api_key.revoked",
+        actor_user_id=user.id,
+        target_type="api_key",
+        target_id=str(api_key.id),
+        before={"name": api_key.name, "key_prefix": api_key.key_prefix},
+    )
     await db.commit()
     log.info("api_key_revoked", key_id=str(key_id))
 
@@ -879,9 +928,21 @@ async def test_email_report(
     return {"ok": True, "recipient": recipient.email}
 
 
+def _backup_config_response(config: Any) -> BackupTargetConfigResponse:
+    response = BackupTargetConfigResponse.model_validate(config)
+    return response.model_copy(
+        update={
+            "secret_access_key": None,
+            "has_secret_access_key": bool(config.secret_access_key),
+        }
+    )
+
+
+# Backups dump the whole installation (every tenant), so only platform admins may
+# configure targets, run backups or restore drills, or read their history.
 @router.get("/backups/history", response_model=BackupRunList)
 async def get_backup_history(
-    auth: OrgAdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> BackupRunList:
@@ -895,30 +956,30 @@ async def get_backup_history(
 
 @router.get("/backups/config", response_model=BackupTargetConfigResponse | None)
 async def get_backup_config(
-    auth: OrgAdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> BackupTargetConfigResponse | None:
     workspace = auth[0]
     config = await backup_ops.get_backup_config(db, workspace.id)
     if config is None:
         return None
-    return BackupTargetConfigResponse.model_validate(config)
+    return _backup_config_response(config)
 
 
 @router.put("/backups/config", response_model=BackupTargetConfigResponse)
 async def update_backup_config(
     payload: BackupTargetConfigUpdate,
-    auth: OrgAdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
 ) -> BackupTargetConfigResponse:
     workspace = auth[0]
     config = await backup_ops.upsert_backup_config(db, workspace.id, payload.model_dump())
-    return BackupTargetConfigResponse.model_validate(config)
+    return _backup_config_response(config)
 
 
 @router.get("/backups/snapshots", response_model=BackupSnapshotList)
 async def get_backup_snapshots(
-    auth: OrgAdminDep,
+    auth: PlatformAdminDep,
     db: DbDep,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> BackupSnapshotList:
@@ -931,7 +992,7 @@ async def get_backup_snapshots(
 
 
 @router.post("/backups/run", response_model=BackupRunResponse)
-async def run_backup_now(auth: OrgAdminDep, db: DbDep) -> BackupRunResponse:
+async def run_backup_now(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
     workspace = auth[0]
     if not app_settings.backup_enabled:
         raise HTTPException(
@@ -946,7 +1007,7 @@ async def run_backup_now(auth: OrgAdminDep, db: DbDep) -> BackupRunResponse:
 
 
 @router.post("/backups/test", response_model=BackupActionResult)
-async def test_backup_connection(auth: OrgAdminDep, db: DbDep) -> BackupActionResult:
+async def test_backup_connection(auth: PlatformAdminDep, db: DbDep) -> BackupActionResult:
     workspace = auth[0]
     config = await backup_ops.get_backup_config(db, workspace.id)
     result = await backup_ops.test_backup_connection(config)
@@ -958,7 +1019,7 @@ async def test_backup_connection(auth: OrgAdminDep, db: DbDep) -> BackupActionRe
 
 
 @router.post("/backups/restore-drill", response_model=BackupRunResponse)
-async def run_restore_drill(auth: OrgAdminDep, db: DbDep) -> BackupRunResponse:
+async def run_restore_drill(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
     workspace = auth[0]
     actor = None
     if len(auth) > 1 and getattr(auth[1], "email", None):
@@ -968,7 +1029,7 @@ async def run_restore_drill(auth: OrgAdminDep, db: DbDep) -> BackupRunResponse:
 
 
 @router.get("/backups/status", response_model=BackupActionResult)
-async def get_backup_status(auth: OrgAdminDep, db: DbDep) -> BackupActionResult:
+async def get_backup_status(auth: PlatformAdminDep, db: DbDep) -> BackupActionResult:
     workspace = auth[0]
     status_payload = await backup_ops.backup_alert_status(db, workspace.id)
     return BackupActionResult(
@@ -1132,11 +1193,17 @@ async def trigger_demo_seed(
 ) -> dict[str, Any]:
     """Trigger the demo data seeder (platform admin only)."""
     _workspace = auth[0]
-    return launch_demo_process("seed", profile=profile)
+    try:
+        return launch_demo_process("seed", profile=profile)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
 @router.post("/demo-reset")
 async def trigger_demo_reset(auth: PlatformAdminDep) -> dict[str, Any]:
     """Reset demo data to a clean slate (platform admin only)."""
     _workspace = auth[0]
-    return launch_demo_process("reset")
+    try:
+        return launch_demo_process("reset")
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

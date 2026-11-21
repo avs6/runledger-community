@@ -179,6 +179,12 @@ class ApiKey(Base):
         JSONB, nullable=False, server_default=sa.text("'{}'")
     )
     budget_tier_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    # Owner of a dashboard session key. Session keys are re-validated against this
+    # user's active status and memberships on every request, and revoked when the
+    # user signs out, is deactivated, or loses access.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
 
     workspace: Mapped["Workspace"] = relationship(back_populates="api_keys")
 
@@ -205,7 +211,21 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(
         sa.Boolean, server_default=sa.text("false"), nullable=False
     )
+    # SHA-256 of the emailed verification token (raw token is never stored).
     email_verify_token: Mapped[str | None] = mapped_column(sa.String(64), nullable=True, index=True)
+    email_verify_expires_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    password_reset_token_hash: Mapped[str | None] = mapped_column(
+        sa.String(64), nullable=True, index=True
+    )
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
+    # Set for admin-issued temporary passwords; cleared when the user sets their own.
+    must_change_password: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
     firebase_uid: Mapped[str | None] = mapped_column(
         sa.String(128), unique=True, nullable=True, index=True
     )

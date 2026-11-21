@@ -271,9 +271,12 @@ export default function ProviderProfilesPage() {
         </div>
         <div className="flex items-center gap-1.5">
           <input ref={fileInputRef} type="file" accept=".yml,.yaml,text/yaml" onChange={handleImportFile} className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="flex items-center gap-1 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/40 disabled:opacity-50">
-            <Upload className={`h-3 w-3 ${importing ? 'animate-pulse' : ''}`} />{importing ? 'Importing…' : 'Import YAML'}
-          </button>
+          {/* The YAML import writes the global catalog shared by every org: platform admins only. */}
+          {isPlatformAdmin && (
+            <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="flex items-center gap-1 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/40 disabled:opacity-50">
+              <Upload className={`h-3 w-3 ${importing ? 'animate-pulse' : ''}`} />{importing ? 'Importing…' : 'Import YAML'}
+            </button>
+          )}
           <button onClick={handleDownloadExample} className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
             <FileDown className="h-3 w-3" />Example
           </button>
@@ -378,7 +381,7 @@ export default function ProviderProfilesPage() {
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {pricing.length === 0 ? 'No pricing yet — import a YAML to load your catalog.' : 'No profiles match the current filters.'}
           </p>
-          {pricing.length === 0 && canManage && (
+          {pricing.length === 0 && isPlatformAdmin && (
             <button onClick={() => fileInputRef.current?.click()} className="mt-1 flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">
               <Upload className="h-3 w-3" /> Import pricing YAML
             </button>

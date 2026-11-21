@@ -15,8 +15,28 @@ import {
   rotateApiKey,
   updateApiKey,
   getApiKeyObserveFootprint,
+  apiErrorMessage,
 } from '@/lib/api'
 import type { ApiKeyResponse, ApiKeyObserveFootprint, KeyRotationEventResponse } from '@/types/api'
+import ScopePicker, { ScopeBadges } from '@/components/api-keys/ScopePicker'
+
+const EXPIRY_OPTIONS = [
+  { value: '30', label: 'Expires in 30 days' },
+  { value: '90', label: 'Expires in 90 days' },
+  { value: '365', label: 'Expires in 1 year' },
+  { value: '', label: 'Never expires' },
+]
+
+function expiryLabel(expiresAt: string | null | undefined): { text: string; tone: string } {
+  if (!expiresAt) return { text: 'Never', tone: 'text-slate-400' }
+  const ms = new Date(expiresAt).getTime() - Date.now()
+  if (ms <= 0) return { text: 'Expired', tone: 'text-red-600 dark:text-red-400 font-medium' }
+  const days = Math.ceil(ms / 86_400_000)
+  return {
+    text: days <= 1 ? 'in 1 day' : `in ${days} days`,
+    tone: days <= 14 ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-slate-500 dark:text-slate-400',
+  }
+}
 
 const inputCls =
   'rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400'
@@ -38,6 +58,8 @@ export default function ApiKeysPage() {
   const [newKeyWs, setNewKeyWs] = useState('')
   const [newOwnershipType, setNewOwnershipType] = useState('user')
   const [newOwnerReference, setNewOwnerReference] = useState('')
+  const [newExpiryDays, setNewExpiryDays] = useState('90')
+  const [newScopes, setNewScopes] = useState<string[]>([])
   const [orgWorkspaces, setOrgWorkspaces] = useState<{ id: string; name: string }[]>([])
   const [creatingKey, setCreatingKey] = useState(false)
   const [newRawKey, setNewRawKey] = useState<string | null>(null)
@@ -46,6 +68,7 @@ export default function ApiKeysPage() {
   const [editName, setEditName] = useState('')
   const [editOwnershipType, setEditOwnershipType] = useState('user')
   const [editOwnerReference, setEditOwnerReference] = useState('')
+  const [editScopes, setEditScopes] = useState<string[]>([])
   const [savingKeyId, setSavingKeyId] = useState<string | null>(null)
   const [observeKeyId, setObserveKeyId] = useState<string | null>(null)
   const [observeFootprint, setObserveFootprint] = useState<ApiKeyObserveFootprint | null>(null)
@@ -78,9 +101,12 @@ export default function ApiKeysPage() {
       const created = await createApiKey(apiKey, {
         name: newKeyName.trim() || null,
         workspace_id: newKeyWs || undefined,
-        scopes: [],
+        scopes: newScopes,
         ownership_type: newOwnershipType,
         owner_reference: newOwnerReference.trim() || null,
+        expires_at: newExpiryDays
+          ? new Date(Date.now() + Number(newExpiryDays) * 86_400_000).toISOString()
+          : null,
       })
       setNewRawKey(created.key)
       setCopied(false)
@@ -88,10 +114,11 @@ export default function ApiKeysPage() {
       setNewKeyName('')
       setNewOwnershipType('user')
       setNewOwnerReference('')
+      setNewScopes([])
       toast.success('API key created — save it now')
     } catch (err) {
       console.error(err)
-      toast.error('Failed to create API key')
+      toast.error(apiErrorMessage(err, 'Failed to create API key'))
     } finally {
       setCreatingKey(false)
     }
@@ -107,7 +134,7 @@ export default function ApiKeysPage() {
       toast.success('API key revoked')
     } catch (err) {
       console.error(err)
-      toast.error('Failed to revoke API key')
+      toast.error(apiErrorMessage(err, 'Failed to revoke API key'))
     }
   }
 
@@ -123,6 +150,7 @@ export default function ApiKeysPage() {
     setEditName(key.name ?? '')
     setEditOwnershipType(key.ownership_type)
     setEditOwnerReference(key.owner_reference ?? '')
+    setEditScopes(key.scopes ?? [])
   }
 
   async function handleSaveEdit(key: ApiKeyResponse) {
@@ -133,13 +161,14 @@ export default function ApiKeysPage() {
         name: editName.trim() || null,
         ownership_type: editOwnershipType,
         owner_reference: editOwnerReference.trim() || null,
+        scopes: editScopes,
       })
       setApiKeys((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
       setEditingKeyId(null)
       toast.success('API key updated')
     } catch (err) {
       console.error(err)
-      toast.error('Failed to update API key')
+      toast.error(apiErrorMessage(err, 'Failed to update API key'))
     } finally {
       setSavingKeyId(null)
     }
@@ -256,6 +285,11 @@ export default function ApiKeysPage() {
             <option value="org">Org</option>
           </select>
           <input type="text" placeholder="Owner reference (optional)" value={newOwnerReference} onChange={(e) => setNewOwnerReference(e.target.value)} className={inputCls} />
+          <select value={newExpiryDays} onChange={(e) => setNewExpiryDays(e.target.value)} aria-label="Key expiry" className={inputCls}>
+            {EXPIRY_OPTIONS.map((o) => (
+              <option key={o.value || 'never'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
           <select value={newKeyWs} onChange={(e) => setNewKeyWs(e.target.value)} disabled={!isOrgElevated && !isPlatformAdmin} className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-60`}>
             <option value="">Current workspace ({workspaceName ?? 'default'})</option>
             {orgWorkspaces.map((workspace) => (
@@ -265,6 +299,9 @@ export default function ApiKeysPage() {
           <button type="submit" disabled={creatingKey} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50">
             {creatingKey ? 'Creating…' : 'Create Key'}
           </button>
+          <div className="w-full pt-2">
+            <ScopePicker value={newScopes} onChange={setNewScopes} />
+          </div>
         </form>
       </div>
 
@@ -330,15 +367,18 @@ export default function ApiKeysPage() {
               <th className="px-4 py-2 text-left">Name</th>
               <th className="px-4 py-2 text-left">Workspace</th>
               <th className="px-4 py-2 text-left">Ownership</th>
+              <th className="px-4 py-2 text-left">Scopes</th>
               <th className="px-4 py-2 text-left">Created</th>
               <th className="px-4 py-2 text-left">Created By</th>
+              <th className="px-4 py-2 text-left">Last used</th>
+              <th className="px-4 py-2 text-left">Expires</th>
               <th className="px-4 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
             {filteredApiKeys.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+                <td colSpan={10} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                   {apiKeys.length === 0 ? 'No active API keys.' : 'No keys match your filters.'}
                 </td>
               </tr>
@@ -378,8 +418,21 @@ export default function ApiKeysPage() {
                       </>
                     )}
                   </td>
+                  <td className="px-4 py-2">
+                    {editingKeyId === key.id ? (
+                      <ScopePicker value={editScopes} onChange={setEditScopes} compact />
+                    ) : (
+                      <ScopeBadges scopes={key.scopes} />
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-500">{new Date(key.created_at).toLocaleString()}</td>
                   <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{key.created_by ?? '—'}</td>
+                  <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400" title={key.last_used_at ?? undefined}>
+                    {key.last_used_at ? new Date(key.last_used_at).toLocaleString() : 'Never'}
+                  </td>
+                  <td className={`px-4 py-2 text-xs ${expiryLabel(key.expires_at).tone}`} title={key.expires_at ?? undefined}>
+                    {expiryLabel(key.expires_at).text}
+                  </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-3">
                       {editingKeyId === key.id ? (
@@ -487,8 +540,8 @@ function KeyRotationPanel({ apiKey, apiKeys }: { apiKey: string; apiKeys: ApiKey
       setLatestKey(result.key)
       await loadHistory(selectedKeyId)
       toast.success(`Replacement key issued. Old key expires ${result.expires_old_at ? new Date(result.expires_old_at).toLocaleString() : 'immediately'}.`)
-    } catch {
-      toast.error('Failed to rotate API key')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to rotate API key'))
     } finally {
       setRotating(false)
     }

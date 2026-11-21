@@ -605,6 +605,7 @@ _PASSTHROUGH_ALLOWED_RESPONSE_HEADERS = {
 async def _resolve_gateway_workspace(
     request: Request,
     db: AsyncSession,
+    needed_scope: frozenset[str] | None = None,
 ) -> tuple[Workspace, ApiKey | None]:
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -622,19 +623,14 @@ async def _resolve_gateway_workspace(
             detail="Invalid bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    workspace = (
-        (
-            await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
-        ).scalar_one()
-        if api_key is not None
-        else oidc_auth.workspace
-    )
+    workspace = await _authorize_gateway_credential(db, api_key, oidc_auth, needed_scope)
     return workspace, api_key
 
 
 async def _resolve_gateway_bearer_token(
     raw_bearer: str,
     db: AsyncSession,
+    needed_scope: frozenset[str] | None = None,
 ) -> tuple[Workspace, ApiKey | None, Any | None]:
     api_key = await verify_api_key(raw_bearer, db)
     oidc_auth = None if api_key is not None else await authenticate_oidc_token(raw_bearer, db)
@@ -644,14 +640,30 @@ async def _resolve_gateway_bearer_token(
             detail="Invalid bearer token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    workspace = (
-        (
-            await db.execute(select(Workspace).where(Workspace.id == api_key.workspace_id))
-        ).scalar_one()
-        if api_key is not None
-        else oidc_auth.workspace
-    )
+    workspace = await _authorize_gateway_credential(db, api_key, oidc_auth, needed_scope)
     return workspace, api_key, oidc_auth
+
+
+async def _authorize_gateway_credential(
+    db: AsyncSession,
+    api_key: ApiKey | None,
+    oidc_auth: Any | None,
+    needed_scope: frozenset[str] | None = None,
+) -> Workspace:
+    """Same rules as the control-plane API: workspace/org status, session validity,
+    and — for workload keys — the scope this entry point needs."""
+    from runledger_api.core.deps import (  # noqa: PLC0415
+        authorize_api_key,
+        require_key_scope,
+        validate_workspace_status,
+    )
+
+    if needed_scope is not None:
+        require_key_scope(api_key, needed_scope)
+    if api_key is not None:
+        workspace, _owner = await authorize_api_key(api_key, db)
+        return workspace
+    return await validate_workspace_status(oidc_auth.workspace, db)
 
 
 def _build_passthrough_headers(

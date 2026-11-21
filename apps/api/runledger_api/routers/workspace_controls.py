@@ -10,11 +10,12 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import get_current_workspace, require_member, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.cache_config import ResponseCacheConfig
@@ -66,6 +67,7 @@ from runledger_api.schemas.workspace_controls import (
     ToolUsageAnalyticsItem,
     ToolUsageAnalyticsResponse,
 )
+from runledger_api.services.audit import emit_audit_event
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
@@ -177,6 +179,19 @@ def _search_tool_to_response(tool: SearchTool, policy_count: int = 0) -> SearchT
     )
 
 
+async def _member_count(db: AsyncSession, group_id: uuid.UUID) -> int:
+    return int(
+        (
+            await db.execute(
+                select(func.count(AccessGroupMember.id)).where(
+                    AccessGroupMember.group_id == group_id
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+
 def _group_to_response(group: AccessGroup) -> AccessGroupResponse:
     return AccessGroupResponse(
         id=group.id,
@@ -184,8 +199,6 @@ def _group_to_response(group: AccessGroup) -> AccessGroupResponse:
         name=group.name,
         description=group.description,
         permissions=group.permissions or {},
-        budget_usd=group.budget_usd,
-        budget_period=group.budget_period,
         guardrail_profile=group.guardrail_profile,
         is_active=group.is_active,
         member_count=group.member_count,
@@ -971,12 +984,18 @@ async def create_access_group(
         name=body.name,
         description=body.description,
         permissions=body.permissions,
-        budget_usd=body.budget_usd,
-        budget_period=body.budget_period,
         guardrail_profile=body.guardrail_profile,
         is_active=body.is_active,
     )
     db.add(group)
+    await emit_audit_event(
+        db,
+        ws.id,
+        "access_group.created",
+        target_type="access_group",
+        target_id=str(group.id),
+        after={"name": group.name, "guardrail_profile": group.guardrail_profile},
+    )
     await db.commit()
     await db.refresh(group)
     return _group_to_response(group)
@@ -985,7 +1004,7 @@ async def create_access_group(
 @access_groups_router.get(
     "",
     response_model=AccessGroupListResponse,
-    dependencies=[Depends(analytics_rate_limit)],
+    dependencies=[Depends(analytics_rate_limit), Depends(require_member)],
 )
 async def list_access_groups(
     ws: WorkspaceDep,
@@ -1014,9 +1033,18 @@ async def update_access_group(
     db: DbDep,
 ) -> AccessGroupResponse:
     group = await _get_group_or_404(db, ws.id, group_id)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(group, field, value)
     group.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        ws.id,
+        "access_group.updated",
+        target_type="access_group",
+        target_id=str(group.id),
+        after={k: str(v) for k, v in changes.items()},
+    )
     await db.commit()
     await db.refresh(group)
     return _group_to_response(group)
@@ -1031,6 +1059,16 @@ async def delete_access_group(group_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) 
     group = await _get_group_or_404(db, ws.id, group_id)
     group.is_active = False
     group.updated_at = datetime.now(UTC)
+    # Archived groups keep their history but no longer carry members.
+    await db.execute(sa_delete(AccessGroupMember).where(AccessGroupMember.group_id == group_id))
+    group.member_count = 0
+    await emit_audit_event(
+        db,
+        ws.id,
+        "access_group.archived",
+        target_type="access_group",
+        target_id=str(group.id),
+    )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -1048,6 +1086,27 @@ async def add_access_group_member(
     db: DbDep,
 ) -> AccessGroupMemberResponse:
     group = await _get_group_or_404(db, ws.id, group_id)
+    if not group.is_active:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Access group is archived")
+    # Members must belong to this workspace (or hold an org-level role in its org).
+    from runledger_api.models.tenant import User as _User  # noqa: PLC0415
+    from runledger_api.services.sessions import has_workspace_access  # noqa: PLC0415
+
+    target_user = await db.get(_User, body.user_id)
+    if target_user is None or not await has_workspace_access(db, target_user, ws):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "User is not an active member of this workspace"
+        )
+    duplicate = (
+        await db.execute(
+            select(AccessGroupMember.id).where(
+                AccessGroupMember.group_id == group_id,
+                AccessGroupMember.user_id == body.user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if duplicate is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "User is already in this access group")
     member = AccessGroupMember(
         id=uuid.uuid4(),
         group_id=group_id,
@@ -1055,8 +1114,17 @@ async def add_access_group_member(
         role=body.role,
     )
     db.add(member)
-    group.member_count = (group.member_count or 0) + 1
+    await db.flush()
+    group.member_count = await _member_count(db, group_id)
     group.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        ws.id,
+        "access_group.member_added",
+        target_type="access_group",
+        target_id=str(group_id),
+        after={"user_id": str(body.user_id), "role": body.role},
+    )
     await db.commit()
     await db.refresh(member)
     return _member_to_response(member)
@@ -1065,7 +1133,7 @@ async def add_access_group_member(
 @access_groups_router.get(
     "/{group_id}/members",
     response_model=AccessGroupMemberListResponse,
-    dependencies=[Depends(analytics_rate_limit)],
+    dependencies=[Depends(analytics_rate_limit), Depends(require_member)],
 )
 async def list_access_group_members(
     group_id: uuid.UUID,
@@ -1113,8 +1181,17 @@ async def remove_access_group_member(
     if not member:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Group member not found")
     await db.delete(member)
-    group.member_count = max((group.member_count or 0) - 1, 0)
+    await db.flush()
+    group.member_count = await _member_count(db, group_id)
     group.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        ws.id,
+        "access_group.member_removed",
+        target_type="access_group",
+        target_id=str(group_id),
+        before={"user_id": str(user_id)},
+    )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -1122,7 +1199,7 @@ async def remove_access_group_member(
 @access_groups_router.get(
     "/dashboard",
     response_model=AccessGroupDashboardResponse,
-    dependencies=[Depends(analytics_rate_limit)],
+    dependencies=[Depends(analytics_rate_limit), Depends(require_member)],
 )
 async def get_access_group_dashboard(
     ws: WorkspaceDep,
@@ -1139,8 +1216,6 @@ async def get_access_group_dashboard(
                 id=row.id,
                 name=row.name,
                 member_count=row.member_count,
-                budget_usd=row.budget_usd,
-                budget_period=row.budget_period,
                 guardrail_profile=row.guardrail_profile,
                 dashboard_filters=(row.permissions or {}).get("dashboard_filters", {}),
                 is_active=row.is_active,

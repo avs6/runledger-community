@@ -45,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
+    require_billing_access,
     require_org_admin,
     require_workspace_admin,
 )
@@ -144,7 +145,7 @@ async def create_billing_period(
 
 @router.get("/periods", response_model=BillingPeriodList)
 async def list_billing_periods(
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     access_group_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -225,7 +226,7 @@ async def list_billing_periods(
 @router.get("/periods/{period_id}", response_model=BillingPeriodResponse)
 async def get_billing_period(
     period_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BillingPeriodResponse:
     workspace: Workspace = auth[0]
@@ -323,7 +324,7 @@ async def close_period(
 @router.get("/periods/{period_id}/breakdown", response_model=PeriodBreakdown)
 async def get_breakdown(
     period_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     access_group_id: Annotated[uuid.UUID | None, Query()] = None,
     api_key_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -357,7 +358,7 @@ async def get_breakdown(
 @router.get("/periods/{period_id}/reconciliation", response_model=ReconciliationResult)
 async def get_period_reconciliation(
     period_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     access_group_id: Annotated[uuid.UUID | None, Query()] = None,
     api_key_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -391,7 +392,7 @@ async def get_period_reconciliation(
 @router.get("/periods/{period_id}/export")
 async def export_period(
     period_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     format: Annotated[str, Query(pattern="^(csv|signed_json)$")] = "csv",
     access_group_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -478,7 +479,7 @@ async def create_adjustment(
 @router.get("/periods/{period_id}/adjustments", response_model=BillingAdjustmentList)
 async def list_adjustments(
     period_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BillingAdjustmentList:
     workspace: Workspace = auth[0]
@@ -637,7 +638,7 @@ async def create_shared_cost_policy(
 
 @router.get("/shared-cost-policies", response_model=SharedCostPolicyList)
 async def list_shared_cost_policies(
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     active_only: Annotated[bool, Query()] = False,
 ) -> SharedCostPolicyList:
@@ -657,7 +658,7 @@ async def list_shared_cost_policies(
 @router.get("/shared-cost-policies/{policy_id}", response_model=SharedCostPolicyResponse)
 async def get_shared_cost_policy(
     policy_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> SharedCostPolicyResponse:
     workspace: Workspace = auth[0]
@@ -803,7 +804,7 @@ async def create_chargeback_rule(
 
 @router.get("/chargeback-rules", response_model=ChargebackRuleList)
 async def list_chargeback_rules(
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status_filter: str | None = Query(None, alias="status"),
 ) -> ChargebackRuleList:
@@ -820,7 +821,7 @@ async def list_chargeback_rules(
 @router.get("/chargeback-rules/{rule_id}", response_model=ChargebackRuleResponse)
 async def get_chargeback_rule(
     rule_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> ChargebackRuleResponse:
     workspace: Workspace = auth[0]
@@ -892,7 +893,7 @@ async def delete_chargeback_rule(
 
 @router.get("/chargeback-report", response_model=ChargebackReportList)
 async def get_chargeback_report(
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: Annotated[str | None, Query()] = None,
     dimension: Annotated[str | None, Query()] = None,
@@ -918,7 +919,7 @@ async def get_chargeback_report(
 
 @router.get("/chargeback-report/export")
 async def export_chargeback_report(
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: Annotated[tuple[Any, ...], Depends(require_billing_access)],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: Annotated[str | None, Query()] = None,
     dimension: Annotated[str | None, Query()] = None,
