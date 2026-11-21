@@ -81,7 +81,7 @@ details{margin:10px 0} summary{cursor:pointer;font-weight:600;color:var(--accent
 <a href="#org">6 · Organization &amp; Access</a>
 <a href="#ing">7 · Ingestion &amp; Integrations</a>
 <a href="#plat">8 · Platform &amp; Developer Experience</a>
-<div class="grp">Plan</div><a href="#roadmap">Remediation roadmap</a><a href="#method">Method &amp; verification</a></nav><main>
+<div class="grp">Plan</div><a href="#remediation-org">Remediation status · Org &amp; Access</a><a href="#roadmap">Remediation roadmap</a><a href="#method">Method &amp; verification</a></nav><main>
 <div class="eyebrow">Technical due diligence · Pass 4 · Parallel feature audit</div>
 <h1>Eight features, audited in parallel: backend, frontend and cohesion</h1>
 <p class="lede">Eight independent code-review agents each took one major feature from the <a href="runledger-feature-catalog.html">feature catalog</a> and audited its backend (endpoints, authorization, validation, correctness, efficiency), its frontend (components, API calls, filters, pagination, states) and its real connections to the other features. They produced <b>213 findings</b> with file:line evidence. I spot-checked 18 of the most severe claims directly against the source; all 18 held. This pass is additive to passes 1–3: agents were told the earlier findings and focused on new ones.</p>
@@ -97,7 +97,7 @@ details{margin:10px 0} summary{cursor:pointer;font-weight:600;color:var(--accent
 <li>Anyone who knows a workspace UUID can inject runs (I-01), and pipeline events can modify other tenants' runs (I-02).</li>
 <li>Every default Compose install ships a known platform-admin password (P-01).</li>
 </ul>
-Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltration), the platform should not be offered as multi-tenant until these are closed. Feature-wise, the pattern from passes 1–3 is confirmed at depth: wide CRUD, decorative enforcement, silent UI failures, and parallel systems for the same concept.</div></section>
+Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltration), the platform should not be offered as multi-tenant until these are closed. <b>Update (2026-11-21):</b> A-01/A-02, P-02/I-03, I-01 and I-02 are resolved on <code>fix/org-access</code>; P-01 remains open — see <a href="#remediation-org">Remediation status</a>. Feature-wise, the pattern from passes 1–3 is confirmed at depth: wide CRUD, decorative enforcement, silent UI failures, and parallel systems for the same concept.</div></section>
 <section id="scores"><h2>Scores &amp; finding counts</h2><div class="tw"><table><thead><tr><th>#</th><th>Major feature</th><th class="m">Backend</th><th class="m">Frontend</th><th class="m">Cohesion</th><th class="m">Critical</th><th class="m">High</th><th class="m">Medium</th><th class="m">Low/Info</th><th class="m">Total</th></tr></thead><tbody>
 <tr><td>1</td><td><a href="#obs">Observability &amp; Investigation</a></td><td class="m">5/10</td><td class="m">4/10</td><td class="m">3/10</td><td class="m">—</td><td class="m">8</td><td class="m">11</td><td class="m">7</td><td class="m"><b>26</b></td></tr>
 <tr><td>2</td><td><a href="#build">Build &amp; Improve</a></td><td class="m">4/10</td><td class="m">4/10</td><td class="m">2/10</td><td class="m">2</td><td class="m">9</td><td class="m">11</td><td class="m">5</td><td class="m"><b>27</b></td></tr>
@@ -113,13 +113,13 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>B-01</b></td><td>Build &amp; Improve</td><td>Batch evaluator crashes every run (AgentRun.duration_ms)</td><td class="ev">workers/evaluators.py:100; models/events.py</td><td>Compute from timestamps; add an unmocked test</td><td><span class='b v'>✓ checked</span></td></tr>
 <tr><td><b>B-02</b></td><td>Build &amp; Improve</td><td>Production prompt approval bypass via create/edit version</td><td class="ev">prompts.py:373-418,677-732; schemas/prompts.py:38</td><td>Default dev; require approval_id</td><td>agent</td></tr>
 <tr><td><b>G-01</b></td><td>AI Gateway &amp; Routing</td><td>Per-model quotas never enforced</td><td class="ev">services/budgets.py:401-470</td><td>Wire into preflight/finalize or remove</td><td>agent</td></tr>
-<tr><td><b>A-01</b></td><td>Organization &amp; Access</td><td>Org admin can take over any account by email (incl. platform admin)</td><td class="ev">org.py:770-799; users.py:184-212</td><td>Invitations need acceptance; org admins can&#x27;t edit global identity</td><td><span class='b v'>✓ checked</span></td></tr>
-<tr><td><b>A-02</b></td><td>Organization &amp; Access</td><td>IdP auto-links existing accounts by email → cross-tenant takeover</td><td class="ev">services/security.py:369-371,550,717</td><td>Link only within tenant + verified email; never platform admin</td><td><span class='b v'>✓ checked</span></td></tr>
-<tr><td><b>I-01</b></td><td>Ingestion &amp; Integrations</td><td>Unauthenticated webhook ingest accepts any workspace_id</td><td class="ev">routers/ingest.py:103-122</td><td>Remove or authenticate</td><td><span class='b v'>✓ checked</span></td></tr>
-<tr><td><b>I-02</b></td><td>Ingestion &amp; Integrations</td><td>Pipeline writes to runs without workspace check</td><td class="ev">workers/pipeline.py:173-399</td><td>Ownership check per event</td><td><span class='b v'>✓ checked</span></td></tr>
-<tr><td><b>I-03</b></td><td>Ingestion &amp; Integrations</td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td><td>agent</td></tr>
+<tr><td><b>A-01</b> <span class="b ok">Resolved</span></td><td>Organization &amp; Access</td><td>Org admin can take over any account by email (incl. platform admin)</td><td class="ev">org.py:770-799; users.py:184-212</td><td>Invitations need acceptance; org admins can&#x27;t edit global identity</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>A-02</b> <span class="b ok">Resolved</span></td><td>Organization &amp; Access</td><td>IdP auto-links existing accounts by email → cross-tenant takeover</td><td class="ev">services/security.py:369-371,550,717</td><td>Link only within tenant + verified email; never platform admin</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>I-01</b> <span class="b ok">Resolved</span></td><td>Ingestion &amp; Integrations</td><td>Unauthenticated webhook ingest accepts any workspace_id</td><td class="ev">routers/ingest.py:103-122</td><td>Remove or authenticate</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>I-02</b> <span class="b ok">Resolved</span></td><td>Ingestion &amp; Integrations</td><td>Pipeline writes to runs without workspace check</td><td class="ev">workers/pipeline.py:173-399</td><td>Ownership check per event</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>I-03</b> <span class="b ok">Resolved</span></td><td>Ingestion &amp; Integrations</td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td><td>agent</td></tr>
 <tr><td><b>P-01</b></td><td>Platform &amp; Developer Experience</td><td>Compose seeds a default platform admin on every start</td><td class="ev">apps/api/scripts/start.sh:22; seed.py:151-172</td><td>Dev-only seed; bootstrap flow; refuse default</td><td><span class='b v'>✓ checked</span></td></tr>
-<tr><td><b>P-02</b></td><td>Platform &amp; Developer Experience</td><td>Org admin can pg_dump the whole cluster to their own S3</td><td class="ev">routers/settings.py:908-946; backup_ops.py:71-88</td><td>Platform-only; allowlist endpoints</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>P-02</b> <span class="b ok">Resolved</span></td><td>Platform &amp; Developer Experience</td><td>Org admin can pg_dump the whole cluster to their own S3</td><td class="ev">routers/settings.py:908-946; backup_ops.py:71-88</td><td>Platform-only; allowlist endpoints</td><td><span class='b v'>✓ checked</span></td></tr>
 </tbody></table></div></section>
 <section id="themes"><h2>Cross-cutting themes</h2>
 <div class="tw"><table><thead><tr><th>Theme</th><th>What the agents found</th><th>IDs</th></tr></thead><tbody>
@@ -164,12 +164,12 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>O-01</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Explorer status filter can never match</td><td class="ev">request-explorer/page.tsx:242-248 vs analytics.py:2367</td><td>Map statuses, or filter AgentRun.status</td></tr>
 <tr><td><b>O-02</b></td><td><span class="b high">High</span></td><td>Explorer Intent box sends feature_tag as intent</td><td class="ev">request-explorer/page.tsx:252,632</td><td>Add a feature_tag param</td></tr>
 <tr><td><b>O-03</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Two outcome tables; SDK/MCP outcomes never shown</td><td class="ev">pipeline.py:393; outcomes.py:89; mcp_server.py:389</td><td>Unify on one table</td></tr>
-<tr><td><b>O-04</b></td><td><span class="b high">High</span></td><td>Outcome ROI join not workspace-scoped; run_id unchecked; double count</td><td class="ev">outcomes.py:89-98,235-248</td><td>Validate ownership; scope; aggregate per run</td></tr>
+<tr><td><b>O-04</b> <span class="b part">Partly resolved</span></td><td><span class="b high">High</span></td><td>Outcome ROI join not workspace-scoped; run_id unchecked; double count</td><td class="ev">outcomes.py:89-98,235-248</td><td>Validate ownership; scope; aggregate per run</td></tr>
 <tr><td><b>O-05</b></td><td><span class="b high">High</span></td><td>Captured prompts returned to any key, 3× per run page</td><td class="ev">runs.py:1150-1197,1587</td><td>Role-gate payloads; dedupe</td></tr>
 <tr><td><b>O-06</b></td><td><span class="b high">High</span></td><td>Overview charts ignore scope and access group; KPI sources differ</td><td class="ev">analytics/page.tsx:378; analytics.py:365 vs 1864</td><td>Pass filters; one summary service</td></tr>
 <tr><td><b>O-07</b></td><td><span class="b high">High</span></td><td>Live view polls a full COUNT every 2 s</td><td class="ev">live/page.tsx:451-461; runs.py:472-490</td><td>Window, include_total=false, SSE, pause when hidden</td></tr>
 <tr><td><b>O-08</b></td><td><span class="b high">High</span></td><td>OTLP insights parses all 7-day raw payloads per request</td><td class="ev">otlp.py:604-692</td><td>Precompute at ingest</td></tr>
-<tr><td><b>O-09</b></td><td><span class="b med">Medium</span></td><td>Viewers can cancel runs</td><td class="ev">runs.py:1043-1048</td><td>require_member</td></tr>
+<tr><td><b>O-09</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Viewers can cancel runs</td><td class="ev">runs.py:1043-1048</td><td>require_member</td></tr>
 <tr><td><b>O-10</b></td><td><span class="b med">Medium</span></td><td>Runs cursor skips ties; bad cursor or status gives 500</td><td class="ev">runs.py:511-513,185</td><td>Composite cursor; validate the enum</td></tr>
 <tr><td><b>O-11</b></td><td><span class="b med">Medium</span></td><td>Runs export drops 4 filters and the default window</td><td class="ev">RunsExportButton.tsx:21</td><td>Share the filter list</td></tr>
 <tr><td><b>O-12</b></td><td><span class="b med">Medium</span></td><td>Gateway↔run linkage is a heuristic, done twice</td><td class="ev">runs.py:421-440; explorer page.tsx:145-155</td><td>Persist run_id on gateway_requests</td></tr>
@@ -225,8 +225,8 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>B-18</b></td><td><span class="b med">Medium</span></td><td>Step cost never rolls up</td><td class="ev">workflows.py:498-551</td><td>Recompute totals</td></tr>
 <tr><td><b>B-19</b></td><td><span class="b med">Medium</span></td><td>Vector search-test stub; counters faked</td><td class="ev">vector_stores.py:321-366</td><td>Integrate Qdrant or label</td></tr>
 <tr><td><b>B-20</b></td><td><span class="b med">Medium</span></td><td>Two optimization engines with guesses; no apply</td><td class="ev">analytics.py:2133-2185,2954; page.tsx:90</td><td>One engine + Flywheel apply</td></tr>
-<tr><td><b>B-21</b></td><td><span class="b med">Medium</span></td><td>GitHub token base64; any key can set it</td><td class="ev">prompts.py:140-172</td><td>Encrypt; admin</td></tr>
-<tr><td><b>B-22</b></td><td><span class="b med">Medium</span></td><td>All Build routers use any-key auth</td><td class="ev">routers/*</td><td>Role dependency on mutations</td></tr>
+<tr><td><b>B-21</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>GitHub token base64; any key can set it</td><td class="ev">prompts.py:140-172</td><td>Encrypt; admin</td></tr>
+<tr><td><b>B-22</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>All Build routers use any-key auth</td><td class="ev">routers/*</td><td>Role dependency on mutations</td></tr>
 <tr><td><b>B-23</b></td><td><span class="b low">Low</span></td><td>Prompts never resolved by the gateway</td><td class="ev">4 modules only</td><td>Prompt-ref resolution</td></tr>
 <tr><td><b>B-24</b></td><td><span class="b low">Low</span></td><td>Missing UI for many existing endpoints</td><td class="ev">lib/api.ts</td><td>Complete or remove</td></tr>
 <tr><td><b>B-25</b></td><td><span class="b low">Low</span></td><td>Scorecard attribution; 0.0 averages dropped</td><td class="ev">analytics.py:3287-3330</td><td>Call-level join; is not None</td></tr>
@@ -253,7 +253,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>G-01</b></td><td><span class="b crit">Critical</span></td><td>Per-model quotas never enforced</td><td class="ev">services/budgets.py:401-470</td><td>Wire into preflight/finalize or remove</td></tr>
 <tr><td><b>G-02</b></td><td><span class="b high">High</span></td><td>Tier rpm/tpm/allowed_models decorative</td><td class="ev">models/budget_tiers.py:35</td><td>Enforce per key or drop</td></tr>
 <tr><td><b>G-03</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Flywheel apply mutates routes with any key</td><td class="ev">routers/flywheel.py:46,58,113</td><td>OrgAdmin + audit + rollback</td></tr>
-<tr><td><b>G-04</b></td><td><span class="b high">High</span></td><td>Any tenant org admin overwrites the global pricing catalog</td><td class="ev">providers.py:116-141; pricing_import.py:147</td><td>Platform admin or workspace rows</td></tr>
+<tr><td><b>G-04</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Any tenant org admin overwrites the global pricing catalog</td><td class="ev">providers.py:116-141; pricing_import.py:147</td><td>Platform admin or workspace rows</td></tr>
 <tr><td><b>G-05</b></td><td><span class="b high">High</span></td><td>Pass-through auth secrets returned in API/UI</td><td class="ev">schemas/gateway.py:677; page.tsx:3857</td><td>Write-only secrets</td></tr>
 <tr><td><b>G-06</b></td><td><span class="b high">High</span></td><td>Partner guardrail edit wipes credentials</td><td class="ev">guardrails/page.tsx:225,285</td><td>Omit when untouched</td></tr>
 <tr><td><b>G-07</b></td><td><span class="b high">High</span></td><td>Four posture endpoints 500 (missing rpm_limit)</td><td class="ev">analytics.py:5567,9770,9945,14247</td><td>Fix columns; tests</td></tr>
@@ -298,7 +298,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>S-02</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Approval audit events lost (emitted after commit)</td><td class="ev">approvals.py:616-632; services/audit.py:63</td><td>Emit before commit</td></tr>
 <tr><td><b>S-03</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Auth provider secrets and LDAP bind password stored in plaintext</td><td class="ev">services/security.py:207-217</td><td>Fernet/KMS + migration</td></tr>
 <tr><td><b>S-04</b></td><td><span class="b high">High</span></td><td>Search-provider auth_config readable by any key</td><td class="ev">workspace_controls.py:166,579</td><td>Redact; admin; encrypt</td></tr>
-<tr><td><b>S-05</b></td><td><span class="b high">High</span></td><td>Tool registry mutations need only any key</td><td class="ev">tools.py:181,234,274</td><td>require_workspace_admin</td></tr>
+<tr><td><b>S-05</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Tool registry mutations need only any key</td><td class="ev">tools.py:181,234,274</td><td>require_workspace_admin</td></tr>
 <tr><td><b>S-06</b></td><td><span class="b high">High</span></td><td>Dry-run vs runtime tool-policy semantics differ</td><td class="ev">workspace_controls.py:822 vs plugin_runner.py:131-150</td><td>One evaluator</td></tr>
 <tr><td><b>S-07</b></td><td><span class="b high">High</span></td><td>Four parallel tool-control systems; gateway enforces none</td><td class="ev">ToolRegistry/ToolPolicy/McpPermission/allowed_tools</td><td>Merge into ToolPolicy</td></tr>
 <tr><td><b>S-08</b></td><td><span class="b med">Medium</span></td><td>/tools/check and /policies/check disagree</td><td class="ev">tools.py:138; policies.py:290</td><td>Align</td></tr>
@@ -307,7 +307,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>S-11</b></td><td><span class="b med">Medium</span></td><td>Two PII redactors</td><td class="ev">settings.py:75 vs scrubbing.py</td><td>One redactor</td></tr>
 <tr><td><b>S-12</b></td><td><span class="b med">Medium</span></td><td>Route PII redaction only when streaming</td><td class="ev">gateway_runtime.py:504-507</td><td>Unconditional</td></tr>
 <tr><td><b>S-13</b></td><td><span class="b med">Medium</span></td><td>IP ACL leftmost XFF; deny/priority ignored; team-keyed</td><td class="ev">security.py:122-168</td><td>Rightmost untrusted hop; priority</td></tr>
-<tr><td><b>S-14</b></td><td><span class="b med">Medium</span></td><td>OIDC/OAuth2 state in process memory</td><td class="ev">security.py:205,432</td><td>Redis state</td></tr>
+<tr><td><b>S-14</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>OIDC/OAuth2 state in process memory</td><td class="ev">security.py:205,432</td><td>Redis state</td></tr>
 <tr><td><b>S-15</b></td><td><span class="b med">Medium</span></td><td>Approvals allow self-approval; no lock</td><td class="ev">approvals.py:127,~600</td><td>Separation of duties; FOR UPDATE</td></tr>
 <tr><td><b>S-16</b></td><td><span class="b med">Medium</span></td><td>Audit events lack actor and tamper evidence</td><td class="ev">services/audit.py</td><td>Actor + hash chain</td></tr>
 <tr><td><b>S-17</b></td><td><span class="b med">Medium</span></td><td>Alert dedupe raises; notify-then-commit duplicates</td><td class="ev">workers/alerts.py:95-160</td><td>first(); per-rule commit; cooldown</td></tr>
@@ -315,10 +315,10 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>S-19</b></td><td><span class="b med">Medium</span></td><td>Auto-tagging rules never applied</td><td class="ev">analytics.py:8743 only</td><td>Apply at ingest/gateway</td></tr>
 <tr><td><b>S-20</b></td><td><span class="b med">Medium</span></td><td>Retention runs one transaction for all workspaces</td><td class="ev">workers/retention.py:52-76</td><td>Savepoint per policy</td></tr>
 <tr><td><b>S-21</b></td><td><span class="b med">Medium</span></td><td>Audit pack identity filter mismatched</td><td class="ev">governance.py:71-120</td><td>Correct lineage</td></tr>
-<tr><td><b>S-22</b></td><td><span class="b med">Medium</span></td><td>mcp-gateway has no auth; caller-chosen workspace</td><td class="ev">apps/mcp-gateway/app.py</td><td>Require a key</td></tr>
+<tr><td><b>S-22</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>mcp-gateway has no auth; caller-chosen workspace</td><td class="ev">apps/mcp-gateway/app.py</td><td>Require a key</td></tr>
 <tr><td><b>S-23</b></td><td><span class="b low">Low</span></td><td>MCP permission grant unvalidated; unused</td><td class="ev">mcp_registry.py:316-345</td><td>Validate or remove</td></tr>
 <tr><td><b>S-24</b></td><td><span class="b low">Low</span></td><td>Decorative security settings</td><td class="ev">models/security.py:37-48</td><td>Enforce or remove</td></tr>
-<tr><td><b>S-25</b></td><td><span class="b low">Low</span></td><td>LDAP empty password; blocking sync calls</td><td class="ev">security.py:610-676</td><td>min_length; threadpool</td></tr>
+<tr><td><b>S-25</b> <span class="b part">Partly resolved</span></td><td><span class="b low">Low</span></td><td>LDAP empty password; blocking sync calls</td><td class="ev">security.py:610-676</td><td>min_length; threadpool</td></tr>
 <tr><td><b>S-26</b></td><td><span class="b low">Low</span></td><td>Missing confirms; false Executed toast</td><td class="ev">mcp-registry/page.tsx:256,289,321</td><td>Confirms; real status</td></tr>
 <tr><td><b>S-27</b></td><td><span class="b low">Low</span></td><td>Missing UI for audit actor and pack filters</td><td class="ev">audit, governance-pack pages</td><td>Add controls</td></tr>
 <tr><td><b>S-28</b></td><td><span class="b low">Low</span></td><td>No Postman; docs overclaim enforcement</td><td class="ev">data-capture-studio.mdx; tags-taxonomy.mdx</td><td>Fix docs</td></tr>
@@ -339,7 +339,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>F-02</b></td><td><span class="b high">High</span></td><td>Chargeback self-approval; weights unchecked</td><td class="ev">routers/billing.py:784-866</td><td>Approvals; block status writes</td></tr>
 <tr><td><b>F-03</b></td><td><span class="b high">High</span></td><td>Platform secret signs tenant webhooks/snapshots/exports</td><td class="ev">services/budgets.py:626; billing.py:607,906</td><td>Per-destination / per-workspace keys</td></tr>
 <tr><td><b>F-04</b></td><td><span class="b high">High</span></td><td>SSRF via budget webhook / Slack URL</td><td class="ev">schemas/budgets.py:132; routers/budgets.py:972-1028</td><td>https + IP blocklist + generic errors</td></tr>
-<tr><td><b>F-05</b></td><td><span class="b high">High</span></td><td>notify budgets never notify; others fire per call</td><td class="ev">workers/metering.py:177; budgets.py:488</td><td>Dedupe per (budget, period)</td></tr>
+<tr><td><b>F-05</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>notify budgets never notify; others fire per call</td><td class="ev">workers/metering.py:177; budgets.py:488</td><td>Dedupe per (budget, period)</td></tr>
 <tr><td><b>F-06</b></td><td><span class="b high">High</span></td><td>Cost enrichment can stall permanently</td><td class="ev">workers/metering.py:111-128</td><td>Mark unpriced; page past</td></tr>
 <tr><td><b>F-07</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Three analytics endpoints always 500</td><td class="ev">analytics.py:5467,8642,13635</td><td>Join via Budget; status</td></tr>
 <tr><td><b>F-08</b></td><td><span class="b high">High</span></td><td>Period close not locked, idempotent or frozen</td><td class="ev">services/billing.py:521-630,646,754,833</td><td>FOR UPDATE; frozen snapshot; reopen</td></tr>
@@ -361,7 +361,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>F-24</b></td><td><span class="b low">Low</span></td><td>Chargeback export ignores end_user_id; no Postman</td><td class="ev">routers/billing.py:919-938</td><td>Pass filter</td></tr>
 <tr><td><b>F-25</b></td><td><span class="b low">Low</span></td><td>Cached-token pricing edge cases</td><td class="ev">services/pricing.py:91</td><td>Clamp; cache-write rate</td></tr>
 </tbody></table></div></details></section>
-<section id="org"><h2>6 · Organization &amp; Access</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 4/10</span><span>23 findings</span></div><ul>
+<section id="org"><h2>6 · Organization &amp; Access</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 4/10</span><span>23 findings</span></div><div class="callout"><strong>Remediation status (2026-11-21).</strong> 22 of 23 findings resolved on branch <code>fix/org-access</code> (commit <code>efda3f9</code>); A-23 (Postman) dropped from the delivery standard. Scores below are the original pass-4 assessment. Details in <a href="#remediation-org">Remediation status · Org &amp; Access</a>.</div><ul>
 <li><b>Two account-takeover paths across tenants</b> (both verified): (1) an org admin "invites" any existing email, including the platform admin, then resets that user's global password via <code>PUT /users/{id}</code>; (2) an IdP configured by any org admin auto-links to existing accounts by email.</li>
 <li><b>Revocation doesn't work.</b> Deactivate, remove, password change and logout leave the 30-day session key valid. Every login or switch mints a new key and never revokes the old one. <code>last_used_at</code> is never written.</li>
 <li><b>Membership status not enforced:</b> suspended members keep full role power. The <code>org_billing_admin</code> and <code>org_auditor</code> roles grant nothing.</li>
@@ -377,27 +377,27 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 </tbody></table></div><details open><summary>Findings (23)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
 <tr><td><b>A-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Org admin can take over any account by email (incl. platform admin)</td><td class="ev">org.py:770-799; users.py:184-212</td><td>Invitations need acceptance; org admins can&#x27;t edit global identity</td></tr>
 <tr><td><b>A-02</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>IdP auto-links existing accounts by email → cross-tenant takeover</td><td class="ev">services/security.py:369-371,550,717</td><td>Link only within tenant + verified email; never platform admin</td></tr>
-<tr><td><b>A-03</b></td><td><span class="b high">High</span></td><td>LDAP empty password may be accepted</td><td class="ev">security.py:655-660</td><td>Reject empty</td></tr>
-<tr><td><b>A-04</b></td><td><span class="b high">High</span></td><td>Deactivate/remove/password/logout don&#x27;t revoke session keys</td><td class="ev">deps.py:56-85</td><td>Revoke + validate user/membership</td></tr>
-<tr><td><b>A-05</b></td><td><span class="b high">High</span></td><td>Suspended membership not enforced</td><td class="ev">deps.py:145-223; login.py:97-131</td><td>Filter status=active</td></tr>
-<tr><td><b>A-06</b></td><td><span class="b high">High</span></td><td>No login rate limit/lockout; timing oracle</td><td class="ev">login.py:74-88</td><td>Limiter + dummy hash</td></tr>
-<tr><td><b>A-07</b></td><td><span class="b high">High</span></td><td>Each login/switch mints a 30-day key, never revoked</td><td class="ev">login.py:140-152,233-245</td><td>Revoke prior; short TTL</td></tr>
-<tr><td><b>A-08</b></td><td><span class="b high">High</span></td><td>Org audit log hides tenant events; identity changes unaudited</td><td class="ev">tenancy.py:398; org.py:1564</td><td>tenant_id on AuditEvent</td></tr>
-<tr><td><b>A-09</b></td><td><span class="b high">High</span></td><td>Access-group guardrail profile never applied on gateway</td><td class="ev">gateway_runtime.py:360-368</td><td>Resolve group membership</td></tr>
-<tr><td><b>A-10</b></td><td><span class="b high">High</span></td><td>Org admins signed out by the switcher</td><td class="ev">org.py:664 vs login.py:203; TopBar.tsx:147</td><td>Allow switch; show error</td></tr>
-<tr><td><b>A-11</b></td><td><span class="b med">Medium</span></td><td>OIDC/OAuth2: no nonce/PKCE; memory state; redirect mismatch</td><td class="ev">security.py:204-470; login.py:316,348</td><td>Redis state; PKCE; pin redirect</td></tr>
-<tr><td><b>A-12</b></td><td><span class="b med">Medium</span></td><td>org_manager escalation; billing/auditor roles inert</td><td class="ev">deps.py:31; org.py:808-830</td><td>Role hierarchy</td></tr>
-<tr><td><b>A-13</b></td><td><span class="b med">Medium</span></td><td>No verify/reset; default temp password; no policy</td><td class="ev">schemas/auth.py; users.py:85</td><td>Token flows; generated passwords</td></tr>
-<tr><td><b>A-14</b></td><td><span class="b med">Medium</span></td><td>last_used_at never set; no expiry option</td><td class="ev">services/auth.py:306-326</td><td>Throttled update; expires_at</td></tr>
-<tr><td><b>A-15</b></td><td><span class="b med">Medium</span></td><td>Rotation auth mismatch; drops expiry; wrong history id</td><td class="ev">security.py:79-90,413-479</td><td>Align</td></tr>
-<tr><td><b>A-16</b></td><td><span class="b med">Medium</span></td><td>Access-group members unvalidated; decorative budget</td><td class="ev">workspace_controls.py:1030-1062</td><td>Constraints; remove field</td></tr>
-<tr><td><b>A-17</b></td><td><span class="b med">Medium</span></td><td>Gateway enforces legacy Project/TeamModel budgets</td><td class="ev">gateway_controls.py:169-218</td><td>Remove</td></tr>
-<tr><td><b>A-18</b></td><td><span class="b med">Medium</span></td><td>OIDC bearer skips aud; JWKS fan-out on bad keys</td><td class="ev">security.py:72-119</td><td>Require audience</td></tr>
-<tr><td><b>A-19</b></td><td><span class="b low">Low</span></td><td>Client update() can rewrite roles/apiKey in JWT</td><td class="ev">lib/auth.ts:170-180</td><td>Server-only updates</td></tr>
-<tr><td><b>A-20</b></td><td><span class="b low">Low</span></td><td>Toggles without confirm; switcher by name</td><td class="ev">users/page.tsx:173-283; TopBar.tsx:125</td><td>Confirm; by id</td></tr>
-<tr><td><b>A-21</b></td><td><span class="b low">Low</span></td><td>AI Hub request-access is a counter</td><td class="ev">hub.py:187-320</td><td>Real entity or remove</td></tr>
-<tr><td><b>A-22</b></td><td><span class="b low">Low</span></td><td>Unbounded lists; demo ValueError gives 500</td><td class="ev">org.py:1557; demo_mode.py:134</td><td>Paginate; 400</td></tr>
-<tr><td><b>A-23</b></td><td><span class="b low">Low</span></td><td>No postman/</td><td class="ev">repo root</td><td>Generate</td></tr>
+<tr><td><b>A-03</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>LDAP empty password may be accepted</td><td class="ev">security.py:655-660</td><td>Reject empty</td></tr>
+<tr><td><b>A-04</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Deactivate/remove/password/logout don&#x27;t revoke session keys</td><td class="ev">deps.py:56-85</td><td>Revoke + validate user/membership</td></tr>
+<tr><td><b>A-05</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Suspended membership not enforced</td><td class="ev">deps.py:145-223; login.py:97-131</td><td>Filter status=active</td></tr>
+<tr><td><b>A-06</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>No login rate limit/lockout; timing oracle</td><td class="ev">login.py:74-88</td><td>Limiter + dummy hash</td></tr>
+<tr><td><b>A-07</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Each login/switch mints a 30-day key, never revoked</td><td class="ev">login.py:140-152,233-245</td><td>Revoke prior; short TTL</td></tr>
+<tr><td><b>A-08</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Org audit log hides tenant events; identity changes unaudited</td><td class="ev">tenancy.py:398; org.py:1564</td><td>tenant_id on AuditEvent</td></tr>
+<tr><td><b>A-09</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Access-group guardrail profile never applied on gateway</td><td class="ev">gateway_runtime.py:360-368</td><td>Resolve group membership</td></tr>
+<tr><td><b>A-10</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Org admins signed out by the switcher</td><td class="ev">org.py:664 vs login.py:203; TopBar.tsx:147</td><td>Allow switch; show error</td></tr>
+<tr><td><b>A-11</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>OIDC/OAuth2: no nonce/PKCE; memory state; redirect mismatch</td><td class="ev">security.py:204-470; login.py:316,348</td><td>Redis state; PKCE; pin redirect</td></tr>
+<tr><td><b>A-12</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>org_manager escalation; billing/auditor roles inert</td><td class="ev">deps.py:31; org.py:808-830</td><td>Role hierarchy</td></tr>
+<tr><td><b>A-13</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>No verify/reset; default temp password; no policy</td><td class="ev">schemas/auth.py; users.py:85</td><td>Token flows; generated passwords</td></tr>
+<tr><td><b>A-14</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>last_used_at never set; no expiry option</td><td class="ev">services/auth.py:306-326</td><td>Throttled update; expires_at</td></tr>
+<tr><td><b>A-15</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Rotation auth mismatch; drops expiry; wrong history id</td><td class="ev">security.py:79-90,413-479</td><td>Align</td></tr>
+<tr><td><b>A-16</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Access-group members unvalidated; decorative budget</td><td class="ev">workspace_controls.py:1030-1062</td><td>Constraints; remove field</td></tr>
+<tr><td><b>A-17</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Gateway enforces legacy Project/TeamModel budgets</td><td class="ev">gateway_controls.py:169-218</td><td>Remove</td></tr>
+<tr><td><b>A-18</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>OIDC bearer skips aud; JWKS fan-out on bad keys</td><td class="ev">security.py:72-119</td><td>Require audience</td></tr>
+<tr><td><b>A-19</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Client update() can rewrite roles/apiKey in JWT</td><td class="ev">lib/auth.ts:170-180</td><td>Server-only updates</td></tr>
+<tr><td><b>A-20</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Toggles without confirm; switcher by name</td><td class="ev">users/page.tsx:173-283; TopBar.tsx:125</td><td>Confirm; by id</td></tr>
+<tr><td><b>A-21</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>AI Hub request-access is a counter</td><td class="ev">hub.py:187-320</td><td>Real entity or remove</td></tr>
+<tr><td><b>A-22</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Unbounded lists; demo ValueError gives 500</td><td class="ev">org.py:1557; demo_mode.py:134</td><td>Paginate; 400</td></tr>
+<tr><td><b>A-23</b> <span class="b mute">Won't do</span></td><td><span class="b low">Low</span></td><td>No postman/</td><td class="ev">repo root</td><td>Generate</td></tr>
 </tbody></table></div></details></section>
 <section id="ing"><h2>7 · Ingestion &amp; Integrations</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 3/10</span><span>27 findings</span></div><ul>
 <li><b>Tenant isolation holes</b> (verified): <code>POST /ingest/v1/webhook</code> has no auth, so a workspace UUID is enough. Pipeline handlers after <code>run_start</code> key on <code>run_id</code> only, so cross-tenant run edits are possible.</li>
@@ -413,11 +413,11 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 </tbody></table></div><details open><summary>Findings (27)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
 <tr><td><b>I-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Unauthenticated webhook ingest accepts any workspace_id</td><td class="ev">routers/ingest.py:103-122</td><td>Remove or authenticate</td></tr>
 <tr><td><b>I-02</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Pipeline writes to runs without workspace check</td><td class="ev">workers/pipeline.py:173-399</td><td>Ownership check per event</td></tr>
-<tr><td><b>I-03</b></td><td><span class="b crit">Critical</span></td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td></tr>
-<tr><td><b>I-04</b></td><td><span class="b high">High</span></td><td>Backup secret stored/returned in plaintext</td><td class="ev">models/backup_ops.py:78</td><td>Encrypt; write-only</td></tr>
+<tr><td><b>I-03</b> <span class="b ok">Resolved</span></td><td><span class="b crit">Critical</span></td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td></tr>
+<tr><td><b>I-04</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Backup secret stored/returned in plaintext</td><td class="ev">models/backup_ops.py:78</td><td>Encrypt; write-only</td></tr>
 <tr><td><b>I-05</b></td><td><span class="b high">High</span></td><td>One bad event aborts the batch; no retry/replay</td><td class="ev">pipeline.py:43-60</td><td>Savepoints; autoretry; DLQ; replay</td></tr>
 <tr><td><b>I-06</b></td><td><span class="b high">High</span></td><td>Enrichment starves behind 500 unpriceable rows</td><td class="ev">workers/metering.py:108-125</td><td>Mark unpriced; cursor paging</td></tr>
-<tr><td><b>I-07</b></td><td><span class="b high">High</span></td><td>Ingest spend never tied to API key or end user</td><td class="ev">deps.py:56-74; pipeline.py:296-324</td><td>Bind server-side; denormalize</td></tr>
+<tr><td><b>I-07</b> <span class="b part">Partly resolved</span></td><td><span class="b high">High</span></td><td>Ingest spend never tied to API key or end user</td><td class="ev">deps.py:56-74; pipeline.py:296-324</td><td>Bind server-side; denormalize</td></tr>
 <tr><td><b>I-08</b></td><td><span class="b high">High</span></td><td>feature_tag budgets synced to workspace spend</td><td class="ev">workers/budgets.py:244</td><td>Join agent_runs</td></tr>
 <tr><td><b>I-09</b></td><td><span class="b high">High</span></td><td>Child-first OTLP batches set wrong run context</td><td class="ev">otlp_parse.py:640-679,816-834; pipeline.py:149</td><td>True-root only; LEAST upsert</td></tr>
 <tr><td><b>I-10</b></td><td><span class="b high">High</span></td><td>MCP status succeeded hides calls from analytics</td><td class="ev">mcp_server.py:333; analytics.py:353</td><td>Normalize enum</td></tr>
@@ -452,12 +452,12 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 </tbody></table></div><details open><summary>Findings (30)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
 <tr><td><b>P-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Compose seeds a default platform admin on every start</td><td class="ev">apps/api/scripts/start.sh:22; seed.py:151-172</td><td>Dev-only seed; bootstrap flow; refuse default</td></tr>
 <tr><td><b>P-02</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Org admin can pg_dump the whole cluster to their own S3</td><td class="ev">routers/settings.py:908-946; backup_ops.py:71-88</td><td>Platform-only; allowlist endpoints</td></tr>
-<tr><td><b>P-03</b></td><td><span class="b high">High</span></td><td>Backup secret plaintext and returned; UI shows it in clear</td><td class="ev">models/backup_ops.py:78; settings/page.tsx:1291</td><td>Encrypt; write-only; password input</td></tr>
+<tr><td><b>P-03</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Backup secret plaintext and returned; UI shows it in clear</td><td class="ev">models/backup_ops.py:78; settings/page.tsx:1291</td><td>Encrypt; write-only; password input</td></tr>
 <tr><td><b>P-04</b></td><td><span class="b high">High</span></td><td>Helm never sets ENVIRONMENT → dev mode in prod</td><td class="ev">templates/_helpers.tpl:209-255</td><td>Set production; fail closed</td></tr>
-<tr><td><b>P-05</b></td><td><span class="b high">High</span></td><td>Infra ports on 0.0.0.0; Redis no password; MinIO defaults</td><td class="ev">docker-compose.yml:39-186</td><td>Bind localhost; require passwords</td></tr>
-<tr><td><b>P-06</b></td><td><span class="b high">High</span></td><td>Session key in browser JS; logout doesn&#x27;t revoke; never purged</td><td class="ev">lib/auth.ts:176; login.py:71,137-148</td><td>Server logout; BFF; purge job</td></tr>
-<tr><td><b>P-07</b></td><td><span class="b high">High</span></td><td>Membership removal doesn&#x27;t end access</td><td class="ev">core/deps.py:63-108</td><td>Store user_id; re-check membership</td></tr>
-<tr><td><b>P-08</b></td><td><span class="b high">High</span></td><td>/auth/login no rate limit; bcrypt on event loop; enumeration</td><td class="ev">routers/login.py:74-88</td><td>Limiter; to_thread; dummy hash</td></tr>
+<tr><td><b>P-05</b> <span class="b part">Partly resolved</span></td><td><span class="b high">High</span></td><td>Infra ports on 0.0.0.0; Redis no password; MinIO defaults</td><td class="ev">docker-compose.yml:39-186</td><td>Bind localhost; require passwords</td></tr>
+<tr><td><b>P-06</b> <span class="b part">Partly resolved</span></td><td><span class="b high">High</span></td><td>Session key in browser JS; logout doesn&#x27;t revoke; never purged</td><td class="ev">lib/auth.ts:176; login.py:71,137-148</td><td>Server logout; BFF; purge job</td></tr>
+<tr><td><b>P-07</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Membership removal doesn&#x27;t end access</td><td class="ev">core/deps.py:63-108</td><td>Store user_id; re-check membership</td></tr>
+<tr><td><b>P-08</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>/auth/login no rate limit; bcrypt on event loop; enumeration</td><td class="ev">routers/login.py:74-88</td><td>Limiter; to_thread; dummy hash</td></tr>
 <tr><td><b>P-09</b></td><td><span class="b high">High</span></td><td>SMTP STARTTLS without certificate verification; no timeout</td><td class="ev">services/email.py:41-44</td><td>ssl context; timeout; 465</td></tr>
 <tr><td><b>P-10</b></td><td><span class="b med">Medium</span></td><td>Email templates unescaped (HTML/phishing injection)</td><td class="ev">services/email.py:287-330</td><td>html.escape / Jinja autoescape</td></tr>
 <tr><td><b>P-11</b></td><td><span class="b med">Medium</span></td><td>Feature flags display-only</td><td class="ev">core/config.py:114-118; settings.py:297</td><td>Wire or remove</td></tr>
@@ -467,7 +467,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>P-15</b></td><td><span class="b med">Medium</span></td><td>Metrics token falls back to admin secret; non-constant compare</td><td class="ev">routers/health.py:28-36</td><td>Separate token; compare_digest</td></tr>
 <tr><td><b>P-16</b></td><td><span class="b med">Medium</span></td><td>No security headers or CSP; credentials CORS</td><td class="ev">main.py:83-89; next.config.mjs</td><td>Headers middleware</td></tr>
 <tr><td><b>P-17</b></td><td><span class="b med">Medium</span></td><td>Rate limiter fixed window; keys by proxy IP; defaults off</td><td class="ev">core/ratelimit.py; config.py:84-88</td><td>Sliding window; key id; trusted proxies</td></tr>
-<tr><td><b>P-18</b></td><td><span class="b med">Medium</span></td><td>SSO redirect_uri client-supplied vs APP_BASE_URL</td><td class="ev">login/page.tsx:51-55; login.py:316-536</td><td>Server-built redirect</td></tr>
+<tr><td><b>P-18</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>SSO redirect_uri client-supplied vs APP_BASE_URL</td><td class="ev">login/page.tsx:51-55; login.py:316-536</td><td>Server-built redirect</td></tr>
 <tr><td><b>P-19</b></td><td><span class="b med">Medium</span></td><td>/health 200 when degraded; readiness incomplete</td><td class="ev">routers/health.py:39-103</td><td>503; migration and beat checks</td></tr>
 <tr><td><b>P-20</b></td><td><span class="b med">Medium</span></td><td>Helm beat PersistentScheduler on unwritable path</td><td class="ev">beat-deployment.yaml:42-48</td><td>emptyDir or redbeat</td></tr>
 <tr><td><b>P-21</b></td><td><span class="b med">Medium</span></td><td>Default backup uses docker exec (no docker in worker)</td><td class="ev">localai_s3_backup.py:146-160</td><td>Network pg_dump</td></tr>
@@ -475,12 +475,86 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>P-23</b></td><td><span class="b low">Low</span></td><td>Seeded raw API key logged to bind-mounted file</td><td class="ev">start.sh:24-29</td><td>Don&#x27;t log keys</td></tr>
 <tr><td><b>P-24</b></td><td><span class="b low">Low</span></td><td>No error.tsx / global-error / not-found</td><td class="ev">apps/web/app</td><td>Add boundaries</td></tr>
 <tr><td><b>P-25</b></td><td><span class="b low">Low</span></td><td>Layout auth probe lists all keys per render; fails open</td><td class="ev">(dashboard)/layout.tsx:19-28</td><td>GET /auth/me</td></tr>
-<tr><td><b>P-26</b></td><td><span class="b low">Low</span></td><td>JWT roles cached 30 days; client update accepted</td><td class="ev">lib/auth.ts:161-207</td><td>Server refresh</td></tr>
+<tr><td><b>P-26</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>JWT roles cached 30 days; client update accepted</td><td class="ev">lib/auth.ts:161-207</td><td>Server refresh</td></tr>
 <tr><td><b>P-27</b></td><td><span class="b low">Low</span></td><td>No PII redaction in logs</td><td class="ev">core/logging.py:10-33</td><td>Redaction processor</td></tr>
 <tr><td><b>P-28</b></td><td><span class="b low">Low</span></td><td>UI library gaps drive confirm()/hex classes</td><td class="ev">components/ui</td><td>shadcn Dialog/Tabs; lint</td></tr>
 <tr><td><b>P-29</b></td><td><span class="b low">Low</span></td><td>CI gaps (alembic on Postgres, docker build, helm lint, scans)</td><td class="ev">ci.yml:1-80</td><td>Add jobs</td></tr>
 <tr><td><b>P-30</b></td><td><span class="b low">Low</span></td><td>API key verified twice per request</td><td class="ev">core/deps.py:63,92</td><td>Cache on request.state</td></tr>
 </tbody></table></div></details></section>
+
+<section id="remediation-org"><h2>Remediation status · Organization &amp; Access</h2>
+<p class="meta">Updated 2026-11-21 · branch <code>fix/org-access</code> · commit <code>efda3f9</code> · verified on a local full stack (RTX4090 laptop). Not yet deployed.</p>
+<div class="grid g4">
+<div class="card stat"><div class="n" style="color:var(--low)">22 / 23</div><div class="l">Org &amp; Access findings resolved (A-23 Postman: won't do)</div></div>
+<div class="card stat"><div class="n" style="color:var(--low)">19</div><div class="l">access-related findings from other features resolved</div></div>
+<div class="card stat"><div class="n" style="color:var(--med)">6</div><div class="l">partly resolved (access part done)</div></div>
+<div class="card stat"><div class="n">746</div><div class="l">API tests passing; live scripts 82/82 (Org &amp; Access) and 13/13 (budgets)</div></div></div>
+
+<h3>Organization &amp; Access findings</h3>
+<div class="tw"><table><thead><tr><th>ID</th><th>Status</th><th>What changed</th></tr></thead><tbody>
+<tr><td><b>A-01</b></td><td><span class="b ok">Resolved</span></td><td>Inviting an existing account creates a pending invitation it must accept. An org may change a password, active or verified flag only for an account it exclusively owns; platform admins and shared accounts are read-only to org admins.</td></tr>
+<tr><td><b>A-02</b></td><td><span class="b ok">Resolved</span></td><td>External identities link only when the IdP asserts a verified email and the account is managed exclusively by the provider's org; never a platform admin.</td></tr>
+<tr><td><b>A-03</b></td><td><span class="b ok">Resolved</span></td><td>LDAP rejects empty usernames and passwords (anonymous bind).</td></tr>
+<tr><td><b>A-04</b></td><td><span class="b ok">Resolved</span></td><td>Session keys are bound to the user and re-validated on every request; revoked on logout, switch, password change/reset, removal, suspension and deactivation.</td></tr>
+<tr><td><b>A-05</b></td><td><span class="b ok">Resolved</span></td><td>Only active memberships carry role power; suspended and invited memberships grant nothing (sign-in, switch and every request).</td></tr>
+<tr><td><b>A-06</b></td><td><span class="b ok">Resolved</span></td><td>Redis login throttling per account and per IP (429 + Retry-After, fail-open); bcrypt runs for unknown emails and off the event loop.</td></tr>
+<tr><td><b>A-07</b></td><td><span class="b ok">Resolved</span></td><td>Sessions last 7 days (<code>SESSION_TTL_DAYS</code>); switching revokes the previous key; revoked/expired keys purged daily.</td></tr>
+<tr><td><b>A-08</b></td><td><span class="b ok">Resolved</span></td><td>Audit events carry <code>tenant_id</code>; org audit log shows org and workspace events; identity, membership, invite and session-revocation changes audited.</td></tr>
+<tr><td><b>A-09</b></td><td><span class="b ok">Resolved</span></td><td>Gateway maps the caller (session owner, key creator or member <code>end_user_id</code>) to access groups and applies their guardrail profile.</td></tr>
+<tr><td><b>A-10</b></td><td><span class="b ok">Resolved</span></td><td>Org-level roles may switch to any workspace in the org; the switcher shows errors instead of signing out (401 only).</td></tr>
+<tr><td><b>A-11</b></td><td><span class="b ok">Resolved</span></td><td>OIDC/OAuth2 single-use state, nonce and PKCE (S256) in Redis; redirect URI pinned to <code>APP_BASE_URL</code>; JWKS refetch on unknown <code>kid</code>.</td></tr>
+<tr><td><b>A-12</b></td><td><span class="b ok">Resolved</span></td><td>Only org admins grant/change/remove <code>org_admin</code>. Org billing admins read billing and chargeback; org auditors read the audit log and audit pack (API and navigation).</td></tr>
+<tr><td><b>A-13</b></td><td><span class="b ok">Resolved</span></td><td>Email verification and password-reset flows (single-use, hashed tokens); password policy; generated temporary passwords with forced change; <code>/users/me</code> password change needs the current password.</td></tr>
+<tr><td><b>A-14</b></td><td><span class="b ok">Resolved</span></td><td>Throttled <code>last_used_at</code> updates; key expiry option (30/90/365 days or never) in API and UI.</td></tr>
+<tr><td><b>A-15</b></td><td><span class="b ok">Resolved</span></td><td>Rotation requires workspace admin in API and UI, keeps expiry and scopes, records history against the new key.</td></tr>
+<tr><td><b>A-16</b></td><td><span class="b ok">Resolved</span></td><td>Members must have workspace access; duplicates rejected; group budget fields migrated to <code>Budget</code> rows (migration 090) and enforced in the gateway.</td></tr>
+<tr><td><b>A-17</b></td><td><span class="b ok">Resolved</span></td><td>Legacy Project/TeamModel budgets removed from gateway enforcement.</td></tr>
+<tr><td><b>A-18</b></td><td><span class="b ok">Resolved</span></td><td>OIDC bearer tokens require an audience (provider audience or client id).</td></tr>
+<tr><td><b>A-19</b></td><td><span class="b ok">Resolved</span></td><td>Client session <code>update()</code> may only pass a new key; roles are re-read server-side from <code>/auth/me</code>.</td></tr>
+<tr><td><b>A-20</b></td><td><span class="b ok">Resolved</span></td><td>Confirmations for deactivate, sign-out-everywhere and removal; workspace switch by id.</td></tr>
+<tr><td><b>A-21</b></td><td><span class="b ok">Resolved</span></td><td>AI Hub "request access" creates a <code>model_access</code> approval shown in Approvals.</td></tr>
+<tr><td><b>A-22</b></td><td><span class="b ok">Resolved</span></td><td>Org members, org audit log, organizations and workspace members are paginated; bad demo profiles return 400; demo controls shown to platform admins only.</td></tr>
+<tr><td><b>A-23</b></td><td><span class="b mute">Won't do</span></td><td>Postman removed from the delivery standard; coverage lives in <code>scripts/</code> (<code>verify-org-access</code>, <code>verify-budgets</code>) and examples.</td></tr>
+</tbody></table></div>
+
+<h3>Access-related findings from other features</h3>
+<div class="tw"><table><thead><tr><th>ID</th><th>Status</th><th>What changed</th></tr></thead><tbody>
+<tr><td><b>I-01</b></td><td><span class="b ok">Resolved</span></td><td>Unsigned <code>POST /ingest/v1/webhook</code> removed; only HMAC-signed ingest is accepted without a bearer key.</td></tr>
+<tr><td><b>I-02</b></td><td><span class="b ok">Resolved</span></td><td>Each ingest event after <code>run_start</code> is applied only if its run belongs to the sending workspace; <code>span_end</code> also matches the run. Verified live: a cross-org <code>run_end</code> is dropped.</td></tr>
+<tr><td><b>I-03 / P-02</b></td><td><span class="b ok">Resolved</span></td><td>All backup endpoints are platform-admin only.</td></tr>
+<tr><td><b>I-04 / P-03</b></td><td><span class="b ok">Resolved</span></td><td>Backup S3 secret encrypted at rest, write-only (never returned; blank keeps it), password input in the UI.</td></tr>
+<tr><td><b>I-07</b></td><td><span class="b part">Partly resolved</span></td><td>Ingest and OTLP events are attributed to the sending API key (server-side, never from the payload); end user is used for budgets, but not yet denormalized onto provider calls.</td></tr>
+<tr><td><b>O-04</b></td><td><span class="b part">Partly resolved</span></td><td>Outcomes may only reference runs of their workspace; ROI cost joins are workspace-scoped. Double counting with several outcomes per run remains.</td></tr>
+<tr><td><b>O-09 · B-22 · S-05</b></td><td><span class="b ok">Resolved</span></td><td><code>require_workspace_writer</code>: viewers and read-only org roles get 403 on run cancel, all Build routers and tool registry writes; a route-inventory test fails any endpoint shipped without auth or a role check.</td></tr>
+<tr><td><b>G-03</b></td><td><span class="b part">Partly resolved</span></td><td>Flywheel apply and settings need a workspace admin; audit and rollback not yet added.</td></tr>
+<tr><td><b>G-04</b></td><td><span class="b ok">Resolved</span></td><td>Global pricing YAML import is platform-admin only; org admins manage workspace rates.</td></tr>
+<tr><td><b>B-04</b></td><td><span class="b ok">Resolved</span></td><td>20 double-prefixed posture routes now live at the paths the UI calls; 18 of them were unauthenticated and now require workspace auth.</td></tr>
+<tr><td><b>B-21</b></td><td><span class="b ok">Resolved</span></td><td>Prompt GitHub token encrypted (Fernet) and settable by workspace admins only; legacy base64 values still read.</td></tr>
+<tr><td><b>S-14 · P-18</b></td><td><span class="b ok">Resolved</span></td><td>SSO state in Redis; redirect URI pinned.</td></tr>
+<tr><td><b>S-22</b></td><td><span class="b ok">Resolved</span></td><td>MCP gateway requires a RunLedger API key with the <code>mcp</code> scope and namespaces memory, knowledge graph and skills under the key's workspace (verified live: another tenant's workspace name finds nothing).</td></tr>
+<tr><td><b>S-25</b></td><td><span class="b part">Partly resolved</span></td><td>LDAP empty password rejected; blocking LDAP calls unchanged.</td></tr>
+<tr><td><b>F-05</b></td><td><span class="b ok">Resolved</span></td><td>Single idempotent spend path; 80% threshold and breach fire once per budget period for every action, including notify. Scoped budgets enforced in the gateway (block, throttle, downgrade).</td></tr>
+<tr><td><b>P-05</b></td><td><span class="b part">Partly resolved</span></td><td>Internal ports bound to 127.0.0.1 (<code>RUNLEDGER_INTERNAL_BIND</code>) and optimization services require <code>INTERNAL_SERVICE_TOKEN</code>; Redis password and MinIO defaults unchanged.</td></tr>
+<tr><td><b>P-06</b></td><td><span class="b part">Partly resolved</span></td><td>Logout revokes the key; purge job; 7-day TTL. The key is still held in the browser session (no BFF).</td></tr>
+<tr><td><b>P-07 · P-08 · P-26</b></td><td><span class="b ok">Resolved</span></td><td>Membership removal ends access immediately; login rate limit, dummy hash and bcrypt off the event loop; client cannot rewrite roles.</td></tr>
+</tbody></table></div>
+
+<h3>Added beyond the audit</h3>
+<ul>
+<li><b>API key scopes enforced</b> — <code>read</code>, <code>write</code>, <code>ingest</code>, <code>gateway</code>, <code>mcp</code>; checked by the API, gateway and both MCP servers; picker with presets in the UI. Keys with no scopes keep full access.</li>
+<li><b>Gateway credential parity</b> — gateway preflight and pass-through apply the same rules as the API (suspended org/workspace, stale sessions, scopes).</li>
+<li><b>Internal service lockdown</b> — all ten optimization microservices require an internal token; the knowledge graph's raw <code>POST /query</code> (cross-workspace Cypher) is no longer reachable from the network.</li>
+<li><b>Fixes found by live testing</b> — login 500 on string membership status; SSO callback pages broke the production web build; Helm <code>existingSecret</code> rendered invalid YAML.</li>
+</ul>
+
+<h3>Still open (outside Org &amp; Access)</h3>
+<ul>
+<li><b>P-01</b> (Critical) — Compose seeds a default platform admin; needs a bootstrap decision before multi-tenant use.</li>
+<li><b>Secrets handling</b> — S-03 (SSO/LDAP secrets plaintext), S-04, G-05, B-09, F-15, F-03.</li>
+<li><b>O-05</b> — captured prompts visible to any reader of a run (role policy to decide).</li>
+<li><b>S-16 · G-10</b> — audit actor/tamper evidence and gateway audit; <b>I-05</b> — batch savepoints and retries.</li>
+</ul>
+</section>
 <section id="roadmap"><h2>Remediation roadmap</h2>
 <div class="grid g2">
 <div class="card"><h3>Week 0–1 · Stop-ship security</h3><ol>
