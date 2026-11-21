@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunLedger Technical Review</title>
+<meta name="description" content="Feature-by-feature technical due-diligence review of RunLedger Community: product maturity, cohesion, runtime enforcement, GUI usability, and a prioritized roadmap.">
+<style>
+:root{
+  --bg:#f7f8fa; --panel:#ffffff; --panel2:#f1f3f7; --ink:#14171f; --ink2:#454b59; --muted:#6b7280;
+  --line:#e3e6ec; --accent:#3b5bdb; --accent-soft:#e7ecff;
+  --crit:#c92a2a; --crit-soft:#ffe8e8; --high:#d9480f; --high-soft:#fff0e6;
+  --med:#b7791f; --med-soft:#fff8e1; --low:#2b8a3e; --low-soft:#e6f6ea; --info:#1971c2; --info-soft:#e7f1fc;
+  --code:#eef0f4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1117; --panel:#161a23; --panel2:#1c212c; --ink:#e7e9ee; --ink2:#b4bac6; --muted:#8a91a0;
+    --line:#2a303d; --accent:#7c93ff; --accent-soft:#1e2643;
+    --crit:#ff6b6b; --crit-soft:#3a1717; --high:#ff922b; --high-soft:#3a2312; --med:#fcc419; --med-soft:#352c10;
+    --low:#51cf66; --low-soft:#13301b; --info:#4dabf7; --info-soft:#122a40; --code:#222836;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1117; --panel:#161a23; --panel2:#1c212c; --ink:#e7e9ee; --ink2:#b4bac6; --muted:#8a91a0;
+  --line:#2a303d; --accent:#7c93ff; --accent-soft:#1e2643;
+  --crit:#ff6b6b; --crit-soft:#3a1717; --high:#ff922b; --high-soft:#3a2312; --med:#fcc419; --med-soft:#352c10;
+  --low:#51cf66; --low-soft:#13301b; --info:#4dabf7; --info-soft:#122a40; --code:#222836;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;}
+a{color:var(--accent)}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.86em;background:var(--code);padding:.1em .35em;border-radius:4px}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1400px;margin:0 auto}
+nav.toc{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line);font-size:13.5px}
+nav.toc .brand{font-weight:700;font-size:15px;margin-bottom:4px}
+nav.toc .sub{color:var(--muted);font-size:12px;margin-bottom:18px}
+nav.toc a{display:block;color:var(--ink2);text-decoration:none;padding:3px 8px;border-radius:6px}
+nav.toc a:hover{background:var(--panel2);color:var(--ink)}
+nav.toc .grp{margin:14px 0 4px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600}
+main{padding:36px 44px 80px;min-width:0}
+header.hero{margin-bottom:28px}
+header.hero .eyebrow{color:var(--accent);font-weight:600;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:34px;line-height:1.15;margin:8px 0 10px;letter-spacing:-.02em}
+h2{font-size:24px;margin:52px 0 14px;padding-top:12px;border-top:1px solid var(--line);letter-spacing:-.01em}
+h3{font-size:18px;margin:30px 0 8px}
+h4{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}
+.lede{font-size:17px;color:var(--ink2);max-width:880px}
+.meta{color:var(--muted);font-size:13px}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.stat .n{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.stat .l{color:var(--muted);font-size:12.5px}
+.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:14px 18px;border-radius:8px;margin:14px 0}
+.callout.crit{border-color:var(--crit);background:var(--crit-soft)}
+.callout.warn{border-color:var(--high);background:var(--high-soft)}
+.callout.ok{border-color:var(--low);background:var(--low-soft)}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--panel2);font-weight:600;font-size:12.5px;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:none}
+.tw{overflow-x:auto;margin:12px 0}
+.b{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;letter-spacing:.02em}
+.b.crit{color:var(--crit);background:var(--crit-soft)} .b.high{color:var(--high);background:var(--high-soft)}
+.b.med{color:var(--med);background:var(--med-soft)} .b.low{color:var(--low);background:var(--low-soft)}
+.b.info{color:var(--info);background:var(--info-soft)}
+.b.ready{color:var(--low);background:var(--low-soft)} .b.func{color:var(--info);background:var(--info-soft)}
+.b.partial{color:var(--med);background:var(--med-soft)} .b.deco{color:var(--high);background:var(--high-soft)}
+.b.broken{color:var(--crit);background:var(--crit-soft)} .b.legacy{color:var(--muted);background:var(--panel2)}
+.feature{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
+.feature .fh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.feature .fh h4{margin:0;font-size:16px}
+.feature .route{color:var(--muted);font-size:12.5px;font-family:ui-monospace,Consolas,monospace}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:8px}
+.cols h5{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.cols ul{margin:0;padding-left:18px} .cols li{margin:3px 0;font-size:14px}
+ul.tight li{margin:4px 0}
+.score{display:flex;align-items:center;gap:10px}
+.bar{flex:1;height:8px;background:var(--panel2);border-radius:999px;overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:999px}
+figure{margin:16px 0}
+figure img{width:100%;border-radius:12px;border:1px solid var(--line);display:block}
+figcaption{color:var(--muted);font-size:13px;margin-top:6px}
+.diagram{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;overflow-x:auto}
+.diagram svg{display:block;min-width:760px;width:100%;height:auto}
+.diagram text{fill:var(--ink);font-family:inherit}
+.diagram .box{fill:var(--panel2);stroke:var(--line)}
+.diagram .hot{fill:var(--crit-soft);stroke:var(--crit)}
+.diagram .py{fill:var(--accent-soft);stroke:var(--accent)}
+.diagram .arrow{stroke:var(--ink2);stroke-width:1.5;fill:none}
+.diagram .lbl{fill:var(--muted);font-size:11px}
+.themebtn{position:fixed;top:14px;right:16px;z-index:5;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+.kbd{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted)}
+@media (max-width:1000px){
+  .layout{grid-template-columns:1fr} nav.toc{display:none}
+  main{padding:24px 16px 60px} .g4{grid-template-columns:repeat(2,minmax(0,1fr))} .g3,.g2,.cols{grid-template-columns:1fr}
+  h1{font-size:27px}
+}
+</style>
+</head>
+<body>
+<button class="themebtn" onclick="(function(){var r=document.documentElement;var d=r.getAttribute('data-theme');var isDark=d?d==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.setAttribute('data-theme',isDark?'light':'dark')})()">Toggle theme</button>
+<div class="layout">
+<nav class="toc">
+  <div class="brand">RunLedger Review</div>
+  <div class="sub">Technical due diligence · 20 Nov 2026</div>
+  <div class="grp">Summary</div>
+  <a href="#verdict">Verdict</a>
+  <a href="#numbers">By the numbers</a>
+  <a href="#scorecard">Maturity scorecard</a>
+  <a href="#top">Top 12 findings</a>
+  <div class="grp">Architecture</div>
+  <a href="#arch">Request path reality</a>
+  <a href="#sprawl">Posture-card sprawl</a>
+  <a href="#data">Data model &amp; scale</a>
+  <div class="grp">Feature by feature</div>
+  <a href="#f-ingest">Ingest &amp; instrumentation</a>
+  <a href="#f-observe">Observe</a>
+  <a href="#f-gateway">Gateway &amp; routing</a>
+  <a href="#f-gov">Safety &amp; governance</a>
+  <a href="#f-finops">FinOps</a>
+  <a href="#f-build">Build &amp; improve</a>
+  <a href="#f-org">Org &amp; access</a>
+  <a href="#f-platform">Platform &amp; utility</a>
+  <a href="#f-opt">Optimization sidecars</a>
+  <div class="grp">Cross-cutting</div>
+  <a href="#gui">GUI &amp; usability</a>
+  <a href="#pagination">Pagination audit</a>
+  <a href="#security">Security</a>
+  <a href="#quality">Quality, tests, CI</a>
+  <a href="#delivery">Docs · Postman · examples</a>
+  <a href="#prod">Production instance</a>
+  <div class="grp">Forward</div>
+  <a href="#roadmap">30 / 60 / 90 day plan</a>
+  <a href="#vc">Investor lens</a>
+  <a href="#method">Method &amp; evidence</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Technical due diligence · RunLedger Community</div>
+  <h1>A wide control plane whose enforcement path hasn't caught up with its surface area</h1>
+  <p class="lede">RunLedger has an unusually broad product surface for a single-maintainer codebase: about 100 UI routes, 636 API endpoints, a Rust data plane and nine optimization sidecars. The observability and gateway core is real and works on live traffic. But several headline promises (budget enforcement, tool governance, workflow-centric attribution, intelligent routing) are advisory, disconnected or broken in the runtime path. A large share of recent engineering went into cross-linking "posture" cards instead of deepening those paths.</p>
+  <div class="callout crit"><strong>Pass 2 is available:</strong> <a href="runledger-code-deep-dive.html">code-level deep dive</a> covering the gateway subsystems, budget enforcement and governance, with file:line evidence. A fourth pass, the <a href="runledger-feature-audit.html">parallel feature audit</a> (213 findings, 10 new critical, including cross-tenant account takeover), audits every major feature's backend, frontend and cohesion. A third pass, the <a href="runledger-ui-walkthrough.html">page-by-page UI walkthrough</a>, checks every nav item, tab, filter and paginator against the code. Pass 2 adds two critical security findings (guardrail-sandbox RCE; secret exfiltration and SSRF via route config), confirms in production that streamed gateway traffic is never metered, and corrects several statements in this report (marked "corrected in pass 2").</div>
+  <p class="meta">Scope: repository at branch <code>feat/claude-code-log-runs</code> (master <code>d32883b</code>) plus the live home-lab deployment at <code>192.168.1.72</code> (33 containers, read-only inspection). Reviewer stance: technical VC / software architect.</p>
+</header>
+
+<section id="verdict">
+<h2>Verdict</h2>
+<div class="grid g2">
+  <div class="callout ok"><strong>What's genuinely strong</strong>
+    <ul class="tight">
+      <li>Ingests real traffic: 275,912 runs and about 2M spans on the home lab via OTLP, the gateway and the SDK.</li>
+      <li>Credible OpenAI-compatible gateway with routing groups, fallback triggers, canary/rollout/rollback policies, exact and semantic cache, and pre/post guardrails that are actually evaluated in the hot path.</li>
+      <li>Serious breadth in FinOps primitives: billing periods, reconciliation, signed exports, chargeback rules, shared-cost allocation, adjustments, HMAC-signed ledger snapshots.</li>
+      <li>Enterprise table stakes are present: OIDC, OAuth2, LDAP, IP ACLs, audit log, access groups, retention model, HA/backup docs, Helm.</li>
+      <li>Disciplined backend hygiene: ruff, mypy and pytest in CI, 637 API tests, 78 Alembic migrations, typed Pydantic schemas throughout.</li>
+    </ul>
+  </div>
+  <div class="callout crit"><strong>What would stop a diligence process</strong>
+    <ul class="tight">
+      <li><strong>Budgets aren't enforced inline.</strong> <code>check_budgets()</code> is never called from the gateway preflight, even though the docs say "Inline (gateway): blocking, enforced before the provider call".</li>
+      <li><strong>Model budgets are dead.</strong> Their spend counter (<code>incr_model_budget_spend</code>) and check (<code>check_model_budgets</code>) are never called.</li>
+      <li><strong>Tool policies and approvals are advisory.</strong> They only apply if a client voluntarily calls <code>/policies/check</code> or an MCP tool.</li>
+      <li><strong>Intelligent routing is broken in production.</strong> The API calls <code>gateway-rs/classify</code>, which returns 404, and silently fails open after a timeout of up to 25 s.</li>
+      <li><strong>"Workflow" isn't a dimension on runs.</strong> <code>agent_runs</code> has no <code>workflow_id</code>. Workflows are a separate registry with manually posted run records and their own cost columns.</li>
+      <li><strong>Most production runs are noise.</strong> About 92% of production runs are Codex app spans with $0 cost and no model calls. The FinOps numbers aren't trustworthy on this dataset.</li>
+    </ul>
+  </div>
+</div>
+<p><strong>Stage call:</strong> late alpha / early beta on the control-plane side; early alpha on enforcement. The product is <em>observably</em> complete but not yet <em>enforceably</em> complete. The fastest path to a defensible product is to stop widening, collapse the posture layer, and make five runtime paths real: budgets, tool policy, approvals, workflow attribution and routing.</p>
+</section>
+
+<section id="numbers">
+<h2>By the numbers</h2>
+<div class="grid g4">
+  <div class="card stat"><div class="n">636</div><div class="l">API endpoints (377 GET · 148 POST · 60 PUT · 2 PATCH · 49 DELETE)</div></div>
+  <div class="card stat"><div class="n">98</div><div class="l">Next.js page routes, 27 of which contain redirects or legacy stubs</div></div>
+  <div class="card stat"><div class="n">≈82k / 64k</div><div class="l">Lines of Python (API) / TypeScript (web)</div></div>
+  <div class="card stat"><div class="n">634 KB</div><div class="l"><code>routers/analytics.py</code>: one file, 159 endpoints</div></div>
+  <div class="card stat"><div class="n">68</div><div class="l">"posture" endpoints in analytics; 121 posture fetchers in the UI</div></div>
+  <div class="card stat"><div class="n">83 / 181</div><div class="l">examples that exist only to call a posture endpoint</div></div>
+  <div class="card stat"><div class="n">637 / 0</div><div class="l">API test functions / web (UI) tests</div></div>
+  <div class="card stat"><div class="n">92 / 125</div><div class="l">collection GET endpoints with no pagination</div></div>
+</div>
+<figure>
+  <img src="screenshots/01-overview-command-center.jpg" alt="RunLedger Observability Command Center on the home-lab deployment, AgentTest workspace, showing spend, runs, tokens and live model activity">
+  <figcaption>Observability Command Center, AgentTest workspace, home-lab deployment. Note the two KPI strips showing different values for the same window: tokens 6.8M vs 7.16M, calls 79 vs 81. Savings also renders as <code>$0.000000</code> to six decimal places.</figcaption>
+</figure>
+</section>
+
+<section id="scorecard">
+<h2>Maturity scorecard</h2>
+<p class="meta">0–10. "Surface" = breadth of UI/API. "Runtime" = whether the feature changes what happens to a live request. "Cohesion" = fit with the workflow-centric model and reuse of shared primitives.</p>
+<div class="tw"><table>
+<thead><tr><th>Area</th><th>Surface</th><th>Runtime</th><th>Cohesion</th><th>Overall</th><th>One-line read</th></tr></thead>
+<tbody>
+<tr><td>Ingest &amp; instrumentation</td><td>9</td><td>7</td><td>5</td><td><div class="score"><div class="bar"><i style="width:68%"></i></div>6.8</div></td><td>Many paths; OTLP accepts everything as a "run", which pollutes the data.</td></tr>
+<tr><td>Observe</td><td>9</td><td>n/a</td><td>6</td><td><div class="score"><div class="bar"><i style="width:70%"></i></div>7.0</div></td><td>Rich, visually strong; too many overlapping pages; inconsistent KPIs.</td></tr>
+<tr><td>Gateway &amp; routing</td><td>8</td><td>6</td><td>5</td><td><div class="score"><div class="bar"><i style="width:62%"></i></div>6.2</div></td><td>Real hot path in Python; the Rust plane is a thin orchestrator; intelligent routing is broken.</td></tr>
+<tr><td>Safety &amp; governance</td><td>8</td><td>4</td><td>5</td><td><div class="score"><div class="bar"><i style="width:52%"></i></div>5.2</div></td><td>Guardrails enforced; tool policy and approvals are cooperative only.</td></tr>
+<tr><td>FinOps</td><td>9</td><td>3</td><td>4</td><td><div class="score"><div class="bar"><i style="width:50%"></i></div>5.0</div></td><td>Excellent accounting surfaces; four budget concepts; no inline budget enforcement.</td></tr>
+<tr><td>Build &amp; improve</td><td>8</td><td>3</td><td>3</td><td><div class="score"><div class="bar"><i style="width:42%"></i></div>4.2</div></td><td>Registries and record-keeping; no execution; duplicate dataset/experiment systems.</td></tr>
+<tr><td>Org &amp; access</td><td>8</td><td>7</td><td>6</td><td><div class="score"><div class="bar"><i style="width:68%"></i></div>6.8</div></td><td>SSO/LDAP/ACL present; UI acts as a workspace API key, not as the user.</td></tr>
+<tr><td>Platform &amp; ops</td><td>7</td><td>6</td><td>6</td><td><div class="score"><div class="bar"><i style="width:60%"></i></div>6.0</div></td><td>HA/backup/Helm docs; production runs in development mode with backups off.</td></tr>
+<tr><td>Engineering quality</td><td colspan="3">Backend good · Frontend weak · Monolith files</td><td><div class="score"><div class="bar"><i style="width:55%"></i></div>5.5</div></td><td>No UI tests, 4,915-line page, 39 native <code>confirm()</code>, 4 <code>aria-label</code>s.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="top">
+<h2>Top 12 findings</h2>
+<div class="tw"><table>
+<thead><tr><th>#</th><th>Severity</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><span class="b crit">Critical</span></td><td>Workspace budgets aren't enforced in the gateway. Docs and README say they are.</td><td><code>check_budgets</code> is only called from <code>routers/budgets.py:826</code> (<code>/budgets/check</code>) and <code>services/policies.py:269</code>. The gateway preflight (<code>routers/gateway_runtime.py</code>) calls only <code>check_cost_cap</code> (route-level) and <code>check_per_user_rpm</code>.</td><td>Call <code>check_budgets</code> in preflight (Redis counters already exist) and honor block/downgrade. Add a contract test.</td></tr>
+<tr><td>2</td><td><span class="b crit">Critical</span></td><td>Model budgets are fully decorative: CRUD and UI, but nothing increments or checks them.</td><td><code>incr_model_budget_spend</code> and <code>check_model_budgets</code> have zero call sites.</td><td>Fold into one budget scope type (<code>scope_type=model</code>) and delete the separate entity.</td></tr>
+<tr><td>3</td><td><span class="b crit">Critical</span></td><td>Intelligent routing silently fails in production.</td><td><code>services/intelligent_router.py</code> posts to <code>${ROUTER_SVC_URL}/classify</code>, which is set to gateway-rs. gateway-rs registers only <code>/health/*</code> and <code>/gateway/chat/completions</code>. Live probe: <code>POST :8210/classify → 404</code>. <code>router-svc</code> isn't deployed. The timeout is 25 s.</td><td>Implement <code>/classify</code> in Rust or redeploy router-svc. Cut the timeout to about 300 ms. Emit a metric and UI badge when routing fails open.</td></tr>
+<tr><td>4</td><td><span class="b high">High</span></td><td>"Workflow-centric" product with no workflow dimension on runs.</td><td><code>agent_runs</code> columns: no <code>workflow_id</code>. <code>WorkflowRun</code> is a separate table with its own <code>total_cost</code> and <code>total_tokens</code>, created by <code>POST /workflows/{id}/runs</code> with no execution and no link to <code>agent_runs</code>.</td><td>Add <code>workflow_id</code> (resolved from <code>feature_tag</code>, header or OTLP attribute) to <code>agent_runs</code>. Make <code>WorkflowRun</code> a view over runs. Budgets, analytics and evals scope by workflow.</td></tr>
+<tr><td>5</td><td><span class="b high">High</span></td><td>Tool policies and approvals don't gate tool calls the model emits through the gateway.</td><td><code>ToolPolicy</code> appears in no gateway service. Enforcement only via <code>/policies/check</code>, <code>runledger_policy_check</code> and <code>runledger_filter_mcp_tool</code> MCP tools.</td><td>Filter the <code>tools[]</code> request and inspect <code>tool_calls</code> in the response inside the preflight/finalize path. Approvals become a gateway "hold" state.</td></tr>
+<tr><td>6</td><td><span class="b high">High</span></td><td>OTLP ingestion turns every trace into an AgentRun, including non-LLM application spans.</td><td>253,163 OTLP runs have zero provider calls. Top span names are <code>fs.get_metadata</code>, <code>receiving</code>, <code>handle_responses</code>. Total cost is $9.71 on 74.6M tokens. <code>otlp_spans_raw</code> is 1.7 GB.</td><td>Only create a run when a trace contains <code>gen_ai.*</code> / OpenInference LLM spans. Per-source drop rules. Default retention policy.</td></tr>
+<tr><td>7</td><td><span class="b high">High</span></td><td>Posture-card sprawl: 68 endpoints, 121 UI fetchers and 83 examples that cross-link features instead of deepening them.</td><td>See <a href="#sprawl">section</a>. The Gateway page alone makes 35 API calls (23 posture) and is 4,915 lines.</td><td>Replace with one <code>/context?entity=&amp;id=</code> relationship endpoint and a shared "Related" side panel.</td></tr>
+<tr><td>8</td><td><span class="b high">High</span></td><td>The dashboard authenticates to the API as a workspace API key held in the browser session.</td><td><code>session.apiKey</code> is used in 31 client files. The NextAuth JWT lives 30 days. Roles are cached in the JWT.</td><td>Use a backend-for-frontend proxy with an httpOnly session and short-lived user tokens. Audit as the user, not as the key.</td></tr>
+<tr><td>9</td><td><span class="b high">High</span></td><td>The Rust "data plane" depends on synchronous Python hops for every request. <em>(Corrected in pass 2: OpenAI-compatible providers are called directly from Rust; only Azure, Bedrock, Vertex and Gemini are proxied through Python.)</em></td><td>Every request does preflight → route-result → finalize → mirror → events against the Python API, about 40 SQL queries before the first byte. <code>call_provider_execute</code> is used for the <code>python_adapter</code> providers. Only chat completions is supported.</td><td>Cache the runtime snapshot in Rust, move caps and RPM to Redis, make finalize and mirror async. Add <code>/embeddings</code>, <code>/responses</code> and <code>/messages</code>.</td></tr>
+<tr><td>10</td><td><span class="b med">Medium</span></td><td>Four overlapping budget concepts plus a route cost cap.</td><td>Budgets, Model budgets, Budget tiers (API-key RPM/cost), Budget overrides, plus <code>daily/monthly_cost_limit_usd</code> on routes.</td><td>One Budget entity with scope (workspace / workflow / api_key / model / access_group / route) and actions (alert / downgrade / block).</td></tr>
+<tr><td>11</td><td><span class="b med">Medium</span></td><td>Production instance runs <code>ENVIRONMENT=development</code>: SQL echo floods logs, the default DB password is in use, backups are disabled.</td><td><code>core/db.py:14 echo=settings.is_development</code>. Container env shows <code>DATABASE_URL=…runledger:runledger@…</code> and <code>BACKUP_ENABLED=false</code>.</td><td>A production profile that refuses to boot on default secrets. Make echo opt-in only.</td></tr>
+<tr><td>12</td><td><span class="b med">Medium</span></td><td>Pagination is missing on 92 of 125 collection endpoints, using four different styles.</td><td>See <a href="#pagination">pagination audit</a>. The runs cursor is a bare timestamp, so runs with the same timestamp can be skipped.</td><td>One cursor standard <code>(started_at,id)</code>, a <code>{items,next_cursor,total?}</code> envelope and a shared <code>&lt;DataTable&gt;</code>.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="arch">
+<h2>Architecture: request path reality vs. the diagram</h2>
+<p>The docs describe a Rust data plane with the Python API "out of band". In code, every control decision goes through the Python control plane over HTTP, authenticated with the shared <code>x-admin-secret</code>. For OpenAI-compatible providers Rust makes the upstream call itself; Azure, Bedrock, Vertex and Gemini are also proxied through Python. See <a href="runledger-code-deep-dive.html#gw-life">pass 2 lifecycle</a>.</p>
+<div class="diagram">
+<svg viewBox="0 0 980 300" role="img" aria-label="Actual gateway request path: client to gateway-rs, which calls Python preflight, Python provider-execute, Python route-result, finalize and signed events before returning">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="color:var(--ink2)"/></marker></defs>
+  <rect class="box" x="20" y="120" width="120" height="56" rx="10"/><text x="80" y="153" text-anchor="middle" font-size="13">Client / agent</text>
+  <rect class="box" x="200" y="120" width="150" height="56" rx="10"/><text x="275" y="146" text-anchor="middle" font-size="13" font-weight="600">gateway-rs</text><text x="275" y="164" text-anchor="middle" class="lbl">/gateway/chat/completions</text>
+  <line class="arrow" x1="140" y1="148" x2="196" y2="148" marker-end="url(#ah)"/>
+  <rect class="py" x="430" y="20" width="230" height="44" rx="9"/><text x="545" y="47" text-anchor="middle" font-size="12.5">① POST /internal/preflight</text>
+  <rect class="hot" x="430" y="78" width="230" height="44" rx="9"/><text x="545" y="98" text-anchor="middle" font-size="12.5">② provider call (direct, or via Python)</text><text x="545" y="113" text-anchor="middle" class="lbl">Python only for azure/bedrock/vertex/gemini</text>
+  <rect class="py" x="430" y="136" width="230" height="44" rx="9"/><text x="545" y="163" text-anchor="middle" font-size="12.5">③ POST /internal/route-result</text>
+  <rect class="py" x="430" y="194" width="230" height="44" rx="9"/><text x="545" y="221" text-anchor="middle" font-size="12.5">④ POST /internal/finalize</text>
+  <rect class="py" x="430" y="252" width="230" height="40" rx="9"/><text x="545" y="277" text-anchor="middle" font-size="12.5">⑤ POST /runtime/events/signed</text>
+  <path class="arrow" d="M350,140 C390,140 390,42 426,42" marker-end="url(#ah)"/>
+  <path class="arrow" d="M350,146 C395,146 395,100 426,100" marker-end="url(#ah)"/>
+  <path class="arrow" d="M350,152 L426,158" marker-end="url(#ah)"/>
+  <path class="arrow" d="M350,160 C395,160 395,216 426,216" marker-end="url(#ah)"/>
+  <path class="arrow" d="M350,168 C390,168 390,272 426,272" marker-end="url(#ah)"/>
+  <rect class="box" x="760" y="78" width="190" height="44" rx="9"/><text x="855" y="105" text-anchor="middle" font-size="12.5">OpenAI / Anthropic / Ollama…</text>
+  <line class="arrow" x1="660" y1="100" x2="756" y2="100" marker-end="url(#ah)"/>
+  <text x="700" y="160" class="lbl">Inside ①: semantic cache · context compiler ·</text>
+  <text x="700" y="176" class="lbl">intelligent router (→ 404) · guardrails ·</text>
+  <text x="700" y="192" class="lbl">route cost-cap SUM() · per-user RPM</text>
+  <text x="700" y="214" class="lbl" style="fill:var(--crit)">Not inside ①: budgets, model budgets,</text>
+  <text x="700" y="230" class="lbl" style="fill:var(--crit)">tool policies, approvals</text>
+</svg>
+</div>
+<div class="grid g3" style="margin-top:14px">
+  <div class="card"><h4>Latency claim</h4><p>The login page advertises "&lt;5ms" gateway overhead. With 4–5 synchronous internal HTTP hops, a Postgres <code>SUM()</code> over <code>gateway_requests</code> per request for cost caps, and optional sidecar calls, that claim can't hold. No benchmark in <code>scripts/bench</code> asserts it.</p></div>
+  <div class="card"><h4>Blast radius</h4><p>If the Python API is slow or down, the "data plane" is down too: readiness probes <code>/health/live</code> on the control plane. The gateway can't serve from a cached snapshot, although <code>/runtime/internal/snapshot</code> already exists.</p></div>
+  <div class="card"><h4>Coverage</h4><p>The Rust plane implements only <code>/gateway/chat/completions</code>. Embeddings, Responses API, Anthropic Messages, images, audio and batch aren't routed. Bedrock streams are fully buffered before being returned.</p></div>
+</div>
+<h3>Other architectural observations</h3>
+<ul class="tight">
+  <li><strong>Monolithic routers.</strong> <code>analytics.py</code> (634 KB, about 8,500+ lines) mixes core analytics, economics, engineering, scorecards and 68 posture endpoints. <code>org.py</code> is 60 KB, <code>runs.py</code> 62 KB. These are merge-conflict magnets and untestable as units.</li>
+  <li><strong>Tenant isolation by convention.</strong> 1,633 explicit <code>workspace_id ==</code> filters across routers and no Postgres RLS. One missing filter is a cross-tenant leak. Consider RLS with <code>SET app.workspace_id</code> per request as defense in depth.</li>
+  <li><strong>Sidecar sprawl.</strong> 26 compose services. The home lab runs about 33 RunLedger containers (Letta, Kùzu, Qdrant, memory-db, Redpanda, MinIO…) for a product with 14 users. A "core" profile of api + web + worker + postgres + redis should be the default story.</li>
+  <li><strong>Dead and legacy code still shipped.</strong> <code>routers/projects.py</code> isn't mounted but its model and schema remain. <code>team_models</code> is still referenced by <code>services/gateway.py</code> and <code>gateway_controls.py</code>. <code>gateway_legacy</code> is mounted. 27 page routes are redirect stubs.</li>
+</ul>
+</section>
+
+<section id="sprawl">
+<h2>Posture-card sprawl</h2>
+<div class="callout warn"><strong>The single most important product-engineering observation.</strong> The project's own <code>TODO_ITEMS/FEATURE-STATUS.md</code> tracks a "cohesion matrix" (every feature × every other feature) and closes cells by adding a <em>posture endpoint + colored card</em>, for example "WU-016 adds Runtime Scope &amp; Evidence posture card (cyan theme)… 5 cells closed". Cohesion is being measured by <em>links between screens</em>, not by <em>shared runtime behavior</em>.</div>
+<div class="grid g3">
+  <div class="card stat"><div class="n">68</div><div class="l">posture endpoints in analytics.py (<code>/overview-gateway-posture</code>, <code>/tags-runtime-posture</code>, <code>/vector-store-detail-evidence-posture</code>…)</div></div>
+  <div class="card stat"><div class="n">56 pages</div><div class="l">render one or more posture cards. The Gateway page renders 23.</div></div>
+  <div class="card stat"><div class="n">83</div><div class="l">numbered examples (100–178) whose only purpose is to GET a posture endpoint</div></div>
+</div>
+<h4>Why it matters</h4>
+<ul class="tight">
+  <li><strong>Cost.</strong> Each card is one more round trip and about 8–12 <code>COUNT(*)</code> queries per page load. On a 275k-run workspace that's real Postgres load for "context" tiles.</li>
+  <li><strong>Cognitive load.</strong> Every page ends in the same grid of violet / amber / emerald / cyan / rose summary cards, so the page's primary job gets buried and screens look alike.</li>
+  <li><strong>False completion signal.</strong> A cell going from PARTIAL to STRONG because a card links to Budgets doesn't mean budgets constrain that feature. Finding #1 is proof: Budgets is "STRONG" across the board yet unenforced.</li>
+  <li><strong>Violates the repo's own AGENTS.md.</strong> "Reject or refactor changes that introduce decorative configuration… or UI surfaces with no real enforcement path."</li>
+</ul>
+<h4>Recommended replacement</h4>
+<p>One relationship service: <code>GET /context?entity=workflow&amp;id=…</code> returns the related budgets, routes, policies, keys, recent runs and violations as typed edges. Add one reusable <code>&lt;RelatedPanel&gt;</code> (right-hand drawer), lazy-loaded on open. Delete the 68 endpoints, 121 fetchers and 83 examples. Expect about 10–15k LOC removed and a measurable drop in page load time.</p>
+</section>
+
+<section id="data">
+<h2>Data model &amp; scale</h2>
+<div class="tw"><table>
+<thead><tr><th>Concern</th><th>Observation</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td>Core entity</td><td><code>AgentRun → Span → ProviderCall/ToolCall → Outcome</code> is sound. Runs carry <code>feature_tag</code>, <code>api_key_id</code>, <code>end_user_id</code>, <code>session_id</code>, <code>intent</code>, but not <code>workflow_id</code>, <code>model</code> (derived from calls) or a denormalized <code>total_tokens</code>.</td><td>Add <code>workflow_id</code> and a primary <code>model</code>. Index <code>(workspace_id, workflow_id, started_at DESC, id)</code>.</td></tr>
+<tr><td>Raw telemetry</td><td><code>otlp_spans_raw</code> 1.97M rows / 1.7 GB, <code>spans</code> 1.99M / 772 MB, no partitioning, <strong>0 retention policies</strong> configured in production.</td><td>Monthly range partitioning on <code>spans</code> and raw. A default 14-day raw / 90-day normalized retention. Optional ClickHouse sink for analytics.</td></tr>
+<tr><td>Rollups</td><td><code>usage_hourly</code> has only 446 rows, so most analytics still aggregate raw tables per request.</td><td>Materialize hourly/daily rollups by (workspace, workflow, model, key) and serve all charts from them.</td></tr>
+<tr><td>Pricing</td><td>28 rows in <code>provider_pricing</code>. Unknown or local models resolve to $0 silently.</td><td>Flag "unpriced" calls explicitly in the UI. Ship a LiteLLM-style price map and a "local = $0 by policy" toggle.</td></tr>
+<tr><td>Parallel ledgers</td><td><code>WorkflowRun.total_cost</code>, <code>GatewayRequest</code> tokens (used for cost caps), <code>agent_runs.total_cost_usd</code>, and Redis budget counters are four sources of truth for spend.</td><td>One metering stream (agent_runs/provider_calls). Everything else reads from it.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="f-ingest">
+<h2>Feature by feature</h2>
+<p class="meta">Status legend: <span class="b ready">Ready</span> works end-to-end · <span class="b func">Functional</span> works, gaps · <span class="b partial">Partial</span> important pieces missing · <span class="b deco">Decorative</span> UI/CRUD with no runtime effect · <span class="b broken">Broken</span> fails in production · <span class="b legacy">Legacy</span> slated for removal.</p>
+
+<h3>1 · Ingest &amp; instrumentation</h3>
+
+<div class="feature"><div class="fh"><h4>OTLP / OpenInference ingest</h4><span class="b partial">Partial</span><span class="route">routers/otlp.py · services/otlp_parse.py · workers/otlp_finalize.py</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Collector → API, batch tracking (59,839 batches)</li><li>Phase 2/4 parsing tests, insights and stats endpoints</li><li>Trace stitching into runs and spans</li></ul></div>
+<div><h5>Gaps</h5><ul><li>No LLM-span gating, so app spans become runs (92% noise in prod)</li><li>Codex/Claude Code token usage not priced ($0)</li><li>No sampling or drop rules per source</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Source profiles (Codex, Claude Code, LangGraph) with attribute maps</li><li>"Unpriced tokens" KPI</li><li>Ingest health page showing drop / accept ratios</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Python &amp; TypeScript SDKs</h4><span class="b func">Functional</span><span class="route">packages/sdk · packages/ts-sdk</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Both SDKs tested in CI (pytest, vitest)</li><li>Run/span/outcome recording</li></ul></div>
+<div><h5>Gaps</h5><ul><li>No first-class <code>workflow=</code> parameter tied to a workflow entity</li><li>Budget/policy pre-check is opt-in, which is the only way budgets bite today</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Decorator <code>@runledger.workflow("name")</code></li><li>Publish to PyPI/npm with semver aligned to API</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>MCP server (control plane for desktop agents)</h4><span class="b func">Functional</span><span class="route">mcp_server.py mounted at /mcp</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Budget, policy, record-run/span/tool, query costs and optimizations tools</li><li>Recent fixes: per-client API key, session timeouts</li></ul></div>
+<div><h5>Gaps</h5><ul><li><code>POST /mcp</code> returns 307 to <code>/mcp/</code>; some clients don't follow POST redirects (a LAN client logged 404s)</li><li>Advisory only: the agent decides whether to obey</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Serve both <code>/mcp</code> and <code>/mcp/</code></li><li>A "compliance score" per client (did it call check-before-spend?)</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Claude Code log ingestion (WIP on this branch)</h4><span class="b partial">In progress</span><span class="route">services/claude_code_logs.py · tests/test_claude_code_logs.py (uncommitted)</span></div>
+<p>Good direction: it addresses exactly the Codex/Claude Code "$0, no model call" problem. Make sure it lands alongside the OTLP gating in finding #6, otherwise it adds another source of noise-runs.</p></div>
+
+<div class="feature"><div class="fh"><h4>Webhook ingest, Kafka/Redpanda export</h4><span class="b func">Functional</span><span class="route">routers/ingest.py · services/kafka_export.py</span></div>
+<p>Signed ingest (<code>INGEST_SIGNING_SECRET</code>, which falls back to the admin secret; separate them). Kafka export configs are unpaginated. Redpanda + Console run continuously in the home lab for an optional feature; put them behind a profile.</p></div>
+</section>
+
+<section id="f-observe">
+<h3>2 · Observe</h3>
+
+<div class="feature"><div class="fh"><h4>Analytics overview: "Observability Command Center"</h4><span class="b func">Functional</span><span class="route">/analytics · components/dashboard/AnalyticsBreakdownClient.tsx (65 KB)</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Workspace / Org / Platform scope switch, 5m→90d windows</li><li>Live model activity bars, spend over time, token volume, model donut</li><li>Chart export buttons</li></ul></div>
+<div><h5>Gaps</h5><ul><li><strong>Two KPI strips disagree</strong> for the same window (tokens 6.8M vs 7.16M, calls 79 vs 81): two code paths compute "the same" number</li><li>Two period pickers on one page (24h/7d/30d/90d and 5m…90d)</li><li>"Failed to load analytics" toast when browser→API calls fail (build-time <code>NEXT_PUBLIC_API_URL</code> / CORS); the page should degrade per-card, not with a global toast</li><li>Currency shown to six decimals (<code>$0.000000</code>); "0 users" when end_user_id isn't sent</li><li>Spend-over-time with 2 points renders as a misleading straight slope</li></ul></div>
+<div><h5>Enhance</h5><ul><li>One metrics service feeding every KPI tile</li><li>Smart currency formatting (&lt;$0.01 → "&lt;1¢")</li><li>Workflow as the default top-level grouping</li><li>Saved views and shareable URLs (all filters in query string)</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Runs list &amp; run detail</h4><span class="b func">Functional</span><span class="route">/runs · /runs/[run_id] · routers/runs.py</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Rich filters: status, feature_tag, end user, model, cost range, access group, key, tag, tool, security-only</li><li>Cursor pagination (<code>RunsPaginated.tsx</code>)</li><li>DAG view (xyflow + dagre), span detail panel</li></ul></div>
+<div><h5>Gaps</h5><ul><li>Cursor = bare ISO timestamp, so runs with the same timestamp are skipped or duplicated</li><li>A <code>COUNT(*)</code> with all filters on each page load, slow at 250k+ rows</li><li>No workflow filter (dimension missing); <code>search</code> is only a run-ID prefix</li><li>Run detail fires 10 API calls, 4 of them posture</li></ul></div>
+<div><h5>Enhance</h5><ul><li><code>(started_at,id)</code> keyset cursor; approximate counts</li><li>Full-text search over prompt/response (opt-in capture)</li><li>Side-by-side run diff; "replay this run" button wired to Replay</li><li>Column chooser and CSV export of the current filter</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Sessions</h4><span class="b func">Functional</span><span class="route">/sessions · /sessions/[id] (not in sidebar)</span></div>
+<p>Works with <code>page</code>/<code>page_size</code>, a different pagination style from Runs. Not reachable from the sidebar (only via links). The project's own status file marks the backend PARTIAL. Recommend: merge into Runs as a "group by session" toggle.</p></div>
+
+<div class="feature"><div class="fh"><h4>Request Flow (Sankey), Focus, Live Pipeline</h4><span class="b func">Functional</span><span class="route">/request-flow · /request-flow/focus · /request-flow/live · RequestFlowSankey.tsx (49 KB)</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Showcase-quality visual: request → route → provider → outcome</li><li>Multiple modes and metrics; PNG/SVG download</li></ul></div>
+<div><h5>Gaps</h5><ul><li><code>/runs/flow?scope=platform</code> returns 403 for non-platform roles, but the toggle is still shown</li><li>Hard limit=500 rows; no "truncated" indicator</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Hide scopes the role can't use</li><li>Click a band to jump to a filtered Runs list</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Request Explorer</h4><span class="b func">Functional</span><span class="route">/request-explorer · 762 lines</span></div>
+<p>Overlaps heavily with Runs (both are filterable request lists). Recommend collapsing into Runs with a "gateway requests" lens, keeping one list UX.</p></div>
+
+<div class="feature"><div class="fh"><h4>Engineering · Model Usage · Model Scorecards · Monitoring · Telemetry</h4><span class="b func">Functional</span><span class="route">/engineering · /model-usage · /model-scorecards · /monitoring · /monitoring/telemetry</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Latency/error metrics, per-model usage and budget utilization, scorecards, OTLP telemetry health</li></ul></div>
+<div><h5>Gaps</h5><ul><li>Five pages answer variants of "how are my models doing". Scorecards lives under Build, Usage under Observe</li><li>Model budget utilization card reads a budget type that is never incremented (finding #2)</li></ul></div>
+<div><h5>Enhance</h5><ul><li>One "Models" hub with tabs: Usage · Quality · Latency · Cost</li><li>Telemetry should live with Ingest health, not Monitoring</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Outcomes &amp; ROI · Economics · Analytics Users · Breakdown · Billing summary</h4><span class="b partial">Partial</span><span class="route">/outcomes · /analytics/economics · /analytics/users · /analytics/breakdown · /billing-summary</span></div>
+<p>Outcomes/ROI is a strong idea (cost per successful outcome) and is paginated. However <code>/analytics/breakdown</code> and <code>/billing-summary</code> have <strong>no inbound links</strong> (orphan pages), and Economics/Users are reachable only from inside other pages. Economics duplicates Cost &amp; Savings. ROI requires outcome recording, which almost no ingest path produces automatically. Add an "outcome from eval score" bridge.</p></div>
+</section>
+
+<section id="f-gateway">
+<h3>3 · Gateway &amp; routing</h3>
+
+<div class="feature"><div class="fh"><h4>Model Gateway (routes, routing groups, policies, passthrough)</h4><span class="b func">Functional</span><span class="route">/gateway (4,915-line page) · routers/gateway_*.py</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>62 routes in production; routing groups; fallback triggers (timeout, content policy, context window)</li><li>Routing policy promote / rollout-advance / rollback with analysis</li><li>Passthrough endpoints with test and stats</li><li>Deployment health and benchmark compare</li></ul></div>
+<div><h5>Gaps</h5><ul><li>A single page with 35 API calls and 23 posture cards; slow and hard to scan</li><li>Routes, policies and groups lists are unpaginated</li><li>Route cost cap runs a Postgres <code>SUM()</code> per request</li><li>No embeddings, Responses or Messages API surface</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Split into Routes · Policies · Providers · Health sub-pages with a shared DataTable</li><li>Redis counters for cost caps</li><li>Config-as-code (YAML import/export, GitOps)</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Rust gateway (gateway-rs)</h4><span class="b partial">Partial</span><span class="route">apps/gateway-rs/src/main.rs (1,170 lines, single file)</span></div>
+<p>Healthy container, direct provider calls and real SSE streaming pass-through for OpenAI-style providers, Bedrock event-stream parsing (buffered). But every request still depends on synchronous Python hops (finding #9), and <strong>streamed responses are never finalized or metered</strong> (pass 2, G-03). It has no <code>/classify</code> (finding #3), no tests in CI (<code>cargo test</code> absent from <code>ci.yml</code>), and lives in one file. As an investor I'd want to see p50/p99 overhead benchmarks in CI before accepting the "data plane" positioning.</p></div>
+
+<div class="feature"><div class="fh"><h4>Intelligent routing</h4><span class="b broken">Broken in prod</span><span class="route">services/intelligent_router.py → gateway-rs /classify</span></div>
+<p>Fails open on every request where enabled, after up to 25 s. No metric or UI signal reports the failure. Routing-tier configuration in the UI is therefore decorative today.</p></div>
+
+<div class="feature"><div class="fh"><h4>Provider profiles</h4><span class="b func">Functional</span><span class="route">/provider-profiles · routers/providers.py</span></div>
+<p>CRUD and pricing import exist. Pricing has only 28 rows; there's no "unpriced model" warning. <code>/team-models</code> redirects here, but <code>team_models</code> is still read by gateway services. Finish the migration.</p></div>
+
+<div class="feature"><div class="fh"><h4>Guardrails &amp; violations</h4><span class="b partial">Partial · unsafe (pass 2)</span><span class="route">/guardrails · /guardrails/violations · services/guardrails.py (42 KB)</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Pre-call and post-call evaluation in the gateway path, blocking with a reason</li><li>Built-in templates (PII, toxicity, prompt injection/jailbreak), custom logic</li><li>Per-key guardrail sets, workspace bypass flag; 749 events in prod</li></ul></div>
+<div><h5>Gaps</h5><ul><li>Regex/keyword heuristics; no ML classifier option</li><li>Output guardrails on streamed responses not verified</li><li>No dedicated test file (<code>test_guardrails.py</code> absent)</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Pluggable detectors (Presidio, Llama Guard, provider moderation)</li><li>Shadow / dry-run mode with a hit-rate preview</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Response cache · Rate limits</h4><span class="b func">Functional</span><span class="route">/response-cache · /rate-limits (not in sidebar)</span></div>
+<p>Exact and semantic cache wired in preflight; per-user RPM enforced. Both pages are reachable only through links, so the controls that actually work are hidden while decorative ones are in the nav. Put them in the sidebar under Gateway.</p></div>
+</section>
+
+<section id="f-gov">
+<h3>4 · Safety &amp; governance</h3>
+
+<div class="feature"><div class="fh"><h4>Tool Governance (registry, policies, search tools, dry run)</h4><span class="b deco">Advisory</span><span class="route">/tool-registry (1,078 lines) · /tool-policies · routers/tools.py · workspace_controls.py</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Registry with cost and risk metadata; policies allow/audit/block; dry-run tab</li><li>Security events (1,541 in prod)</li></ul></div>
+<div><h5>Gaps</h5><ul><li>Not consulted by the gateway when the model emits <code>tool_calls</code> or when <code>tools[]</code> is sent</li><li>Tool-policy and search-tool redirects create four URLs for one area</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Strip blocked tools from <code>tools[]</code> in preflight; flag/hold disallowed <code>tool_calls</code> in finalize</li><li>Policy simulation against the last 7 days of real tool calls</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>MCP Servers / MCP Registry</h4><span class="b func">Functional</span><span class="route">/mcp · /mcp-registry (963 lines)</span></div>
+<p>Registry, tools and permissions CRUD exist, but there are two entry points (<code>/mcp</code> in the sidebar, <code>/mcp-registry</code> linked from 11 places). The project status file calls MCP servers LEGACY. Pick one. Lists are unpaginated.</p></div>
+
+<div class="feature"><div class="fh"><h4>Approvals</h4><span class="b partial">Partial</span><span class="route">/approvals · routers/approvals.py (34 KB)</span></div>
+<p>Approval objects, auto-policies and paginated history exist (24 approvals in prod), but nothing in the gateway path creates or waits on an approval. Approvals are a ticket queue, not a control. Make approval a gateway decision: <code>202 + approval_id</code>, a resumable request, and a webhook or Slack action.</p></div>
+
+<div class="feature"><div class="fh"><h4>Data Capture · Security · Tags</h4><span class="b func">Functional</span><span class="route">/data-capture · /security · /tags</span></div>
+<p>Capture policies with scopes, OIDC/OAuth2/LDAP/IP-ACL providers, tag taxonomy. Security lists (providers, ACLs) are unpaginated. LDAP depends on an optional <code>ldap3</code> import that fails at runtime with an install hint; ship it in the image or hide LDAP when missing.</p></div>
+
+<div class="feature"><div class="fh"><h4>Audit Log · Audit Pack · Alert Rules</h4><span class="b func">Functional</span><span class="route">/audit · /governance-pack · /alert-rules</span></div>
+<p>Audit log is paginated and filterable. The governance pack bundles evidence. Alert rules list is unpaginated. Because the UI acts as an API key (finding #8), audit attribution of UI actions to a human user should be verified. Add tamper evidence (hash chain) to the audit log, not only to ledger snapshots.</p></div>
+</section>
+
+<section id="f-finops">
+<h3>5 · FinOps</h3>
+
+<div class="feature"><div class="fh"><h4>Budgets &amp; budget detail</h4><span class="b deco">Not enforced inline</span><span class="route">/budgets · /budgets/[id] · BudgetDetailClient.tsx (50 KB)</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Rich CRUD: scope types (workspace, feature, end user, access group), period types, alert / downgrade / block actions</li><li>Redis spend counters incremented by the metering worker</li><li>Breach history, notifications, overrides panel</li></ul></div>
+<div><h5>Gaps</h5><ul><li>Gateway never calls <code>check_budgets</code> (finding #1)</li><li>Spend is incremented asynchronously after metering, so even when checked it can overshoot</li><li>No workflow scope (the product's core noun)</li><li>Budgets list and notifications unpaginated</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Pre-call reservation (estimated tokens × price) plus post-call settle</li><li>Forecast-to-breach date on each budget</li><li>Workflow-scoped budgets as the default creation flow</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Model budgets · Budget tiers · Budget overrides</h4><span class="b broken">Model budgets dead</span><span class="route">/model-budgets · /budget-tiers · /budget-overrides (none in sidebar)</span></div>
+<p>Model budgets: CRUD only, never incremented or checked. Budget tiers (<em>corrected in pass 2</em>): <code>gateway_controls.py</code> applies the workspace's <em>default</em> tier, not the key's, against a single route's spend, and only when that route has its own cap. Overrides: the status file marks the backend PARTIAL. Together with route cost caps that's five spend-limit mechanisms. Users can't tell which one will stop a request. Consolidate (finding #10).</p></div>
+
+<div class="feature"><div class="fh"><h4>Billing periods &amp; detail</h4><span class="b ready">Ready</span><span class="route">/billing · /billing/[period_id] · services/billing.py (41 KB)</span></div>
+<p>Close period, reconciliation, adjustments, CSV and signed JSON export, shared-cost policies. 20 periods in prod. The strongest finance surface in the product. Gaps: periods list unpaginated; cost data feeding it is incomplete (see OTLP $0 issue).</p></div>
+
+<div class="feature"><div class="fh"><h4>Chargeback</h4><span class="b func">Functional</span><span class="route">/chargeback (847 lines)</span></div>
+<p>Rules, cost-center tree, access-group and API-key scoping. Chargeback rules and report unpaginated. Should allocate by workflow once that dimension exists.</p></div>
+
+<div class="feature"><div class="fh"><h4>Ledger</h4><span class="b func">Functional</span><span class="route">/ledger (not in sidebar) · services/ledger.py · workers/ledger.py</span></div>
+<p>Daily HMAC-signed snapshots with an encrypted signing key and a verify endpoint. But the signing key lives (encrypted) in the same database it attests, so a DB admin with the app secret can re-sign history. For a real tamper-evident claim: chain snapshots (each includes the previous hash), anchor periodically off-box (S3 object lock / transparency log), and expose the chain in the UI. Not linked from the sidebar despite being the "Ledger" in RunLedger.</p></div>
+
+<div class="feature"><div class="fh"><h4>Cost &amp; Savings</h4><span class="b partial">Partial</span><span class="route">/cost-savings</span></div>
+<p>Savings in production shows <code>$0.000000</code>. Savings attribution depends on cache, routing and compression events, and routing is broken (finding #3). Show the methodology inline ("savings = baseline model price − actual") and "not enough data" states instead of zeros.</p></div>
+</section>
+
+<section id="f-build">
+<h3>6 · Build &amp; improve</h3>
+
+<div class="feature"><div class="fh"><h4>Workflows</h4><span class="b deco">Registry only</span><span class="route">/workflows · /workflows/[id] · /workflows/[id]/runs/[run_id]</span></div>
+<p>CRUD for workflow definitions and steps; runs are created by POST with <code>input_data</code>, and nothing executes them. <code>WorkflowRun</code> isn't connected to <code>agent_runs</code>, so a workflow's cost and token figures are whatever the caller writes. 7 definitions and 7 runs in prod. This is the product's stated center of gravity, and it's the least connected entity (finding #4).</p></div>
+
+<div class="feature"><div class="fh"><h4>Agents &amp; agent memory</h4><span class="b partial">Partial</span><span class="route">/agents · /agents/[id] · /agents/[id]/memory</span></div>
+<p>Agent CRUD, memory store with PII detection, paginated. No link from an agent to its observed runs (no <code>agent_id</code> on <code>agent_runs</code>). Overlaps with Letta (deployed) and memory-svc. Pick one memory story.</p></div>
+
+<div class="feature"><div class="fh"><h4>Playground</h4><span class="b func">Functional</span><span class="route">/playground · routers/playground.py</span></div>
+<p><strong>Corrected in pass 2: stub.</strong> Both Playground endpoints store <code>"[… — gateway integration pending]"</code> as the response and never call a model (<code>routers/playground.py:266, 360</code>). Route it through gateway-rs with a chosen route/policy.</p></div>
+
+<div class="feature"><div class="fh"><h4>Evaluation Studio · Datasets · Experiments · Replay</h4><span class="b partial">Duplicated</span><span class="route">/evaluation (1,135 lines) · /datasets · /experiments · /replay · /replay/[id] · /evaluations→redirect</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Scores, evaluators (CRUD + run), eval datasets/experiments (CRUD + run), replay datasets/experiments with results</li></ul></div>
+<div><h5>Gaps</h5><ul><li><strong>Two dataset systems and two experiment systems</strong> (<code>eval_experiments.py</code> vs <code>replay.py</code>)</li><li>Replay datasets have no update or delete (CRUD incomplete)</li><li>Evaluators, datasets and experiments lists unpaginated</li><li>Eval scores don't feed routing or prompt promotion automatically</li></ul></div>
+<div><h5>Enhance</h5><ul><li>One Dataset, one Experiment (mode = eval | replay)</li><li>"Promote if score ≥ X" gates for prompts and routing policies</li><li>Curate datasets from Runs (multi-select → add to dataset)</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>Prompts</h4><span class="b func">Functional</span><span class="route">/prompts · /prompts/[name] · routers/prompts.py</span></div>
+<p>Versions, latest, metrics, GitHub push/pull sync. Prompt list unpaginated. No environment labels (dev/staging/prod) or gateway-side prompt injection by reference. Without those, prompts are managed but not delivered.</p></div>
+
+<div class="feature"><div class="fh"><h4>Optimization opportunities · Simulator · Vector Stores · Pipeline Designer / Studio</h4><span class="b partial">Partial</span><span class="route">/optimization-opportunities · /optimization-simulator · /vector-stores · /pipeline · /pipeline-studio</span></div>
+<p>Opportunities endpoint is unpaginated. The simulator is reachable only via links. Vector stores have CRUD plus a query. Pipeline Designer (899 lines) and Pipeline Studio are two pages for one concept; Studio is posture-driven. Recommend merging into a single "Optimize" area: opportunities → simulate → apply as a routing policy (closing the improve loop).</p></div>
+</section>
+
+<section id="f-org">
+<h3>7 · Org &amp; access</h3>
+
+<div class="feature"><div class="fh"><h4>Organization · Users · Workspaces · Access Groups</h4><span class="b func">Functional</span><span class="route">/organization · /users · /workspace · /access-groups</span></div>
+<div class="cols"><div><h5>Works</h5><ul><li>Tenants → workspaces → members; last-admin protection; access-group scoping used across observe and FinOps</li></ul></div>
+<div><h5>Gaps</h5><ul><li>Users, members and workspaces lists unpaginated</li><li>Roles cached in a 30-day JWT, so role changes don't take effect until re-login</li><li>No SCIM provisioning</li></ul></div>
+<div><h5>Enhance</h5><ul><li>Session refresh with role re-fetch</li><li>SCIM 2.0 for enterprise IdPs</li><li>User-scoped analytics (status file still marks PARTIAL)</li></ul></div></div></div>
+
+<div class="feature"><div class="fh"><h4>API Keys</h4><span class="b func">Functional</span><span class="route">/api-keys · /api-keys/[id]</span></div>
+<p>192 keys in prod for 14 users suggests keys are minted per login or per session. Combined with the UI using keys as browser credentials (finding #8), that's a key-hygiene risk. Add expiry, last-used, rotation, and scopes (ingest-only, gateway-only, read-only).</p></div>
+
+<div class="feature"><div class="fh"><h4>AI Hub · Onboarding · Integrations</h4><span class="b func">Functional</span><span class="route">/ai-hub · /onboarding · /integrations (not in nav)</span></div>
+<p>The hub models list is unpaginated. Onboarding is a checklist; make it data-driven ("first run received", "first route created", "first budget enforced") using real events.</p></div>
+
+<div class="feature"><div class="fh"><h4>Legacy: Projects · Team models · Org settings</h4><span class="b legacy">Legacy</span><span class="route">redirect stubs</span></div>
+<p>Pages redirect correctly, but backend residue remains (finding in Architecture). Finish removal and add a migration to drop <code>team_models</code> and <code>projects</code> tables once data is migrated.</p></div>
+</section>
+
+<section id="f-platform">
+<h3>8 · Platform &amp; utility</h3>
+<div class="feature"><div class="fh"><h4>Global dashboard · All organizations · Settings</h4><span class="b func">Functional</span><span class="route">/global-dashboard · /organizations · /settings (1,546 lines)</span></div>
+<p>Settings is a 1,546-line page with 13 unpaginated sub-lists (ops queues, feature flags, email log/history, backups…). Split by tab into routes. Email log and history must paginate: they grow without bound.</p></div>
+<div class="feature"><div class="fh"><h4>API Explorer · Help Hub · Plugins · Design System</h4><span class="b func">Functional</span><span class="route">/api-docs · /help · /plugins · /design-system</span></div>
+<p>The design-system page exists, but the component library underneath is thin (10 primitives in <code>components/ui</code>; no Dialog, Tabs, DataTable, Pagination, Toast wrapper or EmptyState). See GUI section.</p></div>
+</section>
+
+<section id="f-opt">
+<h3>9 · Optimization layer sidecars</h3>
+<div class="tw"><table>
+<thead><tr><th>Service</th><th>Status in prod</th><th>Wired into gateway?</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>semantic-cache-svc + embedding-svc + Qdrant</td><td>Healthy</td><td>Yes (preflight)</td><td>Hit-rate should be a first-class KPI on Overview.</td></tr>
+<tr><td>context-compiler-svc</td><td>Healthy</td><td>Yes, when enabled per route</td><td>Token savings should flow into Cost &amp; Savings.</td></tr>
+<tr><td>compression-svc, reranker-svc</td><td>Healthy</td><td>Indirect (via compiler)</td><td>Good candidates to fold into one "context" service.</td></tr>
+<tr><td>router-svc / gateway-rs /classify</td><td><span class="b broken">404 / not deployed</span></td><td>Called, fails open</td><td>Finding #3.</td></tr>
+<tr><td>memory-svc, kg-svc (Kùzu), Letta, skill-registry, flywheel</td><td>Running</td><td>Via MCP tools only</td><td>Large footprint for an optional cognitive layer. Ship as an add-on profile, not default.</td></tr>
+<tr><td>mcp-gateway</td><td>Running</td><td>n/a</td><td>A second MCP server next to the API's <code>/mcp</code>; consolidate or document the split.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="gui">
+<h2>GUI &amp; usability</h2>
+<div class="grid g2">
+<div class="card"><h4>Information architecture</h4>
+<ul class="tight">
+  <li>About 45 sidebar entries across 7 sections, while <strong>about 25 real pages are reachable only via in-page links</strong> (sessions, ledger, rate limits, response cache, model budgets, budget tiers, overrides, datasets, experiments, replay, runbooks, simulator, economics, users analytics…). Two pages have no inbound link at all: <code>/analytics/breakdown</code>, <code>/billing-summary</code>.</li>
+  <li>Overlapping destinations: Runs / Request Explorer / Sessions; Model Usage / Scorecards / Engineering; Pipeline / Pipeline Studio; MCP / MCP Registry; Evaluation / Evaluations / Datasets / Experiments / Replay.</li>
+  <li><strong>Proposal:</strong> 6 top-level areas — <em>Workflows · Runs · Gateway · Governance · FinOps · Admin</em> — with tabs inside. Make Workflow the landing object.</li>
+</ul></div>
+<div class="card"><h4>Consistency</h4>
+<ul class="tight">
+  <li>68 files hand-roll <code>&lt;table&gt;</code> while <code>components/ui/table.tsx</code> exists. Sorting, empty, loading and pagination behave differently on every page.</li>
+  <li>370 hard-coded hex colors in TSX versus Tailwind tokens, which makes theming and dark-mode drift likely.</li>
+  <li>Posture cards in five color themes (violet, amber, emerald, cyan, rose) give every page the same bottom half.</li>
+  <li>Two time-window pickers on Overview; KPI values disagree between strips.</li>
+</ul></div>
+<div class="card"><h4>Interaction quality</h4>
+<ul class="tight">
+  <li>39 native <code>window.confirm()</code> and 1 <code>alert()</code> for destructive actions. Unstyled, not accessible, and they block automation.</li>
+  <li>Errors surface as global toasts ("Failed to load analytics") instead of per-card error and retry states.</li>
+  <li>Only 19 components sync filters to the URL (<code>useSearchParams</code>), so most filtered views can't be shared or bookmarked.</li>
+  <li>CSV export exists in about 15 places, not on most tables.</li>
+</ul></div>
+<div class="card"><h4>Accessibility &amp; responsiveness</h4>
+<ul class="tight">
+  <li><strong>4 <code>aria-label</code>s in 64k LOC.</strong> Icon-only buttons (expand, export, refresh) are unlabeled. This is a blocker for enterprise and public-sector buyers (VPAT / WCAG 2.1 AA).</li>
+  <li>Charts have no textual alternative or data-table fallback.</li>
+  <li>The sidebar's bottom group uses <code>max-h-[50vh] overflow-y-auto</code>, which produces nested scroll areas on laptops.</li>
+  <li>No i18n framework; currency is hard-coded to USD.</li>
+</ul></div>
+</div>
+<h4>Quick wins (one sprint)</h4>
+<ol class="tight">
+  <li><code>&lt;DataTable&gt;</code> (TanStack Table) with server-side cursor pagination, sorting, column chooser, CSV export and URL-synced state. Migrate the 20 most-used lists.</li>
+  <li><code>&lt;ConfirmDialog&gt;</code> on Radix Dialog (already a dependency) to replace all <code>confirm()</code> calls.</li>
+  <li><code>&lt;AsyncCard&gt;</code> with loading / empty / error+retry states, so global failure toasts go away.</li>
+  <li>An <code>aria-label</code> lint rule (<code>jsx-a11y</code>) in CI.</li>
+  <li>Currency formatter and number abbreviations everywhere.</li>
+  <li>Remove unused deps: <code>firebase</code>, <code>bcryptjs</code> (no imports found).</li>
+</ol>
+</section>
+
+<section id="pagination">
+<h2>Pagination audit</h2>
+<p>An AST scan of all GET collection endpoints (excluding posture and item routes) found <strong>125 list endpoints</strong>: 92 with no pagination, 21 <code>limit+offset</code>, 10 <code>limit</code>-only, 1 <code>page+page_size</code> (sessions), 1 <code>limit+cursor</code> (runs). On the frontend, only 16 pages render any pagination control.</p>
+<div class="tw"><table>
+<thead><tr><th>Priority</th><th>Unpaginated endpoints that grow without bound</th></tr></thead>
+<tbody>
+<tr><td><span class="b high">High</span></td><td><code>/settings/email/log</code>, <code>/settings/email/history</code>, <code>/settings/api-keys</code>, <code>/tools/security-events</code>, <code>/users</code>, <code>/users/all</code>, <code>/org/members</code>, <code>/prompts</code>, <code>/gateway/routes</code>, <code>/billing/chargeback-report</code>, <code>/analytics/annotations</code>, <code>/analytics/regressions</code>, <code>/alerts/rules</code></td></tr>
+<tr><td><span class="b med">Medium</span></td><td><code>/budgets</code>, <code>/budgets/notifications</code>, <code>/billing/periods</code>, <code>/replay/datasets</code>, <code>/replay/experiments</code>, <code>/evaluations/evaluators</code>, <code>/mcp-registry</code>, <code>/mcp-registry/tools</code>, <code>/guardrails/filters</code>, <code>/ledger/snapshots</code>, <code>/analytics/optimization-opportunities</code>, <code>/hub/models</code></td></tr>
+<tr><td><span class="b low">Low</span></td><td>Settings singletons, provider lists, feature flags (bounded by design)</td></tr>
+</tbody></table></div>
+<p><strong>Standard to adopt:</strong> <code>?limit=&amp;cursor=</code> → <code>{items, next_cursor, has_more, total_estimate}</code>, cursor = base64 of <code>(sort_key, id)</code>. Use one FastAPI dependency and one TS hook (<code>useCursorList</code>).</p>
+</section>
+
+<section id="security">
+<h2>Security</h2>
+<div class="tw"><table>
+<thead><tr><th>Severity</th><th>Issue</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td><span class="b high">High</span></td><td>Workspace API key exposed to browser JS through the NextAuth session; 30-day JWT. Any XSS gives a long-lived key with gateway (spend) rights.</td><td>A BFF route proxy (<code>/api/*</code> in Next) using an httpOnly cookie; short-lived user tokens on the API side.</td></tr>
+<tr><td><span class="b high">High</span></td><td>Production uses the default Postgres password (<code>runledger</code>) and <code>ENVIRONMENT=development</code>, so <code>validate_production_settings</code> protections likely don't run.</td><td>Refuse to start with defaults unless <code>ALLOW_INSECURE_DEFAULTS=1</code>.</td></tr>
+<tr><td><span class="b med">Medium</span></td><td>A single shared <code>x-admin-secret</code> authorizes all gateway-rs → API internal calls; the ingest signing secret falls back to it.</td><td>Separate secrets per channel; mTLS or a network policy for <code>/internal/*</code>; block <code>/internal</code> at Caddy.</td></tr>
+<tr><td><span class="b med">Medium</span></td><td>No Postgres RLS; isolation relies on 1,633 manual filters.</td><td>RLS as defense in depth, plus a test that fuzzes every endpoint with a foreign workspace ID.</td></tr>
+<tr><td><span class="b med">Medium</span></td><td>SQL echo in logs can leak query parameters (emails, prompts if captured).</td><td>Echo off; structured logs with redaction.</td></tr>
+<tr><td><span class="b low">Low</span></td><td>Audit log lacks a hash chain; ledger key is co-located with the data.</td><td>See Ledger.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="quality">
+<h2>Quality, tests &amp; CI</h2>
+<div class="grid g3">
+<div class="card"><h4>Backend</h4><p>CI runs ruff, format check, mypy and pytest. 52 test files, 637 tests. <strong>No dedicated tests</strong> for guardrails, security/SSO, MCP registry, org/users RBAC, the 68 posture endpoints, or most Celery workers. There is no enforcement contract test, which is how findings #1–#3 slipped through.</p></div>
+<div class="card"><h4>Frontend</h4><p>CI runs typecheck and build only. <strong>Zero</strong> unit, component or E2E tests for 98 routes and a 4,915-line page. <code>docs/demo-visual-regression.md</code> describes visual regression, but nothing in CI runs it. Add Playwright smoke tests (login → each nav item renders without an error toast).</p></div>
+<div class="card"><h4>Rust &amp; sidecars</h4><p><code>cargo test</code> / <code>clippy</code> aren't in CI. The nine Python sidecars have no tests or lint in CI. <code>gateway-rs/target/</code> exists in the working tree; make sure it's ignored.</p></div>
+</div>
+<h4>Repository hygiene</h4>
+<ul class="tight">
+  <li>Committed: <code>scratch/*.json</code> route inventories, root <code>main.py</code>; a stray directory <code>apps/api;C</code> (Windows path artifact).</li>
+  <li>Version drift: CHANGELOG says <code>v1alpha1</code>; compose images default to <code>v1beta1</code>.</li>
+  <li><code>TODO_ITEMS/</code> (about 130 KB of matrices and work units) is a planning system inside the product repo. Move it to Issues/Projects, or keep it but stop using cohesion-cell counts as the completion metric.</li>
+</ul>
+</section>
+
+<section id="delivery">
+<h2>Docs · Postman · scripts · examples</h2>
+<div class="tw"><table>
+<thead><tr><th>Asset</th><th>State</th><th>Gap vs. AGENTS.md "done" bar</th></tr></thead>
+<tbody>
+<tr><td>Docs (108 md/mdx, Mintlify nav fully resolves)</td><td><span class="b func">Broad</span></td><td>Budgets doc claims inline gateway blocking (false). Architecture doc claims Python is out of band (false). The latency claim isn't backed by a benchmark.</td></tr>
+<tr><td>Postman</td><td><span class="b broken">Missing</span></td><td><code>postman/</code> doesn't exist, though AGENTS.md requires it. Generate it from OpenAPI in CI (<code>openapi-to-postmanv2</code>) so it can't drift.</td></tr>
+<tr><td>Scripts</td><td><span class="b partial">Partial</span></td><td>Bench, demo, labs, MCP folders exist. No script asserts that a budget blocks, a tool policy blocks, or routing chooses a tier, so the simulations don't catch the enforcement gaps.</td></tr>
+<tr><td>Examples (181)</td><td><span class="b partial">Bloated</span></td><td>Numbering collisions (<code>06_*</code>, <code>20_*</code> twice), 83 posture-only examples. Keep about 25 high-value end-to-end examples organized by journey.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="prod">
+<h2>Production instance observations (home lab)</h2>
+<div class="grid g4">
+  <div class="card stat"><div class="n">275,912</div><div class="l">runs (253,924 OTLP · 43 gateway-rs · 21,945 SDK/other)</div></div>
+  <div class="card stat"><div class="n">$9.71</div><div class="l">total recorded cost on 74.6M tokens</div></div>
+  <div class="card stat"><div class="n">3.1 GB</div><div class="l">database, 2.4 GB of it raw/normalized spans; 0 retention policies</div></div>
+  <div class="card stat"><div class="n">92%</div><div class="l">of runs in one workspace (Codex) with no model call</div></div>
+</div>
+<ul class="tight" style="margin-top:12px">
+  <li>Landing workspace for a fresh admin login is <code>default</code> with 0 runs, so the first impression is an empty dashboard. Default to the most active workspace, or show a workspace picker with activity counts.</li>
+  <li>The API log stream is dominated by SQLAlchemy echo output, which makes real errors hard to find.</li>
+  <li><code>/runs/flow?scope=platform</code> returns 403 for a workspace admin while the UI offers the Platform toggle.</li>
+  <li>Backups disabled (<code>BACKUP_ENABLED=false</code>) despite MinIO and backup tooling being deployed.</li>
+  <li>The intelligent router endpoint returns 404 (verified with a live probe).</li>
+</ul>
+</section>
+
+<section id="roadmap">
+<h2>30 / 60 / 90 day plan</h2>
+<div class="grid g3">
+<div class="card"><h4>Days 0–30: make the promises true</h4>
+<ol class="tight">
+  <li>Budgets in gateway preflight (reserve → settle), with a contract test.</li>
+  <li>Fix or implement <code>/classify</code>; 300 ms timeout; fail-open metric.</li>
+  <li>Delete model budgets, or fold them into budget scopes.</li>
+  <li>OTLP LLM-span gating plus default retention.</li>
+  <li>Production profile: no defaults, no echo, backups on.</li>
+  <li>Correct the docs (budgets, architecture, latency).</li>
+</ol></div>
+<div class="card"><h4>Days 31–60: make workflow the spine</h4>
+<ol class="tight">
+  <li><code>workflow_id</code> on runs; SDK decorator; OTLP attribute mapping.</li>
+  <li>Workflow page = runs + cost + budgets + evals + policies for that workflow.</li>
+  <li>Tool policy enforcement in preflight/finalize; approvals as gateway holds.</li>
+  <li>Replace posture cards with <code>/context</code> + <code>&lt;RelatedPanel&gt;</code>.</li>
+  <li>DataTable, ConfirmDialog, AsyncCard; cursor pagination standard.</li>
+</ol></div>
+<div class="card"><h4>Days 61–90: earn the data-plane claim</h4>
+<ol class="tight">
+  <li>Provider execution and snapshot cache in Rust; Python fully out of band.</li>
+  <li>Embeddings / Responses / Messages endpoints.</li>
+  <li>p50/p99 overhead benchmark in CI, published.</li>
+  <li>Merge eval and replay datasets and experiments; score-gated promotion.</li>
+  <li>Playwright smoke suite; jsx-a11y; Postman generated from OpenAPI.</li>
+  <li>Split <code>analytics.py</code> and <code>gateway/page.tsx</code>.</li>
+</ol></div>
+</div>
+</section>
+
+<section id="vc">
+<h2>Investor lens</h2>
+<div class="grid g2">
+<div class="card"><h4>Positioning</h4>
+<p>The market is crowded at each layer: observability (Langfuse, LangSmith, Helicone, Arize/Phoenix), gateways (LiteLLM, Portkey, Kong AI, Cloudflare AI Gateway), FinOps (Vantage, CloudZero adding AI). RunLedger's credible wedge is <strong>self-hosted, workflow-level cost + governance enforcement in one control plane</strong>: "the ledger that can say no". That wedge depends on exactly the paths that are advisory today. Fix those and the story is differentiated. Without them it's a very broad dashboard.</p></div>
+<div class="card"><h4>Moat candidates</h4>
+<ul class="tight">
+  <li>Signed, tamper-evident AI spend ledger (needs a hash chain and external anchoring).</li>
+  <li>Workflow-level unit economics (cost per successful outcome) joined to eval quality.</li>
+  <li>Closed improvement loop: opportunity → simulate → apply routing policy → measure. The pieces exist but aren't connected.</li>
+</ul></div>
+<div class="card"><h4>Execution risk</h4>
+<ul class="tight">
+  <li><strong>Breadth over depth.</strong> About 100 screens with enforcement gaps signals a roadmap optimized for coverage metrics (cohesion cells) rather than customer-visible guarantees.</li>
+  <li>The AI-assisted development pattern is visible: posture cards, numbered examples, matrices. High throughput needs strong architectural guardrails; AGENTS.md has them, but they aren't enforced in review.</li>
+  <li>Operational footprint (26+ services) raises the self-hosting barrier for the community edition.</li>
+</ul></div>
+<div class="card"><h4>What I'd need to see to invest</h4>
+<ul class="tight">
+  <li>A 2-minute demo: a budget blocks a live request in the gateway, a tool call is held for approval, and the workflow page shows it.</li>
+  <li>Published gateway overhead benchmark.</li>
+  <li>3 design partners running it on real (priced) traffic for 30 days.</li>
+  <li>Surface area reduced by about 30% with no lost capability.</li>
+</ul></div>
+</div>
+</section>
+
+<section id="method">
+<h2>Method &amp; evidence</h2>
+<ul class="tight">
+  <li><strong>Static analysis:</strong> full read of routing, runtime, budget, policy, ledger, workflow and auth code paths; AST scan of all FastAPI GET endpoints for pagination; grep-based scans of the UI for patterns (tables, confirm, aria, posture fetchers, URL state).</li>
+  <li><strong>Runtime verification (read-only):</strong> SSH to the home-lab host; container inventory; environment inspection (secrets redacted); <code>SELECT</code>-only queries for row counts, cost coverage and storage size; HTTP probes of <code>/classify</code> and <code>/mcp</code> on loopback.</li>
+  <li><strong>UI:</strong> signed-in walkthrough of the Overview page on the home-lab deployment (screenshot included). Per the owner's instruction, the screenshot pass was stopped and the remaining GUI findings come from code.</li>
+  <li><strong>Not verified:</strong> output guardrails on streamed responses; playground routing through the gateway; actual gateway latency (no load test run); audit attribution of UI-originated changes.</li>
+  <li>The project's own <code>TODO_ITEMS/FEATURE-STATUS.md</code> was used as a cross-check. Where it says STRONG but the runtime path is missing, this report sides with the code.</li>
+</ul>
+<p class="meta">Prepared 20 Nov 2026 against <code>feat/claude-code-log-runs</code> (uncommitted changes in otlp.py, metering.py, pipeline.py, claude_code_logs.py were reviewed as work in progress).</p>
+</section>
+</main>
+</div>
+</body>
+</html>

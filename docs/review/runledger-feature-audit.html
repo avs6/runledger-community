@@ -1,0 +1,516 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunLedger Feature Audit</title>
+<meta name="description" content="Pass 4: parallel code-level audit of all 8 RunLedger major features — backend, frontend and cross-feature cohesion — with 213 findings and file:line evidence.">
+<style>
+:root{
+  --bg:#f7f8fa; --panel:#ffffff; --panel2:#f1f3f7; --ink:#14171f; --ink2:#454b59; --muted:#6b7280;
+  --line:#e3e6ec; --accent:#3b5bdb; --accent-soft:#e7ecff;
+  --crit:#c92a2a; --crit-soft:#ffe8e8; --high:#d9480f; --high-soft:#fff0e6;
+  --med:#b7791f; --med-soft:#fff8e1; --low:#2b8a3e; --low-soft:#e6f6ea; --info:#1971c2; --info-soft:#e7f1fc; --code:#eef0f4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1117; --panel:#161a23; --panel2:#1c212c; --ink:#e7e9ee; --ink2:#b4bac6; --muted:#8a91a0;
+    --line:#2a303d; --accent:#7c93ff; --accent-soft:#1e2643;
+    --crit:#ff6b6b; --crit-soft:#3a1717; --high:#ff922b; --high-soft:#3a2312; --med:#fcc419; --med-soft:#352c10;
+    --low:#51cf66; --low-soft:#13301b; --info:#4dabf7; --info-soft:#122a40; --code:#222836;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1117; --panel:#161a23; --panel2:#1c212c; --ink:#e7e9ee; --ink2:#b4bac6; --muted:#8a91a0;
+  --line:#2a303d; --accent:#7c93ff; --accent-soft:#1e2643;
+  --crit:#ff6b6b; --crit-soft:#3a1717; --high:#ff922b; --high-soft:#3a2312; --med:#fcc419; --med-soft:#352c10;
+  --low:#51cf66; --low-soft:#13301b; --info:#4dabf7; --info-soft:#122a40; --code:#222836;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.85em;background:var(--code);padding:.1em .35em;border-radius:4px;word-break:break-word}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1440px;margin:0 auto}
+nav.toc{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 16px;border-right:1px solid var(--line);font-size:13.2px}
+nav.toc .brand{font-weight:700;font-size:15px} nav.toc .sub{color:var(--muted);font-size:12px;margin:2px 0 14px}
+nav.toc a{display:block;color:var(--ink2);text-decoration:none;padding:2px 8px;border-radius:6px}
+nav.toc a:hover{background:var(--panel2);color:var(--ink)}
+nav.toc .grp{margin:12px 0 3px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600}
+main{padding:34px 42px 80px;min-width:0}
+.eyebrow{color:var(--accent);font-weight:600;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:31px;line-height:1.15;margin:8px 0 10px;letter-spacing:-.02em}
+h2{font-size:23px;margin:48px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+h3{font-size:17px;margin:0}
+p{margin:8px 0} .lede{font-size:16.5px;color:var(--ink2);max-width:920px} .meta{color:var(--muted);font-size:13px}
+.grid{display:grid;gap:14px} .g4{grid-template-columns:repeat(4,minmax(0,1fr))} .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+.stat .n{font-size:26px;font-weight:700} .stat .l{color:var(--muted);font-size:12.5px}
+.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:8px;margin:14px 0}
+.callout.warn{border-color:var(--high);background:var(--high-soft)} .callout.crit{border-color:var(--crit);background:var(--crit-soft)}
+table{width:100%;border-collapse:collapse;font-size:13.3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--panel2);font-weight:600;font-size:11.5px;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
+.b{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.b.ok{color:var(--low);background:var(--low-soft)} .b.part{color:var(--med);background:var(--med-soft)} .b.stub{color:var(--high);background:var(--high-soft)}
+.b.broken{color:var(--crit);background:var(--crit-soft)} .b.info{color:var(--info);background:var(--info-soft)} .b.mute{color:var(--muted);background:var(--panel2)}
+.y{color:var(--low);font-weight:700} .n0{color:var(--crit);font-weight:700} .pt{color:var(--med);font-weight:700}
+.page{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:12px 0}
+.page .ph{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.page .route{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted)}
+.page .facts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:8px 0}
+.page .facts div{background:var(--panel2);border-radius:8px;padding:6px 9px;font-size:12.5px}
+.page .facts b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.page ul{margin:4px 0 0;padding-left:18px} .page li{margin:3px 0;font-size:14px}
+.page .ev{font-size:12px;color:var(--muted)}
+.themebtn{position:fixed;top:14px;right:16px;z-index:5;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+@media (max-width:1000px){.layout{grid-template-columns:1fr} nav.toc{display:none} main{padding:22px 16px 60px} .g4{grid-template-columns:repeat(2,minmax(0,1fr))} .g2{grid-template-columns:1fr} .page .facts{grid-template-columns:repeat(2,minmax(0,1fr))} h1{font-size:25px}}
+
+.b.crit{color:var(--crit);background:var(--crit-soft)} .b.high{color:var(--high);background:var(--high-soft)} .b.med{color:var(--med);background:var(--med-soft)} .b.low{color:var(--low);background:var(--low-soft)} .b.info{color:var(--info);background:var(--info-soft)} .b.v{color:var(--accent);background:var(--accent-soft)}
+.score{display:inline-flex;gap:6px;flex-wrap:wrap} .score span{background:var(--panel2);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600}
+td.ev{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--muted)}
+.m{text-align:center} .cy{color:var(--low);font-weight:700} .cp{color:var(--med);font-weight:700} .cn{color:var(--crit);font-weight:700}
+details{margin:10px 0} summary{cursor:pointer;font-weight:600;color:var(--accent)}
+</style></head><body>
+<button class="themebtn" onclick="(function(){var r=document.documentElement;var d=r.getAttribute('data-theme');var isDark=d?d==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.setAttribute('data-theme',isDark?'light':'dark')})()">Toggle theme</button>
+<div class="layout"><nav class="toc"><div class="brand">RunLedger · Feature Audit</div>
+<div class="sub">Pass 4 · 8 parallel agents<br><a href="runledger-technical-review.html">Pass 1</a> · <a href="runledger-code-deep-dive.html">Pass 2</a> · <a href="runledger-ui-walkthrough.html">Pass 3</a> · <a href="runledger-feature-catalog.html">Catalog</a></div>
+<div class="grp">Overview</div><a href="#exec">Executive summary</a><a href="#scores">Scores &amp; counts</a><a href="#critical">Critical findings</a><a href="#themes">Cross-cutting themes</a><a href="#cohesion">Cohesion matrix</a>
+<div class="grp">Major features</div>
+<a href="#obs">1 · Observability &amp; Investigation</a>
+<a href="#build">2 · Build &amp; Improve</a>
+<a href="#gw">3 · AI Gateway &amp; Routing</a>
+<a href="#gov">4 · Safety &amp; Governance</a>
+<a href="#fin">5 · FinOps</a>
+<a href="#org">6 · Organization &amp; Access</a>
+<a href="#ing">7 · Ingestion &amp; Integrations</a>
+<a href="#plat">8 · Platform &amp; Developer Experience</a>
+<div class="grp">Plan</div><a href="#roadmap">Remediation roadmap</a><a href="#method">Method &amp; verification</a></nav><main>
+<div class="eyebrow">Technical due diligence · Pass 4 · Parallel feature audit</div>
+<h1>Eight features, audited in parallel: backend, frontend and cohesion</h1>
+<p class="lede">Eight independent code-review agents each took one major feature from the <a href="runledger-feature-catalog.html">feature catalog</a> and audited its backend (endpoints, authorization, validation, correctness, efficiency), its frontend (components, API calls, filters, pagination, states) and its real connections to the other features. They produced <b>213 findings</b> with file:line evidence. I spot-checked 18 of the most severe claims directly against the source; all 18 held. This pass is additive to passes 1–3: agents were told the earlier findings and focused on new ones.</p>
+<section id="exec"><h2>Executive summary</h2><div class="grid g4">
+<div class="card stat"><div class="n">213</div><div class="l">findings across 8 major features and 62 sub-features</div></div>
+<div class="card stat"><div class="n" style="color:var(--crit)">10</div><div class="l">new Critical (plus 4 from pass 2: guardrail RCE, route SSRF, unmetered streaming, unenforced budgets)</div></div>
+<div class="card stat"><div class="n" style="color:var(--high)">63</div><div class="l">High</div></div>
+<div class="card stat"><div class="n">87 / 52</div><div class="l">Medium / Low</div></div></div>
+<div class="callout crit"><strong>Bottom line.</strong> The newest and most serious class of problems is <b>tenant isolation and identity</b>, not features:
+<ul>
+<li>An org admin of any tenant can take over any account, including the platform admin (A-01, A-02).</li>
+<li>Any org admin can dump the entire multi-tenant database to their own S3 bucket (P-02 / I-03).</li>
+<li>Anyone who knows a workspace UUID can inject runs (I-01), and pipeline events can modify other tenants' runs (I-02).</li>
+<li>Every default Compose install ships a known platform-admin password (P-01).</li>
+</ul>
+Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltration), the platform should not be offered as multi-tenant until these are closed. Feature-wise, the pattern from passes 1–3 is confirmed at depth: wide CRUD, decorative enforcement, silent UI failures, and parallel systems for the same concept.</div></section>
+<section id="scores"><h2>Scores &amp; finding counts</h2><div class="tw"><table><thead><tr><th>#</th><th>Major feature</th><th class="m">Backend</th><th class="m">Frontend</th><th class="m">Cohesion</th><th class="m">Critical</th><th class="m">High</th><th class="m">Medium</th><th class="m">Low/Info</th><th class="m">Total</th></tr></thead><tbody>
+<tr><td>1</td><td><a href="#obs">Observability &amp; Investigation</a></td><td class="m">5/10</td><td class="m">4/10</td><td class="m">3/10</td><td class="m">—</td><td class="m">8</td><td class="m">11</td><td class="m">7</td><td class="m"><b>26</b></td></tr>
+<tr><td>2</td><td><a href="#build">Build &amp; Improve</a></td><td class="m">4/10</td><td class="m">4/10</td><td class="m">2/10</td><td class="m">2</td><td class="m">9</td><td class="m">11</td><td class="m">5</td><td class="m"><b>27</b></td></tr>
+<tr><td>3</td><td><a href="#gw">AI Gateway &amp; Routing</a></td><td class="m">4/10</td><td class="m">4/10</td><td class="m">3/10</td><td class="m">1</td><td class="m">7</td><td class="m">11</td><td class="m">8</td><td class="m"><b>27</b></td></tr>
+<tr><td>4</td><td><a href="#gov">Safety &amp; Governance</a></td><td class="m">4/10</td><td class="m">6/10</td><td class="m">3/10</td><td class="m">—</td><td class="m">7</td><td class="m">15</td><td class="m">6</td><td class="m"><b>28</b></td></tr>
+<tr><td>5</td><td><a href="#fin">FinOps</a></td><td class="m">4/10</td><td class="m">5/10</td><td class="m">3/10</td><td class="m">—</td><td class="m">8</td><td class="m">7</td><td class="m">10</td><td class="m"><b>25</b></td></tr>
+<tr><td>6</td><td><a href="#org">Organization &amp; Access</a></td><td class="m">3/10</td><td class="m">4/10</td><td class="m">4/10</td><td class="m">2</td><td class="m">8</td><td class="m">8</td><td class="m">5</td><td class="m"><b>23</b></td></tr>
+<tr><td>7</td><td><a href="#ing">Ingestion &amp; Integrations</a></td><td class="m">3/10</td><td class="m">4/10</td><td class="m">3/10</td><td class="m">3</td><td class="m">9</td><td class="m">11</td><td class="m">4</td><td class="m"><b>27</b></td></tr>
+<tr><td>8</td><td><a href="#plat">Platform &amp; Developer Experience</a></td><td class="m">4/10</td><td class="m">5/10</td><td class="m">4/10</td><td class="m">2</td><td class="m">7</td><td class="m">13</td><td class="m">8</td><td class="m"><b>30</b></td></tr>
+<tr><td></td><td><b>Average / total</b></td><td class="m"><b>3.9</b></td><td class="m"><b>4.5</b></td><td class="m"><b>3.1</b></td><td class="m"><b>10</b></td><td class="m"><b>63</b></td><td class="m"><b>87</b></td><td class="m"><b>53</b></td><td class="m"><b>213</b></td></tr></tbody></table></div>
+<p class="meta">Scores are each agent's 0–10 judgement for its feature; cohesion is the weakest dimension everywhere (average 3.1).</p></section>
+<section id="critical"><h2>Critical findings (new in this pass)</h2><div class="tw"><table><thead><tr><th>ID</th><th>Feature</th><th>Finding</th><th>Evidence</th><th>Fix</th><th>Verified</th></tr></thead><tbody>
+<tr><td><b>B-01</b></td><td>Build &amp; Improve</td><td>Batch evaluator crashes every run (AgentRun.duration_ms)</td><td class="ev">workers/evaluators.py:100; models/events.py</td><td>Compute from timestamps; add an unmocked test</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>B-02</b></td><td>Build &amp; Improve</td><td>Production prompt approval bypass via create/edit version</td><td class="ev">prompts.py:373-418,677-732; schemas/prompts.py:38</td><td>Default dev; require approval_id</td><td>agent</td></tr>
+<tr><td><b>G-01</b></td><td>AI Gateway &amp; Routing</td><td>Per-model quotas never enforced</td><td class="ev">services/budgets.py:401-470</td><td>Wire into preflight/finalize or remove</td><td>agent</td></tr>
+<tr><td><b>A-01</b></td><td>Organization &amp; Access</td><td>Org admin can take over any account by email (incl. platform admin)</td><td class="ev">org.py:770-799; users.py:184-212</td><td>Invitations need acceptance; org admins can&#x27;t edit global identity</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>A-02</b></td><td>Organization &amp; Access</td><td>IdP auto-links existing accounts by email → cross-tenant takeover</td><td class="ev">services/security.py:369-371,550,717</td><td>Link only within tenant + verified email; never platform admin</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>I-01</b></td><td>Ingestion &amp; Integrations</td><td>Unauthenticated webhook ingest accepts any workspace_id</td><td class="ev">routers/ingest.py:103-122</td><td>Remove or authenticate</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>I-02</b></td><td>Ingestion &amp; Integrations</td><td>Pipeline writes to runs without workspace check</td><td class="ev">workers/pipeline.py:173-399</td><td>Ownership check per event</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>I-03</b></td><td>Ingestion &amp; Integrations</td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td><td>agent</td></tr>
+<tr><td><b>P-01</b></td><td>Platform &amp; Developer Experience</td><td>Compose seeds a default platform admin on every start</td><td class="ev">apps/api/scripts/start.sh:22; seed.py:151-172</td><td>Dev-only seed; bootstrap flow; refuse default</td><td><span class='b v'>✓ checked</span></td></tr>
+<tr><td><b>P-02</b></td><td>Platform &amp; Developer Experience</td><td>Org admin can pg_dump the whole cluster to their own S3</td><td class="ev">routers/settings.py:908-946; backup_ops.py:71-88</td><td>Platform-only; allowlist endpoints</td><td><span class='b v'>✓ checked</span></td></tr>
+</tbody></table></div></section>
+<section id="themes"><h2>Cross-cutting themes</h2>
+<div class="tw"><table><thead><tr><th>Theme</th><th>What the agents found</th><th>IDs</th></tr></thead><tbody>
+<tr><td><b>Tenant isolation &amp; identity</b></td><td>Cross-tenant account takeover; IdP email linking; unauthenticated ingest; pipeline writes without workspace checks; full-DB backup to tenant S3; global pricing writable by any org admin; outcome cost joins without a workspace filter</td><td>A-01, A-02, I-01, I-02, I-03/P-02, G-04, O-04</td></tr>
+<tr><td><b>Secrets handling</b></td><td>Stored or returned in plaintext: OIDC/OAuth2/LDAP secrets, backup S3 keys, pass-through tokens, search-provider credentials, evaluator provider keys, Slack webhook URLs, GitHub token (base64). The platform <code>secret_key</code> signs tenant webhooks and exports.</td><td>S-03, S-04, P-03/I-04, G-05, B-09, F-15, B-21, F-03</td></tr>
+<tr><td><b>Authorization matrix</b></td><td>Any key can mutate tool registry, guardrails (create), flywheel apply (rewrites routes), all Build routers, run cancel, and read captured prompts. Roles are inconsistent across one feature (Gateway). Suspended members keep power. Scopes are never enforced.</td><td>S-05, G-03, G-17, B-22, O-05, O-09, A-05, A-12</td></tr>
+<tr><td><b>Sessions &amp; revocation</b></td><td>30-day key in the browser; no revocation on logout, deactivation or removal; a new key per login or switch; no rate limit on login</td><td>A-04, A-07, P-06, P-07, P-08, A-06</td></tr>
+<tr><td><b>Decorative enforcement</b></td><td>Model quotas, tier rpm/tpm/models, cache profile fields, chargeback rules, cost centers, shared-cost allocation, scoped capture overrides, auto-tag rules, MCP permissions, plugin hooks, feature flags, agent budget envelopes, access-group budgets, notify-action budgets</td><td>G-01, G-02, G-09, F-01, F-17, S-09, S-19, S-23, P-11, B-14, A-16, F-05</td></tr>
+<tr><td><b>Endpoints that 404 or 500</b></td><td>20 double-prefixed posture routes (404); 4 posture routes on a missing <code>rpm_limit</code> (500); 3 on missing BudgetOverride columns (500); <code>/pricing/sync</code>, <code>/gateway/route-recommendations</code> and runbook export missing; MCP governed call crashes; evaluator worker crashes; replay task unregistered</td><td>B-04, G-07, F-07, G-08, B-05, B-12, S-01, B-01, B-06</td></tr>
+<tr><td><b>Silent UI failure</b></td><td><code>.catch(() =&gt; {})</code> or <code>.catch(() =&gt; null)</code> throughout. Errors become empty states or 404s; no <code>error.tsx</code>. This is why the endpoints above went unnoticed.</td><td>O-19, G-18, G-23, F (5.1/5.2), P-24</td></tr>
+<tr><td><b>Audit trail</b></td><td>No actor on events; approval events lost after commit; org-level events invisible; no audit for gateway, keys, identity, billing adjustments, or many settings; no tamper evidence</td><td>S-16, S-02, A-08, G-10, F-09</td></tr>
+<tr><td><b>Data consistency</b></td><td>At least 5 definitions of "cost"; provider_calls vs agent_runs sources; two outcome tables; two experiment systems; three status vocabularies (success, succeeded, error); rollups unused</td><td>F-10, O-06, O-03, B-07, I-10, O-16</td></tr>
+<tr><td><b>Parallel systems</b></td><td>Workflows vs feature_tag; 4 tool-control systems; 4 spend-cap systems; 2 PII redactors; 3 backup paths; billing vs ledger signing; two optimization engines</td><td>B-11, S-07, G-01/02, S-11, P-21, F-03, B-20</td></tr>
+<tr><td><b>Delivery standard (AGENTS.md)</b></td><td>No <code>postman/</code> directory (flagged by all 8 agents); docs claim enforcement that doesn't exist (access groups, data capture, tags, budgets, collector auth); onboarding snippets fictional</td><td>O-26, G-27, A-23, S-28, I-22, I-23</td></tr>
+</tbody></table></div></section>
+<section id="cohesion"><h2>Cohesion matrix (real data or behaviour vs link only)</h2>
+<p class="meta"><span class="cy">●</span> real runtime/data link &nbsp; <span class="cp">◐</span> partial or advisory &nbsp; <span class="cn">○</span> link or posture card only / missing</p>
+<div class="tw"><table><thead><tr><th>From \ To</th><th>Observe</th><th>Build</th><th>Gateway</th><th>Governance</th><th>FinOps</th><th>Org/Access</th><th>Ingest</th></tr></thead><tbody>
+<tr><td><b>Observe</b></td><td>—</td><td class="cn">○ outcomes split</td><td class="cp">◐ heuristic run match</td><td class="cp">◐ security events</td><td class="cp">◐ different cost sources</td><td class="cp">◐ access-group filters</td><td class="cy">● reads ingested runs</td></tr>
+<tr><td><b>Build</b></td><td class="cn">○ WorkflowRun ≠ agent_runs</td><td>—</td><td class="cn">○ playground stub; only flywheel mutates</td><td class="cn">○ prompt approvals bypassable</td><td class="cn">○ workflow cost isolated</td><td class="cn">○ any-key</td><td class="cn">○</td></tr>
+<tr><td><b>Gateway</b></td><td class="cp">◐ runs recorded (non-stream only)</td><td class="cn">○ prompts not resolved</td><td>—</td><td class="cp">◐ guardrails yes; tool policy no</td><td class="cn">○ budgets/model quotas unenforced</td><td class="cp">◐ keys yes; group profiles no</td><td class="cn">○ events 400</td></tr>
+<tr><td><b>Governance</b></td><td class="cp">◐</td><td class="cn">○</td><td class="cp">◐ IP ACL, metadata</td><td>—</td><td class="cp">◐ approvals → overrides</td><td class="cp">◐ audit lacks actor</td><td class="cp">◐ capture on span metadata only</td></tr>
+<tr><td><b>FinOps</b></td><td class="cp">◐</td><td class="cn">○</td><td class="cn">○ 4 cap systems</td><td class="cp">◐ overrides via approvals</td><td>—</td><td class="cn">○ key/group scopes don't accrue</td><td class="cp">◐ enrichment only for unpriced calls</td></tr>
+<tr><td><b>Org/Access</b></td><td class="cp">◐</td><td class="cn">○</td><td class="cp">◐ key → tiers (wrong tier)</td><td class="cn">○ identity unaudited</td><td class="cn">○</td><td>—</td><td class="cn">○ api_key_id not bound</td></tr>
+</tbody></table></div></section>
+<section id="obs"><h2>1 · Observability &amp; Investigation</h2><div class="score"><span>Backend 5/10</span><span>Frontend 4/10</span><span>Cohesion 3/10</span><span>26 findings</span></div><ul>
+<li><b>Split sources of truth.</b> Overview KPIs and Explorer read <code>provider_calls</code>; Runs, Sessions and Flow read <code>agent_runs</code>. Only <code>/summary</code> falls back to runs. <code>usage_hourly</code> has no reader, so every dashboard scans raw tables.</li>
+<li><b>Filters that silently return wrong or empty results:</b> Explorer status compares run statuses with provider-call statuses. The Explorer "Intent" box sends <code>feature_tag</code> as <code>intent</code>. Runs export drops 4 active filters.</li>
+<li><b>Two outcome systems.</b> SDK and MCP write <code>outcome_events</code>; the <code>/outcomes</code> page reads <code>outcomes</code>. ROI cost joins aren't workspace-scoped.</li>
+<li><b>Heavy pages.</b> Overview makes ≈16 API calls, Explorer 11, Run detail 8. Live view polls a full-workspace COUNT every 2 s. The gateway↔run link is a ±5-minute heuristic.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>1.1 Command Center</b></td><td>Any-key summary; scoped-summary delta ignores access group; bad dates give 500</td><td>≈16 calls in 3 waves; breakdown ignores scope and filters (root of the KPI mismatch); no error.tsx</td><td>Posture cards only, fixed 30-day window</td></tr>
+<tr><td><b>1.2 Runs</b></td><td>Full COUNT per page; timestamp cursor skips ties; model filter not workspace-scoped; tag filter casts JSON to text</td><td>All 12 filters wired; hard-coded model list; hero mixes total with 50-row stats; export drops filters</td><td>5 posture blocks</td></tr>
+<tr><td><b>1.3 Run detail</b></td><td>Payloads returned 3× to any key; viewers can cancel runs</td><td>8 calls; every error becomes a 404; dead links</td><td>Workspace-wide FinOps and Gateway panels, not run-specific</td></tr>
+<tr><td><b>1.4 Sessions</b></td><td>GROUP BY scan with no session_id index; avg_score always None; unbounded detail</td><td>Runs tab duplicates /sessions and ignores page filters</td><td>—</td></tr>
+<tr><td><b>1.5 Request Flow / Live</b></td><td>Loads up to 1000 runs plus all children; heuristic gateway match; invented savings (25% &quot;local&quot;)</td><td>Silent scope downgrade on 403; no time window; Live polls every 2 s</td><td>Real role check for org/platform scope</td></tr>
+<tr><td><b>1.6 Request Explorer</b></td><td>Inner join hides runs with no calls; COUNT per page; no api_key_id param</td><td>Status, Intent and API-key filters broken; errors become an empty list; no date control</td><td>Gateway match recomputed client-side</td></tr>
+<tr><td><b>1.7–1.10 Eng · Usage · Monitoring · Telemetry</b></td><td>≈12 raw aggregates; insights parses 7 days of raw payloads; 24 h chart drops the current hour</td><td>Model Usage built from a 1000-run sample; Monitoring &quot;30d&quot; is really the last 100 items</td><td>OrgAdmin-only telemetry shown in the nav to everyone</td></tr>
+<tr><td><b>1.11 Outcomes</b></td><td>run_id ownership unchecked; cost join not workspace-scoped and double-counts</td><td>7 calls</td><td>SDK/MCP outcomes invisible</td></tr>
+<tr><td><b>1.12 Economics / Users / Breakdown</b></td><td>feature_tag stands in for workflow</td><td>Breakdown duplicates Overview</td><td>Posture-heavy</td></tr>
+</tbody></table></div><details open><summary>Findings (26)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>O-01</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Explorer status filter can never match</td><td class="ev">request-explorer/page.tsx:242-248 vs analytics.py:2367</td><td>Map statuses, or filter AgentRun.status</td></tr>
+<tr><td><b>O-02</b></td><td><span class="b high">High</span></td><td>Explorer Intent box sends feature_tag as intent</td><td class="ev">request-explorer/page.tsx:252,632</td><td>Add a feature_tag param</td></tr>
+<tr><td><b>O-03</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Two outcome tables; SDK/MCP outcomes never shown</td><td class="ev">pipeline.py:393; outcomes.py:89; mcp_server.py:389</td><td>Unify on one table</td></tr>
+<tr><td><b>O-04</b></td><td><span class="b high">High</span></td><td>Outcome ROI join not workspace-scoped; run_id unchecked; double count</td><td class="ev">outcomes.py:89-98,235-248</td><td>Validate ownership; scope; aggregate per run</td></tr>
+<tr><td><b>O-05</b></td><td><span class="b high">High</span></td><td>Captured prompts returned to any key, 3× per run page</td><td class="ev">runs.py:1150-1197,1587</td><td>Role-gate payloads; dedupe</td></tr>
+<tr><td><b>O-06</b></td><td><span class="b high">High</span></td><td>Overview charts ignore scope and access group; KPI sources differ</td><td class="ev">analytics/page.tsx:378; analytics.py:365 vs 1864</td><td>Pass filters; one summary service</td></tr>
+<tr><td><b>O-07</b></td><td><span class="b high">High</span></td><td>Live view polls a full COUNT every 2 s</td><td class="ev">live/page.tsx:451-461; runs.py:472-490</td><td>Window, include_total=false, SSE, pause when hidden</td></tr>
+<tr><td><b>O-08</b></td><td><span class="b high">High</span></td><td>OTLP insights parses all 7-day raw payloads per request</td><td class="ev">otlp.py:604-692</td><td>Precompute at ingest</td></tr>
+<tr><td><b>O-09</b></td><td><span class="b med">Medium</span></td><td>Viewers can cancel runs</td><td class="ev">runs.py:1043-1048</td><td>require_member</td></tr>
+<tr><td><b>O-10</b></td><td><span class="b med">Medium</span></td><td>Runs cursor skips ties; bad cursor or status gives 500</td><td class="ev">runs.py:511-513,185</td><td>Composite cursor; validate the enum</td></tr>
+<tr><td><b>O-11</b></td><td><span class="b med">Medium</span></td><td>Runs export drops 4 filters and the default window</td><td class="ev">RunsExportButton.tsx:21</td><td>Share the filter list</td></tr>
+<tr><td><b>O-12</b></td><td><span class="b med">Medium</span></td><td>Gateway↔run linkage is a heuristic, done twice</td><td class="ev">runs.py:421-440; explorer page.tsx:145-155</td><td>Persist run_id on gateway_requests</td></tr>
+<tr><td><b>O-13</b></td><td><span class="b med">Medium</span></td><td>Fabricated savings in the flow metric</td><td class="ev">runs.py:324-353</td><td>Use recorded savings only</td></tr>
+<tr><td><b>O-14</b></td><td><span class="b med">Medium</span></td><td>scoped-summary delta ignores access group; status vocabulary mismatch</td><td class="ev">analytics.py:1861,1877-1886</td><td>Reuse base_filter</td></tr>
+<tr><td><b>O-15</b></td><td><span class="b med">Medium</span></td><td>No session_id index</td><td class="ev">models/events.py:45-48; sessions.py:79</td><td>(workspace_id, session_id) index</td></tr>
+<tr><td><b>O-16</b></td><td><span class="b med">Medium</span></td><td>Rollups unused by dashboards</td><td class="ev">analytics.py (only 3 UsageDaily readers)</td><td>Serve charts from rollups</td></tr>
+<tr><td><b>O-17</b></td><td><span class="b med">Medium</span></td><td>Model Usage built from a 1000-run sample</td><td class="ev">model-usage/page.tsx:259-265</td><td>Use /spend-by-model</td></tr>
+<tr><td><b>O-18</b></td><td><span class="b med">Medium</span></td><td>Monitoring presets filter only the last 100 rows</td><td class="ev">monitoring/page.tsx:434-438</td><td>Server from/to and paging</td></tr>
+<tr><td><b>O-19</b></td><td><span class="b med">Medium</span></td><td>Errors become 404s or empty states</td><td class="ev">runs/[run_id]/page.tsx:313; explorer :644; flow :110</td><td>Distinguish errors; add error.tsx</td></tr>
+<tr><td><b>O-20</b></td><td><span class="b low">Low</span></td><td>Runs hero mixes total with page-sample stats</td><td class="ev">runs/page.tsx:54-72</td><td>Server aggregates</td></tr>
+<tr><td><b>O-21</b></td><td><span class="b low">Low</span></td><td>Telemetry 24 h chart drops the current hour</td><td class="ev">otlp.py:615-621</td><td>Anchor on trunc(now)</td></tr>
+<tr><td><b>O-22</b></td><td><span class="b low">Low</span></td><td>Overview Success KPI from a 300-row sample</td><td class="ev">analytics/page.tsx:317</td><td>Return success_rate from the API</td></tr>
+<tr><td><b>O-23</b></td><td><span class="b low">Low</span></td><td>Dead and duplicated code (avg_score, access-group block ×4, intent query ×2)</td><td class="ev">sessions.py:121; runs.py; analytics.py:1892,1954</td><td>Extract helpers</td></tr>
+<tr><td><b>O-24</b></td><td><span class="b low">Low</span></td><td>Hard-coded model list in filters</td><td class="ev">RunFilters.tsx:20-38</td><td>Load distinct models</td></tr>
+<tr><td><b>O-25</b></td><td><span class="b low">Low</span></td><td>Posture fan-out of 5–6 calls per page</td><td class="ev">analytics.py:2491-2722</td><td>One cached endpoint or remove</td></tr>
+<tr><td><b>O-26</b></td><td><span class="b low">Low</span></td><td>No Postman; no scripts for flow, explorer, sessions</td><td class="ev">repo root; scripts/</td><td>Add the collection and E2E</td></tr>
+</tbody></table></div></details></section>
+<section id="build"><h2>2 · Build &amp; Improve</h2><div class="score"><span>Backend 4/10</span><span>Frontend 4/10</span><span>Cohesion 2/10</span><span>27 findings</span></div><ul>
+<li><b>Mostly record-only or advisory.</b> Playground, workflow runs, vector search-test, eval experiments and replay are stubs, projections or fabricated. The only code path that mutates a route is Flywheel apply, and Build pages don't reach it.</li>
+<li><b>Broken at the code level:</b> the batch evaluator crashes on its first run (<code>AgentRun.duration_ms</code>). The replay Celery task isn't registered. 20 posture routes are mounted at <code>/analytics/analytics/…</code> and 404. Runbook export and <code>/gateway/route-recommendations</code> don't exist.</li>
+<li><b>Prompt governance hole.</b> Creating or editing a version defaults to <code>production</code> with no approval, while the UI "Promote" never sends <code>approval_id</code> and always gets 403.</li>
+<li><b>Any-key auth everywhere</b>, including the GitHub token config and evaluator configs that hold provider API keys and a free-form <code>base_url</code>.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>2.1 Agents</b></td><td>Full CRUD (any key); stats from WorkflowRun, not agent_runs; budget/policy fields decorative; memory duplicate key gives 500; expiry never enforced</td><td>Create only; memory can&#x27;t store or edit; run links 404</td><td>None real</td></tr>
+<tr><td><b>2.2 Workflows</b></td><td>Records only; cross-workspace ids accepted; step cost never rolls up; no FKs</td><td>Read-only UI</td><td>Duplicates feature_tag (the canonical workflow)</td></tr>
+<tr><td><b>2.3 Playground</b></td><td>send/compare store &quot;integration pending&quot;</td><td>Hard-coded models; copy claims gateway use</td><td>Pipeline inject already proves the real path</td></tr>
+<tr><td><b>2.4 Evaluation Studio</b></td><td>Evaluator worker crashes; judge sees empty payloads; experiments average random workspace scores; prod prompt writes skip approval; GitHub token base64</td><td>No evaluator edit; Promote always 403; raw fetch on save</td><td>Prompts never resolved by the gateway</td></tr>
+<tr><td><b>2.5 Optimization</b></td><td>Fixed 15/30/20% guesses; hard-coded cost ratios</td><td>Page computes its own recommendations client-side (second engine)</td><td>No apply → loop never closes</td></tr>
+<tr><td><b>2.6 Scorecards</b></td><td>Run-level score copied to every model; 0.0 dropped</td><td>Read-only, sortable</td><td>Links only</td></tr>
+<tr><td><b>2.7 Vector stores</b></td><td>search-test stub; no Qdrant in API; counters faked</td><td>No edit; test unused</td><td>Decorative</td></tr>
+<tr><td><b>2.8 Pipeline</b></td><td>Real toggles plus inject</td><td>/pipeline-studio duplicates</td><td>Real</td></tr>
+<tr><td><b>2.9 Datasets / Experiments / Replay</b></td><td>Replay worker unregistered; route-recommendations missing</td><td>/replay list uses eval tables, detail uses replay tables → 404</td><td>Two experiment systems</td></tr>
+<tr><td><b>2.10 Runbooks</b></td><td>Template generation; no get/delete/export</td><td>Export always fails</td><td>—</td></tr>
+</tbody></table></div><details open><summary>Findings (27)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>B-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Batch evaluator crashes every run (AgentRun.duration_ms)</td><td class="ev">workers/evaluators.py:100; models/events.py</td><td>Compute from timestamps; add an unmocked test</td></tr>
+<tr><td><b>B-02</b></td><td><span class="b crit">Critical</span></td><td>Production prompt approval bypass via create/edit version</td><td class="ev">prompts.py:373-418,677-732; schemas/prompts.py:38</td><td>Default dev; require approval_id</td></tr>
+<tr><td><b>B-03</b></td><td><span class="b high">High</span></td><td>UI Promote always 403</td><td class="ev">prompts/[name]/page.tsx:218-228</td><td>Approval flow in UI</td></tr>
+<tr><td><b>B-04</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>20 posture routes double-prefixed → 404, swallowed</td><td class="ev">analytics.py:15177-16850</td><td>Fix decorators; route test</td></tr>
+<tr><td><b>B-05</b></td><td><span class="b high">High</span></td><td>/gateway/route-recommendations missing</td><td class="ev">replay/[id]/page.tsx:52; lib/api.ts:3612</td><td>Implement via Flywheel or remove</td></tr>
+<tr><td><b>B-06</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Replay worker not in Celery include</td><td class="ev">core/celery_app.py:9-29</td><td>Add the module</td></tr>
+<tr><td><b>B-07</b></td><td><span class="b high">High</span></td><td>/replay list vs detail use different tables → 404</td><td class="ev">replay pages</td><td>Merge experiment systems</td></tr>
+<tr><td><b>B-08</b></td><td><span class="b high">High</span></td><td>Eval experiment results fabricated</td><td class="ev">eval_experiments.py:310-340</td><td>Run the dataset through the gateway</td></tr>
+<tr><td><b>B-09</b></td><td><span class="b high">High</span></td><td>Evaluator config exposes provider key; arbitrary base_url; any key</td><td class="ev">services/evaluators.py:136-176; schemas/evaluators.py:32</td><td>Gateway judge; secret ref; admin</td></tr>
+<tr><td><b>B-10</b></td><td><span class="b high">High</span></td><td>Playground stubs; UI claims gateway</td><td class="ev">playground.py:266,360; PlaygroundClient.tsx:14,149</td><td>Call the gateway in-process</td></tr>
+<tr><td><b>B-11</b></td><td><span class="b high">High</span></td><td>Workflow runs disconnected; no executor; duplicates feature_tag</td><td class="ev">models/agents.py:80-125; workflows.py:280-318</td><td>Key workflows on feature_tag</td></tr>
+<tr><td><b>B-12</b></td><td><span class="b med">Medium</span></td><td>Runbook export endpoint missing</td><td class="ev">lib/api.ts:3504</td><td>Add export/get/delete</td></tr>
+<tr><td><b>B-13</b></td><td><span class="b med">Medium</span></td><td>LLM judge sees empty input/output</td><td class="ev">services/evaluators.py:150 vs worker:92-101</td><td>Load payloads</td></tr>
+<tr><td><b>B-14</b></td><td><span class="b med">Medium</span></td><td>Agent stats from WorkflowRun; envelope and policy unenforced</td><td class="ev">agents.py:308-450</td><td>Attribute agent_runs</td></tr>
+<tr><td><b>B-15</b></td><td><span class="b med">Medium</span></td><td>Agent run links 404; ?agent= ignored</td><td class="ev">agents/[agent_id]/page.tsx:206,227</td><td>Fix links</td></tr>
+<tr><td><b>B-16</b></td><td><span class="b med">Medium</span></td><td>Memory: duplicate gives 500; expiry not enforced; PII plaintext</td><td class="ev">agents.py:478-504,635-676</td><td>409/upsert; purge; encrypt</td></tr>
+<tr><td><b>B-17</b></td><td><span class="b med">Medium</span></td><td>create_run accepts cross-workspace ids</td><td class="ev">workflows.py:304-313</td><td>Validate ownership</td></tr>
+<tr><td><b>B-18</b></td><td><span class="b med">Medium</span></td><td>Step cost never rolls up</td><td class="ev">workflows.py:498-551</td><td>Recompute totals</td></tr>
+<tr><td><b>B-19</b></td><td><span class="b med">Medium</span></td><td>Vector search-test stub; counters faked</td><td class="ev">vector_stores.py:321-366</td><td>Integrate Qdrant or label</td></tr>
+<tr><td><b>B-20</b></td><td><span class="b med">Medium</span></td><td>Two optimization engines with guesses; no apply</td><td class="ev">analytics.py:2133-2185,2954; page.tsx:90</td><td>One engine + Flywheel apply</td></tr>
+<tr><td><b>B-21</b></td><td><span class="b med">Medium</span></td><td>GitHub token base64; any key can set it</td><td class="ev">prompts.py:140-172</td><td>Encrypt; admin</td></tr>
+<tr><td><b>B-22</b></td><td><span class="b med">Medium</span></td><td>All Build routers use any-key auth</td><td class="ev">routers/*</td><td>Role dependency on mutations</td></tr>
+<tr><td><b>B-23</b></td><td><span class="b low">Low</span></td><td>Prompts never resolved by the gateway</td><td class="ev">4 modules only</td><td>Prompt-ref resolution</td></tr>
+<tr><td><b>B-24</b></td><td><span class="b low">Low</span></td><td>Missing UI for many existing endpoints</td><td class="ev">lib/api.ts</td><td>Complete or remove</td></tr>
+<tr><td><b>B-25</b></td><td><span class="b low">Low</span></td><td>Scorecard attribution; 0.0 averages dropped</td><td class="ev">analytics.py:3287-3330</td><td>Call-level join; is not None</td></tr>
+<tr><td><b>B-26</b></td><td><span class="b low">Low</span></td><td>/pipeline-studio duplicates /pipeline</td><td class="ev">pipeline-studio/page.tsx</td><td>Merge</td></tr>
+<tr><td><b>B-27</b></td><td><span class="b low">Low</span></td><td>No Postman; script calls a missing endpoint</td><td class="ev">scripts/core/scenarios/_base.py:1020</td><td>Fix</td></tr>
+</tbody></table></div></details></section>
+<section id="gw"><h2>3 · AI Gateway &amp; Routing</h2><div class="score"><span>Backend 4/10</span><span>Frontend 4/10</span><span>Cohesion 3/10</span><span>27 findings</span></div><ul>
+<li><b>Decorative admin surfaces:</b> per-model quotas never enforced. Tier <code>rpm/tpm/allowed_models</code> never read. Cache profiles: most fields and all stats fake; runtime picks an arbitrary profile.</li>
+<li><b>Broken:</b> "Pull Internet" calls a non-existent <code>/pricing/sync</code>. Four posture endpoints 500 on a non-existent <code>rpm_limit</code> column.</li>
+<li><b>Inconsistent auth:</b> routes and pricing need OrgAdmin; tiers and guardrails need WorkspaceAdmin; Flywheel <em>apply</em>, which rewrites a route's model, needs any key. Any tenant's org admin can overwrite the <em>global</em> pricing catalog.</li>
+<li><b>Secrets:</b> pass-through tokens are returned in list responses. Editing a partner guardrail wipes its credentials. No audit trail for any gateway, tier, quota, cache, pricing or flywheel change.</li>
+<li><b>Frontend:</b> <code>gateway/page.tsx</code> has 160 useState and fires 32 calls on mount (23 posture), swallows every error, and has no search, sort or pagination.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>3.1 Overview</b></td><td>stats/requests OrgAdmin; requests paginated</td><td>9 data + 23 posture calls on mount; errors swallowed; non-admins fire failing calls</td><td>No workflow/key/run attribution</td></tr>
+<tr><td><b>3.2 Routes &amp; groups</b></td><td>CRUD; no GET-by-id; alias invariant breakable; provider immutable; negative caps allowed; no audit</td><td>Edit clobbers fallback_config and routing_config; many fields not exposed</td><td>Changes live on the next request</td></tr>
+<tr><td><b>3.3 Policies</b></td><td>policy_type unvalidated on update; promote accepts a foreign route_id</td><td>—</td><td>4/9 strategies broken (pass 2)</td></tr>
+<tr><td><b>3.4 Cache profiles</b></td><td>Arbitrary profile used; most fields decorative; stats never written; stores when disabled</td><td>CRUD UI</td><td>—</td></tr>
+<tr><td><b>3.5 Rate limits &amp; quotas</b></td><td>Tiers: rpm/tpm/models unread; model budgets unenforced; RPM fail-open</td><td>Can&#x27;t clear limits; tiers under Advanced</td><td>4 overlapping cap systems</td></tr>
+<tr><td><b>3.6 Advanced</b></td><td>Pass-through secrets exposed, bypasses governance, follows redirects, path collisions; Flywheel any key</td><td>Create form lacks auth_config</td><td>Parallel control path</td></tr>
+<tr><td><b>3.7 Provider profiles</b></td><td>Import writes the global catalog; in-place rate edits; reprice unbounded</td><td>Pull Internet 404s</td><td>—</td></tr>
+<tr><td><b>3.8 Guardrails</b></td><td>Create any key; partner update unaudited</td><td>One failed call breaks the page; partner edit wipes creds</td><td>—</td></tr>
+<tr><td><b>3.9 Violations</b></td><td>Filters map 1:1; no date/model/key filters</td><td>No debounce or error state; KPIs page-scoped</td><td>No run/workflow link</td></tr>
+</tbody></table></div><details open><summary>Findings (27)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>G-01</b></td><td><span class="b crit">Critical</span></td><td>Per-model quotas never enforced</td><td class="ev">services/budgets.py:401-470</td><td>Wire into preflight/finalize or remove</td></tr>
+<tr><td><b>G-02</b></td><td><span class="b high">High</span></td><td>Tier rpm/tpm/allowed_models decorative</td><td class="ev">models/budget_tiers.py:35</td><td>Enforce per key or drop</td></tr>
+<tr><td><b>G-03</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Flywheel apply mutates routes with any key</td><td class="ev">routers/flywheel.py:46,58,113</td><td>OrgAdmin + audit + rollback</td></tr>
+<tr><td><b>G-04</b></td><td><span class="b high">High</span></td><td>Any tenant org admin overwrites the global pricing catalog</td><td class="ev">providers.py:116-141; pricing_import.py:147</td><td>Platform admin or workspace rows</td></tr>
+<tr><td><b>G-05</b></td><td><span class="b high">High</span></td><td>Pass-through auth secrets returned in API/UI</td><td class="ev">schemas/gateway.py:677; page.tsx:3857</td><td>Write-only secrets</td></tr>
+<tr><td><b>G-06</b></td><td><span class="b high">High</span></td><td>Partner guardrail edit wipes credentials</td><td class="ev">guardrails/page.tsx:225,285</td><td>Omit when untouched</td></tr>
+<tr><td><b>G-07</b></td><td><span class="b high">High</span></td><td>Four posture endpoints 500 (missing rpm_limit)</td><td class="ev">analytics.py:5567,9770,9945,14247</td><td>Fix columns; tests</td></tr>
+<tr><td><b>G-08</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Pull Internet calls missing /pricing/sync</td><td class="ev">lib/api.ts:3005</td><td>Implement or remove</td></tr>
+<tr><td><b>G-09</b></td><td><span class="b med">Medium</span></td><td>Cache profiles: arbitrary selection; fields and stats fake</td><td class="ev">services/gateway.py:239,282</td><td>One profile; real counters</td></tr>
+<tr><td><b>G-10</b></td><td><span class="b med">Medium</span></td><td>No audit for gateway/tier/quota/cache/pricing/flywheel</td><td class="ev">grep emit_audit_event</td><td>Audit every mutation</td></tr>
+<tr><td><b>G-11</b></td><td><span class="b med">Medium</span></td><td>Group/route alias invariant breakable</td><td class="ev">gateway_routing.py:172,326-342</td><td>Validate or cascade</td></tr>
+<tr><td><b>G-12</b></td><td><span class="b med">Medium</span></td><td>Policy promote accepts a foreign route_id</td><td class="ev">gateway_routing.py:539-548</td><td>Ownership + alias check</td></tr>
+<tr><td><b>G-13</b></td><td><span class="b med">Medium</span></td><td>RoutingPolicyUpdate.policy_type unvalidated</td><td class="ev">schemas/gateway.py:774-777</td><td>Validator</td></tr>
+<tr><td><b>G-14</b></td><td><span class="b med">Medium</span></td><td>Negative cost caps and pricing accepted</td><td class="ev">schemas/gateway.py:128,157; providers.py:13</td><td>ge=0</td></tr>
+<tr><td><b>G-15</b></td><td><span class="b med">Medium</span></td><td>Pass-through bypasses governance; follows redirects</td><td class="ev">gateway_passthrough.py:296-361</td><td>Governance preflight; no redirects</td></tr>
+<tr><td><b>G-16</b></td><td><span class="b med">Medium</span></td><td>Route edit clobbers fallback/routing config</td><td class="ev">page.tsx:565-567</td><td>Merge configs</td></tr>
+<tr><td><b>G-17</b></td><td><span class="b med">Medium</span></td><td>Auth matrix inconsistent; UI hides allowed features</td><td class="ev">page.tsx:133,356; budget_tiers.py:90</td><td>One role matrix</td></tr>
+<tr><td><b>G-18</b></td><td><span class="b med">Medium</span></td><td>32 calls on mount; silent failures</td><td class="ev">page.tsx:285-354</td><td>Lazy tabs; React Query</td></tr>
+<tr><td><b>G-19</b></td><td><span class="b med">Medium</span></td><td>No workflow/key/run attribution on GatewayRequest/GuardrailEvent</td><td class="ev">models/gateway.py:180-215</td><td>Add columns + links</td></tr>
+<tr><td><b>G-20</b></td><td><span class="b low">Low</span></td><td>Tier soft-delete keeps is_default; UI can&#x27;t clear limits</td><td class="ev">budget_tiers.py:124-180; page.tsx:4127</td><td>Fix semantics</td></tr>
+<tr><td><b>G-21</b></td><td><span class="b low">Low</span></td><td>Pricing delete orphans budgets; no versioning</td><td class="ev">providers.py:190-234</td><td>Block or version</td></tr>
+<tr><td><b>G-22</b></td><td><span class="b low">Low</span></td><td>Violations: no debounce/error; page-scoped KPIs</td><td class="ev">violations/page.tsx:44-102</td><td>Debounce; stats endpoint</td></tr>
+<tr><td><b>G-23</b></td><td><span class="b low">Low</span></td><td>Guardrails page breaks if the rule list fails</td><td class="ev">guardrails/page.tsx:186</td><td>catch + section errors</td></tr>
+<tr><td><b>G-24</b></td><td><span class="b low">Low</span></td><td>Pass-through path collisions</td><td class="ev">gateway_passthrough.py:94,139</td><td>Reserve slugs</td></tr>
+<tr><td><b>G-25</b></td><td><span class="b low">Low</span></td><td>Missing GET-by-id endpoints</td><td class="ev">gateway_routing.py</td><td>Add</td></tr>
+<tr><td><b>G-26</b></td><td><span class="b low">Low</span></td><td>Tier N+1; no table search/sort/paging</td><td class="ev">budget_tiers.py:31-36</td><td>Grouped count; DataTable</td></tr>
+<tr><td><b>G-27</b></td><td><span class="b info">Info</span></td><td>No postman/</td><td class="ev">repo root</td><td>Generate</td></tr>
+</tbody></table></div></details></section>
+<section id="gov"><h2>4 · Safety &amp; Governance</h2><div class="score"><span>Backend 4/10</span><span>Frontend 6/10</span><span>Cohesion 3/10</span><span>28 findings</span></div><ul>
+<li><b>Broad CRUD, little enforcement.</b> Only IP ACL, required-metadata, span-metadata capture, <code>/tools/check</code> and budget/chargeback approvals reach runtime.</li>
+<li><b>Four tool-control systems disagree:</b> ToolRegistry, ToolPolicy, McpPermission and guardrail <code>allowed_tools</code>. The dry run evaluates conditions that runtime ignores.</li>
+<li><b>New bugs:</b> the MCP governed call crashes on any unblocked call (tuple <code>.action</code>). Approval audit events are emitted after commit and lost. OAuth2/OIDC/LDAP secrets are stored as <code>hmac:plaintext</code>. Search-provider credentials are readable with any key.</li>
+<li><b>Decorative:</b> scoped capture overrides, auto-tagging rules, MCP permissions, plugin hooks and four security settings. Audit events carry no actor and no hash chain.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>4.1 Tool governance</b></td><td>Registry mutations any key; /tools/check vs /policies/check disagree; dry-run ≠ runtime semantics</td><td>4 tabs; 7+ posture calls</td><td>Overlapping policy systems</td></tr>
+<tr><td><b>4.2 MCP registry</b></td><td>tools/call crashes or never executes; blocks leave no trace; permission grant unvalidated and unused; mcp-gateway unauthenticated</td><td>No confirms; false &quot;Executed&quot; toast</td><td>—</td></tr>
+<tr><td><b>4.3 Data capture</b></td><td>privacy_mode free string; applies only to span metadata; scoped overrides unread; two PII redactors</td><td>Scopes offered, none enforced</td><td>Docs overclaim</td></tr>
+<tr><td><b>4.4 Security</b></td><td>Client secrets plaintext; OIDC state in memory; ACL leftmost XFF, deny ignored when allow matches; 4 settings unused</td><td>No OAuth2/LDAP UI</td><td>ACL only on gateway</td></tr>
+<tr><td><b>4.5 Approvals</b></td><td>Self-approval; no row lock; audit lost after commit</td><td>Fixed 100, no paging</td><td>Real side effects for budgets/chargeback only</td></tr>
+<tr><td><b>4.6 Audit log</b></td><td>No actor; no tamper evidence; export capped at 5k silently; coverage gaps</td><td>Paging works; no actor filter UI</td><td>—</td></tr>
+<tr><td><b>4.7 Audit pack</b></td><td>Identity filter compares user ids with end_user_id → empty; bad dates give 500</td><td>Date range only</td><td>Pack lacks audit/security events</td></tr>
+<tr><td><b>4.8 Alert rules</b></td><td>Budget metrics never computed; dedupe can raise and abort; notify before commit → duplicates; no resolve/cooldown</td><td>CRUD with confirm</td><td>No governance metrics</td></tr>
+<tr><td><b>4.9 Tags</b></td><td>Auto-tag rules never applied; regex ReDoS</td><td>Full CRUD</td><td>Docs overclaim</td></tr>
+</tbody></table></div><details open><summary>Findings (28)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>S-01</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>MCP governed call crashes (tuple .action)</td><td class="ev">plugin_runner.py:162,165,197</td><td>Unpack the tuple; test</td></tr>
+<tr><td><b>S-02</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Approval audit events lost (emitted after commit)</td><td class="ev">approvals.py:616-632; services/audit.py:63</td><td>Emit before commit</td></tr>
+<tr><td><b>S-03</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Auth provider secrets and LDAP bind password stored in plaintext</td><td class="ev">services/security.py:207-217</td><td>Fernet/KMS + migration</td></tr>
+<tr><td><b>S-04</b></td><td><span class="b high">High</span></td><td>Search-provider auth_config readable by any key</td><td class="ev">workspace_controls.py:166,579</td><td>Redact; admin; encrypt</td></tr>
+<tr><td><b>S-05</b></td><td><span class="b high">High</span></td><td>Tool registry mutations need only any key</td><td class="ev">tools.py:181,234,274</td><td>require_workspace_admin</td></tr>
+<tr><td><b>S-06</b></td><td><span class="b high">High</span></td><td>Dry-run vs runtime tool-policy semantics differ</td><td class="ev">workspace_controls.py:822 vs plugin_runner.py:131-150</td><td>One evaluator</td></tr>
+<tr><td><b>S-07</b></td><td><span class="b high">High</span></td><td>Four parallel tool-control systems; gateway enforces none</td><td class="ev">ToolRegistry/ToolPolicy/McpPermission/allowed_tools</td><td>Merge into ToolPolicy</td></tr>
+<tr><td><b>S-08</b></td><td><span class="b med">Medium</span></td><td>/tools/check and /policies/check disagree</td><td class="ev">tools.py:138; policies.py:290</td><td>Align</td></tr>
+<tr><td><b>S-09</b></td><td><span class="b med">Medium</span></td><td>Scoped capture overrides unenforced; capture only on span metadata</td><td class="ev">pipeline.py:54-259</td><td>Resolve scope at ingest</td></tr>
+<tr><td><b>S-10</b></td><td><span class="b med">Medium</span></td><td>privacy_mode unvalidated</td><td class="ev">schemas/privacy.py:12</td><td>Literal enum</td></tr>
+<tr><td><b>S-11</b></td><td><span class="b med">Medium</span></td><td>Two PII redactors</td><td class="ev">settings.py:75 vs scrubbing.py</td><td>One redactor</td></tr>
+<tr><td><b>S-12</b></td><td><span class="b med">Medium</span></td><td>Route PII redaction only when streaming</td><td class="ev">gateway_runtime.py:504-507</td><td>Unconditional</td></tr>
+<tr><td><b>S-13</b></td><td><span class="b med">Medium</span></td><td>IP ACL leftmost XFF; deny/priority ignored; team-keyed</td><td class="ev">security.py:122-168</td><td>Rightmost untrusted hop; priority</td></tr>
+<tr><td><b>S-14</b></td><td><span class="b med">Medium</span></td><td>OIDC/OAuth2 state in process memory</td><td class="ev">security.py:205,432</td><td>Redis state</td></tr>
+<tr><td><b>S-15</b></td><td><span class="b med">Medium</span></td><td>Approvals allow self-approval; no lock</td><td class="ev">approvals.py:127,~600</td><td>Separation of duties; FOR UPDATE</td></tr>
+<tr><td><b>S-16</b></td><td><span class="b med">Medium</span></td><td>Audit events lack actor and tamper evidence</td><td class="ev">services/audit.py</td><td>Actor + hash chain</td></tr>
+<tr><td><b>S-17</b></td><td><span class="b med">Medium</span></td><td>Alert dedupe raises; notify-then-commit duplicates</td><td class="ev">workers/alerts.py:95-160</td><td>first(); per-rule commit; cooldown</td></tr>
+<tr><td><b>S-18</b></td><td><span class="b med">Medium</span></td><td>budget_* alert metrics never computed</td><td class="ev">schemas/alerts.py:14</td><td>Implement or remove</td></tr>
+<tr><td><b>S-19</b></td><td><span class="b med">Medium</span></td><td>Auto-tagging rules never applied</td><td class="ev">analytics.py:8743 only</td><td>Apply at ingest/gateway</td></tr>
+<tr><td><b>S-20</b></td><td><span class="b med">Medium</span></td><td>Retention runs one transaction for all workspaces</td><td class="ev">workers/retention.py:52-76</td><td>Savepoint per policy</td></tr>
+<tr><td><b>S-21</b></td><td><span class="b med">Medium</span></td><td>Audit pack identity filter mismatched</td><td class="ev">governance.py:71-120</td><td>Correct lineage</td></tr>
+<tr><td><b>S-22</b></td><td><span class="b med">Medium</span></td><td>mcp-gateway has no auth; caller-chosen workspace</td><td class="ev">apps/mcp-gateway/app.py</td><td>Require a key</td></tr>
+<tr><td><b>S-23</b></td><td><span class="b low">Low</span></td><td>MCP permission grant unvalidated; unused</td><td class="ev">mcp_registry.py:316-345</td><td>Validate or remove</td></tr>
+<tr><td><b>S-24</b></td><td><span class="b low">Low</span></td><td>Decorative security settings</td><td class="ev">models/security.py:37-48</td><td>Enforce or remove</td></tr>
+<tr><td><b>S-25</b></td><td><span class="b low">Low</span></td><td>LDAP empty password; blocking sync calls</td><td class="ev">security.py:610-676</td><td>min_length; threadpool</td></tr>
+<tr><td><b>S-26</b></td><td><span class="b low">Low</span></td><td>Missing confirms; false Executed toast</td><td class="ev">mcp-registry/page.tsx:256,289,321</td><td>Confirms; real status</td></tr>
+<tr><td><b>S-27</b></td><td><span class="b low">Low</span></td><td>Missing UI for audit actor and pack filters</td><td class="ev">audit, governance-pack pages</td><td>Add controls</td></tr>
+<tr><td><b>S-28</b></td><td><span class="b low">Low</span></td><td>No Postman; docs overclaim enforcement</td><td class="ev">data-capture-studio.mdx; tags-taxonomy.mdx</td><td>Fix docs</td></tr>
+</tbody></table></div></details></section>
+<section id="fin"><h2>5 · FinOps</h2><div class="score"><span>Backend 4/10</span><span>Frontend 5/10</span><span>Cohesion 3/10</span><span>25 findings</span></div><ul>
+<li><b>Calculator-only features:</b> the chargeback rules engine has zero callers. Cost centers have no API. Shared-cost allocation is computed and never stored or used.</li>
+<li><b>Money integrity:</b> closing a period has no row lock, freezes only totals and can't be reopened. Signed exports are re-signed from live rows. Adjustments can be deleted on closed periods. At least five different "cost" definitions mean Billing, Chargeback, Budgets and Savings disagree.</li>
+<li><b>Security:</b> webhooks, snapshots and exports are signed with the platform <code>secret_key</code> (also the API-key pepper fallback and Kafka key). Webhook URLs aren't validated (SSRF). Slack webhook URLs are readable with any key.</li>
+<li><b>Runtime:</b> <code>notify</code> budgets never notify, while other actions fire one breach plus a webhook per call. Three analytics endpoints always 500 (<code>BudgetOverride.workspace_id/is_active</code> don't exist); one is called by budget detail.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>5.1 Cost &amp; Savings</b></td><td>/savings correct but unused; opportunities are fixed-% guesses</td><td>Page uses posture/flow, not savings APIs; errors swallowed</td><td>15 overlapping finops-posture endpoints; duplicate route</td></tr>
+<tr><td><b>5.2 Budgets</b></td><td>CRUD + audit; app scope unvalidated → 500; no duplicate guard; scheduled overrides never activate; self-approval; webhooks unsigned per destination, no retry</td><td>7 scopes / 5 actions mostly decorative; detail swallows 4 calls</td><td>Overrides link to Approvals (bypassable)</td></tr>
+<tr><td><b>5.3 Billing</b></td><td>No reopen/update/delete; no date or overlap checks; FX stored never applied; close not locked or frozen</td><td>No confirm on close</td><td>Separate signing system from Ledger</td></tr>
+<tr><td><b>5.4 Chargeback</b></td><td>Report works (10 dims); rules never applied; group double-count; variance ignores period</td><td>Allocations tab = raw report; self-activation</td><td>—</td></tr>
+<tr><td><b>5.5 Ledger</b></td><td>Per-workspace keys (better than Billing); verify false positives</td><td>Platform-only</td><td>Not anchoring billing snapshots</td></tr>
+</tbody></table></div><details open><summary>Findings (25)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>F-01</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Chargeback rules never applied; no cost-center API</td><td class="ev">services/billing.py:915-947</td><td>Apply in report or remove UI</td></tr>
+<tr><td><b>F-02</b></td><td><span class="b high">High</span></td><td>Chargeback self-approval; weights unchecked</td><td class="ev">routers/billing.py:784-866</td><td>Approvals; block status writes</td></tr>
+<tr><td><b>F-03</b></td><td><span class="b high">High</span></td><td>Platform secret signs tenant webhooks/snapshots/exports</td><td class="ev">services/budgets.py:626; billing.py:607,906</td><td>Per-destination / per-workspace keys</td></tr>
+<tr><td><b>F-04</b></td><td><span class="b high">High</span></td><td>SSRF via budget webhook / Slack URL</td><td class="ev">schemas/budgets.py:132; routers/budgets.py:972-1028</td><td>https + IP blocklist + generic errors</td></tr>
+<tr><td><b>F-05</b></td><td><span class="b high">High</span></td><td>notify budgets never notify; others fire per call</td><td class="ev">workers/metering.py:177; budgets.py:488</td><td>Dedupe per (budget, period)</td></tr>
+<tr><td><b>F-06</b></td><td><span class="b high">High</span></td><td>Cost enrichment can stall permanently</td><td class="ev">workers/metering.py:111-128</td><td>Mark unpriced; page past</td></tr>
+<tr><td><b>F-07</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Three analytics endpoints always 500</td><td class="ev">analytics.py:5467,8642,13635</td><td>Join via Budget; status</td></tr>
+<tr><td><b>F-08</b></td><td><span class="b high">High</span></td><td>Period close not locked, idempotent or frozen</td><td class="ev">services/billing.py:521-630,646,754,833</td><td>FOR UPDATE; frozen snapshot; reopen</td></tr>
+<tr><td><b>F-09</b></td><td><span class="b med">Medium</span></td><td>Adjustments deletable on closed periods; no actor/audit</td><td class="ev">routers/billing.py:577-599,469</td><td>Status check; user id; audit</td></tr>
+<tr><td><b>F-10</b></td><td><span class="b med">Medium</span></td><td>Cost totals disagree across surfaces</td><td class="ev">billing.py:340,686,233; analytics.py:2027; workers/budgets.py:247</td><td>One billable-cost definition</td></tr>
+<tr><td><b>F-11</b></td><td><span class="b med">Medium</span></td><td>Period dates unchecked; overlaps; FX unused</td><td class="ev">schemas/billing.py:17-21</td><td>Constraints</td></tr>
+<tr><td><b>F-12</b></td><td><span class="b med">Medium</span></td><td>Budget scope validation gaps (app → 500)</td><td class="ev">routers/budgets.py:231; services/budgets.py:218</td><td>Validate; unique index</td></tr>
+<tr><td><b>F-13</b></td><td><span class="b med">Medium</span></td><td>Scheduled overrides never activate; approval skippable</td><td class="ev">routers/budgets.py:1311-1323; approvals.py:857</td><td>Activation worker; threshold</td></tr>
+<tr><td><b>F-14</b></td><td><span class="b med">Medium</span></td><td>Cost-cap pricing lookup ignores workspace</td><td class="ev">gateway_controls.py:41-85</td><td>Reuse calculate_cost</td></tr>
+<tr><td><b>F-15</b></td><td><span class="b med">Medium</span></td><td>Webhook secrets and FinOps data readable by any key</td><td class="ev">routers/budgets.py:842-855</td><td>Mask; admin</td></tr>
+<tr><td><b>F-16</b></td><td><span class="b low">Low</span></td><td>billable_calls always equals total_calls</td><td class="ev">routers/budgets.py:595</td><td>Real filter</td></tr>
+<tr><td><b>F-17</b></td><td><span class="b low">Low</span></td><td>Shared-cost allocation is a calculator only</td><td class="ev">services/billing.py:1088-1125</td><td>Validate, persist, apply</td></tr>
+<tr><td><b>F-18</b></td><td><span class="b low">Low</span></td><td>Chargeback group double-count; variance ignores period</td><td class="ev">services/billing.py:217-270</td><td>Fix attribution</td></tr>
+<tr><td><b>F-19</b></td><td><span class="b low">Low</span></td><td>Close period has no confirm</td><td class="ev">BillingPeriodTable.tsx:47-60</td><td>Confirm with total</td></tr>
+<tr><td><b>F-20</b></td><td><span class="b low">Low</span></td><td>Savings endpoints unused; heuristics shown</td><td class="ev">lib/api.ts:3149-3166</td><td>Use real savings</td></tr>
+<tr><td><b>F-21</b></td><td><span class="b low">Low</span></td><td>Duplicate route</td><td class="ev">analytics.py:12553,12625</td><td>Delete one</td></tr>
+<tr><td><b>F-22</b></td><td><span class="b low">Low</span></td><td>Inline webhook delivery slows enrichment; full-table rollup</td><td class="ev">metering.py:178,196-241</td><td>Queue; scope rollup</td></tr>
+<tr><td><b>F-23</b></td><td><span class="b low">Low</span></td><td>CSV formula injection</td><td class="ev">services/billing.py:813-825</td><td>Escape cells</td></tr>
+<tr><td><b>F-24</b></td><td><span class="b low">Low</span></td><td>Chargeback export ignores end_user_id; no Postman</td><td class="ev">routers/billing.py:919-938</td><td>Pass filter</td></tr>
+<tr><td><b>F-25</b></td><td><span class="b low">Low</span></td><td>Cached-token pricing edge cases</td><td class="ev">services/pricing.py:91</td><td>Clamp; cache-write rate</td></tr>
+</tbody></table></div></details></section>
+<section id="org"><h2>6 · Organization &amp; Access</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 4/10</span><span>23 findings</span></div><ul>
+<li><b>Two account-takeover paths across tenants</b> (both verified): (1) an org admin "invites" any existing email, including the platform admin, then resets that user's global password via <code>PUT /users/{id}</code>; (2) an IdP configured by any org admin auto-links to existing accounts by email.</li>
+<li><b>Revocation doesn't work.</b> Deactivate, remove, password change and logout leave the 30-day session key valid. Every login or switch mints a new key and never revokes the old one. <code>last_used_at</code> is never written.</li>
+<li><b>Membership status not enforced:</b> suspended members keep full role power. The <code>org_billing_admin</code> and <code>org_auditor</code> roles grant nothing.</li>
+<li><b>Auth hygiene:</b> no login rate limit or lockout, no verify-email or reset flow, a shared <code>ChangeMe123!</code> temporary password, a username timing oracle, and OIDC without nonce or PKCE with in-memory state.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>6.1 Organization</b></td><td>Tenant scoping correct; org_manager can escalate; org audit events invisible (workspace_id NULL); workspace hard delete unaudited</td><td>Native confirm only</td><td>Identity changes not in Governance</td></tr>
+<tr><td><b>6.2 Users</b></td><td>Global identity editable by org admin (takeover); no rate limit; no verify/reset; /users/me needs no current password</td><td>Toggles without confirm; default password pre-filled</td><td>Not audited</td></tr>
+<tr><td><b>6.3 Workspaces</b></td><td>CRUD scoped; switch requires WorkspaceUser even for org admins</td><td>Switcher matches by name; signs out on any error</td><td>Each switch mints a 30-day key</td></tr>
+<tr><td><b>6.4 Access groups</b></td><td>Members unvalidated; duplicates; budget_usd decorative</td><td>Empty state + create</td><td>Guardrail profile never reaches the gateway</td></tr>
+<tr><td><b>6.5 API keys</b></td><td>HMAC+pepper good; no expiry option; last_used never set; session keys hidden; rotation OrgAdmin vs UI WS admin; no audit</td><td>Revoke confirm present</td><td>Scopes unenforced</td></tr>
+<tr><td><b>6.6 AI Hub</b></td><td>request-access is a counter; hard-coded prices</td><td>Empty catalog</td><td>Not used by routing or pricing</td></tr>
+<tr><td><b>6.7 Onboarding</b></td><td>Bad demo profile gives 500</td><td>Demo buttons for all roles</td><td>—</td></tr>
+</tbody></table></div><details open><summary>Findings (23)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>A-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Org admin can take over any account by email (incl. platform admin)</td><td class="ev">org.py:770-799; users.py:184-212</td><td>Invitations need acceptance; org admins can&#x27;t edit global identity</td></tr>
+<tr><td><b>A-02</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>IdP auto-links existing accounts by email → cross-tenant takeover</td><td class="ev">services/security.py:369-371,550,717</td><td>Link only within tenant + verified email; never platform admin</td></tr>
+<tr><td><b>A-03</b></td><td><span class="b high">High</span></td><td>LDAP empty password may be accepted</td><td class="ev">security.py:655-660</td><td>Reject empty</td></tr>
+<tr><td><b>A-04</b></td><td><span class="b high">High</span></td><td>Deactivate/remove/password/logout don&#x27;t revoke session keys</td><td class="ev">deps.py:56-85</td><td>Revoke + validate user/membership</td></tr>
+<tr><td><b>A-05</b></td><td><span class="b high">High</span></td><td>Suspended membership not enforced</td><td class="ev">deps.py:145-223; login.py:97-131</td><td>Filter status=active</td></tr>
+<tr><td><b>A-06</b></td><td><span class="b high">High</span></td><td>No login rate limit/lockout; timing oracle</td><td class="ev">login.py:74-88</td><td>Limiter + dummy hash</td></tr>
+<tr><td><b>A-07</b></td><td><span class="b high">High</span></td><td>Each login/switch mints a 30-day key, never revoked</td><td class="ev">login.py:140-152,233-245</td><td>Revoke prior; short TTL</td></tr>
+<tr><td><b>A-08</b></td><td><span class="b high">High</span></td><td>Org audit log hides tenant events; identity changes unaudited</td><td class="ev">tenancy.py:398; org.py:1564</td><td>tenant_id on AuditEvent</td></tr>
+<tr><td><b>A-09</b></td><td><span class="b high">High</span></td><td>Access-group guardrail profile never applied on gateway</td><td class="ev">gateway_runtime.py:360-368</td><td>Resolve group membership</td></tr>
+<tr><td><b>A-10</b></td><td><span class="b high">High</span></td><td>Org admins signed out by the switcher</td><td class="ev">org.py:664 vs login.py:203; TopBar.tsx:147</td><td>Allow switch; show error</td></tr>
+<tr><td><b>A-11</b></td><td><span class="b med">Medium</span></td><td>OIDC/OAuth2: no nonce/PKCE; memory state; redirect mismatch</td><td class="ev">security.py:204-470; login.py:316,348</td><td>Redis state; PKCE; pin redirect</td></tr>
+<tr><td><b>A-12</b></td><td><span class="b med">Medium</span></td><td>org_manager escalation; billing/auditor roles inert</td><td class="ev">deps.py:31; org.py:808-830</td><td>Role hierarchy</td></tr>
+<tr><td><b>A-13</b></td><td><span class="b med">Medium</span></td><td>No verify/reset; default temp password; no policy</td><td class="ev">schemas/auth.py; users.py:85</td><td>Token flows; generated passwords</td></tr>
+<tr><td><b>A-14</b></td><td><span class="b med">Medium</span></td><td>last_used_at never set; no expiry option</td><td class="ev">services/auth.py:306-326</td><td>Throttled update; expires_at</td></tr>
+<tr><td><b>A-15</b></td><td><span class="b med">Medium</span></td><td>Rotation auth mismatch; drops expiry; wrong history id</td><td class="ev">security.py:79-90,413-479</td><td>Align</td></tr>
+<tr><td><b>A-16</b></td><td><span class="b med">Medium</span></td><td>Access-group members unvalidated; decorative budget</td><td class="ev">workspace_controls.py:1030-1062</td><td>Constraints; remove field</td></tr>
+<tr><td><b>A-17</b></td><td><span class="b med">Medium</span></td><td>Gateway enforces legacy Project/TeamModel budgets</td><td class="ev">gateway_controls.py:169-218</td><td>Remove</td></tr>
+<tr><td><b>A-18</b></td><td><span class="b med">Medium</span></td><td>OIDC bearer skips aud; JWKS fan-out on bad keys</td><td class="ev">security.py:72-119</td><td>Require audience</td></tr>
+<tr><td><b>A-19</b></td><td><span class="b low">Low</span></td><td>Client update() can rewrite roles/apiKey in JWT</td><td class="ev">lib/auth.ts:170-180</td><td>Server-only updates</td></tr>
+<tr><td><b>A-20</b></td><td><span class="b low">Low</span></td><td>Toggles without confirm; switcher by name</td><td class="ev">users/page.tsx:173-283; TopBar.tsx:125</td><td>Confirm; by id</td></tr>
+<tr><td><b>A-21</b></td><td><span class="b low">Low</span></td><td>AI Hub request-access is a counter</td><td class="ev">hub.py:187-320</td><td>Real entity or remove</td></tr>
+<tr><td><b>A-22</b></td><td><span class="b low">Low</span></td><td>Unbounded lists; demo ValueError gives 500</td><td class="ev">org.py:1557; demo_mode.py:134</td><td>Paginate; 400</td></tr>
+<tr><td><b>A-23</b></td><td><span class="b low">Low</span></td><td>No postman/</td><td class="ev">repo root</td><td>Generate</td></tr>
+</tbody></table></div></details></section>
+<section id="ing"><h2>7 · Ingestion &amp; Integrations</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 3/10</span><span>27 findings</span></div><ul>
+<li><b>Tenant isolation holes</b> (verified): <code>POST /ingest/v1/webhook</code> has no auth, so a workspace UUID is enough. Pipeline handlers after <code>run_start</code> key on <code>run_id</code> only, so cross-tenant run edits are possible.</li>
+<li><b>Fragile pipeline:</b> one transaction per batch with no savepoints. One bad row (an FK race or a long span name) drops the batch. No real retry, and no replay despite comments.</li>
+<li><b>Attribution missing:</b> <code>api_key_id</code> is never taken from the authenticated key, <code>end_user_id</code> is never written to provider calls, and MCP uses status <code>succeeded</code> (analytics filters on <code>success</code>).</li>
+<li><b>OTLP semantics:</b> child-first batches set the wrong run start and status. The finalizer cancels runs older than 5 minutes even if active. The raw payload is kept before capture policy applies. Gzip is decompressed without a bound.</li>
+<li><b>Onboarding instructions are wrong:</b> the quick-start uses a protobuf exporter against a JSON-only API, onboarding names fictional packages and hosts, and MCP snippets lack the auth header.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>7.1 SDKs</b></td><td>Endpoints valid; Python retries 4xx, no atexit; TS queue unbounded, loses data on shutdown; versions diverge</td><td>—</td><td>No workflow identity beyond feature_tag</td></tr>
+<tr><td><b>7.2 OTLP + Claude Code logs</b></td><td>JSON only; raw kept pre-capture; cached tokens not priced; root selection wrong; Claude Code ignores api_error/tool events and feature_tag</td><td>Telemetry page data OK; quick-start broken</td><td>Collector filter orphans children</td></tr>
+<tr><td><b>7.3 Ingest API &amp; MCP</b></td><td>Webhook unauthenticated; signed ingest global secret, replayable; no size limits; client api_key_id/cost trusted; MCP status vocabulary</td><td>MCP snippets invalid</td><td>Slack/Kafka test SSRF</td></tr>
+<tr><td><b>7.4 Export &amp; backups</b></td><td>Kafka delivers before commit, producer per event, pending never swept; backups dump the whole DB to an org admin&#x27;s S3; secrets plaintext</td><td>—</td><td>Not a real outbox</td></tr>
+</tbody></table></div><details open><summary>Findings (27)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>I-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Unauthenticated webhook ingest accepts any workspace_id</td><td class="ev">routers/ingest.py:103-122</td><td>Remove or authenticate</td></tr>
+<tr><td><b>I-02</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Pipeline writes to runs without workspace check</td><td class="ev">workers/pipeline.py:173-399</td><td>Ownership check per event</td></tr>
+<tr><td><b>I-03</b></td><td><span class="b crit">Critical</span></td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td></tr>
+<tr><td><b>I-04</b></td><td><span class="b high">High</span></td><td>Backup secret stored/returned in plaintext</td><td class="ev">models/backup_ops.py:78</td><td>Encrypt; write-only</td></tr>
+<tr><td><b>I-05</b></td><td><span class="b high">High</span></td><td>One bad event aborts the batch; no retry/replay</td><td class="ev">pipeline.py:43-60</td><td>Savepoints; autoretry; DLQ; replay</td></tr>
+<tr><td><b>I-06</b></td><td><span class="b high">High</span></td><td>Enrichment starves behind 500 unpriceable rows</td><td class="ev">workers/metering.py:108-125</td><td>Mark unpriced; cursor paging</td></tr>
+<tr><td><b>I-07</b></td><td><span class="b high">High</span></td><td>Ingest spend never tied to API key or end user</td><td class="ev">deps.py:56-74; pipeline.py:296-324</td><td>Bind server-side; denormalize</td></tr>
+<tr><td><b>I-08</b></td><td><span class="b high">High</span></td><td>feature_tag budgets synced to workspace spend</td><td class="ev">workers/budgets.py:244</td><td>Join agent_runs</td></tr>
+<tr><td><b>I-09</b></td><td><span class="b high">High</span></td><td>Child-first OTLP batches set wrong run context</td><td class="ev">otlp_parse.py:640-679,816-834; pipeline.py:149</td><td>True-root only; LEAST upsert</td></tr>
+<tr><td><b>I-10</b></td><td><span class="b high">High</span></td><td>MCP status succeeded hides calls from analytics</td><td class="ev">mcp_server.py:333; analytics.py:353</td><td>Normalize enum</td></tr>
+<tr><td><b>I-11</b></td><td><span class="b high">High</span></td><td>Telemetry quick-start can&#x27;t work (protobuf vs JSON)</td><td class="ev">TelemetryPage.tsx:316-325; otlp.py:75-79</td><td>Support protobuf or document http/json</td></tr>
+<tr><td><b>I-12</b></td><td><span class="b high">High</span></td><td>Raw payloads bypass capture policy, kept forever</td><td class="ev">otlp.py:138-183,552-570</td><td>Scrub before persist; retention</td></tr>
+<tr><td><b>I-13</b></td><td><span class="b med">Medium</span></td><td>Unbounded gzip decompression</td><td class="ev">otlp.py:57-69</td><td>Capped streaming inflate</td></tr>
+<tr><td><b>I-14</b></td><td><span class="b med">Medium</span></td><td>No field-length/batch limits</td><td class="ev">schemas/events.py:13-104</td><td>max_length; caps</td></tr>
+<tr><td><b>I-15</b></td><td><span class="b med">Medium</span></td><td>Signed ingest: global secret, replayable</td><td class="ev">ingest.py:46-70</td><td>Per-workspace secret + nonce</td></tr>
+<tr><td><b>I-16</b></td><td><span class="b med">Medium</span></td><td>Finalizer cancels live long runs</td><td class="ev">workers/otlp_finalize.py:68-74</td><td>Inactivity timeout</td></tr>
+<tr><td><b>I-17</b></td><td><span class="b med">Medium</span></td><td>Kafka delivers before commit; producer per event</td><td class="ev">kafka_export.py:201-405</td><td>True outbox</td></tr>
+<tr><td><b>I-18</b></td><td><span class="b med">Medium</span></td><td>Claude Code logs ignore api_error/tool events; no feature_tag</td><td class="ev">services/claude_code_logs.py:109-198</td><td>Map events; reuse context extraction</td></tr>
+<tr><td><b>I-19</b></td><td><span class="b med">Medium</span></td><td>Cached tokens not passed to pricing</td><td class="ev">otlp_parse.py:188-193,720-744</td><td>Set cached_input_tokens</td></tr>
+<tr><td><b>I-20</b></td><td><span class="b med">Medium</span></td><td>Tool calls/outcomes not idempotent</td><td class="ev">pipeline.py:352-399</td><td>uuid5 + on_conflict</td></tr>
+<tr><td><b>I-21</b></td><td><span class="b med">Medium</span></td><td>SSRF via Slack/Kafka test</td><td class="ev">integrations.py:59-77</td><td>Allowlist; generic errors</td></tr>
+<tr><td><b>I-22</b></td><td><span class="b med">Medium</span></td><td>Onboarding/MCP snippets wrong</td><td class="ev">onboarding/page.tsx:133-185; McpSetupPanel.tsx:74-182</td><td>Generate from real endpoints</td></tr>
+<tr><td><b>I-23</b></td><td><span class="b med">Medium</span></td><td>Collector docs contradict config; filter orphans spans</td><td class="ev">docs/otlp.md:53-60; otel-collector-config.yaml</td><td>Fix docs/filter</td></tr>
+<tr><td><b>I-24</b></td><td><span class="b low">Low</span></td><td>Insights parses 7 days of raw payloads</td><td class="ev">otlp.py:604-692</td><td>Columns at ingest</td></tr>
+<tr><td><b>I-25</b></td><td><span class="b low">Low</span></td><td>SDK transport issues (4xx retries, atexit, TS queue)</td><td class="ev">transport.py:109-140; transport.ts:62-104</td><td>Fix</td></tr>
+<tr><td><b>I-26</b></td><td><span class="b low">Low</span></td><td>Metrics unused; no retention for batches/deliveries</td><td class="ev">otlp.py:262-289</td><td>Retention</td></tr>
+<tr><td><b>I-27</b></td><td><span class="b low">Low</span></td><td>Single solo worker for everything</td><td class="ev">docker-compose.yml:328</td><td>Separate queues</td></tr>
+</tbody></table></div></details></section>
+<section id="plat"><h2>8 · Platform &amp; Developer Experience</h2><div class="score"><span>Backend 4/10</span><span>Frontend 5/10</span><span>Cohesion 4/10</span><span>30 findings</span></div><ul>
+<li><b>Default credentials</b> (verified): every Compose API start seeds platform admin <code>admin@runledger.local / runledger</code> (verified email), with no environment gate. Helm never sets <code>ENVIRONMENT</code>, so production checks are always skipped.</li>
+<li><b>Backups are the most dangerous surface:</b> org admins point full-cluster <code>pg_dump</code> at their own S3. Secrets come back in plaintext. The default path uses <code>docker exec</code>, which isn't available in the worker.</li>
+<li><b>Feature flags are display-only.</b> Login and session handling are weak: no logout revocation, no login rate limit, membership not re-checked.</li>
+<li><b>Ops gaps:</b> no Celery time limits and a single solo worker; infrastructure ports on 0.0.0.0 without auth; core images built by hand; no security headers; no error.tsx/not-found.tsx; SMTP STARTTLS without certificate verification.</li>
+</ul><div class="tw"><table><thead><tr><th>Sub-feature</th><th>Backend</th><th>Frontend</th><th>Cohesion</th></tr></thead><tbody>
+<tr><td><b>8.1 API Explorer / OpenAPI</b></td><td>/docs, /redoc, /openapi.json always on (lists admin routes); Scalar from CDN unpinned</td><td>Posture summary page</td><td>Help and banner point at different UIs</td></tr>
+<tr><td><b>8.2 Help Hub</b></td><td>—</td><td>Links to build-time API base</td><td>—</td></tr>
+<tr><td><b>8.3 Platform admin &amp; settings</b></td><td>/settings mixes platform/org/workspace scopes; prod validation skipped in dev and incomplete; /health 200 when degraded; metrics token falls back to admin secret</td><td>Default tab compliance; org admins hit swallowed 403s</td><td>Three overlapping backup paths</td></tr>
+<tr><td><b>8.4 Shell &amp; auth</b></td><td>—</td><td>JWT carries the raw key and client-updatable roles; login shows one error for everything; no error boundaries; 10 UI primitives; 58 hex classes; no CSP</td><td>Admin surfaces spread over 4 pages</td></tr>
+</tbody></table></div><details open><summary>Findings (30)</summary><div class="tw"><table><thead><tr><th>ID</th><th>Sev</th><th>Finding</th><th>Evidence</th><th>Fix</th></tr></thead><tbody>
+<tr><td><b>P-01</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Compose seeds a default platform admin on every start</td><td class="ev">apps/api/scripts/start.sh:22; seed.py:151-172</td><td>Dev-only seed; bootstrap flow; refuse default</td></tr>
+<tr><td><b>P-02</b> <span class='b v'>✓</span></td><td><span class="b crit">Critical</span></td><td>Org admin can pg_dump the whole cluster to their own S3</td><td class="ev">routers/settings.py:908-946; backup_ops.py:71-88</td><td>Platform-only; allowlist endpoints</td></tr>
+<tr><td><b>P-03</b></td><td><span class="b high">High</span></td><td>Backup secret plaintext and returned; UI shows it in clear</td><td class="ev">models/backup_ops.py:78; settings/page.tsx:1291</td><td>Encrypt; write-only; password input</td></tr>
+<tr><td><b>P-04</b></td><td><span class="b high">High</span></td><td>Helm never sets ENVIRONMENT → dev mode in prod</td><td class="ev">templates/_helpers.tpl:209-255</td><td>Set production; fail closed</td></tr>
+<tr><td><b>P-05</b></td><td><span class="b high">High</span></td><td>Infra ports on 0.0.0.0; Redis no password; MinIO defaults</td><td class="ev">docker-compose.yml:39-186</td><td>Bind localhost; require passwords</td></tr>
+<tr><td><b>P-06</b></td><td><span class="b high">High</span></td><td>Session key in browser JS; logout doesn&#x27;t revoke; never purged</td><td class="ev">lib/auth.ts:176; login.py:71,137-148</td><td>Server logout; BFF; purge job</td></tr>
+<tr><td><b>P-07</b></td><td><span class="b high">High</span></td><td>Membership removal doesn&#x27;t end access</td><td class="ev">core/deps.py:63-108</td><td>Store user_id; re-check membership</td></tr>
+<tr><td><b>P-08</b></td><td><span class="b high">High</span></td><td>/auth/login no rate limit; bcrypt on event loop; enumeration</td><td class="ev">routers/login.py:74-88</td><td>Limiter; to_thread; dummy hash</td></tr>
+<tr><td><b>P-09</b></td><td><span class="b high">High</span></td><td>SMTP STARTTLS without certificate verification; no timeout</td><td class="ev">services/email.py:41-44</td><td>ssl context; timeout; 465</td></tr>
+<tr><td><b>P-10</b></td><td><span class="b med">Medium</span></td><td>Email templates unescaped (HTML/phishing injection)</td><td class="ev">services/email.py:287-330</td><td>html.escape / Jinja autoescape</td></tr>
+<tr><td><b>P-11</b></td><td><span class="b med">Medium</span></td><td>Feature flags display-only</td><td class="ev">core/config.py:114-118; settings.py:297</td><td>Wire or remove</td></tr>
+<tr><td><b>P-12</b></td><td><span class="b med">Medium</span></td><td>Celery: no time limits; solo worker; no visibility_timeout</td><td class="ev">core/celery_app.py:34-42</td><td>Limits; queues; prefork</td></tr>
+<tr><td><b>P-13</b></td><td><span class="b med">Medium</span></td><td>Core images not built in CI; mutable tags; Helm registry mismatch</td><td class="ev">images.yml:53-66; values.yaml:5-12</td><td>CI builds, immutable tags</td></tr>
+<tr><td><b>P-14</b></td><td><span class="b med">Medium</span></td><td>Prod validation bypassable and incomplete</td><td class="ev">core/config.py:132-151</td><td>Invert default; more checks</td></tr>
+<tr><td><b>P-15</b></td><td><span class="b med">Medium</span></td><td>Metrics token falls back to admin secret; non-constant compare</td><td class="ev">routers/health.py:28-36</td><td>Separate token; compare_digest</td></tr>
+<tr><td><b>P-16</b></td><td><span class="b med">Medium</span></td><td>No security headers or CSP; credentials CORS</td><td class="ev">main.py:83-89; next.config.mjs</td><td>Headers middleware</td></tr>
+<tr><td><b>P-17</b></td><td><span class="b med">Medium</span></td><td>Rate limiter fixed window; keys by proxy IP; defaults off</td><td class="ev">core/ratelimit.py; config.py:84-88</td><td>Sliding window; key id; trusted proxies</td></tr>
+<tr><td><b>P-18</b></td><td><span class="b med">Medium</span></td><td>SSO redirect_uri client-supplied vs APP_BASE_URL</td><td class="ev">login/page.tsx:51-55; login.py:316-536</td><td>Server-built redirect</td></tr>
+<tr><td><b>P-19</b></td><td><span class="b med">Medium</span></td><td>/health 200 when degraded; readiness incomplete</td><td class="ev">routers/health.py:39-103</td><td>503; migration and beat checks</td></tr>
+<tr><td><b>P-20</b></td><td><span class="b med">Medium</span></td><td>Helm beat PersistentScheduler on unwritable path</td><td class="ev">beat-deployment.yaml:42-48</td><td>emptyDir or redbeat</td></tr>
+<tr><td><b>P-21</b></td><td><span class="b med">Medium</span></td><td>Default backup uses docker exec (no docker in worker)</td><td class="ev">localai_s3_backup.py:146-160</td><td>Network pg_dump</td></tr>
+<tr><td><b>P-22</b></td><td><span class="b med">Medium</span></td><td>Restore drill skips BACKUP_ENABLED gate</td><td class="ev">settings.py:960-967</td><td>Same gate; platform admin</td></tr>
+<tr><td><b>P-23</b></td><td><span class="b low">Low</span></td><td>Seeded raw API key logged to bind-mounted file</td><td class="ev">start.sh:24-29</td><td>Don&#x27;t log keys</td></tr>
+<tr><td><b>P-24</b></td><td><span class="b low">Low</span></td><td>No error.tsx / global-error / not-found</td><td class="ev">apps/web/app</td><td>Add boundaries</td></tr>
+<tr><td><b>P-25</b></td><td><span class="b low">Low</span></td><td>Layout auth probe lists all keys per render; fails open</td><td class="ev">(dashboard)/layout.tsx:19-28</td><td>GET /auth/me</td></tr>
+<tr><td><b>P-26</b></td><td><span class="b low">Low</span></td><td>JWT roles cached 30 days; client update accepted</td><td class="ev">lib/auth.ts:161-207</td><td>Server refresh</td></tr>
+<tr><td><b>P-27</b></td><td><span class="b low">Low</span></td><td>No PII redaction in logs</td><td class="ev">core/logging.py:10-33</td><td>Redaction processor</td></tr>
+<tr><td><b>P-28</b></td><td><span class="b low">Low</span></td><td>UI library gaps drive confirm()/hex classes</td><td class="ev">components/ui</td><td>shadcn Dialog/Tabs; lint</td></tr>
+<tr><td><b>P-29</b></td><td><span class="b low">Low</span></td><td>CI gaps (alembic on Postgres, docker build, helm lint, scans)</td><td class="ev">ci.yml:1-80</td><td>Add jobs</td></tr>
+<tr><td><b>P-30</b></td><td><span class="b low">Low</span></td><td>API key verified twice per request</td><td class="ev">core/deps.py:63,92</td><td>Cache on request.state</td></tr>
+</tbody></table></div></details></section>
+<section id="roadmap"><h2>Remediation roadmap</h2>
+<div class="grid g2">
+<div class="card"><h3>Week 0–1 · Stop-ship security</h3><ol>
+<li>Separate identity from membership: invitations need acceptance, org admins can't edit global users, IdP links only inside the tenant (A-01, A-02, A-03).</li>
+<li>Gate the default seed behind dev only; set ENVIRONMENT=production in Helm and fail closed (P-01, P-04, P-14).</li>
+<li>Backups platform-admin only with encrypted, write-only secrets (P-02/I-03, P-03).</li>
+<li>Authenticate or remove the webhook ingest; add ownership checks in the pipeline (I-01, I-02).</li>
+<li>From pass 2: disable guardrail exec(); validate route base_url/env var.</li>
+<li>Encrypt all stored secrets and redact them from responses (S-03, S-04, G-05, B-09, F-15).</li></ol></div>
+<div class="card"><h3>Weeks 2–3 · Sessions, authorization, audit</h3><ol>
+<li>Session revocation on logout, deactivation and switch; re-check membership; short TTL plus a BFF (A-04, A-07, P-06, P-07).</li>
+<li>Login rate limit and lockout; OIDC nonce/PKCE with Redis state (A-06, A-11, S-14).</li>
+<li>One role matrix; admin dependencies on all mutations; enforce key scopes (G-17, B-22, S-05).</li>
+<li>Audit events with actor, inside the transaction, covering every mutation (S-02, S-16, A-08, G-10).</li></ol></div>
+<div class="card"><h3>Weeks 3–5 · Fix what's broken</h3><ol>
+<li>Fix all the 404/500 endpoints and the crashing workers (B-01, B-04, B-05, B-06, B-12, G-07, G-08, F-07, S-01).</li>
+<li>Replace <code>.catch(() =&gt; {})</code> with per-card error states; add error.tsx; a contract test that every <code>lib/api.ts</code> path exists in OpenAPI.</li>
+<li>Pipeline savepoints, retry, DLQ, field limits; enrichment starvation fix (I-05, I-06, I-14, F-06).</li>
+<li>Explorer and Runs filter fixes; unified outcomes (O-01, O-02, O-03, O-11).</li></ol></div>
+<div class="card"><h3>Weeks 5–8 · Cohesion</h3><ol>
+<li>One billable-cost definition and one observability query service backed by rollups (F-10, O-06, O-16).</li>
+<li>One budget primitive (scope: workspace/workflow/key/model/group) enforced in preflight (G-01, G-02, pass 2 B-01).</li>
+<li>One ToolPolicy engine for check, MCP, dry run and gateway (S-06, S-07).</li>
+<li>Workflow = feature_tag with run attribution on GatewayRequest and GuardrailEvent (B-11, G-19, I-07).</li>
+<li>Close the improve loop through Flywheel; Playground, evals and judge through the gateway (B-10, B-20).</li>
+<li>Generate Postman from OpenAPI; fix docs and onboarding snippets (all agents).</li></ol></div>
+</div></section>
+<section id="method"><h2>Method &amp; verification</h2><ul>
+<li>8 general-purpose agents ran in parallel, one per major feature, read-only, with no server access. Each was given the sub-feature map, code locations and known findings from passes 1–3, and asked for backend, frontend and cohesion analysis with file:line evidence and a confidence rating.</li>
+<li>The agents were interrupted once by a usage limit and resumed from their saved transcripts. Each reported independently; there was no cross-agent coordination, so a few findings appear under two features (e.g. backups P-02 and I-03; enrichment starvation F-06 and I-06). They are counted under each feature.</li>
+<li>18 high-severity claims were spot-checked against source by the reviewer, marked <span class="b v">✓</span>: A-01, A-02, B-01, B-04, B-06, F-01, F-07, G-03, G-08, I-01, I-02, O-01, O-03, P-01, P-02, S-01, S-02, S-03. All held. One count was corrected during checking: the 20 double-prefixed routes were confirmed after accounting for multi-line decorators.</li>
+<li>Line numbers refer to the working tree at review time (master now includes PR #62, Claude Code log ingestion). Findings not marked ✓ are the agents' code-level analysis and should be confirmed during remediation.</li>
+</ul></section></main></div></body></html>
