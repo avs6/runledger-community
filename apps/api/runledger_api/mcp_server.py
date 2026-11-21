@@ -11,12 +11,15 @@ It can also run as a local stdio server for desktop clients and development.
 
 from __future__ import annotations
 
+import functools
 import os
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal, cast
 
+import anyio.to_thread
 import httpx
 from mcp.server.fastmcp import FastMCP
 
@@ -33,6 +36,44 @@ mcp = FastMCP(
         "query optimization opportunities."
     ),
 )
+
+
+def _off_event_loop(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a blocking handler so FastMCP awaits it in a worker thread.
+
+    FastMCP calls sync handlers directly on the event loop. These handlers make
+    blocking HTTP calls back into this same API process, so running them inline
+    blocks the loop that has to serve that request and every call times out.
+    """
+
+    @functools.wraps(fn)
+    async def run_in_thread(*args: Any, **kwargs: Any) -> Any:
+        return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+
+    return run_in_thread
+
+
+def _tool(**kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Like ``mcp.tool()``, but runs the tool off the event loop.
+
+    Returns the original function so tools can still call each other directly.
+    """
+
+    def register(fn: Callable[..., Any]) -> Callable[..., Any]:
+        mcp.tool(**kwargs)(_off_event_loop(fn))
+        return fn
+
+    return register
+
+
+def _resource(uri: str, **kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Like ``mcp.resource()``, but runs the handler off the event loop."""
+
+    def register(fn: Callable[..., Any]) -> Callable[..., Any]:
+        mcp.resource(uri, **kwargs)(_off_event_loop(fn))
+        return fn
+
+    return register
 
 
 def _headers() -> dict[str, str]:
@@ -78,7 +119,7 @@ def _decimal_to_str(value: float | int | str | Decimal | None) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool(name="runledger.budget_check")
+@_tool(name="runledger.budget_check")
 def runledger_budget_check(
     end_user_id: str | None = None,
     feature_tag: str | None = None,
@@ -92,7 +133,7 @@ def runledger_budget_check(
     return _get("/budgets/check", params)
 
 
-@mcp.tool(name="runledger.policy_check")
+@_tool(name="runledger.policy_check")
 def runledger_policy_check(
     end_user_id: str | None = None,
     feature_tag: str | None = None,
@@ -111,7 +152,7 @@ def runledger_policy_check(
     )
 
 
-@mcp.tool(name="runledger.recommend_route")
+@_tool(name="runledger.recommend_route")
 def runledger_recommend_route(
     model_alias: str,
     end_user_id: str | None = None,
@@ -147,7 +188,7 @@ def runledger_recommend_route(
     }
 
 
-@mcp.tool(name="runledger.record_run_start")
+@_tool(name="runledger.record_run_start")
 def runledger_record_run_start(
     run_id: str | None = None,
     end_user_id: str | None = None,
@@ -177,7 +218,7 @@ def runledger_record_run_start(
     return {"accepted": 1, "run_id": resolved_run_id}
 
 
-@mcp.tool(name="runledger.record_span")
+@_tool(name="runledger.record_span")
 def runledger_record_span(
     run_id: str,
     name: str,
@@ -215,7 +256,7 @@ def runledger_record_span(
     return {"accepted": len(events), "span_id": resolved_span_id}
 
 
-@mcp.tool(name="runledger.record_tool_call")
+@_tool(name="runledger.record_tool_call")
 def runledger_record_tool_call(
     run_id: str,
     tool_name: str,
@@ -242,7 +283,7 @@ def runledger_record_tool_call(
     return {"accepted": 1}
 
 
-@mcp.tool(name="runledger.record_model_call")
+@_tool(name="runledger.record_model_call")
 def runledger_record_model_call(
     run_id: str,
     provider: str,
@@ -277,7 +318,7 @@ def runledger_record_model_call(
     return {"accepted": 1}
 
 
-@mcp.tool(name="runledger.record_outcome")
+@_tool(name="runledger.record_outcome")
 def runledger_record_outcome(
     run_id: str,
     outcome_type: str,
@@ -312,7 +353,7 @@ def runledger_record_outcome(
     return {"accepted": len(events), "run_id": run_id}
 
 
-@mcp.tool(name="runledger.query_runs")
+@_tool(name="runledger.query_runs")
 def runledger_query_runs(
     limit: int = 20,
     status: str | None = None,
@@ -333,7 +374,7 @@ def runledger_query_runs(
     return _get("/runs", params)
 
 
-@mcp.tool(name="runledger.query_costs")
+@_tool(name="runledger.query_costs")
 def runledger_query_costs(
     from_date: str | None = None,
     to_date: str | None = None,
@@ -351,7 +392,7 @@ def runledger_query_costs(
     }
 
 
-@mcp.tool(name="runledger.query_optimizations")
+@_tool(name="runledger.query_optimizations")
 def runledger_query_optimizations(
     status: str = "pending",
     limit: int = 20,
@@ -373,7 +414,7 @@ def runledger_query_optimizations(
     return data
 
 
-@mcp.tool(name="runledger.filter_mcp_tool")
+@_tool(name="runledger.filter_mcp_tool")
 def runledger_filter_mcp_tool(
     tool_name: str,
     end_user_id: str | None = None,
@@ -394,7 +435,7 @@ def runledger_filter_mcp_tool(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@_tool()
 def list_runs(
     limit: int = 20,
     status: str | None = None,
@@ -410,13 +451,13 @@ def list_runs(
     )
 
 
-@mcp.tool()
+@_tool()
 def get_run(run_id: str) -> dict[str, Any]:
     """Get full details of a single agent run."""
     return _get(f"/runs/{run_id}")
 
 
-@mcp.tool()
+@_tool()
 def get_analytics_summary(
     from_date: str | None = None, to_date: str | None = None
 ) -> dict[str, Any]:
@@ -429,7 +470,7 @@ def get_analytics_summary(
     return _get("/analytics/summary", params)
 
 
-@mcp.tool()
+@_tool()
 def get_spend_by_model(from_date: str | None = None, to_date: str | None = None) -> dict[str, Any]:
     """Get cost breakdown by model."""
     params: dict[str, Any] = {}
@@ -440,49 +481,49 @@ def get_spend_by_model(from_date: str | None = None, to_date: str | None = None)
     return _get("/analytics/spend-by-model", params)
 
 
-@mcp.tool()
+@_tool()
 def list_budgets() -> dict[str, Any]:
     """List workspace budgets."""
     return _get("/budgets")
 
 
-@mcp.tool()
+@_tool()
 def check_budget(end_user_id: str | None = None, feature_tag: str | None = None) -> dict[str, Any]:
     """Check workspace budgets. Prefer runledger.budget_check for new clients."""
     return runledger_budget_check(end_user_id=end_user_id, feature_tag=feature_tag)  # type: ignore[no-any-return]
 
 
-@mcp.tool()
+@_tool()
 def list_alert_rules() -> dict[str, Any]:
     """List alert rules."""
     return _get("/alerts/rules")
 
 
-@mcp.tool()
+@_tool()
 def get_alert_history(limit: int = 20) -> dict[str, Any]:
     """Get recent alert firings."""
     return _get("/alerts/history", {"limit": min(limit, 100)})
 
 
-@mcp.tool()
+@_tool()
 def list_prompts() -> dict[str, Any]:
     """List registered prompts."""
     return _get("/prompts")
 
 
-@mcp.tool()
+@_tool()
 def get_prompt(name: str, environment: str = "production") -> dict[str, Any]:
     """Get the latest prompt version."""
     return _get(f"/prompts/{name}/latest", {"environment": environment})
 
 
-@mcp.tool()
+@_tool()
 def get_cost_regressions() -> dict[str, Any]:
     """Detect workflows whose cost per run regressed."""
     return _get("/analytics/regressions")
 
 
-@mcp.tool()
+@_tool()
 def get_sessions(limit: int = 20) -> dict[str, Any]:
     """List recent multi-turn sessions."""
     return _get("/sessions", {"limit": min(limit, 100)})
@@ -493,7 +534,7 @@ def get_sessions(limit: int = 20) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@mcp.resource("runledger://orgs/{org_id}/summary")
+@_resource("runledger://orgs/{org_id}/summary")
 def org_summary(org_id: str) -> str:
     """Current org summary. API-key scope controls which data is returned."""
     try:
@@ -509,7 +550,7 @@ def org_summary(org_id: str) -> str:
         return f"Unable to fetch organization summary: {exc}"
 
 
-@mcp.resource("runledger://workspaces/{workspace_id}/budget")
+@_resource("runledger://workspaces/{workspace_id}/budget")
 def workspace_budget(workspace_id: str) -> str:
     """Workspace budget state."""
     try:
@@ -518,7 +559,7 @@ def workspace_budget(workspace_id: str) -> str:
         return f"Unable to fetch budget for {workspace_id}: {exc}"
 
 
-@mcp.resource("runledger://workspaces/{workspace_id}/routes")
+@_resource("runledger://workspaces/{workspace_id}/routes")
 def workspace_routes(workspace_id: str) -> str:
     """Workspace routing availability from policy checks."""
     return (
@@ -527,7 +568,7 @@ def workspace_routes(workspace_id: str) -> str:
     )
 
 
-@mcp.resource("runledger://workspaces/{workspace_id}/provider-profiles")
+@_resource("runledger://workspaces/{workspace_id}/provider-profiles")
 def workspace_provider_profiles(workspace_id: str) -> str:
     """Workspace provider pricing/profile guidance."""
     try:
@@ -536,7 +577,7 @@ def workspace_provider_profiles(workspace_id: str) -> str:
         return f"Unable to fetch provider profiles for {workspace_id}: {exc}"
 
 
-@mcp.resource("runledger://workspaces/{workspace_id}/recent-runs")
+@_resource("runledger://workspaces/{workspace_id}/recent-runs")
 def workspace_recent_runs(workspace_id: str) -> str:
     """Recent runs for a workspace."""
     try:
@@ -545,13 +586,13 @@ def workspace_recent_runs(workspace_id: str) -> str:
         return f"Unable to fetch recent runs for {workspace_id}: {exc}"
 
 
-@mcp.resource("runledger://workspaces/{workspace_id}/optimization-recommendations")
+@_resource("runledger://workspaces/{workspace_id}/optimization-recommendations")
 def workspace_optimization_recommendations(workspace_id: str) -> str:
     """Optimization recommendations for a workspace."""
     return str(runledger_query_optimizations(limit=20))
 
 
-@mcp.resource("runledger://runs/{run_id}/trace")
+@_resource("runledger://runs/{run_id}/trace")
 def run_trace(run_id: str) -> str:
     """Run trace graph and detail for request exploration."""
     try:
@@ -560,7 +601,7 @@ def run_trace(run_id: str) -> str:
         return f"Unable to fetch run trace {run_id}: {exc}"
 
 
-@mcp.resource("runledger://policies/{workspace_id}/tool-policy")
+@_resource("runledger://policies/{workspace_id}/tool-policy")
 def workspace_tool_policy(workspace_id: str) -> str:
     """Tool registry policy for a workspace."""
     try:
@@ -569,7 +610,7 @@ def workspace_tool_policy(workspace_id: str) -> str:
         return f"Unable to fetch tool policy for {workspace_id}: {exc}"
 
 
-@mcp.resource("runledger://docs/agent-instructions")
+@_resource("runledger://docs/agent-instructions")
 def agent_instructions() -> str:
     """Default instructions agents should follow when connected to RunLedger."""
     return (
@@ -581,7 +622,7 @@ def agent_instructions() -> str:
     )
 
 
-@mcp.resource("runledger://workspace/stats")
+@_resource("runledger://workspace/stats")
 def workspace_stats() -> str:
     """Backward-compatible workspace KPI snapshot."""
     return org_summary("current")  # type: ignore[no-any-return]

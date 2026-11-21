@@ -52,9 +52,47 @@ def _jsonrpc_error(message_id: Any, code: int, message: str) -> dict[str, Any]:
 
 
 _SESSION_ID: str | None = None  # streamable HTTP session, returned by initialize
+# The client's initialize request, kept so the bridge can open a new session
+# when the server forgets the old one (e.g. after a RunLedger restart).
+_INIT_PAYLOAD: dict[str, Any] | None = None
+
+
+def _is_session_lost(exc: error.HTTPError, body: str) -> bool:
+    return exc.code == 404 or (exc.code == 400 and "session" in body.lower())
+
+
+def _reinitialize() -> None:
+    """Open a new MCP session by replaying the client's initialize handshake."""
+    global _SESSION_ID
+    _SESSION_ID = None
+    _send(_INIT_PAYLOAD)
+    _send({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
 
 def _post_to_runledger(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Forward a message, reopening the session once if the server lost it."""
+    global _INIT_PAYLOAD
+    if isinstance(payload, dict) and payload.get("method") == "initialize":
+        _INIT_PAYLOAD = payload
+    try:
+        return _send(payload)
+    except error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        if (
+            _SESSION_ID
+            and _INIT_PAYLOAD is not None
+            and payload is not _INIT_PAYLOAD
+            and _is_session_lost(exc, body)
+        ):
+            print(
+                "runledger bridge: MCP session expired, reconnecting", file=sys.stderr, flush=True
+            )
+            _reinitialize()
+            return _send(payload)
+        raise error.HTTPError(exc.url, exc.code, body, exc.headers, None) from exc
+
+
+def _send(payload: dict[str, Any]) -> dict[str, Any] | None:
     global _SESSION_ID
     body = json.dumps(payload).encode("utf-8")
     req = request.Request(
@@ -75,10 +113,12 @@ def _post_to_runledger(payload: dict[str, Any]) -> dict[str, Any] | None:
         raw = resp.read().decode("utf-8")
         if not raw.strip():
             return None
-        if raw.startswith("event:"):
+        if "text/event-stream" in (resp.headers.get("content-type") or ""):
+            # SSE: skip keep-alive comments (": ping ...") and return the first data event.
             for line in raw.splitlines():
-                if line.startswith("data: "):
-                    return json.loads(line.removeprefix("data: "))
+                if line.startswith("data:"):
+                    return json.loads(line.removeprefix("data:").strip())
+            return None
         return json.loads(raw)
 
 
@@ -96,7 +136,11 @@ def main() -> int:
         payload = None
         try:
             payload = json.loads(line)
-            is_notification = not isinstance(payload, dict) or ("id" not in payload) or (payload.get("id") is None)
+            is_notification = (
+                not isinstance(payload, dict)
+                or ("id" not in payload)
+                or (payload.get("id") is None)
+            )
             if is_notification:
                 try:
                     _post_to_runledger(payload)
@@ -108,10 +152,18 @@ def main() -> int:
         except json.JSONDecodeError as exc:
             response = _jsonrpc_error(0, -32700, f"Invalid JSON: {exc}")
         except error.HTTPError as exc:
-            msg_id = payload.get("id") if (isinstance(payload, dict) and payload.get("id") is not None) else 0
-            response = _jsonrpc_error(msg_id, -32000, exc.read().decode("utf-8"))
+            msg_id = (
+                payload.get("id")
+                if (isinstance(payload, dict) and payload.get("id") is not None)
+                else 0
+            )
+            response = _jsonrpc_error(msg_id, -32000, exc.msg)
         except Exception as exc:  # noqa: BLE001 - bridge must report failures to the MCP client
-            msg_id = payload.get("id") if (isinstance(payload, dict) and payload.get("id") is not None) else 0
+            msg_id = (
+                payload.get("id")
+                if (isinstance(payload, dict) and payload.get("id") is not None)
+                else 0
+            )
             response = _jsonrpc_error(msg_id, -32000, str(exc))
 
         if response is not None:
