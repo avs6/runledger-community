@@ -59,6 +59,7 @@ th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)} th{b
 tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 .themebtn{position:fixed;top:14px;right:16px;z-index:5;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
 @media (max-width:1000px){.layout{grid-template-columns:1fr} nav.toc{display:none} main{padding:22px 16px 60px} .g4{grid-template-columns:repeat(2,minmax(0,1fr))} .sub ul{grid-template-columns:1fr} h1{font-size:25px}}
+.fx{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}.fx.ok{color:var(--low);background:var(--low-soft)}.fx.part{color:var(--med);background:var(--med-soft)}
 </style>
 </head>
 <body>
@@ -564,7 +565,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Budget CRUD</li>
 <li><span class="b pt">Partial</span>Live spend (Redis, skips gateway traffic)</li>
 <li><span class="b ok">OK</span>Scope: workspace, end user, feature tag</li>
-<li><span class="b st">Stub</span>Scope: app / access group / API key / provider profile (never accrue)</li>
+<li><span class="b st">Stub</span>Scope: app / access group / API key / provider profile (never accrue) <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: accrue and enforced in gateway</span></li>
 <li><span class="b ok">OK</span>Periods: daily / monthly / total</li>
 <li><span class="b ok">OK</span>Actions: block / notify / downgrade (advisory)</li>
 <li><span class="b st">Stub</span>Actions: throttle / fallback</li>
@@ -658,7 +659,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Rotate with grace hours</li>
 <li><span class="b ok">OK</span>Observe key usage</li>
 <li><span class="b ok">OK</span>Key detail: budget, spend, billing</li>
-<li><span class="b st">Stub</span>Scopes (stored, never enforced)</li>
+<li><span class="b st">Stub</span>Scopes (stored, never enforced) <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: enforced; picker in UI</span></li>
 <li><span class="b na">Missing</span>Expiry field, last used, pagination</li>
 </ul></div>
 
@@ -676,7 +677,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Gateway-routed client guides</li>
 <li><span class="b ok">OK</span>Telemetry / framework hook guides</li>
 <li><span class="b br">Risk</span>Seed demo data (cleanup first, no confirm)</li>
-<li><span class="b br">Risk</span>Reset demo data (shown to all roles)</li>
+<li><span class="b br">Risk</span>Reset demo data (shown to all roles) <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: platform admins only</span></li>
 </ul></div>
 
 <!-- ================= 7 ================= -->
@@ -753,7 +754,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Light / dark theme</li>
 <li><span class="b ok">OK</span>Role-aware sidebar sections</li>
 <li><span class="b hd">Hidden</span>Design system page (internal)</li>
-<li><span class="b br">Risk</span>Browser session holds workspace API key (30 days)</li>
+<li><span class="b br">Risk</span>Browser session holds workspace API key (30 days) <span class="fx part" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Partly resolved: user-bound, 7-day, revocable</span></li>
 </ul></div>
 
 <section id="rollup">
