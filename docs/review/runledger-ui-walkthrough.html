@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunLedger UI Walkthrough</title>
+<meta name="description" content="Page-by-page walkthrough of the RunLedger web UI on the live home-lab deployment: every side-nav item, sub-page and tab, with filters, pagination, CRUD and data state verified against the code.">
+<style>
+:root{
+  --bg:#f7f8fa; --panel:#ffffff; --panel2:#f1f3f7; --ink:#14171f; --ink2:#454b59; --muted:#6b7280;
+  --line:#e3e6ec; --accent:#3b5bdb; --accent-soft:#e7ecff;
+  --crit:#c92a2a; --crit-soft:#ffe8e8; --high:#d9480f; --high-soft:#fff0e6;
+  --med:#b7791f; --med-soft:#fff8e1; --low:#2b8a3e; --low-soft:#e6f6ea; --info:#1971c2; --info-soft:#e7f1fc; --code:#eef0f4;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1117; --panel:#161a23; --panel2:#1c212c; --ink:#e7e9ee; --ink2:#b4bac6; --muted:#8a91a0;
+    --line:#2a303d; --accent:#7c93ff; --accent-soft:#1e2643;
+    --crit:#ff6b6b; --crit-soft:#3a1717; --high:#ff922b; --high-soft:#3a2312; --med:#fcc419; --med-soft:#352c10;
+    --low:#51cf66; --low-soft:#13301b; --info:#4dabf7; --info-soft:#122a40; --code:#222836;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1117; --panel:#161a23; --panel2:#1c212c; --ink:#e7e9ee; --ink2:#b4bac6; --muted:#8a91a0;
+  --line:#2a303d; --accent:#7c93ff; --accent-soft:#1e2643;
+  --crit:#ff6b6b; --crit-soft:#3a1717; --high:#ff922b; --high-soft:#3a2312; --med:#fcc419; --med-soft:#352c10;
+  --low:#51cf66; --low-soft:#13301b; --info:#4dabf7; --info-soft:#122a40; --code:#222836;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.85em;background:var(--code);padding:.1em .35em;border-radius:4px;word-break:break-word}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1440px;margin:0 auto}
+nav.toc{position:sticky;top:0;height:100vh;overflow:auto;padding:26px 16px;border-right:1px solid var(--line);font-size:13.2px}
+nav.toc .brand{font-weight:700;font-size:15px} nav.toc .sub{color:var(--muted);font-size:12px;margin:2px 0 14px}
+nav.toc a{display:block;color:var(--ink2);text-decoration:none;padding:2px 8px;border-radius:6px}
+nav.toc a:hover{background:var(--panel2);color:var(--ink)}
+nav.toc .grp{margin:12px 0 3px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:11px;font-weight:600}
+main{padding:34px 42px 80px;min-width:0}
+.eyebrow{color:var(--accent);font-weight:600;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:31px;line-height:1.15;margin:8px 0 10px;letter-spacing:-.02em}
+h2{font-size:23px;margin:48px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+h3{font-size:17px;margin:0}
+p{margin:8px 0} .lede{font-size:16.5px;color:var(--ink2);max-width:920px} .meta{color:var(--muted);font-size:13px}
+.grid{display:grid;gap:14px} .g4{grid-template-columns:repeat(4,minmax(0,1fr))} .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+.stat .n{font-size:26px;font-weight:700} .stat .l{color:var(--muted);font-size:12.5px}
+.callout{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:8px;margin:14px 0}
+.callout.warn{border-color:var(--high);background:var(--high-soft)} .callout.crit{border-color:var(--crit);background:var(--crit-soft)}
+table{width:100%;border-collapse:collapse;font-size:13.3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--panel2);font-weight:600;font-size:11.5px;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em}
+tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
+.b{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.b.ok{color:var(--low);background:var(--low-soft)} .b.part{color:var(--med);background:var(--med-soft)} .b.stub{color:var(--high);background:var(--high-soft)}
+.b.broken{color:var(--crit);background:var(--crit-soft)} .b.info{color:var(--info);background:var(--info-soft)} .b.mute{color:var(--muted);background:var(--panel2)}
+.y{color:var(--low);font-weight:700} .n0{color:var(--crit);font-weight:700} .pt{color:var(--med);font-weight:700}
+.page{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:12px 0}
+.page .ph{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.page .route{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--muted)}
+.page .facts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:8px 0}
+.page .facts div{background:var(--panel2);border-radius:8px;padding:6px 9px;font-size:12.5px}
+.page .facts b{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.page ul{margin:4px 0 0;padding-left:18px} .page li{margin:3px 0;font-size:14px}
+.page .ev{font-size:12px;color:var(--muted)}
+.themebtn{position:fixed;top:14px;right:16px;z-index:5;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+@media (max-width:1000px){.layout{grid-template-columns:1fr} nav.toc{display:none} main{padding:22px 16px 60px} .g4{grid-template-columns:repeat(2,minmax(0,1fr))} .g2{grid-template-columns:1fr} .page .facts{grid-template-columns:repeat(2,minmax(0,1fr))} h1{font-size:25px}}
+</style>
+</head>
+<body>
+<button class="themebtn" onclick="(function(){var r=document.documentElement;var d=r.getAttribute('data-theme');var isDark=d?d==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.setAttribute('data-theme',isDark?'light':'dark')})()">Toggle theme</button>
+<div class="layout">
+<nav class="toc">
+  <div class="brand">RunLedger · UI Walkthrough</div>
+  <div class="sub">Pass 3 · 21 Nov 2026<br><a href="runledger-technical-review.html">Pass 1</a> · <a href="runledger-code-deep-dive.html">Pass 2</a> · <a href="runledger-feature-catalog.html">Feature catalog</a></div>
+  <div class="grp">Overview</div>
+  <a href="#summary">Summary</a>
+  <a href="#nav">Side-nav map</a>
+  <a href="#broken">Broken links</a>
+  <a href="#matrix">Capability matrix</a>
+  <div class="grp">Observe</div>
+  <a href="#p-overview">Overview</a><a href="#p-runs">Runs · Sessions · Run detail</a><a href="#p-flow">Request Flow · Live</a><a href="#p-explorer">Request Explorer</a><a href="#p-eng">Engineering · Model Usage</a><a href="#p-mon">Monitoring · Telemetry</a><a href="#p-outcomes">Outcomes &amp; ROI</a><a href="#p-hidden-obs">Hidden analytics pages</a>
+  <div class="grp">Build &amp; Improve</div>
+  <a href="#p-agents">Agents</a><a href="#p-workflows">Workflows</a><a href="#p-playground">Playground</a><a href="#p-eval">Evaluation Studio</a><a href="#p-opt">Optimization · Scorecards</a><a href="#p-vs">Vector Stores</a><a href="#p-pipe">Pipeline Designer · Studio</a><a href="#p-hidden-build">Datasets · Experiments · Replay · Runbooks</a>
+  <div class="grp">Gateway &amp; Routing</div>
+  <a href="#p-gateway">Model Gateway (7 tabs)</a><a href="#p-profiles">Provider Profiles</a><a href="#p-guard">Guardrails · Violations</a>
+  <div class="grp">Safety &amp; Governance</div>
+  <a href="#p-tools">Tool Governance</a><a href="#p-mcp">MCP Registry</a><a href="#p-capture">Data Capture</a><a href="#p-security">Security</a><a href="#p-approvals">Approvals</a><a href="#p-audit">Audit Log · Audit Pack</a><a href="#p-alerts">Alert Rules</a><a href="#p-tags">Tags</a>
+  <div class="grp">FinOps</div>
+  <a href="#p-cost">Cost &amp; Savings</a><a href="#p-budgets">Budgets · Detail</a><a href="#p-billing">Billing · Period</a><a href="#p-chargeback">Chargeback</a><a href="#p-ledger">Ledger</a>
+  <div class="grp">Org &amp; Access</div>
+  <a href="#p-org">Organization</a><a href="#p-users">Users · Workspaces · Groups</a><a href="#p-keys">API Keys</a><a href="#p-hub">AI Hub</a><a href="#p-onboard">Onboarding</a>
+  <div class="grp">Platform</div>
+  <a href="#p-platform">API Explorer · Help · Admin</a>
+  <div class="grp">Wrap-up</div>
+  <a href="#fixes">Prioritized UI fixes</a>
+  <a href="#method">Method</a>
+</nav>
+
+<main>
+<div class="eyebrow">Technical due diligence · Pass 3 · Live UI walkthrough</div>
+<h1>Every page, tab and filter, checked against the code</h1>
+<p class="lede">I signed in to the home-lab deployment as <strong>HomeLab Admin</strong> (workspace <em>AgentTest</em>, role WS Admin) and walked every side-nav item, every expandable sub-item, every in-page tab and every reachable sub-page. For each one I recorded headings, tabs, filters, tables, pagination, empty and error states and outgoing links, then checked what I saw against the page and API source. The UI is visually polished and broad. The recurring problems are broken cross-links, read-only screens over full CRUD backends, hard-coded option lists, missing pagination and sorting, and controls whose backend is decorative.</p>
+
+<section id="summary">
+<h2>Summary</h2>
+<div class="grid g4">
+  <div class="card stat"><div class="n">62</div><div class="l">pages and sub-pages walked, plus 31 in-page tabs clicked</div></div>
+  <div class="card stat"><div class="n" style="color:var(--crit)">22</div><div class="l">distinct in-app link targets that return 404, linked from 20+ pages</div></div>
+  <div class="card stat"><div class="n" style="color:var(--high)">19</div><div class="l">nav-hidden routes that silently redirect into another page or tab</div></div>
+  <div class="card stat"><div class="n">1</div><div class="l">sortable table in the whole UI (Model Scorecards)</div></div>
+  <div class="card stat"><div class="n">9</div><div class="l">list views that can grow without bound and have no pagination</div></div>
+  <div class="card stat"><div class="n" style="color:var(--high)">8</div><div class="l">controls shown in the UI whose backend is a stub or ignores them</div></div>
+  <div class="card stat"><div class="n">3</div><div class="l">screens with hard-coded model lists (Playground, Simulator, Run filters)</div></div>
+  <div class="card stat"><div class="n">4</div><div class="l">"posture unavailable" error states rendered on Organization and Budget detail</div></div>
+</div>
+<div class="callout warn"><strong>Biggest UX themes.</strong> (1) The app links to routes that don't exist: <code>/telemetry</code>, <code>/governance</code>, <code>/audit-log</code>, <code>/workspaces</code>, <code>/admin/*</code>, <code>/analytics/*</code> and more. (2) Backends with full CRUD are exposed read-only: Workflows have no create, edit or delete; Agents have no edit or delete; OAuth2/LDAP aren't on the Security page. (3) Pagination is inconsistent: four styles, and none on Routes, API Keys, Alert Rules, Scores or Approvals. (4) The UI offers actions the role or backend can't perform: per-key quota tiers, per-model quotas, Throttle/Fallback budget actions, partner guardrails, demo reset for non-platform admins, and the Ledger link.</div>
+</section>
+
+<section id="nav">
+<h2>Side-nav map (as rendered for WS Admin)</h2>
+<div class="tw"><table>
+<thead><tr><th>Section</th><th>Visible items</th><th>Expandable / hidden</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Observe</td><td>Overview, Runs, Request Flow, Request Explorer, Engineering, Model Usage, Monitoring, Outcomes &amp; ROI</td><td>Request Flow → Live Pipeline (Focus via in-page link). Monitoring → Telemetry.</td><td>Sessions has no nav entry: it's a tab in Runs <em>and</em> a separate <code>/sessions</code> page with a different implementation.</td></tr>
+<tr><td>Build &amp; Improve</td><td>Agents, Workflows, Playground, Evaluation Studio, Optimization, Model Scorecards, Vector Stores, Pipeline Designer</td><td>Datasets, Experiments, Replay, Runbooks, Pipeline Studio, Optimization Simulator are reachable only by URL or in-page links.</td><td>9 items; the bottom of the section scrolls inside the sidebar.</td></tr>
+<tr><td>Gateway &amp; Routing</td><td>Model Gateway, Provider Profiles, Guardrails</td><td>Guardrails → Violations</td><td>Rate limits, response cache, budget tiers and model budgets are tabs inside Model Gateway (old URLs redirect there).</td></tr>
+<tr><td>Safety &amp; Governance</td><td><em>Collapsed by default</em>: Tool Governance, MCP Servers, Data Capture, Security, Approvals, Audit Log, Audit Pack, Alert Rules, Tags</td><td>—</td><td>The sidebar's "MCP Servers" entry points to <code>/mcp</code>, which redirects to <code>/mcp-registry</code>.</td></tr>
+<tr><td>FinOps</td><td>Cost &amp; Savings, Budgets, Billing, Chargeback</td><td>Ledger (link only)</td><td>Ledger redirects into Settings, which is platform-admin-only, so it's a dead end for org and workspace admins.</td></tr>
+<tr><td>Org &amp; Access</td><td>Organization, API Keys, AI Hub, Onboarding</td><td>Organization → Users, Workspaces, Access Groups</td><td>Plugins (<code>/plugins</code>) and Integrations redirect to Onboarding.</td></tr>
+<tr><td>Platform</td><td>API Explorer, Help Hub</td><td>Global Dashboard, All Organizations, Settings (platform admin only)</td><td>Design System is reachable by URL and shipped to customers.</td></tr>
+</tbody></table></div>
+<h3 style="margin-top:18px">Routes that redirect</h3>
+<p class="meta">Verified by fetching each URL in the signed-in session.</p>
+<div class="tw"><table>
+<thead><tr><th>URL</th><th>Lands on</th><th>URL</th><th>Lands on</th></tr></thead>
+<tbody>
+<tr><td><code>/rate-limits</code></td><td>/gateway</td><td><code>/search-tools</code></td><td>/tool-registry</td></tr>
+<tr><td><code>/response-cache</code></td><td>/gateway</td><td><code>/policy-dry-run</code></td><td>/tool-registry</td></tr>
+<tr><td><code>/model-budgets</code></td><td>/gateway</td><td><code>/tool-policies</code></td><td>/tool-registry</td></tr>
+<tr><td><code>/budget-tiers</code></td><td>/gateway</td><td><code>/mcp</code></td><td>/mcp-registry</td></tr>
+<tr><td><code>/budget-overrides</code></td><td>/budgets</td><td><code>/plugins</code>, <code>/integrations</code></td><td>/onboarding</td></tr>
+<tr><td><code>/billing-summary</code></td><td>/billing</td><td><code>/evaluations</code></td><td>/evaluation</td></tr>
+<tr><td><code>/ledger</code></td><td>/settings?tab=compliance (platform only)</td><td><code>/projects</code></td><td>/workspace</td></tr>
+<tr><td><code>/otlp</code></td><td>/monitoring/telemetry</td><td><code>/team-models</code></td><td>/provider-profiles</td></tr>
+<tr><td><code>/dashboard</code>, <code>/organization/dashboard</code></td><td>/analytics</td><td><code>/org-settings</code></td><td>/organization</td></tr>
+</tbody></table></div>
+<p>Consolidating is good. The risk is that many in-app links still target the old URLs, and query parameters, tabs and anchors are dropped on redirect (for example <code>/rate-limits</code> lands on the Gateway <em>Overview</em> tab, not Rate Limits).</p>
+</section>
+
+<section id="broken">
+<h2>Broken in-app links (404)</h2>
+<div class="tw"><table>
+<thead><tr><th>Dead target</th><th>Linked from</th><th>Probably meant</th></tr></thead>
+<tbody>
+<tr><td><code>/telemetry</code></td><td>Run detail, Sessions, Budget detail, Billing</td><td>/monitoring/telemetry</td></tr>
+<tr><td><code>/cache-config</code></td><td>Run detail, Request Explorer</td><td>/gateway?tab=cache</td></tr>
+<tr><td><code>/governance</code></td><td>Model Gateway, Guardrails, Organization, API key detail, API Explorer, Pipeline Studio</td><td>/tool-registry or /governance-pack</td></tr>
+<tr><td><code>/audit-log</code></td><td>Model Gateway, Guardrails, Violations</td><td>/audit</td></tr>
+<tr><td><code>/workspaces</code></td><td>Analytics Users, Security, Alert Rules, Outcomes</td><td>/workspace</td></tr>
+<tr><td><code>/routes</code></td><td>Analytics Users, Evaluation, Experiments, Replay</td><td>/gateway?tab=routes</td></tr>
+<tr><td><code>/model-gateway</code>, <code>/providers</code></td><td>Analytics Users</td><td>/gateway, /provider-profiles</td></tr>
+<tr><td><code>/billing-periods</code></td><td>Budget detail</td><td>/billing</td></tr>
+<tr><td><code>/tools</code></td><td>Organization</td><td>/tool-registry</td></tr>
+<tr><td><code>/admin/settings</code>, <code>/admin/organizations</code></td><td>Model Gateway, API Explorer, Design System</td><td>/settings, /organizations</td></tr>
+<tr><td><code>/analytics/model-usage</code>, <code>/analytics/outcomes</code>, <code>/analytics/engineering</code>, <code>/analytics/runs</code>, <code>/analytics/monitoring</code></td><td>Model Gateway (posture cards)</td><td>/model-usage, /outcomes, /engineering, /runs, /monitoring</td></tr>
+<tr><td><code>/optimization</code>, <code>/scorecards</code>, <code>/budget-notifications</code>, <code>/monitoring/sessions</code></td><td>Model Gateway (posture cards)</td><td>/optimization-opportunities, /model-scorecards, /budgets?tab=notifications, /sessions</td></tr>
+</tbody></table></div>
+<p><strong>Root cause:</strong> links are hand-typed strings in about 100 page files (most inside posture/context cards). <strong>Fix:</strong> a typed route map (<code>lib/routes.ts</code>) plus a CI check that compares every <code>href="/…"</code> literal against <code>app/**/page.tsx</code>.</p>
+</section>
+
+<section id="matrix">
+<h2>Capability matrix</h2>
+<p class="meta"><span class="y">●</span> present &nbsp; <span class="pt">◐</span> partial &nbsp; <span class="n0">○</span> missing &nbsp; — not applicable. "CRUD" means what the UI exposes, not what the API supports.</p>
+<div class="tw"><table>
+<thead><tr><th>Page</th><th>Filters</th><th>Search</th><th>Pagination</th><th>Sort</th><th>Export</th><th>CRUD in UI</th><th>URL state</th><th>Data on prod</th></tr></thead>
+<tbody>
+<tr><td>Overview</td><td><span class="pt">◐</span> time, scope</td><td>—</td><td>—</td><td><span class="n0">○</span></td><td><span class="y">●</span> chart</td><td>—</td><td><span class="y">●</span></td><td>Yes</td></tr>
+<tr><td>Runs</td><td><span class="y">●</span> 11 fields</td><td><span class="pt">◐</span> run-ID prefix</td><td><span class="pt">◐</span> hybrid</td><td><span class="n0">○</span></td><td><span class="y">●</span> CSV+</td><td>—</td><td><span class="y">●</span></td><td>61 runs</td></tr>
+<tr><td>Runs → Sessions tab</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span> (50 cap)</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td>—</td><td><span class="pt">◐</span></td><td>50 shown</td></tr>
+<tr><td>/sessions</td><td><span class="y">●</span></td><td><span class="y">●</span></td><td><span class="y">●</span> page</td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td>—</td><td><span class="n0">○</span></td><td>302</td></tr>
+<tr><td>Request Explorer</td><td><span class="y">●</span> 9 fields</td><td><span class="y">●</span></td><td><span class="y">●</span> server</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td>—</td><td><span class="n0">○</span></td><td>201 "requests"</td></tr>
+<tr><td>Live Pipeline</td><td><span class="y">●</span> status, model</td><td><span class="n0">○</span></td><td>— (feed)</td><td>—</td><td><span class="n0">○</span></td><td>—</td><td><span class="n0">○</span></td><td>Yes</td></tr>
+<tr><td>Monitoring</td><td><span class="y">●</span></td><td><span class="y">●</span></td><td><span class="y">●</span> prev/next</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td>—</td><td><span class="n0">○</span></td><td>Yes</td></tr>
+<tr><td>Outcomes</td><td><span class="y">●</span></td><td><span class="pt">◐</span> type</td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="pt">◐</span> record</td><td><span class="n0">○</span></td><td>0</td></tr>
+<tr><td>Agents</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="pt">◐</span> C only</td><td><span class="n0">○</span></td><td>7</td></tr>
+<tr><td>Workflows</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span> read-only</td><td><span class="n0">○</span></td><td>7</td></tr>
+<tr><td>Playground</td><td>—</td><td>—</td><td><span class="y">●</span> history</td><td>—</td><td><span class="n0">○</span></td><td><span class="n0">○</span> stub</td><td><span class="n0">○</span></td><td>28 fake</td></tr>
+<tr><td>Evaluation → Scores</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span> (50)</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="pt">◐</span> create</td><td><span class="y">●</span> tab</td><td>50+</td></tr>
+<tr><td>Model Scorecards</td><td><span class="pt">◐</span> window</td><td><span class="n0">○</span></td><td>—</td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td>—</td><td><span class="n0">○</span></td><td>7 models</td></tr>
+<tr><td>Gateway → Routes</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span> (27)</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="y">●</span> tab</td><td>27</td></tr>
+<tr><td>Provider Profiles</td><td><span class="y">●</span></td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="pt">◐</span> YAML</td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td>25 models</td></tr>
+<tr><td>Guardrails → Rules</td><td><span class="y">●</span> status</td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span> + bulk</td><td><span class="y">●</span> tab</td><td>18</td></tr>
+<tr><td>Violations</td><td><span class="y">●</span> 3 selects</td><td><span class="y">●</span></td><td><span class="y">●</span> size</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="pt">◐</span> FP mark</td><td><span class="n0">○</span></td><td>Yes</td></tr>
+<tr><td>Tool Governance</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="y">●</span> tab</td><td>3 tools</td></tr>
+<tr><td>Approvals</td><td><span class="y">●</span> status</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td>24</td></tr>
+<tr><td>Audit Log</td><td><span class="y">●</span></td><td><span class="pt">◐</span></td><td><span class="n0">○</span> in UI</td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td>—</td><td><span class="n0">○</span></td><td>4 rows</td></tr>
+<tr><td>Alert Rules</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span> (30)</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td>30</td></tr>
+<tr><td>Budgets</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td>8</td></tr>
+<tr><td>Billing</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span> CSV/JSON</td><td><span class="pt">◐</span> create/close</td><td><span class="n0">○</span></td><td>3</td></tr>
+<tr><td>Chargeback</td><td><span class="y">●</span> period, dim</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="y">●</span> rules</td><td><span class="y">●</span></td><td>Yes</td></tr>
+<tr><td>Users</td><td><span class="y">●</span> chips</td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="n0">○</span></td><td>3</td></tr>
+<tr><td>API Keys</td><td><span class="n0">○</span></td><td><span class="y">●</span></td><td><span class="n0">○</span> (19)</td><td><span class="n0">○</span></td><td><span class="n0">○</span></td><td><span class="y">●</span> + rotate</td><td><span class="n0">○</span></td><td>19</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============ OBSERVE ============ -->
+<h2>Observe</h2>
+
+<div class="page" id="p-overview"><div class="ph"><h3>Overview: Observability Command Center</h3><span class="b part">Functional</span><span class="route">/analytics</span></div>
+<div class="facts"><div><b>Controls</b>Scope Workspace/Org; 24h–90d; 5m–90d</div><div><b>Charts</b>8 (activity, spend, tokens, donut…)</div><div><b>Tables</b>Model × cost/tokens/calls (7)</div><div><b>Filters</b>No model / workflow / key</div><div><b>Pagination</b>n/a</div></div>
+<ul>
+<li>There are <strong>two time pickers</strong> (24h/7d/30d/90d in the header card and 5m…90d below), and two KPI strips that disagree (pass 1).</li>
+<li>Drill-downs work: chips to Request Flow, Explorer, Monitoring, Cost &amp; Savings and Models; recent-run bars link to <code>/runs/:id</code>.</li>
+<li>FEATURE-STATUS describes Gateway, Governance and Org posture cards on this page; none render in workspace scope.</li>
+<li><strong>Missing:</strong> a workflow (feature_tag) breakdown, saved views, and per-card error states. The "Failed to load analytics" global toast fires only when <em>all five</em> loaders fail (<code>AnalyticsBreakdownClient.tsx:1123</code>); partial failures silently show empty cards.</li>
+</ul></div>
+
+<div class="page" id="p-runs"><div class="ph"><h3>Runs · Sessions tab · Run detail</h3><span class="b part">Functional</span><span class="route">/runs · /runs?tab=sessions · /runs/[run_id]</span></div>
+<div class="facts"><div><b>Tabs</b>Overview · Runs · Sessions</div><div><b>Filters</b>Status, model, run ID, feature tag, end user, API key ID, cost min/max, gov. tag, tool, security-only</div><div><b>Time</b>5m–30d + Custom</div><div><b>Pagination</b>20/page over 50 loaded, then "Load more from server"</div><div><b>Export</b>CSV + more options</div></div>
+<ul>
+<li><strong>Hybrid pagination:</strong> the client pages 20 at a time over a 50-row server page (<code>RunsPaginated.tsx:8-27</code>). On the last page a full-page link "Load more from server" <em>replaces</em> the list with the next cursor page. There's no going back except the browser, and the "x of 50 loaded (61 total)" wording is confusing.</li>
+<li>The filter panel is good but exposes <strong>API key ID as a raw UUID text box</strong>. There's no access-group filter (the API supports <code>access_group_id</code>) and no workflow filter. The model filter's suggestion list is hard-coded to OpenAI/Anthropic names (<code>components/runs/RunFilters.tsx:25</code>), not the workspace's models.</li>
+<li><strong>Columns aren't sortable</strong> (no cost-desc, which is the most common FinOps question). There's no column chooser.</li>
+<li><strong>Sessions tab</strong> shows 50 rows with no pagination, filters or search, while the separate <code>/sessions</code> page lists 302 sessions with page-based pagination, filters and export. That's two implementations of one view.</li>
+<li><strong>Run detail:</strong> DAG (zoom/fit), provider-calls and spans tables, and "Evaluate this run" score form. It links to <code>/telemetry</code> and <code>/cache-config</code> (both 404). There's no prompt/response panel here, although Request Explorer has one for the same run. No "replay this run" or "add to dataset" action exists.</li>
+</ul></div>
+
+<div class="page" id="p-flow"><div class="ph"><h3>Request Flow · Focus · Live Pipeline</h3><span class="b part">Functional</span><span class="route">/request-flow · /request-flow/focus · /request-flow/live</span></div>
+<ul>
+<li>The Sankey renders and exports PNG. Mode and metric live only in the URL (<code>mode=request-route-provider-outcome&amp;metric=requests</code>); there are no visible selectors to change them.</li>
+<li>Focus view is a link list of 27 flow nodes and 135 explorer links. It's useful but undiscoverable.</li>
+<li>Live Pipeline: status and model selects, Pause, and a scrolling feed. Most rows say <strong>"untagged"</strong>: workflow/feature tag isn't captured for this traffic, so the product's main grouping key is empty in the live view.</li>
+<li>The platform scope request returns 403 for workspace admins (pass 1), but nothing in the UI explains why that scope is missing.</li>
+</ul></div>
+
+<div class="page" id="p-explorer"><div class="ph"><h3>Request Explorer</h3><span class="b ok">Good</span><span class="route">/request-explorer</span></div>
+<div class="facts"><div><b>Filters</b>Free text, feature, model, provider, tag, tool, key, status, security-only</div><div><b>Pagination</b>Server · Page 1/5 · 201 total</div><div><b>Detail</b>Lifecycle, governance, budget, identity, gateway, prompt &amp; response, calls, tools, outcome, spans</div><div><b>Sort / export</b>None</div><div><b>Links</b>/cache-config (404)</div></div>
+<ul>
+<li>The best investigation surface in the product. It counts <strong>201 "requests"</strong> where Runs and Engineering count <strong>61</strong>. The units differ (provider calls vs runs) but both are labeled as top-line totals.</li>
+<li>Overlaps Runs heavily (two list UIs for the same entity). Recommendation: make Runs the list and Explorer the detail drawer.</li>
+</ul></div>
+
+<div class="page" id="p-eng"><div class="ph"><h3>Engineering · Model Usage</h3><span class="b part">Functional</span><span class="route">/engineering · /model-usage</span></div>
+<ul>
+<li>Both have an "All Access Groups" scope select (good, consistent). Engineering shows a funnel: Received 61 → Routed 48 → Cached 8 → Completed 61 → With outcome 0 → Positive 0. The Errors chart says "No data".</li>
+<li>Model Usage: model table (quality column says "No scores yet") and a route-decision table ("Why", cost delta). It's a natural home for routing-policy effectiveness, but policies are broken (pass 2), so the "Why" column only ever shows priority.</li>
+</ul></div>
+
+<div class="page" id="p-mon"><div class="ph"><h3>Monitoring · Telemetry</h3><span class="b ok">Good</span><span class="route">/monitoring · /monitoring/telemetry</span></div>
+<ul>
+<li>Monitoring tabs: Security (100), Alerts (8), Gateway; type filter, search, 1d/7d/30d; Prev/Next pagination. Telemetry: ingest batches table with Prev/Next and 2 charts.</li>
+<li>Telemetry shows OTLP batches but has no accept/drop ratio or LLM-vs-noise breakdown. That would have surfaced the 92% noise-run problem.</li>
+</ul></div>
+
+<div class="page" id="p-outcomes"><div class="ph"><h3>Outcomes &amp; ROI</h3><span class="b part">Empty</span><span class="route">/outcomes</span></div>
+<ul><li>Window, success and type filters, a manual "Record" button, server pagination (Page 1/1 · 0 total). ROI depends on outcomes that no ingest path creates automatically, so this page is empty on real data. Links to <code>/workspaces</code> (404).</li></ul></div>
+
+<div class="page" id="p-hidden-obs"><div class="ph"><h3>Hidden analytics pages</h3><span class="b mute">Not in nav</span><span class="route">/analytics/economics · /analytics/users · /analytics/breakdown · /sessions</span></div>
+<ul>
+<li><strong>Economics:</strong> version compare (v1 vs v2), cost regressions, annotations (create). "Top Workflows by Cost" is actually the feature-tag table (1 row). These are valuable features with no nav entry.</li>
+<li><strong>Users:</strong> "Top Spenders" with All/Heavy/Anomalous/New chips, but no table renders (empty). Four dead links: <code>/workspaces</code>, <code>/model-gateway</code>, <code>/providers</code>, <code>/routes</code>.</li>
+<li><strong>Breakdown:</strong> no inbound link; duplicates Overview's model table and charts.</li>
+</ul></div>
+
+<!-- ============ BUILD ============ -->
+<h2>Build &amp; Improve</h2>
+
+<div class="page" id="p-agents"><div class="ph"><h3>Agents</h3><span class="b part">Partial CRUD</span><span class="route">/agents · /agents/[id] · /agents/[id]/memory</span></div>
+<ul>
+<li>Card list with "Register Agent" (create). <strong>No search, filter or pagination.</strong> The detail page shows a recent-runs table only: <strong>no edit, delete or archive</strong>, although the API has PUT and DELETE (<code>routers/agents.py:191, 215</code>). The UI calls only <code>createAgent</code>.</li>
+<li>The memory sub-page exists but isn't linked from agent detail.</li>
+</ul></div>
+
+<div class="page" id="p-workflows"><div class="ph"><h3>Workflows</h3><span class="b broken">Read-only</span><span class="route">/workflows · /workflows/[id] · /workflows/[id]/runs/[run_id]</span></div>
+<ul>
+<li><strong>No create, edit, delete or run actions anywhere</strong>, and <code>lib/api.ts</code> has no create/update/delete workflow functions. The backend has full CRUD plus run creation (<code>routers/workflows.py</code>).</li>
+<li>Detail shows "Cost by Step" and one run that is <code>pending · $0.000000 · 0 tokens</code> since 9/10/2026. Nothing executes workflow runs (pass 2).</li>
+<li>This is the product's stated center of gravity, and it's the least interactive page.</li>
+</ul></div>
+
+<div class="page" id="p-playground"><div class="ph"><h3>Playground</h3><span class="b stub">Stub</span><span class="route">/playground</span></div>
+<ul>
+<li>Single/Compare, System prompt, Params, Send; history table (28) with Prev/Next. Every stored response reads <strong>"[Playground request recorded — gateway integration pending]"</strong> or "[Compare result for … — gateway integration pending]", visible on screen.</li>
+<li>The model picker is a hard-coded <code>POPULAR_MODELS</code> list (gpt-4o, gpt-4.1, o3…, <code>PlaygroundClient.tsx:14</code>). None of this workspace's 27 routes (Claude, Qwen, Nemotron, Granite) are offered.</li>
+<li><strong>Fix:</strong> reuse the working pattern from Pipeline Designer's "Inject Request", which posts to <code>/api/gateway/chat/completions</code> (the Next proxy to gateway-rs), and populate models from gateway route aliases.</li>
+</ul></div>
+
+<div class="page" id="p-eval"><div class="ph"><h3>Evaluation Studio (6 tabs)</h3><span class="b part">Partial</span><span class="route">/evaluation?tab=…</span></div>
+<div class="facts"><div><b>Scores</b>Submit score; summary; 50 recent (no pagination)</div><div><b>Experiments</b>1 · New/Run (dry run)</div><div><b>Datasets</b>1 · New</div><div><b>Prompts</b>4 · New · env column</div><div><b>Evaluators</b>"No evaluators yet" + cost-vs-quality table</div></div>
+<ul>
+<li>"Run" on an experiment is a dry run that attaches existing scores, with no LLM calls (pass 2). The UI doesn't say so.</li>
+<li>Datasets appear in three places with different counts: Evaluation → Datasets (1), Replay Lab → Datasets (1, different system), <code>/datasets</code> page (0).</li>
+<li>Replay Lab is a cost projection, not a replay. Rename it or label it.</li>
+</ul></div>
+
+<div class="page" id="p-opt"><div class="ph"><h3>Optimization · Simulator · Model Scorecards</h3><span class="b part">Functional</span><span class="route">/optimization-opportunities · ?tab=simulator · /model-scorecards</span></div>
+<ul>
+<li>Opportunities: 3 recommendation cards with "How recommendations are generated". Good explainability. There's no "apply" action that creates a routing policy, so the improve loop stops here.</li>
+<li>Simulator: the model selects are hard-coded GPT lists (<code>optimization-opportunities/page.tsx:105</code>), so you can't simulate switching to this workspace's Qwen or Claude routes.</li>
+<li>Scorecards: the <strong>only sortable table</strong> in the product (Cost ▼), with 12 columns and a 7/30/90-day window. Use it as the reference implementation for a shared DataTable.</li>
+</ul></div>
+
+<div class="page" id="p-vs"><div class="ph"><h3>Vector Stores</h3><span class="b part">Functional</span><span class="route">/vector-stores · /vector-stores/[id]</span></div>
+<ul><li>Collections (1), Register Store, Setup Guide, Refresh; detail page. No search or pagination (fine at this scale). The link to Agents/Workflows is navigational only; there's no attachment of a store to an agent.</li></ul></div>
+
+<div class="page" id="p-pipe"><div class="ph"><h3>Pipeline Designer · Pipeline Studio</h3><span class="b part">Functional</span><span class="route">/pipeline · /pipeline-studio</span></div>
+<ul>
+<li>Designer: Ingest → Routing → Enforce → Execute → Report stages; counters "Routes 27 · Guardrails 18 · Cache 0 · Policies 0"; Routing/Cache/Compiler toggles; live feed; <strong>Inject Request is real</strong> (posts through the gateway proxy).</li>
+<li>"Cache 0" counts cache <em>profiles</em> while the live feed shows cache hits (41 cache rows in the DB), which reads as a contradiction.</li>
+<li>Pipeline Studio (not in nav) is overlay cards only, with a dead <code>/governance</code> link. It duplicates the Designer; merge or remove it.</li>
+</ul></div>
+
+<div class="page" id="p-hidden-build"><div class="ph"><h3>Datasets · Experiments · Replay · Runbooks</h3><span class="b mute">Not in nav</span></div>
+<ul>
+<li>Standalone pages duplicate Evaluation Studio tabs with different data sources. Experiments and Replay link to <code>/routes</code> (404).</li>
+<li>Runbooks: generated per-run entries with an info/warning/critical filter ("Run … succeeded at 3.0x average cost"). Useful, but orphaned from nav and from Run detail.</li>
+</ul></div>
+
+<!-- ============ GATEWAY ============ -->
+<h2>Gateway &amp; Routing</h2>
+
+<div class="page" id="p-gateway"><div class="ph"><h3>Model Gateway (7 tabs)</h3><span class="b part">Mixed</span><span class="route">/gateway?tab=overview|routes|policies|cache|rate-limits|posture|advanced</span></div>
+<div class="tw"><table>
+<thead><tr><th>Tab</th><th>What's there</th><th>Code-level reality</th></tr></thead>
+<tbody>
+<tr><td>Overview</td><td>Requests 60, cache 8, success 98%, routes 27; FinOps / Observe / Safety / Build chip rows</td><td>Chips link to 10 dead URLs (<code>/analytics/*</code>, <code>/optimization</code>, <code>/scorecards</code>, <code>/admin/*</code>…).</td></tr>
+<tr><td>Routes</td><td>Routing groups ("none yet"), strategy comparison, 27 provider routes; Add Route/Group; per-route Cache/Compiler/Routing toggles</td><td>No search, filter, pagination or sort for 27+ routes. The route form exposes <code>base_url</code> and <code>api_key_env_var</code> unvalidated (pass 2, S-02). "Routing ON" toggles intelligent routing, which 404s.</td></tr>
+<tr><td>Policies</td><td>Add Policy, Routing Log ("Load recent")</td><td>4 of 9 strategies throw and 2 can't switch alias (pass 2, G-01/G-02). The UI gives no warning.</td></tr>
+<tr><td>Cache</td><td>Response cache profiles (none), Add</td><td>Cache keys ignore params and are workspace-shared (G-06/G-07).</td></tr>
+<tr><td>Rate Limits</td><td>Ingest / Analytics / Management / System descriptions; "Gateway-owned runtime throttles", "FinOps-owned quota controls"</td><td><strong>Descriptive only: no inputs or tables.</strong> Per-user RPM is set per route elsewhere. The tab explains instead of controlling.</td></tr>
+<tr><td>Posture</td><td>11 posture cards ("Router Collapse Refresh — Sidecar Architecture Re-Audit", "Consumer Migration Refresh — Stale Reference Asset Re-Audit"…)</td><td>Internal engineering-audit language shipped to customers. 9 KB of text, no actions.</td></tr>
+<tr><td>Advanced</td><td>Benchmarks; pass-through endpoints (CRUD); <strong>API Key Quota Tiers</strong> with per-key assignment table (19 keys); <strong>Per-Model Quotas</strong>; Flywheel (OFF, Run now)</td><td>Per-key tier assignment is <strong>ignored</strong> at runtime: the workspace default tier is used (B-06). Per-model quotas (model budgets) are never checked or incremented (B-01). Both are fully decorative.</td></tr>
+</tbody></table></div>
+<p class="ev">The page is 4,915 lines in one file; tab state is URL-synced (good). Recommendation: split it into real routes (<code>/gateway/routes</code>, <code>/gateway/policies</code>…), delete the Posture tab, and move quota tiers and model quotas into Budgets once they're enforced.</p></div>
+
+<div class="page" id="p-profiles"><div class="ph"><h3>Provider Profiles</h3><span class="b ok">Good</span><span class="route">/provider-profiles</span></div>
+<ul><li>Provider filter, search, scope All/Workspace/Global, Import YAML, Example, Pull Internet (price sync), Add Profile; three provider-grouped pricing tables (25 models). This is where the 28 pricing rows come from. Suggest an "unpriced models seen in traffic" banner that links here.</li></ul></div>
+
+<div class="page" id="p-guard"><div class="ph"><h3>Guardrails (6 tabs) · Violations</h3><span class="b part">Rich UI, unsafe backend</span><span class="route">/guardrails?tab=… · /guardrails/violations</span></div>
+<ul>
+<li><strong>Rules:</strong> 18 rules, search, status chips (all/active/disabled/draft), bulk select with enable/disable, Edit/Regress/Delete. <strong>Filters:</strong> per-category severity selects (Off→Strict). <strong>Test Lab:</strong> ad-hoc test plus saved regression cases. <strong>Alerts</strong> and templates. One of the most complete UIs.</li>
+<li><strong>Partners</strong> tab: CRUD for third-party guardrail partners, but partners are <strong>never evaluated</strong> at runtime and the "health check" sets <code>health_status="healthy"</code> without contacting the partner (<code>routers/guardrails.py:987-1006</code>).</li>
+<li>The custom-logic editor feeds the <code>exec()</code> sandbox (pass 2, S-01).</li>
+<li><strong>Violations:</strong> decision, mode and false-positive selects, page size 25/50/100, search, "Violations only", Prev/Next. Good. Links to <code>/audit-log</code> (404).</li>
+</ul></div>
+
+<!-- ============ GOVERNANCE ============ -->
+<h2>Safety &amp; Governance</h2>
+<p class="meta">The section is collapsed by default in the sidebar.</p>
+
+<div class="page" id="p-tools"><div class="ph"><h3>Tool Governance (4 tabs)</h3><span class="b part">Advisory</span><span class="route">/tool-registry?tab=registry|search|policies|dry-run</span></div>
+<ul><li>Registry (3 tools; policy, status, cost, actions), Search Providers, Policies, Dry Run; Register Tool. No search or pagination. Policies apply only to cooperative clients and the non-executing MCP tool-call endpoint (pass 2).</li></ul></div>
+
+<div class="page" id="p-mcp"><div class="ph"><h3>MCP Registry</h3><span class="b part">Good onboarding, stub calls</span><span class="route">/mcp-registry</span></div>
+<ul>
+<li>Excellent setup wizard: client cards with copyable configs for Claude Desktop, Claude Code, Cursor, Windsurf, Codex, Devin, LiteLLM/Open WebUI and a local stdio bridge. Tabs: Servers (5), Discovered Tools (16), Tool Calls Log (0), Permissions &amp; Policies (0).</li>
+<li>Tool Calls Log is empty because <code>/mcp-registry/tools/call</code> never invokes tools (pass 2, S-04).</li>
+</ul></div>
+
+<div class="page" id="p-capture"><div class="ph"><h3>Data Capture Policy Studio</h3><span class="b ok">Functional</span><span class="route">/data-capture</span></div>
+<ul><li>Global policy (METADATA_ONLY / ERRORS_ONLY / SAMPLED / FULL), scoped overrides, PII testing, Save. Not verified: whether the gateway response cache honors METADATA_ONLY. It stores full responses in <code>prompt_cache</code> regardless.</li></ul></div>
+
+<div class="page" id="p-security"><div class="ph"><h3>Enterprise Security</h3><span class="b part">Partial</span><span class="route">/security</span></div>
+<ul>
+<li>Required-metadata mode Warn/Reject (backend honors reject), allowed regions, OIDC providers (add), IP ACLs with Simulate.</li>
+<li><strong>No UI for OAuth2 or LDAP providers</strong>, though the API has full endpoints (<code>/security/oauth2-providers</code>, <code>/security/ldap-providers</code>). The IP ACL trusts <code>X-Forwarded-For</code> (pass 2).</li>
+<li>Links to <code>/workspaces</code> (404).</li>
+</ul></div>
+
+<div class="page" id="p-approvals"><div class="ph"><h3>Approvals</h3><span class="b part">Ticket queue</span><span class="route">/approvals</span></div>
+<ul><li>Status filter, counters (3 pending · 14 approved · 7 denied · 0 cancelled), Approval Queue and Auto-Approval Policies tabs, Approve/Deny/Cancel, Request Approval. No pagination. Nothing at runtime waits on these approvals (pass 2).</li></ul></div>
+
+<div class="page" id="p-audit"><div class="ph"><h3>Audit Log · Audit Pack</h3><span class="b part">Thin coverage</span><span class="route">/audit · /governance-pack</span></div>
+<ul>
+<li>Action and target filters, Export CSV; <strong>only 4 rows</strong> on an instance with dozens of configuration changes.</li>
+<li>Code: <code>emit_audit_event</code>/<code>log_audit</code> are called from approvals, budgets, guardrails, org, users, prompts, retention, hub and integrations, but <strong>not</strong> from gateway routes, routing policies, pass-through endpoints, API keys/settings, security settings, tool policies, access groups, MCP registry, workflows or agents. Changes to the most sensitive configuration (routes with secrets and egress URLs, API keys) leave no audit trail.</li>
+<li>Audit Pack: date range, Generate, JSON/CSV export.</li>
+</ul></div>
+
+<div class="page" id="p-alerts"><div class="ph"><h3>Alert Rules</h3><span class="b ok">Functional</span><span class="route">/alert-rules</span></div>
+<ul><li>Create form (error rate, P95 latency, avg score, spend velocity, model…; above/below; threshold; window; email), 30 rules (Edit/Delete/Active), Recent Firings (8), Email Reports with "Send Report Now". <strong>30 rules, no pagination or search.</strong> Email is disabled on this instance (<code>EMAIL_ENABLED=false</code>), but the UI doesn't say so.</li></ul></div>
+
+<div class="page" id="p-tags"><div class="ph"><h3>Tag Management</h3><span class="b part">Empty</span><span class="route">/tags</span></div>
+<ul><li>Catalog, auto-tagging rules, simulation, hierarchy; "No tags created yet". Combined with "untagged" everywhere in Live Pipeline, an onboarding prompt here ("80% of runs are untagged → create an auto-tag rule") would close the loop.</li></ul></div>
+
+<!-- ============ FINOPS ============ -->
+<h2>FinOps</h2>
+
+<div class="page" id="p-cost"><div class="ph"><h3>Cost &amp; Savings</h3><span class="b part">Thin</span><span class="route">/cost-savings</span></div>
+<ul><li>Access-group select, "Cost Breakdown — Workspace", then FinOps and Gateway context cards. No chart or table was rendered on this instance. The page is mostly context cards linking elsewhere (19 self-links). Savings are $0 because routing is broken and cache-hit savings aren't attributed to runs.</li></ul></div>
+
+<div class="page" id="p-budgets"><div class="ph"><h3>Budgets · Budget detail</h3><span class="b part">Rich UI, not enforced</span><span class="route">/budgets?tab=… · /budgets/[id]</span></div>
+<ul>
+<li>List: New Budget; Policies / Overrides / Notifications tabs; table (Scope, Period, Limit, <strong>Live Spend</strong>, Action, Controls), 8 budgets. "Live Spend" reads Redis counters that skip gateway traffic (pass 2, B-02).</li>
+<li>Detail: edit form with scope types <em>Workspace · End user · Feature tag · App/workflow · Access group · API key…</em> and actions <em>Block · Notify · Downgrade · Throttle · Fallback</em>. <strong>Throttle</strong> is ignored and <strong>Fallback</strong> is treated as Block by <code>/policies/check</code>. App, access-group and API-key scopes never accrue spend, and the nightly sync overwrites feature/access-group scopes with workspace totals (B-03/B-04).</li>
+<li>Renders "Governance posture unavailable.", "No breaches recorded yet." Links to <code>/billing-periods</code> and <code>/telemetry</code> (both 404).</li>
+<li>The budgets page links to <code>/gateway#gateway-quota-tiers</code> and <code>#gateway-model-quotas</code>, i.e. two more budget systems on another page.</li>
+</ul></div>
+
+<div class="page" id="p-billing"><div class="ph"><h3>Billing · Period detail</h3><span class="b ok">Good</span><span class="route">/billing · /billing/[period_id]</span></div>
+<ul><li>New Period, Close, CSV, Signed JSON; 3 periods. Detail tabs: summary, reconciliation, breakdown, adjustments, exports; readiness signals. Five context cards dilute the page. Links to <code>/telemetry</code> (404).</li></ul></div>
+
+<div class="page" id="p-chargeback"><div class="ph"><h3>Chargeback</h3><span class="b ok">Good</span><span class="route">/chargeback?tab=…</span></div>
+<ul><li>Period select (12 months), dimension select (Workflow tag / Application / API key / Access group / End user / Model / Provider), tabs Overview / Rules / Allocations / Exceptions / Exports, New Rule. This is the one place "Workflow" is a first-class dimension in the UI, and it's backed by feature_tag.</li></ul></div>
+
+<div class="page" id="p-ledger"><div class="ph"><h3>Ledger</h3><span class="b broken">Dead end</span><span class="route">/ledger → /settings?tab=compliance</span></div>
+<ul><li>Linked from Monitoring, Economics, Budgets, Chargeback and Outcomes. For org and workspace admins it lands on "Settings access is limited to platform admins." The product's namesake feature is invisible to the people who own the spend.</li></ul></div>
+
+<!-- ============ ORG ============ -->
+<h2>Org &amp; Access</h2>
+
+<div class="page" id="p-org"><div class="ph"><h3>Organization Console</h3><span class="b part">Functional, errors</span><span class="route">/organization?tab=…</span></div>
+<ul>
+<li>Profile (name, Save, <strong>Suspend</strong>), Destinations (Email, Slack), workspaces table with spend/budget/billing/chargeback/ledger columns, workspace create, members (Add Member), and 4 posture sections.</li>
+<li><strong>Two posture sections render "data is unavailable right now"</strong> (Runtime, Observability). Links to <code>/tools</code> and <code>/governance</code> (404).</li>
+<li>Org-level "Suspend" sits next to "Save" with no visible confirmation step in the extracted UI.</li>
+</ul></div>
+
+<div class="page" id="p-users"><div class="ph"><h3>Users · Workspaces · Access Groups</h3><span class="b ok">Functional</span><span class="route">/users · /users/[id] · /workspace · /access-groups</span></div>
+<ul><li>Users: search, Verified/Active/Unverified chips, New User. Workspaces: search, New, Rename, View/Add members. Access groups: empty state with Create. No pagination on any of them (acceptable at 3 users; the APIs are unpaginated too).</li></ul></div>
+
+<div class="page" id="p-keys"><div class="ph"><h3>API Keys · Key detail</h3><span class="b part">Functional</span><span class="route">/api-keys · /api-keys/[id]</span></div>
+<ul>
+<li>Create (ownership User / Service account / Agent / Org; owner reference; email), search within 19 keys, Edit / Observe / Revoke, Rotation automation with grace hours. Good lifecycle features.</li>
+<li><strong>No scopes selector</strong>, matching the backend, which stores scopes but never enforces them (S-03). No expiry field and no last-used column. No pagination.</li>
+<li>Detail: budget assignment, spend attribution, billing periods; <strong>no actions</strong> (rotate or revoke only from the list). Links to <code>/governance</code> (404).</li>
+</ul></div>
+
+<div class="page" id="p-hub"><div class="ph"><h3>AI Hub</h3><span class="b part">Empty, disconnected</span><span class="route">/ai-hub</span></div>
+<ul><li>Search, provider and tag filters, Sync Provider, Add Model; "No models in the catalog yet". Meanwhile there are 27 routes and 25 priced models. The hub isn't populated from either, so it's a third model catalog next to Routes and Provider Profiles.</li></ul></div>
+
+<div class="page" id="p-onboard"><div class="ph"><h3>Onboarding</h3><span class="b part">Useful, risky actions</span><span class="route">/onboarding</span></div>
+<ul>
+<li>7-step progress (Foundation ✓, FinOps 1/2, Gateway ✓, Safety 4/7…), client connector cards (Claude Code, Codex, Cursor, Windsurf, Devin, LiteLLM, Open WebUI, OpenHands, LangGraph).</li>
+<li><strong>"Seed Demo Data" and "Reset Demo Data" are shown to every admin</strong>, but the API requires platform admin (<code>settings.py:1138</code>), so others get "Failed to trigger demo reset". There's <strong>no confirmation dialog</strong>, and the <em>quick seed runs a cleanup first</em> (<code>scripts/demo_mode.py: _run_seed → cleanup</code>). On a production instance this is a one-click data-loss risk for platform admins. Hide it behind <code>DEMO_MODE=true</code>.</li>
+<li>Plugins and Integrations redirect here, but there's no plugin UI on the page (and plugin execution is simulated, pass 2).</li>
+</ul></div>
+
+<!-- ============ PLATFORM ============ -->
+<h2>Platform</h2>
+<div class="page" id="p-platform"><div class="ph"><h3>API Explorer · Help Hub · Global Dashboard · Organizations · Design System</h3><span class="b part">Mixed</span><span class="route">/api-docs · /help · /global-dashboard · /organizations · /design-system</span></div>
+<ul>
+<li><strong>API Explorer isn't an explorer.</strong> It's built from a single <code>getApiExplorerPosture</code> call that renders "OpenAPI Surface / Endpoint Ownership / Streaming Endpoints / Observe Context" summaries. There's no endpoint list, schema browser or try-it console. Embed Swagger UI/Redoc against <code>/openapi.json</code> instead. Dead links: <code>/governance</code>, <code>/admin/*</code>.</li>
+<li>Help Hub: quick start and feature guides that link into the app. Fine.</li>
+<li>Global Dashboard redirects non-platform users to <code>/analytics</code>. <strong>Organizations</strong> renders a blank page for them (no "insufficient role" message).</li>
+<li>Design System is an internal token and layout reference shipped in the product. It renders an "Error" status sample and links to <code>/admin/*</code> (404).</li>
+</ul></div>
+
+<section id="fixes">
+<h2>Prioritized UI fixes</h2>
+<div class="tw"><table>
+<thead><tr><th>#</th><th>Fix</th><th>Effort</th><th>Impact</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Typed route map + CI dead-link check; fix the 22 broken targets and repoint redirect-era links to tab URLs</td><td>S</td><td>Every page</td></tr>
+<tr><td>2</td><td>Hide or label decorative controls until they're enforced: per-key quota tiers, per-model quotas, Throttle/Fallback actions, partner guardrails, the Routing ON toggle, the Rate Limits tab</td><td>S</td><td>Trust</td></tr>
+<tr><td>3</td><td>Role-aware UI: hide demo seed/reset, the platform scope toggle and Ledger links for non-platform roles; blank pages → explicit 403 state</td><td>S</td><td>Trust, safety</td></tr>
+<tr><td>4</td><td>Shared <code>&lt;DataTable&gt;</code> (server cursor pagination, sort, column chooser, CSV, URL state) using Model Scorecards as the base; apply to Routes, API Keys, Alert Rules, Scores, Approvals, Audit, Sessions, Runs</td><td>M</td><td>Usability at scale</td></tr>
+<tr><td>5</td><td>Workflows CRUD UI (create, edit, archive, link to feature_tag / gateway alias) and Agents edit/delete</td><td>M</td><td>Core product noun</td></tr>
+<tr><td>6</td><td>Playground through gateway-rs (reuse the Inject Request proxy); model lists from route aliases in Playground, Simulator and Run filters</td><td>S–M</td><td>First-run experience</td></tr>
+<tr><td>7</td><td>Merge duplicates: Runs/Sessions tab vs /sessions; Explorer list vs Runs; three dataset views; Pipeline Studio vs Designer; Breakdown vs Overview; AI Hub vs Provider Profiles vs Routes</td><td>M</td><td>Clarity</td></tr>
+<tr><td>8</td><td>Remove the Gateway Posture tab and the posture/context cards; replace with a lazy "Related" drawer</td><td>M</td><td>Clarity, speed</td></tr>
+<tr><td>9</td><td>Security page: OAuth2/LDAP provider UI; API key scopes and expiry fields</td><td>S</td><td>Enterprise readiness</td></tr>
+<tr><td>10</td><td>Real API Explorer (Swagger/Redoc); remove Design System from customer builds</td><td>S</td><td>Developer experience</td></tr>
+<tr><td>11</td><td>Expose Ledger to org admins; add nav entries for Economics, Sessions and Runbooks, or fold them into existing pages</td><td>S</td><td>Discoverability</td></tr>
+<tr><td>12</td><td>Label units consistently: "runs" vs "model calls" vs "requests"; Cache count = entries + profiles</td><td>S</td><td>Data trust</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="method">
+<h2>Method</h2>
+<ul>
+<li>Driven in the owner's Chrome via Claude in Chrome, signed in as HomeLab Admin (WS Admin, workspace AgentTest). No create, update or delete actions were performed; only tabs and pagination controls were clicked.</li>
+<li>For each page, a read-only DOM extractor recorded headings, tabs, selects, inputs, buttons, tables (headers + row counts), pagination text, empty/error strings, toasts and outgoing in-app links. Links were then fetched in the signed-in session to classify them as 200, redirect or 404.</li>
+<li>Findings were cross-checked against <code>apps/web</code> (page components, <code>lib/api.ts</code>) and <code>apps/api</code> (routers and services). File references point to the working tree at review time.</li>
+<li>Pages requiring platform admin (Settings, Global Dashboard, All Organizations) were observed only as their access-denied or redirect state.</li>
+<li>Corrections to earlier passes found during this walk: Runs <em>does</em> have a status filter and a "Load more from server" link; required-metadata <em>reject</em> mode works; rate limits, response cache, budget tiers and model budgets are tabs inside Model Gateway rather than orphan pages.</li>
+</ul>
+</section>
+</main>
+</div>
+</body>
+</html>
