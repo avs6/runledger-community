@@ -86,3 +86,22 @@ Create workspace API keys from **Control Plane -> API Keys** in the dashboard. O
     The typed client.
   </Card>
 </CardGroup>
+
+## Pagination
+
+List endpoints take `?limit=` (default 200, max 1000) and `?offset=`. Response bodies are
+unchanged; the full size comes back in headers:
+
+| Header | Meaning |
+|---|---|
+| `X-Total-Count` | Rows matching the filters |
+| `X-Has-More` | `true` when more rows follow this page |
+
+```bash
+curl -i "http://localhost:8201/prompts?limit=50&offset=100" -H "Authorization: Bearer $KEY"
+```
+
+Covered: API keys, users, org members, prompts, gateway routes, alert rules, budgets and
+notifications, billing periods, chargeback report rows, annotations, regressions, replay
+datasets and experiments, evaluators, MCP servers and tools, hub models, ledger snapshots,
+security events, email log. Runs (cursor) and sessions (page) keep their existing paging.

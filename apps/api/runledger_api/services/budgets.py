@@ -23,7 +23,6 @@ from redis.asyncio import Redis
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.core.config import settings
 from runledger_api.models import AgentRun, ProviderCall
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.budgets import (
@@ -949,11 +948,10 @@ async def send_notification(
 
     check_url(notification.destination_url)  # SSRF: re-checked at send time
     body = json.dumps(payload, sort_keys=True).encode()
-    sig = hmac.new(
-        settings.secret_key.encode(),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
+    from runledger_api.services.billing_signing import webhook_secret  # noqa: PLC0415
+
+    secret = webhook_secret(notification.id, int(getattr(notification, "signing_version", 1) or 1))
+    sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.post(

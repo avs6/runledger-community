@@ -299,7 +299,15 @@ class IpAclRule(Base):
     scope_type: Mapped[str] = mapped_column(
         sa.String(32), nullable=False, server_default=sa.text("'workspace'")
     )
+    # Legacy: team rules that migration 095 couldn't map to an access group. They never
+    # match; the Security page lists them for reassignment (review G-18).
     team_name: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    access_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("access_groups.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     cidr: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     action: Mapped[str] = mapped_column(
         sa.String(8), nullable=False, server_default=sa.text("'allow'")

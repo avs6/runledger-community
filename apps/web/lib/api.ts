@@ -785,7 +785,14 @@ export async function listChargebackRules(apiKey: string): Promise<ChargebackRul
 
 export async function createChargebackRule(
   apiKey: string,
-  body: { allocation_type: string; dimension: string; weight: string; cost_center_id?: string | null; require_approval?: boolean }
+  body: {
+    allocation_type: 'direct' | 'shared_weight'
+    dimension: string
+    dimension_value: string
+    weight: string
+    cost_center_id: string
+    require_approval?: boolean
+  }
 ): Promise<ChargebackRuleResponse> {
   return apiFetch<ChargebackRuleResponse>('/billing/chargeback-rules', apiKey, {
     method: 'POST',
@@ -797,11 +804,12 @@ export async function updateChargebackRule(
   apiKey: string,
   ruleId: string,
   body: {
-    allocation_type?: string
+    allocation_type?: 'direct' | 'shared_weight'
     dimension?: string
+    dimension_value?: string
     weight?: string
-    cost_center_id?: string | null
-    status?: 'active' | 'inactive' | 'pending_approval' | 'denied'
+    cost_center_id?: string
+    status?: 'active' | 'inactive'
   }
 ): Promise<ChargebackRuleResponse> {
   return apiFetch<ChargebackRuleResponse>(`/billing/chargeback-rules/${ruleId}`, apiKey, {
@@ -2078,7 +2086,7 @@ export async function createIpAclRule(
   body: {
     scope_type: string
     api_key_id?: string | null
-    team_name?: string | null
+    access_group_id?: string | null
     cidr: string
     action: string
     priority?: number
@@ -2096,7 +2104,7 @@ export async function updateIpAclRule(
   ruleId: string,
   body: {
     api_key_id?: string | null
-    team_name?: string | null
+    access_group_id?: string | null
     cidr?: string
     action?: string
     priority?: number
@@ -2115,7 +2123,7 @@ export async function deleteIpAclRule(apiKey: string, ruleId: string): Promise<v
 
 export async function testIpAcl(
   apiKey: string,
-  body: { ip: string; api_key_id?: string | null; team_name?: string | null }
+  body: { ip: string; api_key_id?: string | null; user_id?: string | null }
 ): Promise<import('@/types/api').IpAclTestResponse> {
   return apiFetch<import('@/types/api').IpAclTestResponse>('/security/ip-acl/test', apiKey, {
     method: 'POST',
@@ -3658,13 +3666,14 @@ export async function getChargebackReport(
 
 export async function exportChargebackReport(
   apiKey: string,
-  params?: { period?: string; dimension?: string; format?: 'csv' | 'json'; access_group_id?: string; api_key_id?: string }
+  params?: { period?: string; dimension?: string; format?: 'csv' | 'json'; access_group_id?: string; api_key_id?: string; end_user_id?: string }
 ): Promise<string> {
   const q = new URLSearchParams({ format: params?.format ?? 'csv' })
   if (params?.period) q.set('period', params.period)
   if (params?.dimension) q.set('dimension', params.dimension)
   if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
   if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
+  if (params?.end_user_id) q.set('end_user_id', params.end_user_id)
   const API = typeof window === 'undefined'
     ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
     : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
@@ -4136,9 +4145,17 @@ export async function listMLModels(
 // ── Advanced Budget Engine ──────────────────────────────────────────────────
 
 export async function listBudgetTiers(
-  apiKey: string
+  apiKey: string,
+  params: { q?: string; sort?: string; limit?: number; offset?: number; include_inactive?: boolean } = {}
 ): Promise<import('@/types/api').BudgetTierList> {
-  return apiFetch<import('@/types/api').BudgetTierList>(`/budget-tiers`, apiKey)
+  const qs = new URLSearchParams()
+  if (params.q) qs.set('q', params.q)
+  if (params.sort) qs.set('sort', params.sort)
+  if (params.limit != null) qs.set('limit', String(params.limit))
+  if (params.offset != null) qs.set('offset', String(params.offset))
+  if (params.include_inactive) qs.set('include_inactive', 'true')
+  const query = qs.toString() ? `?${qs.toString()}` : ''
+  return apiFetch<import('@/types/api').BudgetTierList>(`/budget-tiers${query}`, apiKey)
 }
 
 export async function createBudgetTier(
@@ -5675,3 +5692,99 @@ export async function declineInvitation(apiKey: string, tenantId: string): Promi
 export async function revokeUserSessionsInOrg(apiKey: string, userId: string): Promise<{ revoked: number }> {
   return apiFetch<{ revoked: number }>(`/users/${userId}/sessions/revoke`, apiKey, { method: 'POST' })
 }
+
+// ── Billing: period lifecycle, cost centers, cost-center chargeback, shared costs, signing ──
+
+export async function updateBillingPeriod(
+  apiKey: string,
+  id: string,
+  body: { period_start?: string; period_end?: string; currency?: string; exchange_rate_to_usd?: string },
+): Promise<import('@/types/api').BillingPeriod> {
+  return apiFetch(`/billing/periods/${id}`, apiKey, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export async function deleteBillingPeriod(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/billing/periods/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function reopenBillingPeriod(
+  apiKey: string,
+  id: string,
+  reason: string,
+): Promise<import('@/types/api').BillingPeriod> {
+  return apiFetch(`/billing/periods/${id}/reopen`, apiKey, { method: 'POST', body: JSON.stringify({ reason }) })
+}
+
+export async function listCostCenters(apiKey: string, q?: string): Promise<import('@/types/api').CostCenterList> {
+  const qs = new URLSearchParams({ limit: '500' })
+  if (q) qs.set('q', q)
+  return apiFetch(`/billing/cost-centers?${qs}`, apiKey)
+}
+
+export async function createCostCenter(
+  apiKey: string,
+  body: { name: string; code?: string | null; parent_id?: string | null; description?: string | null },
+): Promise<import('@/types/api').CostCenter> {
+  return apiFetch('/billing/cost-centers', apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function updateCostCenter(
+  apiKey: string,
+  id: string,
+  body: { name?: string; code?: string | null; parent_id?: string | null; description?: string | null },
+): Promise<import('@/types/api').CostCenter> {
+  return apiFetch(`/billing/cost-centers/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
+}
+
+export async function deleteCostCenter(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/billing/cost-centers/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getCostCenterReport(
+  apiKey: string,
+  period?: string,
+): Promise<import('@/types/api').CostCenterReport> {
+  const qs = period ? `?period=${encodeURIComponent(period)}` : ''
+  return apiFetch(`/billing/chargeback-report/cost-centers${qs}`, apiKey)
+}
+
+export async function applySharedCostPolicy(
+  apiKey: string,
+  policyId: string,
+  body: { period: string; pool_usd: string },
+): Promise<import('@/types/api').CostAllocationList> {
+  return apiFetch(`/billing/shared-cost-policies/${policyId}/apply`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listCostAllocations(
+  apiKey: string,
+  params?: { period?: string; policy_id?: string },
+): Promise<import('@/types/api').CostAllocationList> {
+  const qs = new URLSearchParams()
+  if (params?.period) qs.set('period', params.period)
+  if (params?.policy_id) qs.set('policy_id', params.policy_id)
+  return apiFetch(`/billing/cost-allocations${qs.toString() ? `?${qs}` : ''}`, apiKey)
+}
+
+export async function deleteCostAllocation(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/billing/cost-allocations/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getBillingSigningKey(apiKey: string): Promise<import('@/types/api').BillingSigningKey> {
+  return apiFetch('/billing/signing-key', apiKey)
+}
+
+export async function rotateBillingSigningKey(apiKey: string): Promise<import('@/types/api').BillingSigningKey> {
+  return apiFetch('/billing/signing-key/rotate', apiKey, { method: 'POST' })
+}
+
+export async function verifyBillingSignature(
+  apiKey: string,
+  body: { payload: Record<string, unknown>; signature: string; signing_key_id: string },
+): Promise<{ valid: boolean; signing_key_id: string }> {
+  return apiFetch('/billing/verify', apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+

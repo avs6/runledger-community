@@ -11,12 +11,13 @@ import uuid
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.budget_tiers import BudgetTier
 from runledger_api.models.tenant import ApiKey, Workspace
@@ -35,11 +36,23 @@ router = APIRouter(
 log = structlog.get_logger()
 
 
-async def _tier_response(db: AsyncSession, tier: BudgetTier) -> BudgetTierResponse:
-    key_count_result = await db.execute(
-        select(func.count()).where(ApiKey.budget_tier_id == tier.id)
+async def _key_counts(db: AsyncSession, tier_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """API keys per tier in one grouped query (review G-26; was one query per tier)."""
+    if not tier_ids:
+        return {}
+    rows = await db.execute(
+        select(ApiKey.budget_tier_id, func.count())
+        .where(ApiKey.budget_tier_id.in_(tier_ids))
+        .group_by(ApiKey.budget_tier_id)
     )
-    key_count = key_count_result.scalar() or 0
+    return {tier_id: int(n) for tier_id, n in rows.all() if tier_id is not None}
+
+
+async def _tier_response(
+    db: AsyncSession, tier: BudgetTier, key_count: int | None = None
+) -> BudgetTierResponse:
+    if key_count is None:
+        key_count = (await _key_counts(db, [tier.id])).get(tier.id, 0)
     return BudgetTierResponse(
         id=str(tier.id),
         name=tier.name,
@@ -87,19 +100,35 @@ async def create_tier(
     return await _tier_response(db, tier)
 
 
+_TIER_SORTS = {
+    "name": BudgetTier.name,
+    "max_spend_usd": BudgetTier.max_spend_usd,
+    "created_at": BudgetTier.created_at,
+}
+
+
 @router.get("", response_model=BudgetTierList)
 async def list_tiers(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    page: PageDep,
+    response: Response,
     include_inactive: Annotated[bool, Query()] = False,
+    q: Annotated[str | None, Query(max_length=200, description="Search by name")] = None,
+    sort: Annotated[str, Query(pattern="^-?(name|max_spend_usd|created_at)$")] = "name",
 ) -> BudgetTierList:
+    """Tiers with search, sort (prefix ``-`` for descending) and paging (G-26)."""
     stmt = select(BudgetTier).where(BudgetTier.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(BudgetTier.is_active.is_(True))
-    stmt = stmt.order_by(BudgetTier.name)
-    result = await db.execute(stmt)
-    tiers = list(result.scalars())
-    items = [await _tier_response(db, t) for t in tiers]
+    if q:
+        stmt = stmt.where(BudgetTier.name.ilike(f"%{q.strip()}%"))
+    column = _TIER_SORTS[sort.lstrip("-")]
+    order = column.desc().nulls_last() if sort.startswith("-") else column.asc().nulls_last()
+    stmt = stmt.order_by(order, BudgetTier.id)
+    tiers = await paginate(db, stmt, page, response)
+    counts = await _key_counts(db, [t.id for t in tiers])
+    items = [await _tier_response(db, t, counts.get(t.id, 0)) for t in tiers]
     return BudgetTierList(items=items)
 
 

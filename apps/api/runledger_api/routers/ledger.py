@@ -18,12 +18,13 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_platform_admin
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.models.ledger import LedgerSnapshot
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.ledger import (
@@ -67,15 +68,18 @@ def _snap_to_response(snap: LedgerSnapshot) -> LedgerSnapshotResponse:
 async def list_snapshots(
     auth: PlatformAdminDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
 ) -> LedgerSnapshotList:
     workspace: Workspace = auth[0]
-    result = await db.execute(
+    snaps = await paginate(
+        db,
         select(LedgerSnapshot)
         .where(LedgerSnapshot.workspace_id == workspace.id)
-        .order_by(LedgerSnapshot.snapshot_date.desc())
-        .limit(30)
+        .order_by(LedgerSnapshot.snapshot_date.desc(), LedgerSnapshot.id),
+        page,
+        response,
     )
-    snaps = result.scalars().all()
     return LedgerSnapshotList(items=[_snap_to_response(s) for s in snaps])
 
 

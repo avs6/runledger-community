@@ -124,8 +124,8 @@ class GatewayRouteCreate(BaseModel):
     priority: int = Field(10, ge=1, le=100)
     config: dict[str, Any] | None = None
     # Phase 30 runtime controls
-    daily_cost_limit_usd: Decimal | None = None
-    monthly_cost_limit_usd: Decimal | None = None
+    daily_cost_limit_usd: Decimal | None = Field(None, ge=0)
+    monthly_cost_limit_usd: Decimal | None = Field(None, ge=0)
     pii_redaction_enabled: bool = False
     semantic_cache_enabled: bool = False
     context_compiler_enabled: bool = False
@@ -154,8 +154,8 @@ class GatewayRouteUpdate(BaseModel):
     is_active: bool | None = None
     config: dict[str, Any] | None = None
     # Phase 30 runtime controls
-    daily_cost_limit_usd: Decimal | None = None
-    monthly_cost_limit_usd: Decimal | None = None
+    daily_cost_limit_usd: Decimal | None = Field(None, ge=0)
+    monthly_cost_limit_usd: Decimal | None = Field(None, ge=0)
     pii_redaction_enabled: bool | None = None
     semantic_cache_enabled: bool | None = None
     context_compiler_enabled: bool | None = None
@@ -555,6 +555,9 @@ class GatewayRuntimeExecutionStep(BaseModel):
     request_url: str | None = None
     request_headers: dict[str, str] = Field(default_factory=dict)
     request_body: dict[str, Any] = Field(default_factory=dict)
+    # Mirror (shadow) sample rate for this route, 0–1; gateway-rs samples and fires the
+    # mirror in the background after the response (review G-12).
+    mirror_sample_pct: float = 0.0
 
 
 class GatewayRuntimePreflightRequest(BaseModel):
@@ -581,6 +584,9 @@ class GatewayRuntimePreflightResponse(BaseModel):
     missing_metadata: list[str] = Field(default_factory=list)
     cache_hit_kind: str | None = None
     cached_response: dict[str, Any] | None = None
+    # Echoed back by the gateway on finalize so lookup and store use the same key/scope.
+    cache_key: str | None = None
+    semantic_scope: str | None = None
     prepared_messages: list[dict[str, Any]] = Field(default_factory=list)
     effective_tools: list[dict[str, Any]] | None = None
     effective_reasoning_effort: str | None = None
@@ -612,6 +618,8 @@ class GatewayRuntimeFinalizeRequest(BaseModel):
     compiler_enabled: bool = False
     compiler_config: dict[str, Any] | None = None
     ir_decision: dict[str, Any] | None = None
+    cache_key: str | None = Field(default=None, max_length=64)
+    semantic_scope: str | None = Field(default=None, max_length=256)
 
 
 class GatewayRuntimeFinalizeResponse(BaseModel):
@@ -640,10 +648,18 @@ class GatewayRuntimeMirrorRequest(BaseModel):
     response_json: dict[str, Any]
     request_tags: list[str] = Field(default_factory=list)
     preferred_region: str | None = None
+    # Set by gateway-rs, which samples before calling and doesn't wait for the answer;
+    # older gateways leave it False and the API samples (review G-12).
+    sampled: bool = False
+    api_key_id: uuid.UUID | None = None
+    end_user_id: str | None = None
+    request_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class GatewayPassThroughEndpointCreate(BaseModel):
-    slug: str = Field(..., min_length=1, max_length=80)
+    # Lower-case letters, digits, '-' and '_' only; reserved names and UUID-shaped slugs
+    # are refused so /passthrough/{slug} can't shadow the management routes (G-24).
+    slug: str = Field(..., min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9_-]*$")
     path_prefix: str = "/"
     upstream_base_url: str
     auth_type: str | None = None
@@ -652,7 +668,7 @@ class GatewayPassThroughEndpointCreate(BaseModel):
     default_query: dict[str, Any] = Field(default_factory=dict)
     timeout_ms: int = Field(30000, ge=1000, le=300000)
     rate_limit_rpm: int | None = Field(None, ge=1)
-    cost_per_call_usd: Decimal | None = None
+    cost_per_call_usd: Decimal | None = Field(None, ge=0)
     is_active: bool = True
 
 
@@ -665,7 +681,7 @@ class GatewayPassThroughEndpointUpdate(BaseModel):
     default_query: dict[str, Any] | None = None
     timeout_ms: int | None = Field(None, ge=1000, le=300000)
     rate_limit_rpm: int | None = Field(None, ge=1)
-    cost_per_call_usd: Decimal | None = None
+    cost_per_call_usd: Decimal | None = Field(None, ge=0)
     is_active: bool | None = None
 
 

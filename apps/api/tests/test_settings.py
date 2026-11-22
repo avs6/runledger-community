@@ -304,8 +304,13 @@ async def test_create_and_delete_pricing(
     mock_pricing = SimpleNamespace(
         id=uuid.UUID(pricing_id),
         workspace_id=mock_workspace.id,
+        effective_to=None,
     )
     mock_db_session.get.return_value = mock_pricing
+    no_budgets = MagicMock()
+    no_budgets.scalar_one.return_value = 0
+    mock_db_session.execute.return_value = no_budgets
 
     resp2 = await authed_client.delete(f"/providers/pricing/{pricing_id}")
     assert resp2.status_code == 204
+    assert mock_pricing.effective_to is not None  # retired, not deleted

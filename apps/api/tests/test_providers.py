@@ -130,13 +130,39 @@ async def test_delete_provider_pricing(
     mock_pricing = SimpleNamespace(
         id=pricing_id,
         workspace_id=mock_workspace.id,
+        effective_to=None,
     )
     mock_db_session.get.return_value = mock_pricing
+    no_budgets = MagicMock()
+    no_budgets.scalar_one.return_value = 0
+    mock_db_session.execute.return_value = no_budgets
 
     resp = await authed_client.delete(f"/providers/pricing/{pricing_id}")
 
+    # Retired, not deleted, so past calls keep their price (review G-21).
     assert resp.status_code == 204
-    mock_db_session.delete.assert_called_once_with(mock_pricing)
+    mock_db_session.delete.assert_not_called()
+    assert mock_pricing.effective_to is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_pricing_used_by_budgets_conflicts(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+) -> None:
+    pricing_id = uuid.uuid4()
+    mock_db_session.get.return_value = SimpleNamespace(
+        id=pricing_id, workspace_id=mock_workspace.id, effective_to=None
+    )
+    in_use = MagicMock()
+    in_use.scalar_one.return_value = 2
+    mock_db_session.execute.return_value = in_use
+
+    resp = await authed_client.delete(f"/providers/pricing/{pricing_id}")
+
+    assert resp.status_code == 409
+    assert "2 budget" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

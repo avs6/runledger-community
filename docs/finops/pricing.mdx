@@ -77,6 +77,15 @@ scan and filter.
 You can still add or edit a single model directly on the Provider Profiles page (workspace-scoped
 overrides), including its tags — handy for a negotiated rate on one model.
 
+Workspace rates are versioned:
+
+- **Changing a rate** closes the current version (`effective_to = now`) and starts a new one from now.
+  Calls made earlier keep the rate they were made at, even after re-pricing, and provider-profile
+  budgets move to the new version. Changing only tags or the display name edits the row in place.
+- **Deleting a rate** retires it instead of removing it, so its history stays auditable and past calls
+  keep their cost. It's refused with **409** while budgets still use it — move or delete them first.
+- `GET /providers/pricing` lists only current versions.
+
 ## Related
 
 <CardGroup cols={2}>

@@ -212,7 +212,7 @@ function RunList({ requests, selectedRunId, searchParams }: { requests: RequestR
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono text-[11px] font-semibold text-slate-950 dark:text-slate-100">{truncateId(request.run_id, 10)}</span>
-                <RunStatusBadge status={request.status === 'success' ? 'succeeded' : request.status === 'error' ? 'failed' : request.status as 'running' | 'succeeded' | 'failed' | 'cancelled'} />
+                <RunStatusBadge status={request.status === 'success' ? 'succeeded' : request.status === 'error' || request.status === 'blocked' ? 'failed' : request.status as 'running' | 'succeeded' | 'failed' | 'cancelled'} />
               </div>
               <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                 <span className="truncate">{request.model}</span>

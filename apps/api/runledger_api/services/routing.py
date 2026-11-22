@@ -16,16 +16,32 @@ import random
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import Float, and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.models.gateway import GatewayRoute, RoutingPolicy
+from runledger_api.models.budgets import Budget
+from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.gateway import GatewayRequest, GatewayRoute, RoutingPolicy
+from runledger_api.models.metering import ProviderPricing
+from runledger_api.models.outcomes import Outcome
+from runledger_api.models.scores import ScoreEvent
 
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
+
+def _as_uuid(value: Any) -> Any:
+    import uuid as _uuid  # noqa: PLC0415
+
+    if value is None or isinstance(value, _uuid.UUID):
+        return value
+    try:
+        return _uuid.UUID(str(value))
+    except ValueError:
+        return None
 
 
 async def select_route_with_policy(
@@ -120,6 +136,75 @@ async def _fetch_policy(db: AsyncSession, workspace_id: Any, alias: str) -> Rout
 
 
 # ---------------------------------------------------------------------------
+# Data helpers (ORM; the previous raw SQL put bind parameters inside quoted
+# INTERVAL literals and compared uuid columns to text, so every data-driven
+# strategy raised and silently fell back to manual — review G-01)
+# ---------------------------------------------------------------------------
+
+
+async def _model_scores(
+    db: AsyncSession, workspace_id: Any, metric: str, lookback_days: int
+) -> dict[str, float]:
+    """model → average score of ``metric`` over runs in the window."""
+    cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
+    rows = await db.execute(
+        select(ProviderCall.model, func.avg(ScoreEvent.value))
+        .join(ProviderCall, ProviderCall.run_id == ScoreEvent.run_id)
+        .where(
+            ScoreEvent.workspace_id == workspace_id,
+            ScoreEvent.name == metric,
+            ScoreEvent.created_at >= cutoff,
+        )
+        .group_by(ProviderCall.model)
+    )
+    return {model: float(avg) for model, avg in rows.all() if avg is not None}
+
+
+async def _route_p95(
+    db: AsyncSession, routes: list[GatewayRoute], lookback_hours: int
+) -> dict[str, float]:
+    """route id → p95 latency (ms) of successful requests in the window."""
+    cutoff = datetime.now(UTC) - timedelta(hours=lookback_hours)
+    p95 = func.percentile_cont(0.95).within_group(GatewayRequest.latency_ms)
+    rows = await db.execute(
+        select(GatewayRequest.route_id, p95)
+        .where(
+            GatewayRequest.route_id.in_([r.id for r in routes]),
+            GatewayRequest.created_at >= cutoff,
+            GatewayRequest.status == "success",
+            GatewayRequest.latency_ms.is_not(None),
+        )
+        .group_by(GatewayRequest.route_id)
+    )
+    return {str(rid): float(v) for rid, v in rows.all() if v is not None}
+
+
+async def _combined_pricing(db: AsyncSession, workspace_id: Any) -> dict[str, float]:
+    """ "provider/model" → input + output price per 1M (workspace price wins)."""
+    rows = await db.execute(
+        select(
+            ProviderPricing.provider,
+            ProviderPricing.model,
+            ProviderPricing.input_cost_per_1m + ProviderPricing.output_cost_per_1m,
+            ProviderPricing.workspace_id,
+        ).where(
+            (ProviderPricing.workspace_id == workspace_id) | ProviderPricing.workspace_id.is_(None),
+            ProviderPricing.effective_to.is_(None),
+        )
+    )
+    out: dict[str, float] = {}
+    scoped: set[str] = set()
+    for provider, model, combined, ws in rows.all():
+        key = f"{provider}/{model}"
+        if ws is not None:
+            out[key] = float(combined)
+            scoped.add(key)
+        elif key not in scoped:
+            out[key] = float(combined)
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Strategy: cost_optimized
 # Filter routes to those scoring above quality_floor (from score_events),
 # then pick the cheapest by provider_pricing.
@@ -135,40 +220,14 @@ async def _cost_optimized(
     quality_floor: float = float(config.get("quality_floor", 0.0))
     lookback_days: int = int(config.get("lookback_days", 7))
 
-    # Build model → avg_score map from score_events (via provider_calls)
-    score_rows = await db.execute(
-        text("""
-        SELECT pc.model, AVG(se.value) AS avg_score
-        FROM score_events se
-        JOIN agent_runs ar ON ar.id = se.run_id
-        JOIN provider_calls pc ON pc.run_id = ar.id
-        WHERE se.workspace_id = :ws
-          AND se.name = 'quality'
-          AND se.created_at >= NOW() - INTERVAL ':days days'
-        GROUP BY pc.model
-    """).bindparams(ws=str(workspace_id), days=lookback_days)
-    )
-    quality_map: dict[str, float] = {r.model: float(r.avg_score) for r in score_rows.all()}
+    quality_map = await _model_scores(db, workspace_id, "quality", lookback_days)
+    cost_map = await _combined_pricing(db, workspace_id)
 
-    # Build model → cost_per_1m map from provider_pricing (cheapest effective)
-    pricing_rows = await db.execute(
-        text("""
-        SELECT DISTINCT ON (provider, model)
-               provider, model,
-               input_cost_per_1m + output_cost_per_1m AS combined_cost
-        FROM provider_pricing
-        WHERE (workspace_id = :ws OR workspace_id IS NULL)
-        ORDER BY provider, model, effective_from DESC
-    """).bindparams(ws=str(workspace_id))
-    )
-    cost_map: dict[str, float] = {
-        f"{r.provider}/{r.model}": float(r.combined_cost) for r in pricing_rows.all()
-    }
-
-    # Filter routes by quality_floor, then sort by cost
+    # Filter routes by quality_floor, then sort by cost. Unpriced routes sort last
+    # (unknown cost is not "free").
     def route_cost(r: GatewayRoute) -> float:
         key = f"{r.provider}/{r.target_model}"
-        return cost_map.get(key, 0.0)
+        return cost_map.get(key, float("inf"))
 
     def route_score(r: GatewayRoute) -> float:
         return quality_map.get(r.target_model, 1.0)  # default: assume good if no data
@@ -178,9 +237,10 @@ async def _cost_optimized(
     cost = route_cost(best)
     score = quality_map.get(best.target_model)
     score_str = f" score={score:.2f}" if score is not None else " (no score data)"
+    cost_str = f"${cost:.3f}/1M combined" if cost != float("inf") else "unpriced"
     return best, (
         f"cost_optimized:cheapest-above-quality-floor-{quality_floor}"
-        f" ({best.target_model}, ${cost:.3f}/1M combined{score_str})"
+        f" ({best.target_model}, {cost_str}{score_str})"
     )
 
 
@@ -198,20 +258,7 @@ async def _latency_optimized(
     max_p95_ms: int = int(config.get("max_p95_ms", 999_999))
     lookback_hours: int = int(config.get("lookback_hours", 24))
 
-    route_ids = [str(r.id) for r in routes]
-    lat_rows = await db.execute(
-        text("""
-        SELECT route_id,
-               PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95
-        FROM gateway_requests
-        WHERE route_id = ANY(:ids)
-          AND created_at >= NOW() - INTERVAL ':h hours'
-          AND status = 'success'
-          AND latency_ms IS NOT NULL
-        GROUP BY route_id
-    """).bindparams(ids=route_ids, h=lookback_hours)
-    )
-    p95_map: dict[str, float] = {str(r.route_id): float(r.p95) for r in lat_rows.all()}
+    p95_map = await _route_p95(db, routes, lookback_hours)
 
     # Filter by max_p95_ms, sort by p95 ascending
     qualified = [r for r in routes if p95_map.get(str(r.id), 0) <= max_p95_ms] or routes
@@ -236,19 +283,7 @@ async def _quality_optimized(
     metric: str = config.get("metric", "quality")
     lookback_days: int = int(config.get("lookback_days", 7))
 
-    score_rows = await db.execute(
-        text("""
-        SELECT pc.model, AVG(se.value) AS avg_score
-        FROM score_events se
-        JOIN agent_runs ar ON ar.id = se.run_id
-        JOIN provider_calls pc ON pc.run_id = ar.id
-        WHERE se.workspace_id = :ws
-          AND se.name = :metric
-          AND se.created_at >= NOW() - INTERVAL ':days days'
-        GROUP BY pc.model
-    """).bindparams(ws=str(workspace_id), metric=metric, days=lookback_days)
-    )
-    score_map: dict[str, float] = {r.model: float(r.avg_score) for r in score_rows.all()}
+    score_map = await _model_scores(db, workspace_id, metric, lookback_days)
 
     best = max(routes, key=lambda r: score_map.get(r.target_model, -1.0))
     score = score_map.get(best.target_model)
@@ -302,27 +337,31 @@ async def _canary(
     error_spike_threshold: float = float(config.get("error_spike_threshold", 0.25))
     min_error_samples: int = int(config.get("min_error_samples", 20))
 
-    if canary_route_id:
-        canary = await db.get(GatewayRoute, canary_route_id)
+    canary_uuid = _as_uuid(canary_route_id)
+    if canary_uuid is not None:
+        canary = await db.get(GatewayRoute, canary_uuid)
         if canary and canary.workspace_id == workspace_id and canary.is_active:
             canary_rows = await db.execute(
-                text("""
-                SELECT
-                    COUNT(*) AS total_requests,
-                    AVG(CASE WHEN status = 'error' THEN 1.0 ELSE 0.0 END) AS error_rate
-                FROM gateway_requests
-                WHERE workspace_id = :ws
-                  AND route_id = :route_id
-                  AND created_at >= NOW() - INTERVAL '1 day'
-                """).bindparams(ws=str(workspace_id), route_id=str(canary.id))
+                select(
+                    func.count(),
+                    func.avg(case((GatewayRequest.status == "error", 1.0), else_=0.0)),
+                ).where(
+                    GatewayRequest.workspace_id == workspace_id,
+                    GatewayRequest.route_id == canary.id,
+                    GatewayRequest.created_at >= datetime.now(UTC) - timedelta(days=1),
+                )
             )
-            row = canary_rows.one_or_none()
-            total_requests = int(row.total_requests or 0) if row else 0
-            error_rate = float(row.error_rate or 0.0) if row else 0.0
+            total, rate = canary_rows.one()
+            total_requests = int(total or 0)
+            error_rate = float(rate or 0.0)
             if total_requests >= min_error_samples and error_rate >= error_spike_threshold:
-                config["canary_pct"] = 0.0
-                config["rollback_triggered_at"] = datetime.now(UTC).isoformat()
-                config["rollback_reason"] = f"error_spike:{error_rate:.3f}"
+                # Assign a new dict so the JSONB change is persisted.
+                config = {
+                    **config,
+                    "canary_pct": 0.0,
+                    "rollback_triggered_at": datetime.now(UTC).isoformat(),
+                    "rollback_reason": f"error_spike:{error_rate:.3f}",
+                }
                 policy = await _fetch_policy(db, workspace_id, routes[0].alias)
                 if policy is not None:
                     policy.config = config
@@ -333,8 +372,8 @@ async def _canary(
                     f" ({baseline.target_model})"
                 )
 
-    if canary_route_id and random.random() < canary_pct:
-        canary = await db.get(GatewayRoute, canary_route_id)
+    if canary_uuid is not None and random.random() < canary_pct:  # noqa: S311
+        canary = await db.get(GatewayRoute, canary_uuid)
         if canary and canary.workspace_id == workspace_id and canary.is_active:
             return canary, (f"canary:canary-{canary_pct * 100:.0f}pct ({canary.target_model})")
 
@@ -475,23 +514,24 @@ async def analyze_routing_policy(
             for route in routes
         ]
 
-    route_ids = [variant["route_id"] for variant in variants]
+    route_uuids = [u for u in (_as_uuid(v["route_id"]) for v in variants) if u is not None]
+    is_error = case((GatewayRequest.status == "error", 1.0), else_=0.0)
     rows = await db.execute(
-        text("""
-        SELECT
-            route_id,
-            COUNT(*) AS total_requests,
-            AVG(CASE WHEN status <> 'error' THEN 1.0 ELSE 0.0 END) AS success_rate,
-            AVG(CASE WHEN status = 'error' THEN 1.0 ELSE 0.0 END) AS error_rate,
-            AVG(latency_ms) AS avg_latency_ms,
-            AVG(input_tokens) AS avg_input_tokens,
-            AVG(output_tokens) AS avg_output_tokens
-        FROM gateway_requests
-        WHERE workspace_id = :ws
-          AND route_id = ANY(:route_ids)
-          AND created_at >= NOW() - INTERVAL '14 days'
-        GROUP BY route_id
-        """).bindparams(ws=str(workspace_id), route_ids=route_ids)
+        select(
+            GatewayRequest.route_id,
+            func.count().label("total_requests"),
+            func.avg(1.0 - is_error).label("success_rate"),
+            func.avg(is_error).label("error_rate"),
+            func.avg(GatewayRequest.latency_ms).label("avg_latency_ms"),
+            func.avg(GatewayRequest.input_tokens).label("avg_input_tokens"),
+            func.avg(GatewayRequest.output_tokens).label("avg_output_tokens"),
+        )
+        .where(
+            GatewayRequest.workspace_id == workspace_id,
+            GatewayRequest.route_id.in_(route_uuids),
+            GatewayRequest.created_at >= datetime.now(UTC) - timedelta(days=14),
+        )
+        .group_by(GatewayRequest.route_id)
     )
     metrics_map = {str(row.route_id): row for row in rows.all()}
 
@@ -612,23 +652,17 @@ async def _budget_aware(
     fallback_alias: str | None = config.get("fallback_alias")
 
     consumed_pct = 0.0
-    if budget_id:
+    budget_uuid = _as_uuid(budget_id)
+    if budget_uuid is not None:
         try:
-            budget_row = await db.execute(
-                text("""
-                SELECT b.amount_usd,
-                       COALESCE(SUM(ud.cost_usd), 0) AS spent
-                FROM budgets b
-                LEFT JOIN usage_daily ud ON ud.workspace_id = b.workspace_id
-                  AND ud.day >= CURRENT_DATE - INTERVAL '30 days'
-                WHERE b.id = :bid AND b.workspace_id = :ws
-                GROUP BY b.amount_usd
-            """).bindparams(bid=budget_id, ws=str(workspace_id))
-            )
-            row = budget_row.one_or_none()
-            if row and float(row.amount_usd) > 0:
-                consumed_pct = float(row.spent) / float(row.amount_usd)
-        except Exception:
+            budget = await db.get(Budget, budget_uuid)
+            if budget is not None and budget.workspace_id == workspace_id and budget.limit_usd:
+                from runledger_api.core.redis import get_redis  # noqa: PLC0415
+                from runledger_api.services.budgets import get_budget_spend  # noqa: PLC0415
+
+                spent = await get_budget_spend(await get_redis(), budget.id, budget.period_type)
+                consumed_pct = float(spent) / float(budget.limit_usd)
+        except Exception:  # noqa: BLE001 - routing must not fail on a counter read
             log.warning("budget_aware_check_failed budget_id=%s", budget_id)
 
     if consumed_pct >= threshold_pct and fallback_alias:
@@ -717,40 +751,37 @@ async def get_outcome_stats_by_model(
         return {}
 
     cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
-    type_clause = "AND o.outcome_type = :wf_type" if workflow_type else ""
-
-    stmt = text(f"""
-        SELECT
-            pc_first.model,
-            COUNT(DISTINCT o.id)                                              AS sample_count,
-            AVG(CASE WHEN o.success THEN 1.0 ELSE 0.0 END)                   AS success_rate,
-            SUM(ar.cost_usd) /
-                NULLIF(COUNT(CASE WHEN o.success THEN 1 END)::float, 0)      AS cost_per_success
-        FROM outcomes o
-        JOIN agent_runs ar ON ar.id = o.run_id
-        JOIN (
-            SELECT DISTINCT ON (run_id) run_id, model
-            FROM provider_calls
-            ORDER BY run_id, created_at ASC
-        ) pc_first ON pc_first.run_id = o.run_id
-        WHERE o.workspace_id = :ws
-          AND o.created_at >= :cutoff
-          AND pc_first.model = ANY(:models)
-          {type_clause}
-        GROUP BY pc_first.model
-        HAVING COUNT(DISTINCT o.id) >= :min_n
-    """)
-
-    bind: dict[str, Any] = {
-        "ws": str(workspace_id),
-        "cutoff": cutoff,
-        "models": models,
-        "min_n": min_sample_size,
-    }
-    if workflow_type:
-        bind["wf_type"] = workflow_type
-
-    rows = await db.execute(stmt.bindparams(**bind))
+    first_call = (
+        select(ProviderCall.run_id, ProviderCall.model)
+        .distinct(ProviderCall.run_id)
+        .order_by(ProviderCall.run_id, ProviderCall.created_at.asc())
+        .subquery()
+    )
+    successes = func.count(case((Outcome.success.is_(True), 1)))
+    stmt = (
+        select(
+            first_call.c.model,
+            func.count(func.distinct(Outcome.id)).label("sample_count"),
+            func.avg(case((Outcome.success.is_(True), 1.0), else_=0.0)).label("success_rate"),
+            (func.sum(AgentRun.total_cost_usd) / func.nullif(cast(successes, Float), 0)).label(
+                "cost_per_success"
+            ),
+        )
+        .select_from(Outcome)
+        .join(AgentRun, AgentRun.id == Outcome.run_id)
+        .join(first_call, first_call.c.run_id == Outcome.run_id)
+        .where(
+            and_(
+                Outcome.workspace_id == workspace_id,
+                Outcome.created_at >= cutoff,
+                first_call.c.model.in_(models),
+                *([Outcome.outcome_type == workflow_type] if workflow_type else []),
+            )
+        )
+        .group_by(first_call.c.model)
+        .having(func.count(func.distinct(Outcome.id)) >= min_sample_size)
+    )
+    rows = await db.execute(stmt)
     return {
         r.model: {
             "sample_count": int(r.sample_count),
@@ -800,21 +831,7 @@ async def _outcome_optimized(
 
     # Optionally filter by p95 SLA
     if sla_latency_ms is not None:
-        route_ids = [str(r.id) for r in routes]
-        cutoff = datetime.now(UTC) - timedelta(hours=24)
-        lat_rows = await db.execute(
-            text("""
-            SELECT route_id,
-                   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95
-            FROM gateway_requests
-            WHERE route_id = ANY(:ids)
-              AND created_at >= :cutoff
-              AND status = 'success'
-              AND latency_ms IS NOT NULL
-            GROUP BY route_id
-            """).bindparams(ids=route_ids, cutoff=cutoff)
-        )
-        p95_map: dict[str, float] = {str(r.route_id): float(r.p95) for r in lat_rows.all()}
+        p95_map = await _route_p95(db, routes, 24)
         routes = [r for r in routes if p95_map.get(str(r.id), 0) <= sla_latency_ms] or routes
 
     # Pick route with data; prefer lowest cost_per_success (prefer success_rate if tied)

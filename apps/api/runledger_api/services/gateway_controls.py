@@ -2,7 +2,7 @@
 Gateway runtime control checks.
 
   check_cost_cap     — daily/monthly USD spend vs route limits (429 on breach)
-  check_per_user_rpm — Redis sliding window per (workspace, end_user, route)
+  check_per_user_rpm — atomic Redis sliding window per (workspace, end user or key, route)
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 
 log = structlog.get_logger()
 
-# Fallback prices used only when no pricing row is found for the route's model.
-# Real per-model rates are fetched from provider_pricing at check time.
-_FALLBACK_COST_PER_1M_INPUT = Decimal("0.50")
-_FALLBACK_COST_PER_1M_OUTPUT = Decimal("1.50")
+# Providers that run on your own hardware: with no pricing row they cost nothing, so
+# their calls don't count toward cost caps. Hosted models are never given an invented
+# price (review G-17).
+LOCAL_PROVIDERS = frozenset({"ollama", "vllm", "local", "lmstudio", "llamacpp"})
 
 
 def _estimate_cost(
@@ -42,47 +42,54 @@ async def _lookup_model_rates(
     db: AsyncSession,
     model: str | None,
     provider: str | None,
-) -> tuple[Decimal, Decimal]:
-    """
-    Return (input_cost_per_1m, output_cost_per_1m) for the given model.
-    Falls back to generic defaults if no pricing row is found.
-    Prefers workspace-specific rows over global rows, and the most-recently
-    effective row when multiple match.
-    """
-    if not model:
-        return _FALLBACK_COST_PER_1M_INPUT, _FALLBACK_COST_PER_1M_OUTPUT
+    workspace_id: uuid.UUID | None = None,
+) -> tuple[Decimal, Decimal] | None:
+    """(input, output) USD per 1M tokens for the route's provider/model, resolved like
+    the ledger (``services.pricing``: this workspace's override, then the global row).
 
-    from datetime import date  # noqa: PLC0415
+    Local providers with no pricing row cost 0. Returns None for an unpriced hosted
+    model, so a cap is never enforced against a made-up price (review G-17)."""
+    from datetime import UTC, datetime  # noqa: PLC0415
 
-    from sqlalchemy import and_, or_  # noqa: PLC0415
+    from runledger_api.services.pricing import _get_pricing  # noqa: PLC0415
 
-    from runledger_api.models.metering import ProviderPricing  # noqa: PLC0415
+    pricing = None
+    if model and provider:
+        pricing = await _get_pricing(db, provider, model, datetime.now(UTC), workspace_id)
+    if pricing is not None:
+        return pricing.input_cost_per_1m, pricing.output_cost_per_1m
+    if (provider or "").lower() in LOCAL_PROVIDERS:
+        return Decimal("0"), Decimal("0")
+    return None
 
-    today = date.today()
-    stmt = (
-        select(ProviderPricing)
-        .where(
-            and_(
-                ProviderPricing.model == model,
-                or_(
-                    ProviderPricing.effective_from.is_(None),
-                    ProviderPricing.effective_from <= today,
-                ),
-            )
-        )
-        .order_by(
-            # Workspace-specific rows first (workspace_id IS NOT NULL), then by
-            # most-recent effective date
-            ProviderPricing.workspace_id.is_(None).asc(),
-            ProviderPricing.effective_from.desc().nulls_last(),
-        )
-        .limit(1)
+
+async def cost_cap_pricing_error(
+    db: AsyncSession,
+    *,
+    provider: str | None,
+    model: str | None,
+    workspace_id: uuid.UUID,
+) -> str | None:
+    """Why a cost cap can't be enforced on this route (no price for a hosted model),
+    or None when it can. Checked when a cap is saved (review G-17)."""
+    if await _lookup_model_rates(db, model, provider, workspace_id) is not None:
+        return None
+    return (
+        f"No pricing for {provider}/{model}; add a provider price for this model before "
+        "setting a cost cap on the route"
     )
-    result = await db.execute(stmt)
-    pricing = result.scalar_one_or_none()
-    if pricing is None:
-        return _FALLBACK_COST_PER_1M_INPUT, _FALLBACK_COST_PER_1M_OUTPUT
-    return pricing.input_cost_per_1m, pricing.output_cost_per_1m
+
+
+def _seconds_until(when: Any, now: Any) -> str:
+    """Retry-After value: whole seconds from ``now`` until ``when`` (at least 1)."""
+    return str(max(1, int((when - now).total_seconds())))
+
+
+def _next_month(month_start: Any) -> Any:
+    """First instant of the month after ``month_start``."""
+    if month_start.month == 12:
+        return month_start.replace(year=month_start.year + 1, month=1)
+    return month_start.replace(month=month_start.month + 1)
 
 
 async def check_cost_cap(
@@ -99,11 +106,22 @@ async def check_cost_cap(
     if not has_daily and not has_monthly:
         return
 
-    from datetime import UTC, datetime  # noqa: PLC0415
+    from datetime import UTC, datetime, timedelta  # noqa: PLC0415
 
-    input_rate, output_rate = await _lookup_model_rates(
-        db, getattr(route, "target_model", None), getattr(route, "provider", None)
+    rates = await _lookup_model_rates(
+        db, getattr(route, "target_model", None), getattr(route, "provider", None), workspace_id
     )
+    if rates is None:
+        # Saving a cap requires a price, so this means the price was removed later:
+        # skip rather than enforce against an invented one (review G-17).
+        log.warning(
+            "gateway_cost_cap_unpriced_model",
+            route_id=str(route.id),
+            provider=getattr(route, "provider", None),
+            model=getattr(route, "target_model", None),
+        )
+        return
+    input_rate, output_rate = rates
 
     now = datetime.now(UTC)
     today_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
@@ -148,7 +166,10 @@ async def check_cost_cap(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Daily cost cap reached for this route",
-                headers={"X-Cost-Cap-Reason": "daily_limit_exceeded"},
+                headers={
+                    "X-Cost-Cap-Reason": "daily_limit_exceeded",
+                    "Retry-After": _seconds_until(today_start + timedelta(days=1), now),
+                },
             )
 
     if has_monthly:
@@ -163,7 +184,10 @@ async def check_cost_cap(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Monthly cost cap reached for this route",
-                headers={"X-Cost-Cap-Reason": "monthly_limit_exceeded"},
+                headers={
+                    "X-Cost-Cap-Reason": "monthly_limit_exceeded",
+                    "Retry-After": _seconds_until(_next_month(month_start), now),
+                },
             )
 
     # ── Budget Tier check ─────────────────────────────────────────────────────
@@ -193,46 +217,94 @@ async def check_cost_cap(
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Budget Tier '{bt.name}' limit breached (${bt.max_spend_usd:.2f})",
-                headers={"X-Cost-Cap-Reason": "budget_tier_exceeded"},
+                headers={
+                    "X-Cost-Cap-Reason": "budget_tier_exceeded",
+                    "Retry-After": _seconds_until(_next_month(month_start), now),
+                },
             )
+
+
+# Atomic sliding window over a sorted set of request timestamps (ms). Refused requests
+# don't take a slot; with consume=0 the call only checks. Returns {allowed, count,
+# retry_after_ms}, where retry_after_ms is when the oldest hit leaves the window.
+_RPM_SCRIPT = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local consume = tonumber(ARGV[4])
+redis.call('ZREMRANGEBYSCORE', key, '-inf', now - window)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+  local retry = window
+  if oldest[2] then retry = tonumber(oldest[2]) + window - now end
+  return {0, count, retry}
+end
+if consume == 1 then
+  redis.call('ZADD', key, now, ARGV[5])
+  redis.call('PEXPIRE', key, window)
+end
+return {1, count + consume, 0}
+"""
+_RPM_WINDOW_MS = 60_000
+
+
+def rpm_subject(end_user_id: str | None, api_key_id: uuid.UUID | str | None) -> str | None:
+    """Who a per-user RPM limit applies to: the end user when the caller names one,
+    otherwise the API key, so leaving out X-RunLedger-End-User-Id doesn't bypass the
+    limit (review G-14). None only for keyless callers with no end user."""
+    if end_user_id:
+        return f"user:{end_user_id}"
+    if api_key_id:
+        return f"key:{api_key_id}"
+    return None
 
 
 async def check_per_user_rpm(
     redis: Any,
     workspace_id: uuid.UUID,
-    end_user_id: str,
+    subject: str,
     route_id: uuid.UUID,
     rpm_limit: int,
+    *,
+    consume: bool = True,
 ) -> None:
-    """
-    Redis sliding-window rate limiter per end-user per route.
+    """Per-subject, per-route requests-per-minute limit (review G-14).
 
-    Key: rl:gateway:rpm:{workspace_id}:{route_id}:{end_user_id}:{epoch_minute}
-    Window: 1 minute (60 seconds TTL).
-    Raises HTTP 429 with Retry-After header on breach.
+    A true sliding 60-second window, evaluated atomically in Redis, so concurrent
+    requests can't overshoot it. ``consume=False`` checks without taking a slot (used for
+    fallback routes, which only count when they serve). Raises 429 with Retry-After (time
+    until a slot frees). Fails open, with a warning, if Redis is unavailable.
     """
-    epoch_minute = int(time.time()) // 60
-    key = f"rl:gateway:rpm:{workspace_id}:{route_id}:{end_user_id}:{epoch_minute}"
-
+    key = f"rl:gateway:rpm:{workspace_id}:{route_id}:{subject}"
+    now_ms = int(time.time() * 1000)
     try:
-        count = await redis.incr(key)
-        if count == 1:
-            await redis.expire(key, 60)
-        if count > rpm_limit:
-            log.warning(
-                "gateway_per_user_rpm_exceeded",
-                end_user_id=end_user_id,
-                route_id=str(route_id),
-                count=count,
-                limit=rpm_limit,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Per-user rate limit exceeded for this route",
-                headers={"Retry-After": "60"},
-            )
-    except HTTPException:
-        raise
+        allowed, count, retry_ms = await redis.eval(
+            _RPM_SCRIPT,
+            1,
+            key,
+            now_ms,
+            _RPM_WINDOW_MS,
+            rpm_limit,
+            1 if consume else 0,
+            f"{now_ms}:{uuid.uuid4().hex[:8]}",
+        )
     except Exception:
         # Fail open: if Redis is unavailable, allow the request
         log.warning("gateway_per_user_rpm_redis_error", route_id=str(route_id))
+        return
+    if int(allowed) == 1:
+        return
+    log.warning(
+        "gateway_per_user_rpm_exceeded",
+        subject=subject,
+        route_id=str(route_id),
+        count=int(count),
+        limit=rpm_limit,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Per-user rate limit exceeded for this route",
+        headers={"Retry-After": str(max(1, -(-int(retry_ms) // 1000)))},
+    )

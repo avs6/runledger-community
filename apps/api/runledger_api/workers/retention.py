@@ -52,19 +52,24 @@ async def _run_active_policies(session: AsyncSession) -> int:
 
     total = 0
     for policy in policies:
+        # Each policy in its own savepoint and commit (review S-20): one failing
+        # workspace's policy no longer rolls back everyone else's purges.
+        policy_id = policy.id
         try:
-            count, _ = await purge_resource(
-                session,
-                workspace_id=policy.workspace_id,
-                resource_type=policy.resource_type,
-                action=policy.action,
-                scope=policy.scope,
-                scope_value=policy.scope_value,
-                max_age_days=policy.max_age_days,
-                dry_run=False,
-            )
-            policy.last_run_at = datetime.now(UTC)
-            policy.last_purged_count = count
+            async with session.begin_nested():
+                count, _ = await purge_resource(
+                    session,
+                    workspace_id=policy.workspace_id,
+                    resource_type=policy.resource_type,
+                    action=policy.action,
+                    scope=policy.scope,
+                    scope_value=policy.scope_value,
+                    max_age_days=policy.max_age_days,
+                    dry_run=False,
+                )
+                policy.last_run_at = datetime.now(UTC)
+                policy.last_purged_count = count
+            await session.commit()
             total += count
             log.info(
                 "retention_policy_applied",
@@ -74,7 +79,8 @@ async def _run_active_policies(session: AsyncSession) -> int:
                 count=count,
             )
         except Exception:
-            log.exception("retention_policy_failed", policy_id=str(policy.id))
+            await session.rollback()
+            log.exception("retention_policy_failed", policy_id=str(policy_id))
 
     return total
 

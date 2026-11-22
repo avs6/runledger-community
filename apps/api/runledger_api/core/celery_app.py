@@ -27,6 +27,8 @@ celery_app = Celery(
         "runledger_api.workers.budget_overrides",
         "runledger_api.workers.backups",
         "runledger_api.workers.kafka",
+        # Replay experiments were queued but no worker loaded the task (review B-06).
+        "runledger_api.workers.replay",
     ],
 )
 

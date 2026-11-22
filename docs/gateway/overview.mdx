@@ -11,7 +11,7 @@ The Model Gateway is RunLedger's **Rust data plane**. Point any OpenAI-compatibl
 
 ## Key features
 
-- **Drop-in OpenAI compatibility** via `/gateway/chat/completions` for streaming and non-streaming requests.
+- **Drop-in OpenAI compatibility** via `/gateway/chat/completions` for streaming and non-streaming requests. Both are metered: streamed calls are recorded with token usage and cost once the stream ends.
 - **Per-alias routes** that map one logical model alias to one or more provider routes with fallback and regional preference.
 - **Pass-through endpoints** for non-LLM APIs with shared auth, timeout, rate limits, and per-call cost attribution.
 - **In-band enforcement** for budgets, cost caps, and rate limits before provider spend occurs.
@@ -58,7 +58,9 @@ resp = client.chat.completions.create(
 |---|---|
 | `POST /gateway/chat/completions` | OpenAI-compatible gateway proxy |
 | `POST/GET/PUT/DELETE /gateway/routes` | Manage model routes |
-| `POST/GET/PUT/DELETE /gateway/passthrough/*` | Manage and execute pass-through endpoints |
+| `POST/GET/PUT/DELETE /gateway/passthrough/{id}` | Manage pass-through endpoints (`{id}` is the endpoint's UUID) |
+| `ANY /gateway/passthrough/{slug}/…` | Call a pass-through endpoint. Slugs are lower-case letters, digits, `-` and `_`, unique per workspace (409), and can't be `stats`, `test`, `new`, `list` or a UUID (422) |
+| `GET /gateway/routes/{id}`, `/gateway/policies/{id}`, `/gateway/routing-groups/{id}` | Read one route, policy or routing group |
 | `GET /gateway/stats` and `GET /gateway/requests` | Routing stats and request log |
 | `GET /gateway/benchmarks/compare` | Per-alias overhead and throughput comparison |
 

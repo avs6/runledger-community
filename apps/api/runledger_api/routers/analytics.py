@@ -24,7 +24,7 @@ from typing import Annotated, Any
 
 import sqlalchemy as sa
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi import status as http_status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import String, case, cast, func, or_, select, text
@@ -37,6 +37,7 @@ from runledger_api.core.deps import (
     require_platform_admin,
     require_workspace_writer,
 )
+from runledger_api.core.pagination import PageDep, paginate, paginate_list
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.agents import Agent, WorkflowDefinition, WorkflowRun
@@ -238,6 +239,7 @@ from runledger_api.schemas.scores import (
     ScoreSummary,
     ScoreSummaryItem,
 )
+from runledger_api.services.billable import billable_cost_sum
 
 # Provider calls carry no tool reference: spend "on tools" is the model spend of runs
 # that made at least one tool call.
@@ -349,17 +351,21 @@ async def analytics_summary(
     prev_to = t_from
 
     def _summary_stmt(period_from: datetime, period_to: datetime) -> Any:
+        # Spend uses the shared billable-cost definition (billing, budgets and
+        # chargeback agree); usage counters cover successful calls.
+        ok = ProviderCall.status == "success"
         stmt = select(
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("total_cost"),
-            func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("total_input"),
-            func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("total_output"),
-            func.count(ProviderCall.run_id.distinct()).label("run_count"),
-            func.count(ProviderCall.id).label("call_count"),
+            billable_cost_sum().label("total_cost"),
+            func.coalesce(func.sum(case((ok, ProviderCall.input_tokens))), 0).label("total_input"),
+            func.coalesce(func.sum(case((ok, ProviderCall.output_tokens))), 0).label(
+                "total_output"
+            ),
+            func.count(case((ok, ProviderCall.run_id)).distinct()).label("run_count"),
+            func.count(case((ok, ProviderCall.id))).label("call_count"),
         ).where(
             ProviderCall.workspace_id == workspace.id,
             ProviderCall.created_at >= period_from,
             ProviderCall.created_at < period_to,
-            ProviderCall.status == "success",
         )
         if api_key_id is not None:
             stmt = stmt.where(ProviderCall.api_key_id == api_key_id)
@@ -1242,6 +1248,8 @@ async def regressions(
     db: Annotated[AsyncSession, Depends(get_db)],
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
+    page: PageDep = None,  # type: ignore[assignment]
+    response: Response = None,  # type: ignore[assignment]
 ) -> RegressionList:
     """Detect feature workflows where avg cost jumped >20% vs prior week."""
     t_to = _parse_dt(to_dt, _default_to())
@@ -1301,7 +1309,7 @@ async def regressions(
             )
 
     return RegressionList(
-        items=items,
+        items=paginate_list(items, page, response),
         from_dt=t_from.isoformat(),
         to_dt=t_to.isoformat(),
     )
@@ -1347,6 +1355,8 @@ async def list_annotations(
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
     version: Annotated[str | None, Query()] = None,
+    page: PageDep = None,  # type: ignore[assignment]
+    response: Response = None,  # type: ignore[assignment]
 ) -> AnnotationList:
     """List annotations for the workspace, optionally filtered by date range or version."""
     stmt = (
@@ -1361,8 +1371,7 @@ async def list_annotations(
     if version:
         stmt = stmt.where(Annotation.version == version)
 
-    result = await db.execute(stmt)
-    rows = result.scalars().all()
+    rows = await paginate(db, stmt.order_by(Annotation.id), page, response)
 
     return AnnotationList(
         items=[
@@ -2054,7 +2063,7 @@ async def savings_analytics(
                 func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label(
                     "baseline"
                 ),
-                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("actual"),
+                billable_cost_sum().label("actual"),
             ).where(*base)
         )
     ).one()

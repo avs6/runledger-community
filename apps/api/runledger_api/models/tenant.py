@@ -115,6 +115,11 @@ class Workspace(Base):
     ingest_signing_version: Mapped[int] = mapped_column(
         sa.Integer, nullable=False, server_default="1", default=1
     )
+    # Version of the per-workspace billing signing key (snapshots, signed exports);
+    # bumping it rotates the key. Old versions still verify.
+    billing_signing_version: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default="1", default=1
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )

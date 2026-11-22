@@ -1,15 +1,17 @@
 """
-Example: workspace chargeback workflow.
+Example: chargeback by cost center.
 
-This walks through the Bundle C chargeback surface:
-1. create a workflow-tag chargeback rule
-2. review the current period allocation report
-3. export finance-ready evidence
+1. create two cost centers
+2. map a workflow tag to them 60/40 with chargeback rules
+3. read the cost-center report (rules applied to this month's billable cost)
+4. export the by-workflow report for finance
 
-Optional env var:
-  RUNLEDGER_ACCESS_GROUP_ID
-    When set, the example requests an access-group-scoped report using
-    the `access_group` dimension.
+Required env vars:
+  RUNLEDGER_API_KEY   a workspace admin's key or session (cost centers and rules
+                      need workspace admin; reports need billing access)
+Optional:
+  RUNLEDGER_BASE_URL  (default http://localhost:8201)
+  RUNLEDGER_FEATURE_TAG  workflow tag to map (default: the costliest tag this month)
 """
 
 from __future__ import annotations
@@ -48,36 +50,47 @@ def main() -> None:
 
     today = date.today()
     period = f"{today.year}-{today.month:02d}"
-    dimension = "access_group" if ACCESS_GROUP_ID else "feature_tag"
-    access_group_qs = f"&access_group_id={ACCESS_GROUP_ID}" if ACCESS_GROUP_ID else ""
 
-    rule = api(
-        "POST",
-        "/billing/chargeback-rules",
-        data=json.dumps(
-            {
-                "allocation_type": "direct",
-                "dimension": dimension,
-                "weight": "1.0",
-            }
-        ),
-    )
-    print(f"Created chargeback rule: {rule['id']}")
+    by_tag = api("GET", f"/billing/chargeback-report?period={period}&dimension=feature_tag")
+    rows = [r for r in by_tag["items"][0]["breakdown"] if r.get("dimension_key")]
+    tag = os.getenv("RUNLEDGER_FEATURE_TAG") or (rows[0]["dimension_key"] if rows else None)
+    if not tag:
+        raise SystemExit("No workflow-tagged usage this month; send some traffic first.")
 
-    report = api(
-        "GET",
-        f"/billing/chargeback-report?period={period}&dimension={dimension}{access_group_qs}",
+    support = api(
+        "POST", "/billing/cost-centers", data=json.dumps({"name": "Support", "code": "SUP"})
     )
-    first = report["items"][0]
-    print("Chargeback period:", first["period"])
-    print("Total cost:", first["total_cost_usd"])
-    print("Breakdown rows:", len(first["breakdown"]))
+    platform = api(
+        "POST", "/billing/cost-centers", data=json.dumps({"name": "Platform", "code": "PLT"})
+    )
+    for center, weight in ((support, "0.6"), (platform, "0.4")):
+        rule = api(
+            "POST",
+            "/billing/chargeback-rules",
+            data=json.dumps(
+                {
+                    "dimension": "feature_tag",
+                    "dimension_value": tag,
+                    "cost_center_id": center["id"],
+                    "allocation_type": "shared_weight",
+                    "weight": weight,
+                }
+            ),
+        )
+        print(f"Rule {rule['id']}: {tag} -> {center['name']} at {weight} ({rule['status']})")
+
+    report = api("GET", f"/billing/chargeback-report/cost-centers?period={period}")
+    print(f"Billable {report['total_billable_usd']}, unassigned {report['unassigned_usd']}")
+    for row in report["rows"]:
+        print(
+            f"  {row['name']}: {row['total_usd']} (rules {row['direct_usd']}, shared {row['shared_usd']})"
+        )
 
     exported = api(
         "GET",
-        f"/billing/chargeback-report/export?period={period}&dimension={dimension}&format=json{access_group_qs}",
+        f"/billing/chargeback-report/export?period={period}&dimension=feature_tag&format=json",
     )
-    print("Exported report dimension:", exported["dimension"])
+    print("Exported rows:", len(exported["breakdown"]))
 
 
 if __name__ == "__main__":

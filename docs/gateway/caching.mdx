@@ -6,14 +6,24 @@ description: "Two cache layers in the gateway — an exact-match prompt cache fo
 The gateway checks two caches before forwarding a request, so repeated and near-duplicate prompts are
 served without paying for inference again.
 
+Caching never bypasses controls: IP ACLs, required metadata and **pre-call guardrails run before either
+cache is consulted** (a prompt cached before a blocking guardrail existed is blocked afterwards), and a
+cache hit still counts against the route's per-user rate limit. Cache hits carry an
+`x-runledger-cache: exact|semantic` response header.
+
 ## Exact cache
 
-A SHA-256 of `{model, messages}` keys a per-tenant response cache. A byte-for-byte identical request
-returns the stored response in **under 5 ms**. Enable it per request with `"cache": true`.
+A SHA-256 of the model, the (guardrail-processed) messages and every parameter that changes the answer —
+`tools`, `tool_choice`, `response_format`, `temperature`, `top_p`, `seed`, `max_tokens`, `stop`, `n`,
+penalties, `reasoning_effort`, `logit_bias`, `parallel_tool_calls` — keys a per-tenant response cache. A
+request identical in all of these returns the stored response in **under 5 ms**; change any of them and it
+misses. The key is computed once in preflight and reused when the answer is stored, so lookups and stores
+always agree (also with the context compiler on). Enable it per request with `"cache": true`; streamed
+requests aren't cached.
 
 ```mermaid
 flowchart LR
-  req[Request] --> key[SHA-256 of model + messages]
+  req[Request] --> key[SHA-256 of model + messages + params]
   key --> look{Key in cache?}
   look -- yes --> hit[Return cached response <5ms]
   look -- no --> fwd[Forward · then store]
@@ -23,8 +33,9 @@ flowchart LR
 
 The semantic cache also hits on a **paraphrase** whose embedding is within a similarity threshold — so
 `"how much parental leave do employees get"` hits an earlier `"How much parental leave do employees get?"`.
-It is **scope-isolated**: a mandatory `{tenant, model, system-prompt, knowledge-version, security}` key
-means a cached answer can never cross a permission or version boundary.
+It is **scope-isolated**: a mandatory `{tenant, model, system-prompt, knowledge-version, security}` key,
+where `security` is the caller (API key + end user) plus a hash of the request parameters — so a cached
+answer is only reused for the same caller and settings, never across users.
 
 Enable it per route (`semantic_cache_enabled`) or per request (`"semantic_cache": true`). It is fail-open
 and defaults off. Full details, tuning, and the vector pipeline are in
@@ -38,7 +49,7 @@ and defaults off. Full details, tuning, and the vector pipeline are in
 | Backing store | Postgres | Qdrant (vectors) |
 | Latency | < 5 ms | ~embedding + vector search |
 | Default | Per-request `cache` | Off (opt-in) |
-| Isolation | Tenant | Full scope key |
+| Isolation | Tenant + request parameters | Tenant, caller (key + end user), parameters |
 
 ## FinOps budget bridge
 

@@ -43,19 +43,22 @@ def _canonical_text(messages: list[dict[str, Any]]) -> str:
     )
 
 
-def _scope(workspace_id: Any, model: str, messages: list[dict[str, Any]]) -> dict[str, str]:
+def _scope(
+    workspace_id: Any, model: str, messages: list[dict[str, Any]], security_scope: str = ""
+) -> dict[str, str]:
     return {
         "tenant": str(workspace_id),
         "model": model,
         "system_prompt_hash": _system_prompt_hash(messages),
-        # Placeholders until a knowledge/version and security-scope signal is wired (P5+).
         "knowledge_version": "",
-        "security_scope": "",
+        # Caller identity (API key + end user) and request parameters: answers are only
+        # reused for the same caller and settings, never across users (review G-06).
+        "security_scope": security_scope,
     }
 
 
 async def lookup(
-    workspace_id: Any, model: str, messages: list[dict[str, Any]]
+    workspace_id: Any, model: str, messages: list[dict[str, Any]], security_scope: str = ""
 ) -> dict[str, Any] | None:
     """Return a cached response dict on a semantic hit, else None. Never raises."""
     if not _SVC_URL:
@@ -63,7 +66,7 @@ async def lookup(
     try:
         payload = {
             "text": _canonical_text(messages),
-            "scope": _scope(workspace_id, model, messages),
+            "scope": _scope(workspace_id, model, messages, security_scope),
         }
         async with httpx.AsyncClient(
             timeout=_TIMEOUT, headers=settings.internal_service_headers
@@ -86,6 +89,7 @@ async def store(
     response_json: dict[str, Any],
     prompt_tokens: int | None,
     completion_tokens: int | None,
+    security_scope: str = "",
 ) -> None:
     """Store a response for future semantic hits. Never raises."""
     if not _SVC_URL:
@@ -93,7 +97,7 @@ async def store(
     try:
         payload = {
             "text": _canonical_text(messages),
-            "scope": _scope(workspace_id, model, messages),
+            "scope": _scope(workspace_id, model, messages, security_scope),
             "response": response_json,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,

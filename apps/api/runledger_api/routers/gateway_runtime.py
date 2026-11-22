@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import structlog
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
@@ -15,11 +16,16 @@ from runledger_api.services.budgets import (
     check_request_budgets,
     record_budget_spend,
 )
+from runledger_api.services.gateway_controls import rpm_subject
 from runledger_api.services.sessions import resolve_principal_user_id
 
 from .gateway_shared import *
 
 log = structlog.get_logger()
+
+# Providers that accept stream_options.include_usage (OpenAI-compatible).
+_STREAM_USAGE_PROVIDERS = {"openai", "azure", "vllm", "groq", "ollama", "local"}
+
 
 router = APIRouter()
 
@@ -82,6 +88,76 @@ def _budget_exceeded(budget_id: str | None, detail: str) -> HTTPException:
     if budget_id:
         headers["X-Budget-Id"] = budget_id
     return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, detail, headers=headers)
+
+
+# Request fields that change the model's answer; part of the cache key (review G-07).
+_CACHE_PARAM_FIELDS = (
+    "tools",
+    "tool_choice",
+    "response_format",
+    "temperature",
+    "top_p",
+    "seed",
+    "max_tokens",
+    "stop",
+    "n",
+    "frequency_penalty",
+    "presence_penalty",
+    "reasoning_effort",
+    "logit_bias",
+    "parallel_tool_calls",
+)
+
+
+def _cache_params(request: Any) -> dict[str, Any]:
+    data = (
+        request.model_dump(exclude_none=True) if hasattr(request, "model_dump") else dict(request)
+    )
+    return {k: data[k] for k in _CACHE_PARAM_FIELDS if k in data}
+
+
+def _semantic_scope(api_key: Any, end_user_id: str | None, params: dict[str, Any]) -> str:
+    """Semantic-cache scope: the caller (API key + end user) and a hash of the request
+    parameters, so answers are reused only for the same caller and settings (G-06)."""
+    import hashlib  # noqa: PLC0415
+    import json  # noqa: PLC0415
+
+    key_id = str(api_key.id) if api_key is not None else "oidc"
+    p_hash = hashlib.sha256(json.dumps(params, sort_keys=True, default=str).encode()).hexdigest()[
+        :16
+    ]
+    return f"key:{key_id}|user:{end_user_id or ''}|params:{p_hash}"
+
+
+def _guardrail_texts(messages: list[dict[str, Any]]) -> tuple[list[int], list[str]]:
+    """(message positions, texts) for the string-content messages guardrails inspect."""
+    positions = [
+        i for i, m in enumerate(messages) if isinstance(m.get("content"), str) and m["content"]
+    ]
+    return positions, [messages[i]["content"] for i in positions]
+
+
+def _apply_modified_texts(
+    messages: list[dict[str, Any]], positions: list[int], results: list[dict[str, Any]]
+) -> None:
+    """Write guardrail-modified texts back to the messages they came from."""
+    for result in results:
+        if result.get("decision") == "modify" and result.get("modified_texts"):
+            for text_idx, new_text in enumerate(result["modified_texts"]):
+                if text_idx < len(positions):
+                    messages[positions[text_idx]]["content"] = new_text
+
+
+async def _cache_hit_rate_limit(
+    workspace_id: uuid.UUID, subject: str | None, seed_routes: list[Any]
+) -> None:
+    """Cache hits still count against the per-user RPM of the alias's first route (G-05)."""
+    if not subject or not seed_routes:
+        return
+    route = seed_routes[0]
+    if route.per_user_rpm_limit:
+        redis = await get_redis()
+        await check_per_user_rpm(redis, workspace_id, subject, route.id, route.per_user_rpm_limit)
 
 
 async def _enforce_request_budgets(
@@ -165,8 +241,15 @@ async def _record_canonical_gateway_run(
     body: GatewayRuntimeFinalizeRequest,
     input_tokens: int | None,
     output_tokens: int | None,
+    blocked_reason: str | None = None,
+    shadow_of: str | None = None,
 ) -> tuple[Decimal | None, uuid.UUID, uuid.UUID, str | None]:
-    """Record the gateway call as a run; returns (cost, run_id, provider_call_id, feature_tag)."""
+    """Record the gateway call as a run; returns (cost, run_id, provider_call_id, feature_tag).
+
+    ``blocked_reason`` marks a response a post-call guardrail blocked: the provider was
+    still paid, so the run is recorded (as failed) with its full cost (review G-10).
+    ``shadow_of`` marks a mirrored (shadow) call of that alias: real spend, so it is
+    priced and counted, and flagged ``shadow`` so dashboards can separate it (G-12)."""
     ended_at = datetime.now(UTC)
     latency_ms = body.latency_ms if body.latency_ms is not None else body.total_wall_ms
     started_at = ended_at - timedelta(milliseconds=latency_ms or 0)
@@ -197,6 +280,11 @@ async def _record_canonical_gateway_run(
         "ir_decision": body.ir_decision,
         "response_id": response_id,
     }
+    if blocked_reason:
+        run_metadata["guardrail_blocked"] = blocked_reason
+    if shadow_of:
+        run_metadata["shadow"] = True
+        run_metadata["shadow_of_alias"] = shadow_of
     feature_tag = _feature_tag_from(metadata, body.request_tags)
 
     run = AgentRun(
@@ -212,7 +300,7 @@ async def _record_canonical_gateway_run(
             "service.version",
             "version",
         ),
-        status=RunStatusEnum.succeeded,
+        status=RunStatusEnum.failed if blocked_reason else RunStatusEnum.succeeded,
         started_at=started_at,
         ended_at=ended_at,
         total_cost_usd=cost,
@@ -220,7 +308,7 @@ async def _record_canonical_gateway_run(
         total_output_tokens=output_tokens,
         run_metadata=run_metadata,
         intent=_metadata_text(metadata, "intent", "task.intent"),
-        source_type="gateway-rs",
+        source_type="gateway-shadow" if shadow_of else "gateway-rs",
     )
     db.add(run)
     await db.flush()
@@ -231,7 +319,7 @@ async def _record_canonical_gateway_run(
         name=f"{route.provider}:{route.target_model}"[:255],
         started_at=started_at,
         ended_at=ended_at,
-        status=SpanStatusEnum.succeeded,
+        status=SpanStatusEnum.failed if blocked_reason else SpanStatusEnum.succeeded,
         cost_usd=cost,
         span_metadata={
             "source": "runledger.gateway-rs",
@@ -339,15 +427,18 @@ async def gateway_runtime_preflight(
     )
 
     metadata = body.body.metadata or {}
-    team_name = str(metadata.get("team")) if metadata.get("team") else None
-    if body.client_ip:
-        await evaluate_ip_acl(
-            db,
-            workspace_id=workspace.id,
-            api_key_id=api_key.id,
-            team_name=team_name,
-            client_ip=body.client_ip,
-        )
+    # The ACL always runs (no client IP + active rules = 403), works for OIDC callers
+    # (no API key) and scopes by access group via the principal user (review G-18).
+    principal_user_id = await resolve_principal_user_id(
+        db, api_key=api_key, end_user_id=body.end_user_id, workspace=workspace
+    )
+    await evaluate_ip_acl(
+        db,
+        workspace_id=workspace.id,
+        api_key_id=api_key.id if api_key is not None else None,
+        client_ip=body.client_ip,
+        principal_user_id=principal_user_id,
+    )
     missing_metadata = await enforce_required_metadata(
         db, workspace_id=workspace.id, metadata=metadata
     )
@@ -364,11 +455,65 @@ async def gateway_runtime_preflight(
     request_tags = await resolve_request_tags(db, workspace.id, body.body.model, request_tags)
     preferred_region = body.region_header.strip() if body.region_header else None
 
+    # Guardrails run before either cache is consulted, so a cache hit can't bypass
+    # them, and before any sidecar (compiler, router) sees the prompt (G-05, G-09).
+    guardrails_enabled = not getattr(workspace, "guardrail_bypass", False) and not (
+        (getattr(api_key, "guardrail_config", {}) or {}).get("disabled", False)
+    )
+    key_guardrail_ids = (getattr(api_key, "guardrail_config", {}) or {}).get("guardrail_ids")
+    if guardrails_enabled:
+        guardrail_ids = (
+            [uuid.UUID(g) for g in body.body.guardrails]
+            if body.body.guardrails
+            else ([uuid.UUID(g) for g in key_guardrail_ids] if key_guardrail_ids else None)
+        )
+        # Guardrails see string-content messages only; the positions map each text back to
+        # its message so a "modify" result rewrites the right one (review G-08).
+        text_positions, pre_texts = _guardrail_texts(messages)
+        gr_decision, gr_results, _ = await evaluate_guardrails(
+            db,
+            workspace.id,
+            "pre_call",
+            texts=pre_texts,
+            structured_messages=messages,
+            model=body.body.model,
+            end_user_id=body.end_user_id,
+            user_id=str(principal_user_id) if principal_user_id else None,
+            guardrail_ids=guardrail_ids,
+        )
+        if gr_decision == "block":
+            blocked_reason = next(
+                (r["reason"] for r in gr_results if r["decision"] == "block"),
+                "Blocked by guardrail",
+            )
+            raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
+        if gr_decision == "modify":
+            _apply_modified_texts(messages, text_positions, gr_results)
+
+    seed_routes = await select_routes(
+        db,
+        workspace.id,
+        body.body.model,
+        request_tags=request_tags,
+        preferred_region=preferred_region,
+    )
+    # PII redaction runs before the caches, the context compiler and the classifier, so
+    # none of them (and no cache entry) sees the raw values (review G-09, S-12).
+    if seed_routes and seed_routes[0].pii_redaction_enabled:
+        messages = redact_messages(messages)
+    # One cache key for lookup (here) and store (finalize): model, guardrail-processed
+    # messages and every parameter that changes the answer (G-07, G-19).
+    cache_params = _cache_params(body.body)
+    # Per-user RPM applies to the end user, or the API key when none is named (G-14).
+    rpm_key = rpm_subject(body.end_user_id, api_key.id if api_key is not None else None)
+    cache_key = make_cache_key(body.body.model, messages, cache_params)
+    semantic_scope = _semantic_scope(api_key, body.end_user_id, cache_params)
+
     cache_entry = None
     if body.body.cache and not body.body.stream:
-        cache_key = make_cache_key(body.body.model, messages)
         cache_entry = await check_cache(db, workspace.id, cache_key)
     if cache_entry is not None:
+        await _cache_hit_rate_limit(workspace.id, rpm_key, seed_routes)
         await increment_hit_count(db, cache_entry)
         await record_gateway_request(
             db=db,
@@ -395,6 +540,7 @@ async def gateway_runtime_preflight(
             missing_metadata=missing_metadata,
             cache_hit_kind="exact",
             cached_response=cache_entry.response_json,
+            cache_key=cache_key,
             prepared_messages=messages,
             effective_tools=body.body.tools,
             effective_reasoning_effort=body.body.reasoning_effort,
@@ -403,18 +549,14 @@ async def gateway_runtime_preflight(
         )
 
     semantic_enabled = body.body.semantic_cache
-    seed_routes = await select_routes(
-        db,
-        workspace.id,
-        body.body.model,
-        request_tags=request_tags,
-        preferred_region=preferred_region,
-    )
     if not semantic_enabled and not body.body.stream:
         semantic_enabled = bool(seed_routes and seed_routes[0].semantic_cache_enabled)
     if semantic_enabled and not body.body.stream:
-        sem_hit = await semantic_cache_svc.lookup(workspace.id, body.body.model, messages)
+        sem_hit = await semantic_cache_svc.lookup(
+            workspace.id, body.body.model, messages, security_scope=semantic_scope
+        )
         if sem_hit is not None:
+            await _cache_hit_rate_limit(workspace.id, rpm_key, seed_routes)
             usage = sem_hit.get("usage") or {}
             await record_gateway_request(
                 db=db,
@@ -441,6 +583,8 @@ async def gateway_runtime_preflight(
                 missing_metadata=missing_metadata,
                 cache_hit_kind="semantic",
                 cached_response=sem_hit,
+                cache_key=cache_key,
+                semantic_scope=semantic_scope,
                 prepared_messages=messages,
                 effective_tools=body.body.tools,
                 effective_reasoning_effort=body.body.reasoning_effort,
@@ -481,45 +625,6 @@ async def gateway_runtime_preflight(
             on_fail = routing_config.get("on_failure")
             if isinstance(on_fail, str) and on_fail != "passthrough":
                 route_alias = (routing_config.get("tiers") or {}).get(on_fail, route_alias)
-
-    guardrails_enabled = not getattr(workspace, "guardrail_bypass", False) and not (
-        (getattr(api_key, "guardrail_config", {}) or {}).get("disabled", False)
-    )
-    key_guardrail_ids = (getattr(api_key, "guardrail_config", {}) or {}).get("guardrail_ids")
-    principal_user_id: uuid.UUID | None = None
-    if guardrails_enabled:
-        guardrail_ids = (
-            [uuid.UUID(g) for g in body.body.guardrails]
-            if body.body.guardrails
-            else ([uuid.UUID(g) for g in key_guardrail_ids] if key_guardrail_ids else None)
-        )
-        pre_texts = [str(m.get("content", "")) for m in messages if m.get("content")]
-        principal_user_id = await resolve_principal_user_id(
-            db, api_key=api_key, end_user_id=body.end_user_id, workspace=workspace
-        )
-        gr_decision, gr_results, _ = await evaluate_guardrails(
-            db,
-            workspace.id,
-            "pre_call",
-            texts=pre_texts,
-            structured_messages=messages,
-            model=body.body.model,
-            end_user_id=body.end_user_id,
-            user_id=str(principal_user_id) if principal_user_id else None,
-            guardrail_ids=guardrail_ids,
-        )
-        if gr_decision == "block":
-            blocked_reason = next(
-                (r["reason"] for r in gr_results if r["decision"] == "block"),
-                "Blocked by guardrail",
-            )
-            raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
-        if gr_decision == "modify":
-            for result in gr_results:
-                if result.get("modified_texts") and result["decision"] == "modify":
-                    for idx, message in enumerate(messages):
-                        if message.get("content") and idx < len(result["modified_texts"]):
-                            messages[idx]["content"] = result["modified_texts"][idx]
 
     route_alias, budget_note = await _enforce_request_budgets(
         db,
@@ -579,6 +684,9 @@ async def gateway_runtime_preflight(
 
     execution_steps = []
     provider_budget_blocked = False
+    # The last cost-cap / RPM refusal; returned (429 + reason headers) when it leaves no
+    # runnable route, so a limit isn't reported as a 502 outage (review G-13).
+    limit_refusal: HTTPException | None = None
 
     async def _route_within_provider_budgets(
         db: AsyncSession, workspace_id: uuid.UUID, route: GatewayRoute
@@ -667,21 +775,24 @@ async def gateway_runtime_preflight(
                 await check_cost_cap(db, route, workspace.id)
                 if not await _route_within_provider_budgets(db, workspace.id, route):
                     continue
-                if body.end_user_id and route.per_user_rpm_limit:
+                if rpm_key and route.per_user_rpm_limit:
                     redis = await get_redis()
+                    # Only the first runnable route (the one expected to serve) takes a
+                    # slot; fallbacks are checked without counting (review G-14).
                     await check_per_user_rpm(
                         redis,
                         workspace.id,
-                        body.end_user_id,
+                        rpm_key,
                         route.id,
                         route.per_user_rpm_limit,
+                        consume=not execution_steps,
                     )
-            except HTTPException:
+            except HTTPException as exc:
+                if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+                    limit_refusal = exc
                 continue
             step_forward_messages = (
-                redact_messages(step_messages)
-                if body.body.stream and route.pii_redaction_enabled
-                else step_messages
+                redact_messages(step_messages) if route.pii_redaction_enabled else step_messages
             )
             step_request = _runtime_request_body(
                 body=body.body,
@@ -699,6 +810,10 @@ async def gateway_runtime_preflight(
             step_request["stop"] = step_stop
             step_request["response_format"] = step_response_format
             step_request["tool_choice"] = step_tool_choice
+            if body.body.stream and (route.provider or "").lower() in _STREAM_USAGE_PROVIDERS:
+                # Ask OpenAI-compatible providers to report token usage in the last
+                # stream chunk, so streamed calls are metered (review G-03).
+                step_request["stream_options"] = {"include_usage": True}
             direct_provider = _runtime_direct_provider_request(
                 route=route,
                 request_body=step_request,
@@ -717,6 +832,8 @@ async def gateway_runtime_preflight(
                 "priority": route.priority,
                 "timeout_ms": timeout_override_ms or route.timeout_ms,
                 "retry_count": route.retry_count,
+                # gateway-rs samples mirrors itself and fires them in the background.
+                "mirror_sample_pct": _mirror_sample_pct(route),
                 "region": route.region,
                 "deployment_status": route.deployment_status,
                 "trigger": trigger,
@@ -745,6 +862,8 @@ async def gateway_runtime_preflight(
             execution_steps.append(step_entry)
 
     if not execution_steps:
+        if limit_refusal is not None:
+            raise limit_refusal
         if provider_budget_blocked:
             raise _budget_exceeded(
                 None, "Provider budget limit reached for every route serving this request"
@@ -774,6 +893,8 @@ async def gateway_runtime_preflight(
         ir_decision=ir_decision,
         decision_reason=decision_reason,
         execution_steps=execution_steps,
+        cache_key=cache_key,
+        semantic_scope=semantic_scope,
     )
 
 
@@ -793,22 +914,34 @@ async def gateway_runtime_finalize(
     if route is None or route.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
 
+    # A post-call block still records the run, the request and the spend (the provider
+    # was paid) and skips the caches; the 451 is raised at the end (review G-10).
+    blocked_reason: str | None = None
     if body.guardrails_enabled:
         finalize_key = await db.get(ApiKey, body.api_key_id) if body.api_key_id else None
         principal_user_id = await resolve_principal_user_id(
             db, api_key=finalize_key, end_user_id=body.end_user_id, workspace=workspace
         )
         response_content = ""
+        response_tool_calls: list[dict[str, Any]] = []
         choices = body.response_json.get("choices", [])
         if choices:
             msg = choices[0].get("message", {})
             response_content = msg.get("content", "") or ""
-        if response_content:
+            response_tool_calls = [c for c in (msg.get("tool_calls") or []) if isinstance(c, dict)]
+        # Tool-call arguments are checked like response text, so a model can't route
+        # blocked content through a function call (review G-10).
+        tool_arg_texts = [
+            str((c.get("function") or {}).get("arguments") or "") for c in response_tool_calls
+        ]
+        response_texts = [t for t in [response_content, *tool_arg_texts] if t]
+        if response_texts:
             post_result = await evaluate_guardrails(
                 db,
                 workspace.id,
                 "post_call",
-                texts=[response_content],
+                texts=response_texts,
+                tool_calls=response_tool_calls or None,
                 structured_messages=body.prepared_messages,
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
@@ -821,27 +954,26 @@ async def gateway_runtime_finalize(
                 texts=[
                     str(m.get("content", "")) for m in body.prepared_messages if m.get("content")
                 ]
-                + [response_content],
+                + response_texts,
+                tool_calls=response_tool_calls or None,
                 structured_messages=body.prepared_messages,
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
                 user_id=str(principal_user_id) if principal_user_id else None,
             )
             for phase_decision, phase_results, _ in [post_result, during_result]:
-                if phase_decision == "block":
+                if phase_decision == "block" and blocked_reason is None:
                     blocked_reason = next(
                         (r["reason"] for r in phase_results if r["decision"] == "block"),
                         "Response blocked by guardrail",
-                    )
-                    raise HTTPException(
-                        status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason
                     )
 
     usage = body.response_json.get("usage") or {}
     input_tokens = _optional_int(usage.get("prompt_tokens"))
     output_tokens = _optional_int(usage.get("completion_tokens"))
-    if body.cache:
-        cache_key = make_cache_key(body.model_requested, body.prepared_messages)
+    if body.cache and blocked_reason is None:
+        # The key preflight looked up with (falls back for older gateways).
+        cache_key = body.cache_key or make_cache_key(body.model_requested, body.prepared_messages)
         await store_cache(
             db=db,
             workspace_id=workspace.id,
@@ -851,7 +983,7 @@ async def gateway_runtime_finalize(
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,
         )
-    if body.semantic_cache_enabled:
+    if body.semantic_cache_enabled and blocked_reason is None:
         await semantic_cache_svc.store(
             workspace_id=workspace.id,
             model=body.model_requested,
@@ -859,6 +991,8 @@ async def gateway_runtime_finalize(
             response_json=body.response_json,
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,
+            security_scope=body.semantic_scope
+            or f"key:{body.api_key_id or 'oidc'}|user:{body.end_user_id or ''}",
         )
     gateway_overhead_ms = max((body.total_wall_ms or 0) - (body.latency_ms or 0), 0)
     cost, run_id, provider_call_id, feature_tag = await _record_canonical_gateway_run(
@@ -868,6 +1002,7 @@ async def gateway_runtime_finalize(
         body=body,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        blocked_reason=blocked_reason,
     )
     await record_gateway_request(
         db=db,
@@ -879,8 +1014,10 @@ async def gateway_runtime_finalize(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         latency_ms=body.latency_ms,
-        req_status="success",
-        decision_reason=body.decision_reason,
+        req_status="blocked" if blocked_reason else "success",
+        decision_reason=(
+            f"guardrail_blocked: {blocked_reason}"[:255] if blocked_reason else body.decision_reason
+        ),
         config_fingerprint=_config_fingerprint(
             model_used=route.target_model,
             semantic_cache=body.semantic_cache_enabled,
@@ -914,6 +1051,8 @@ async def gateway_runtime_finalize(
         await db.commit()
     except Exception:
         log.exception("gateway_budget_spend_failed", provider_call_id=str(provider_call_id))
+    if blocked_reason:
+        raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
     return GatewayRuntimeFinalizeResponse(ok=True)
 
 
@@ -941,22 +1080,56 @@ async def gateway_runtime_provider_execute(
         "reasoning_effort": body.request_body.get("reasoning_effort"),
     }
     if body.stream:
+        chunks = stream_request(
+            route=route,
+            messages=messages,
+            timeout_override_ms=body.timeout_ms,
+            **kwargs,
+        ).__aiter__()
+        # Read the first chunk before answering, so a provider error or timeout gets a
+        # real status code instead of a broken stream.
+        try:
+            first = await chunks.__anext__()
+        except StopAsyncIteration:
+            first = b""
+        except Exception as exc:  # noqa: BLE001
+            return _provider_error_response(exc)
 
         async def _provider_stream() -> AsyncGenerator[bytes]:
-            async for chunk in stream_request(
-                route=route,
-                messages=messages,
-                timeout_override_ms=body.timeout_ms,
-                **kwargs,
-            ):
+            if first:
+                yield first
+            async for chunk in chunks:
                 yield chunk
 
         return StreamingResponse(_provider_stream(), media_type="text/event-stream")
 
-    return await forward_request(
-        route=route,
-        messages=messages,
-        **kwargs,
+    try:
+        return await forward_request(
+            route=route,
+            messages=messages,
+            timeout_override_ms=body.timeout_ms,
+            **kwargs,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _provider_error_response(exc)
+
+
+def _provider_error_response(exc: Exception) -> JSONResponse:
+    """Map a provider failure to a response gateway-rs can act on: the provider's own
+    status and body (so 400/413 reach the error-triggered fallbacks, review G-11), 504 on
+    timeout, 502 when the provider can't be reached. Previously these escaped as a
+    dropped connection."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            content: Any = exc.response.json()
+        except ValueError:
+            content = {"detail": exc.response.text[:4000]}
+        return JSONResponse(status_code=exc.response.status_code, content=content)
+    if isinstance(exc, httpx.TimeoutException):
+        return JSONResponse(status_code=504, content={"detail": "provider request timed out"})
+    log.warning("gateway_provider_execute_failed", error=str(exc)[:300])
+    return JSONResponse(
+        status_code=502, content={"detail": f"provider request failed: {exc}"[:500]}
     )
 
 
@@ -983,6 +1156,17 @@ async def gateway_runtime_route_result(
     return {"ok": True}
 
 
+def _mirror_sample_pct(route: GatewayRoute) -> float:
+    """The route's mirror sample rate (0–1), or 0 when it has no mirror alias."""
+    cfg = route.mirror_config if isinstance(route.mirror_config, dict) else {}
+    if not cfg.get("alias"):
+        return 0.0
+    try:
+        return max(0.0, min(1.0, float(cfg.get("sample_pct") or 0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 @router.post("/runtime/internal/mirror")
 async def gateway_runtime_mirror(
     body: GatewayRuntimeMirrorRequest,
@@ -999,7 +1183,9 @@ async def gateway_runtime_mirror(
         if isinstance(mirror_cfg, dict) and mirror_cfg.get("sample_pct") is not None
         else 0.0
     )
-    if not mirror_alias or mirror_pct <= 0 or random.random() >= mirror_pct:
+    if not mirror_alias or mirror_pct <= 0:
+        return {"ok": True}
+    if not body.sampled and random.random() >= mirror_pct:  # noqa: S311
         return {"ok": True}
 
     messages = list(body.request_body.get("messages") or [])
@@ -1013,6 +1199,10 @@ async def gateway_runtime_mirror(
     )
     if mirror_route is None:
         return {"ok": True}
+    # The messages already passed pre-call guardrails (and the primary route's
+    # redaction); redact again when the shadow route asks for it (review G-12).
+    if mirror_route.pii_redaction_enabled:
+        messages = redact_messages(messages)
 
     try:
         started = time.monotonic()
@@ -1036,6 +1226,33 @@ async def gateway_runtime_mirror(
             _response_text(mirror_response),
         )
         usage = mirror_response.get("usage") or {}
+        latency_ms = int((time.monotonic() - started) * 1000)
+        input_tokens = _optional_int(usage.get("prompt_tokens"))
+        output_tokens = _optional_int(usage.get("completion_tokens"))
+        decision = f"mirror:{route.alias}->{mirror_alias}|shadow_compare:{similarity:.3f}"
+        # Shadow spend is real spend: record it as a priced, shadow-flagged run and count
+        # it against budgets, so it isn't invisible to FinOps (review G-12).
+        cost, run_id, provider_call_id, feature_tag = await _record_canonical_gateway_run(
+            db,
+            workspace_id=body.workspace_id,
+            route=mirror_route,
+            body=GatewayRuntimeFinalizeRequest(
+                workspace_id=body.workspace_id,
+                route_id=mirror_route.id,
+                api_key_id=body.api_key_id,
+                model_requested=body.model_requested,
+                prepared_messages=messages,
+                response_json=mirror_response,
+                request_metadata=body.request_metadata,
+                request_tags=body.request_tags,
+                latency_ms=latency_ms,
+                decision_reason=decision,
+                end_user_id=body.end_user_id,
+            ),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            shadow_of=route.alias,
+        )
         await record_gateway_request(
             db=db,
             workspace_id=body.workspace_id,
@@ -1043,12 +1260,35 @@ async def gateway_runtime_mirror(
             route=mirror_route,
             model_used=mirror_route.target_model,
             cache_hit=False,
-            input_tokens=usage.get("prompt_tokens"),
-            output_tokens=usage.get("completion_tokens"),
-            latency_ms=int((time.monotonic() - started) * 1000),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
             req_status="success",
-            decision_reason=f"mirror:{route.alias}->{mirror_alias}|shadow_compare:{similarity:.3f}",
+            decision_reason=decision,
+            config_fingerprint={
+                "shadow": True,
+                "cost_usd": str(cost) if cost is not None else None,
+                "run_id": str(run_id),
+            },
         )
+        try:
+            async with db.begin_nested():
+                await record_budget_spend(
+                    db,
+                    await get_redis(),
+                    workspace_id=body.workspace_id,
+                    provider_call_id=provider_call_id,
+                    cost_usd=cost,
+                    run_id=run_id,
+                    api_key_id=body.api_key_id,
+                    end_user_id=body.end_user_id,
+                    feature_tag=feature_tag,
+                    provider=mirror_route.provider,
+                    model=mirror_route.target_model,
+                )
+            await db.commit()
+        except Exception:
+            log.exception("gateway_mirror_budget_spend_failed")
     except Exception as exc:  # noqa: BLE001
         await record_gateway_request(
             db=db,

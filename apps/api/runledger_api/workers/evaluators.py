@@ -97,7 +97,11 @@ async def _run_batch(
                 "total_cost_usd": str(run.total_cost_usd) if run.total_cost_usd else None,
                 "total_input_tokens": run.total_input_tokens,
                 "total_output_tokens": run.total_output_tokens,
-                "duration_ms": run.duration_ms,  # type: ignore[attr-defined]
+                # AgentRun has no duration column; compute it (review B-01: reading
+                # run.duration_ms crashed every batch evaluation).
+                "duration_ms": int((run.ended_at - run.started_at).total_seconds() * 1000)
+                if run.ended_at and run.started_at
+                else None,
             }
 
             try:

@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from runledger_api.core.deps import (
     require_user,
     require_workspace_admin,
 )
+from runledger_api.core.pagination import PageParams, set_page_headers
 from runledger_api.models.approvals import Approval
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.budgets import Budget
@@ -82,6 +83,14 @@ class UserFinanceSummary(BaseModel):
 
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+def _page_rows(
+    rows: list[Any], response: Response, total: int, limit: int, offset: int
+) -> list[Any]:
+    """Set X-Total-Count / X-Has-More for an already-limited query."""
+    set_page_headers(response, total, PageParams(limit=limit, offset=offset), len(rows))
+    return list(rows)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -162,6 +171,7 @@ async def _assert_identity_manageable(
 async def list_org_users(
     auth: OrgAdminDep,
     db: DbDep,
+    response: Response,
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[OrgUserResponse]:
@@ -195,6 +205,7 @@ async def list_org_users(
         )
         user_ids.update(wu_users)
     if not user_ids:
+        _page_rows([], response, 0, limit, offset)
         return []
     users = (
         (
@@ -220,7 +231,7 @@ async def list_org_users(
                 can_manage_identity=manageable,
             )
         )
-    return out
+    return _page_rows(out, response, len(user_ids), limit, offset)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=OrgUserCreateResponse)
@@ -458,10 +469,18 @@ async def get_user_finance(
 async def list_workspace_users(
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: DbDep,
+    response: Response,
     limit: int = Query(200, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[WorkspaceMemberResponse]:
     workspace, _, __ = auth
+    total = (
+        await db.execute(
+            select(func.count())
+            .select_from(WorkspaceUser)
+            .where(WorkspaceUser.workspace_id == workspace.id)
+        )
+    ).scalar_one()
     result = await db.execute(
         select(WorkspaceUser, User)
         .join(User, WorkspaceUser.user_id == User.id)
@@ -481,7 +500,7 @@ async def list_workspace_users(
             last_login_at=u.last_login_at,
             joined_at=wu.created_at,
         )
-        for wu, u in result.all()
+        for wu, u in _page_rows(result.all(), response, int(total), limit, offset)
     ]
 
 

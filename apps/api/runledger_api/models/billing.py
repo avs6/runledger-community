@@ -1,6 +1,6 @@
 """
 ORM models for billing: billing_periods, chargeback_rules, usage_snapshots,
-cost_centers, billing_adjustments.
+cost_centers, billing_adjustments, shared_cost_policies, cost_allocations.
 """
 
 from __future__ import annotations
@@ -26,9 +26,10 @@ class BillingPeriodStatusEnum(enum.StrEnum):
 
 
 class AllocationTypeEnum(enum.StrEnum):
-    cost_center = "cost_center"
-    team = "team"
-    env = "env"
+    # direct: the whole cost of the dimension value goes to one cost center (weight 1).
+    # shared_weight: the value's cost is split across cost centers by weight.
+    direct = "direct"
+    shared_weight = "shared_weight"
 
 
 class AdjustmentTypeEnum(enum.StrEnum):
@@ -119,14 +120,34 @@ class BillingPeriod(Base):
     )
     snapshot_hash: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    closed_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    reopened_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    reopen_reason: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
 
 
 class ChargebackRule(Base):
+    """Maps one dimension value to a cost center with a weight.
+
+    Example: dimension="feature_tag", dimension_value="support-triage",
+    cost_center_id=<Support>, weight=0.6. The chargeback report's cost-center view
+    applies active rules; the sum of active weights for one value is at most 1 and
+    any remainder is reported as unassigned.
+
+    status: active | inactive | pending_approval | denied. Approval-gated rules move
+    to active only through the approvals flow, decided by someone other than the
+    requester.
+    """
+
     __tablename__ = "chargeback_rules"
-    __table_args__ = (sa.Index("ix_chargeback_rules_workspace", "workspace_id"),)
+    __table_args__ = (
+        sa.Index("ix_chargeback_rules_workspace", "workspace_id"),
+        sa.Index(
+            "ix_chargeback_rules_lookup", "workspace_id", "dimension", "dimension_value", "status"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -134,6 +155,7 @@ class ChargebackRule(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     allocation_type: Mapped[str] = mapped_column(sa.String(32), nullable=False)
     dimension: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    dimension_value: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     weight: Mapped[Decimal] = mapped_column(sa.Numeric(6, 4), nullable=False)
     cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -142,6 +164,41 @@ class ChargebackRule(Base):
     status: Mapped[str] = mapped_column(
         sa.String(32), nullable=False, server_default=sa.text("'active'")
     )
+    approval_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
+    )
+
+
+class CostAllocation(Base):
+    """One cost center's share of a shared-cost pool applied to a month."""
+
+    __tablename__ = "cost_allocations"
+    __table_args__ = (sa.Index("ix_cost_allocations_period", "workspace_id", "period"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    period: Mapped[str] = mapped_column(sa.String(7), nullable=False)  # YYYY-MM
+    policy_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("shared_cost_policies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    cost_center_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("cost_centers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    label: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    pool_usd: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
+    amount_usd: Mapped[Decimal] = mapped_column(sa.Numeric(14, 6), nullable=False)
+    created_by: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

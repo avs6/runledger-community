@@ -227,18 +227,29 @@ async def test_get_email_log() -> None:
         sent_at="2026-01-01T00:00:00Z",
     )
 
-    # Two execute calls: one for items, one for total count
-    mock_exec1 = AsyncMock()
-    mock_exec1.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[log_item])))
-    mock_exec2 = AsyncMock()
-    mock_exec2.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[log_item])))
-    mock_db.execute = AsyncMock(side_effect=[mock_exec1, mock_exec2])
+    # Two execute calls: total count, then the page of rows
+    count_exec = MagicMock()
+    count_exec.scalar_one = MagicMock(return_value=1)
+    rows_exec = MagicMock()
+    rows_exec.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[log_item])))
+    mock_db.execute = AsyncMock(side_effect=[count_exec, rows_exec])
+
+    from fastapi import Response
+    from runledger_api.core.pagination import PageParams
 
     workspace = make_workspace()
-    result = await get_email_log(auth=(workspace, None), db=mock_db)  # type: ignore[arg-type]
+    response = Response()
+    result = await get_email_log(
+        auth=(workspace, None),  # type: ignore[arg-type]
+        db=mock_db,
+        page=PageParams(limit=200, offset=0),
+        response=response,
+    )
 
     assert result.total == 1
     assert len(result.items) == 1
+    assert response.headers["X-Total-Count"] == "1"
+    assert response.headers["X-Has-More"] == "false"
 
 
 @pytest.mark.asyncio
@@ -434,6 +445,7 @@ async def test_billing_close_fires_email() -> None:
         period_end=date(2026, 1, 31),
         status="open",
         total_cost_usd="42.00",
+        net_cost_usd="42.00",
     )
     snapshot = SimpleNamespace(
         id=uuid.uuid4(),

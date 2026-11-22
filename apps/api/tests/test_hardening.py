@@ -126,10 +126,15 @@ async def test_health_ready_degraded(
 
 
 @pytest.mark.asyncio
-async def test_metrics_requires_token(client: AsyncClient) -> None:
-    """GET /metrics rejects requests without the metrics bearer token."""
-    resp = await client.get("/metrics")
-    assert resp.status_code == 401
+async def test_metrics_requires_token(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """GET /metrics rejects requests without the metrics bearer token, and is
+    disabled (503) when no METRICS_TOKEN is set — no admin-secret fallback."""
+    from runledger_api.core.config import settings  # noqa: PLC0415
+
+    monkeypatch.setattr(settings, "metrics_token", "")
+    assert (await client.get("/metrics", headers={"Authorization": "Bearer x"})).status_code == 503
+    monkeypatch.setattr(settings, "metrics_token", "test-metrics-token")
+    assert (await client.get("/metrics")).status_code == 401
 
 
 @pytest.mark.asyncio
@@ -137,6 +142,7 @@ async def test_metrics_plaintext_export(
     client: AsyncClient,
     mock_db_session: AsyncMock,
     mock_redis_client: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """GET /metrics returns the documented Prometheus-style gauges."""
     scalar_values = [
@@ -159,9 +165,10 @@ async def test_metrics_plaintext_export(
 
     from runledger_api.core.config import settings  # noqa: PLC0415
 
+    monkeypatch.setattr(settings, "metrics_token", "test-metrics-token")
     resp = await client.get(
         "/metrics",
-        headers={"Authorization": f"Bearer {settings.effective_metrics_token}"},
+        headers={"Authorization": "Bearer test-metrics-token"},
     )
 
     assert resp.status_code == 200

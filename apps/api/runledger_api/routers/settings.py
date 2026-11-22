@@ -14,7 +14,7 @@ from typing import Annotated, Any
 
 import httpx
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +26,7 @@ from runledger_api.core.deps import (
     require_platform_admin,
     require_workspace_admin,
 )
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.email_prefs import EmailLog, EmailPreference
@@ -543,18 +544,23 @@ async def delete_capture_policy_scope(
 
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
-async def list_api_keys(auth: WorkspaceAdminDep, db: DbDep) -> list[dict[str, Any]]:
+async def list_api_keys(
+    auth: WorkspaceAdminDep, db: DbDep, page: PageDep, response: Response
+) -> list[dict[str, Any]]:
     """List keys across ALL workspaces in the caller's org (org-admin only)."""
     workspace, _user, workspace_membership = auth
     ws = await _key_visible_workspaces(db, workspace, workspace_membership)
-    result = await db.execute(
+    keys = await paginate(
+        db,
         select(ApiKey)
         .where(
             ApiKey.workspace_id.in_(list(ws.keys())),
             ApiKey.revoked_at.is_(None),
             ApiKey.is_session.is_(False),
         )
-        .order_by(ApiKey.created_at.desc())
+        .order_by(ApiKey.created_at.desc(), ApiKey.id),
+        page,
+        response,
     )
     return [
         {
@@ -573,7 +579,7 @@ async def list_api_keys(auth: WorkspaceAdminDep, db: DbDep) -> list[dict[str, An
             "expires_at": k.expires_at,
             "last_used_at": k.last_used_at,
         }
-        for k in result.scalars().all()
+        for k in keys
     ]
 
 
@@ -802,26 +808,28 @@ async def update_email_preferences(
 
 
 @router.get("/email/log", response_model=EmailLogList)
-async def get_email_log(auth: OrgAdminDep, db: DbDep) -> EmailLogList:
+async def get_email_log(
+    auth: OrgAdminDep, db: DbDep, page: PageDep, response: Response
+) -> EmailLogList:
+    """Email log entries for this workspace, newest first (paged)."""
     workspace = auth[0]
-    """List the 50 most recent email log entries for this workspace."""
-    result = await db.execute(
+    items = await paginate(
+        db,
         select(EmailLog)
         .where(EmailLog.workspace_id == workspace.id)
-        .order_by(EmailLog.sent_at.desc())
-        .limit(50)
+        .order_by(EmailLog.sent_at.desc(), EmailLog.id),
+        page,
+        response,
     )
-    items = list(result.scalars().all())
-
-    count_result = await db.execute(select(EmailLog).where(EmailLog.workspace_id == workspace.id))
-    total = len(list(count_result.scalars().all()))
-
+    total = int(response.headers.get("X-Total-Count", len(items)))
     return EmailLogList(items=items, total=total)  # type: ignore[arg-type]
 
 
 @router.get("/email/history", response_model=EmailLogList)
-async def get_email_history(auth: OrgAdminDep, db: DbDep) -> EmailLogList:
-    return await get_email_log(auth=auth, db=db)
+async def get_email_history(
+    auth: OrgAdminDep, db: DbDep, page: PageDep, response: Response
+) -> EmailLogList:
+    return await get_email_log(auth=auth, db=db, page=page, response=response)
 
 
 @router.post("/email/test")

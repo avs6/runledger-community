@@ -46,6 +46,32 @@ Add a new model by inserting a row into `provider_pricing` — **no code change 
 Each route references an env var holding the provider key (`api_key_env_var`, e.g. `OPENAI_API_KEY`), so
 keys stay in your environment / secret store, never in the database.
 
+When a route leaves `base_url` or `api_key_env_var` empty, each provider uses its own defaults:
+
+| Provider | Default endpoint | Default key variable |
+|---|---|---|
+| `openai` | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
+| `anthropic` | `https://api.anthropic.com/v1` (OpenAI-compatible API) | `ANTHROPIC_API_KEY` |
+| `groq` | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` |
+| `mistral` | `https://api.mistral.ai/v1` | `MISTRAL_API_KEY` |
+| `ollama` / `local` | `OLLAMA_BASE_URL` | none (no key sent) |
+| `vllm` | `VLLM_BASE_URL` | none (no key sent) |
+| `custom` | must set `base_url` | `api_key_env_var` if set |
+
+If the key variable is unset, no `Authorization` header is sent.
+
+Those keys belong to the operator, so routes can only use them safely:
+
+- `api_key_env_var` must match `PROVIDER_KEY_ENV_ALLOWLIST` (default `*_API_KEY,*_PROXY_KEY,*_SERVICE_ACCOUNT_JSON`);
+  platform secrets such as `SECRET_KEY`, `ADMIN_SECRET`, `DATABASE_URL` or anything with
+  `PASSWORD` are always refused (422), and the gateway never reads a disallowed name.
+- A custom `base_url` must be the provider's official host (e.g. `api.openai.com`,
+  `*.openai.azure.com`) or a host in `GATEWAY_BASE_URL_ALLOWLIST` — unless a platform admin
+  saves the route.
+- Every `base_url` must resolve to a public address, checked on save and on each request;
+  local-model hosts (`OLLAMA_BASE_URL`, `VLLM_BASE_URL`) and `EGRESS_PRIVATE_ALLOWLIST` hosts
+  may be private. A route whose host stops resolving to an allowed address fails with 502.
+
 ## Financial posture
 
 Each provider profile is a valid budget scope (`scope_type=provider_profile`). The financial posture

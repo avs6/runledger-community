@@ -9,7 +9,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ── Requests ──────────────────────────────────────────────────────────────────
 
@@ -17,43 +17,78 @@ from pydantic import BaseModel, Field
 class BillingPeriodCreate(BaseModel):
     period_start: date
     period_end: date
-    currency: str = Field("USD", min_length=3, max_length=3)
-    exchange_rate_to_usd: Decimal = Field(Decimal("1.0"), gt=0)
+    # ISO-4217 code. exchange_rate_to_usd = USD per 1 unit of this currency; totals are
+    # reported in USD and converted to this currency on close and in signed exports.
+    currency: str = Field("USD", pattern="^[A-Z]{3}$")
+    exchange_rate_to_usd: Decimal = Field(Decimal("1.0"), gt=0, le=Decimal("100000"))
+
+    @model_validator(mode="after")
+    def _dates(self) -> BillingPeriodCreate:
+        if self.period_end < self.period_start:
+            raise ValueError("period_end must be on or after period_start")
+        if (self.period_end - self.period_start).days > 366:
+            raise ValueError("a billing period can span at most one year")
+        return self
+
+
+class BillingPeriodUpdate(BaseModel):
+    """Edit an open period. Closed periods are frozen; reopen them first."""
+
+    period_start: date | None = None
+    period_end: date | None = None
+    currency: str | None = Field(default=None, pattern="^[A-Z]{3}$")
+    exchange_rate_to_usd: Decimal | None = Field(default=None, gt=0, le=Decimal("100000"))
+
+
+class BillingPeriodReopen(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=500)
 
 
 class ChargebackRuleCreate(BaseModel):
-    allocation_type: str = Field(
-        ..., pattern="^(direct|proportional|fixed|shared_weight|showback|cost_center|env)$"
+    """Map one dimension value to a cost center.
+
+    direct: the value's whole cost goes to the cost center (weight 1).
+    shared_weight: the value's cost is split; weights for one value sum to at most 1.
+    """
+
+    allocation_type: str = Field("shared_weight", pattern="^(direct|shared_weight)$")
+    dimension: str = Field(
+        ...,
+        pattern="^(feature_tag|end_user|application|api_key|access_group|model|provider|intent)$",
     )
-    dimension: str
-    weight: Decimal = Field(..., ge=0, le=1)
-    cost_center_id: uuid.UUID | None = None
+    dimension_value: str = Field(..., min_length=1, max_length=255)
+    weight: Decimal = Field(..., gt=0, le=1)
+    cost_center_id: uuid.UUID
     require_approval: bool = False
 
 
 class ChargebackRuleUpdate(BaseModel):
-    allocation_type: str | None = Field(
+    """Edit a rule. ``status`` only toggles active/inactive; approval-gated rules are
+    approved through Approvals, and editing one sends it back for approval."""
+
+    allocation_type: str | None = Field(default=None, pattern="^(direct|shared_weight)$")
+    dimension: str | None = Field(
         default=None,
-        pattern="^(direct|proportional|fixed|shared_weight|showback|cost_center|env)$",
+        pattern="^(feature_tag|end_user|application|api_key|access_group|model|provider|intent)$",
     )
-    dimension: str | None = None
-    weight: Decimal | None = Field(default=None, ge=0, le=1)
+    dimension_value: str | None = Field(default=None, min_length=1, max_length=255)
+    weight: Decimal | None = Field(default=None, gt=0, le=1)
     cost_center_id: uuid.UUID | None = None
-    status: str | None = Field(default=None, pattern="^(active|inactive|pending_approval|denied)$")
+    status: str | None = Field(default=None, pattern="^(active|inactive)$")
 
 
 class CostCenterCreate(BaseModel):
-    name: str
-    code: str | None = None
+    name: str = Field(..., min_length=1, max_length=255)
+    code: str | None = Field(default=None, max_length=64)
     parent_id: uuid.UUID | None = None
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=2000)
 
 
 class CostCenterUpdate(BaseModel):
-    name: str | None = None
-    code: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    code: str | None = Field(default=None, max_length=64)
     parent_id: uuid.UUID | None = None
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=2000)
 
 
 class BillingAdjustmentCreate(BaseModel):
@@ -86,6 +121,9 @@ class BillingPeriodResponse(BaseModel):
     exchange_rate_to_usd: Decimal = Decimal("1.0")
     snapshot_hash: str | None
     closed_at: datetime | None
+    closed_by: str | None = None
+    reopened_at: datetime | None = None
+    reopen_reason: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -99,11 +137,14 @@ class ChargebackRuleResponse(BaseModel):
     id: uuid.UUID
     allocation_type: str
     dimension: str
+    dimension_value: str | None = None
     weight: Decimal
     cost_center_id: uuid.UUID | None = None
     status: str = "active"
     approval_id: uuid.UUID | None = None
+    created_by: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -114,6 +155,9 @@ class ChargebackRuleList(BaseModel):
 
 class ChargebackBreakdownItem(BaseModel):
     dimension: str
+    # The raw value a chargeback rule matches (id for applications/keys/groups,
+    # the tag/model/provider text otherwise); dimension_value is its display label.
+    dimension_key: str | None = None
     dimension_value: str
     cost_usd: Decimal
     pct_of_total: Decimal
@@ -220,6 +264,8 @@ class PeriodBreakdown(BaseModel):
     total_adjustments_usd: Decimal
     by_application: list[BreakdownApp]
     adjustments: list[BillingAdjustmentResponse] = []
+    # True when served from the closed period's frozen snapshot.
+    frozen: bool = False
 
     # Legacy alias so existing callers that read total_cost_usd still work
     @property
@@ -296,3 +342,71 @@ class SharedCostAllocationResult(BaseModel):
     pool_usd: Decimal
     formula_type: str
     allocations: list[dict[str, Any]]  # [{label, cost_center_id, allocated_usd}]
+
+
+# ── Cost centers, cost-center report, applied allocations ─────────────────────
+
+
+class CostCenterReportRow(BaseModel):
+    cost_center_id: uuid.UUID
+    name: str
+    code: str | None = None
+    direct_usd: Decimal  # from chargeback rules
+    shared_usd: Decimal  # from applied shared-cost policies
+    total_usd: Decimal
+
+
+class CostCenterReport(BaseModel):
+    period: str
+    rule_dimension: str | None
+    total_billable_usd: Decimal
+    assigned_usd: Decimal
+    unassigned_usd: Decimal
+    shared_usd: Decimal
+    unassigned_shared_usd: Decimal = Decimal(0)
+    rows: list[CostCenterReportRow]
+
+
+class SharedCostApply(BaseModel):
+    period: str = Field(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    pool_usd: Decimal = Field(..., gt=0)
+
+
+class CostAllocationResponse(BaseModel):
+    id: uuid.UUID
+    period: str
+    policy_id: uuid.UUID
+    cost_center_id: uuid.UUID | None
+    label: str
+    pool_usd: Decimal
+    amount_usd: Decimal
+    created_by: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CostAllocationList(BaseModel):
+    items: list[CostAllocationResponse]
+    total_usd: Decimal
+
+
+# ── Signing ──────────────────────────────────────────────────────────────────
+
+
+class BillingSigningKey(BaseModel):
+    workspace_id: uuid.UUID
+    signing_key_id: str
+    key: str
+    algorithm: str = "HMAC-SHA256 over canonical JSON (sorted keys)"
+
+
+class BillingVerifyRequest(BaseModel):
+    payload: dict[str, Any]
+    signature: str
+    signing_key_id: str
+
+
+class BillingVerifyResult(BaseModel):
+    valid: bool
+    signing_key_id: str

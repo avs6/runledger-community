@@ -23,15 +23,35 @@ This summary used to be reachable as a separate top-level page, but it now lives
 
 ## Billing periods
 
-Use the periods view when you need:
+Totals use billable cost: priced calls with `is_billable` true, whatever their status (the same definition as chargeback, budgets and the analytics spend totals).
 
-- period lifecycle management
-- close-period actions
-- per-period reconciliation status
-- detailed application and user breakdown per period
-- access-group-scoped period filtering when attribution can be derived from member traffic
-- billing-adjustment lifecycle for credits, refunds, prepaid deductions, and surcharges
-- export per-period CSV or signed JSON evidence
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/billing/periods` | `period_start` ≤ `period_end`, at most a year; overlapping another period → 409. `currency` is an ISO code; `exchange_rate_to_usd` = USD per unit |
+| `GET` | `/billing/periods` | `?status=`, `access_group_id`, `api_key_id` |
+| `GET` / `PATCH` / `DELETE` | `/billing/periods/{id}` | Edit or delete only while open (delete also needs no adjustments) |
+| `POST` | `/billing/periods/{id}/close` | Locks the period, freezes its lines and totals, signs them (409 if already closed) |
+| `POST` | `/billing/periods/{id}/reopen` | `{"reason": "…"}`; snapshots are kept as history |
+| `GET` | `/billing/periods/{id}/breakdown` · `/reconciliation` · `/export?format=csv\|signed_json` | |
+| `POST` / `GET` / `PUT` / `DELETE` | `/billing/periods/{id}/adjustments[/{adj}]` | Credits, refunds, prepaid deductions, surcharges; open periods only (409 when closed); `created_by` is the signed-in user |
+
+### Close freezes the bill
+
+Closing locks the period row (`SELECT … FOR UPDATE`), so two concurrent closes can't both succeed. It computes **billing lines** — billable cost per day × application × API key × end user × model — plus totals, adjustments and the net in the period currency, signs them and stores a snapshot. After that, breakdown and exports of the closed period are served from the snapshot: usage that arrives later does **not** change a closed bill. Reconciliation of a closed period checks the snapshot's signature and warns when live data has drifted from it. To include late usage or correct a mistake, reopen the period with a reason and close it again; each close writes a new snapshot. Close, reopen, edits and adjustments are written to the audit log.
+
+### Signed exports and verification
+
+Snapshots and signed JSON exports are signed with the **workspace's own billing key** (HMAC-SHA256 over canonical JSON with sorted keys), not a platform secret. `signing_key_id` is `ws-v<version>`.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/billing/signing-key` | The current key, to verify offline (org admin) |
+| `POST` | `/billing/signing-key/rotate` | New version; older signatures still verify by their key id |
+| `POST` | `/billing/verify` | `{"payload": …, "signature": …, "signing_key_id": …}` → `{"valid": true}` |
+
+To verify a downloaded export, remove `signature` and `signing_key_id`, serialize the rest as JSON with sorted keys and compare the HMAC. The period page's **Verify signature** button does this for you.
+
+CSV exports escape cells that would start a spreadsheet formula.
 
 ## Billing detail
 
@@ -61,12 +81,22 @@ Billing now supports access-group-aware review flows:
 
 ## Shared costs
 
-Use the shared-costs tab when you need to:
+Shared-cost policies split a pool (a platform team, a contract, reserved capacity) across [cost centers](/finops/chargeback#cost-centers):
 
-- define how overhead should be split before chargeback
-- preview allocation outcomes against a cost pool
-- maintain active and inactive policy states
-- prepare a period for cleaner downstream allocation and compliance closure
+- `equal_split` — the same share each;
+- `fixed_weight` — weights that must sum to 1 (422 otherwise);
+- `proportional` — by each target's `denominator_value` (not all zero).
+
+Targets must be cost centers of the workspace. Shares are rounded to six decimals and the remainder goes to the last target, so they always add up to the pool.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` / `GET` / `PUT` / `DELETE` | `/billing/shared-cost-policies[/{id}]` | Deleting a policy removes its applied allocations |
+| `POST` | `/billing/shared-cost-policies/{id}/allocate` | Preview a split of `pool_usd` (nothing saved) |
+| `POST` | `/billing/shared-cost-policies/{id}/apply` | `{"period": "YYYY-MM", "pool_usd": "…"}` saves the split; re-applying the same policy to the same month replaces it |
+| `GET` / `DELETE` | `/billing/cost-allocations[/{id}]` | Applied splits (`?period=`, `policy_id`) |
+
+Applied amounts show up in the chargeback cost-center report as `shared_usd`.
 
 ## Billing × Cross-Feature Posture Bridge
 

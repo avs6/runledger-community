@@ -3,13 +3,23 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
+  apiErrorMessage,
+  applySharedCostPolicy,
   createSharedCostPolicy,
+  deleteCostAllocation,
   deleteSharedCostPolicy,
+  listCostAllocations,
+  listCostCenters,
   listSharedCostPolicies,
   previewSharedCostAllocation,
   updateSharedCostPolicy,
 } from '@/lib/api'
-import type { SharedCostPolicy, SharedCostAllocationResult } from '@/types/api'
+import type { CostAllocation, CostCenter, SharedCostPolicy, SharedCostAllocationResult } from '@/types/api'
+
+function currentMonth(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 
 interface Props {
   apiKey: string
@@ -34,12 +44,16 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   const [isActive, setIsActive] = useState(true)
   const [poolUsd, setPoolUsd] = useState(defaultPoolUsd)
   const [preview, setPreview] = useState<SharedCostAllocationResult | null>(null)
+  const [month, setMonth] = useState(currentMonth())
+  const [applied, setApplied] = useState<CostAllocation[]>([])
+  const [centers, setCenters] = useState<CostCenter[]>([])
 
   async function loadPolicies() {
     setLoading(true)
     try {
-      const result = await listSharedCostPolicies(apiKey)
+      const [result, cc] = await Promise.all([listSharedCostPolicies(apiKey), listCostCenters(apiKey)])
       setItems(result.items)
+      setCenters(cc.items)
     } catch (err) {
       console.error(err)
       toast.error('Failed to load shared-cost policies')
@@ -48,9 +62,50 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
     }
   }
 
+  async function loadApplied() {
+    try {
+      setApplied((await listCostAllocations(apiKey, { period: month })).items)
+    } catch {
+      setApplied([])
+    }
+  }
+
   useEffect(() => {
     void loadPolicies()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey])
+
+  useEffect(() => {
+    void loadApplied()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, month])
+
+  async function handleApply(policy: SharedCostPolicy) {
+    const ok = window.confirm(
+      `Apply ${policy.name} to ${month} with a pool of USD ${poolUsd}? ` +
+        `This replaces any earlier split of this policy for ${month}.`,
+    )
+    if (!ok) return
+    try {
+      const res = await applySharedCostPolicy(apiKey, policy.id, { period: month, pool_usd: poolUsd })
+      toast.success(`Applied: USD ${res.total_usd} split across ${res.items.length} cost centers`)
+      await loadApplied()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to apply the policy'))
+    }
+  }
+
+  async function handleRemoveApplied(id: string) {
+    try {
+      await deleteCostAllocation(apiKey, id)
+      await loadApplied()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to remove the allocation'))
+    }
+  }
+
+  const centerName = (id: string | null) =>
+    centers.find((c) => c.id === id)?.name ?? (id ? '(deleted)' : 'Unassigned')
 
   function resetForm() {
     setEditingId(null)
@@ -92,7 +147,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
       await loadPolicies()
     } catch (err) {
       console.error(err)
-      toast.error(err instanceof Error ? err.message : 'Failed to save shared-cost policy')
+      toast.error(apiErrorMessage(err, 'Failed to save shared-cost policy'))
     } finally {
       setSaving(false)
     }
@@ -216,15 +271,26 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Preview Pool</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Pool (USD)</p>
               <input
                 value={poolUsd}
                 onChange={(e) => setPoolUsd(e.target.value)}
+                aria-label="Pool in USD"
                 className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               />
             </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Month</p>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                aria-label="Month to apply to"
+                className="mt-1 rounded-xl border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              />
+            </div>
             <p className="max-w-md text-sm text-slate-500">
-              Preview how a reconciliation pool would allocate before the period is exported into chargeback or ledger closure.
+              Preview a split, or apply it to a month: applied amounts are charged to the cost centers in the Chargeback cost-center report.
             </p>
           </div>
         </div>
@@ -268,6 +334,13 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
                         <button onClick={() => handlePreview(item.id)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
                           Preview
                         </button>
+                        <button
+                          onClick={() => handleApply(item)}
+                          disabled={!item.is_active}
+                          className="rounded-lg border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 dark:border-emerald-800 dark:text-emerald-300"
+                        >
+                          Apply to {month}
+                        </button>
                         <button onClick={() => startEdit(item)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
                           Edit
                         </button>
@@ -281,6 +354,33 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Applied to {month}</h3>
+          {applied.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-500">No shared costs applied to this month.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {applied.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+                  <span className="text-slate-700 dark:text-slate-300">
+                    {a.label} → {centerName(a.cost_center_id)}
+                    <span className="ml-2 text-xs text-slate-400">{items.find((p) => p.id === a.policy_id)?.name ?? ''}</span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="font-mono text-slate-900 dark:text-white">USD {a.amount_usd}</span>
+                    <button onClick={() => handleRemoveApplied(a.id)} className="text-xs text-rose-600 hover:underline">Remove</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {centers.length > 0 && (
+            <p className="mt-3 text-xs text-slate-500">
+              Cost center ids for allocations: {centers.map((c) => `${c.name} = ${c.id}`).join(' · ')}
+            </p>
+          )}
         </div>
 
         {preview ? (

@@ -12,7 +12,7 @@ create regulatory exposure?"* reaches a frontier model, even though the prompt l
 
 ```mermaid
 flowchart TB
-  req[Request to an alias with routing on] --> cls[router-svc /classify]
+  req[Request to an alias with routing on] --> cls[Built-in classifier]
   cls --> cx[Complexity\nsimple / medium / complex]
   cls --> rk[Risk\nlow / high]
   cls --> re[Reasoning effort\nlow / medium / high]
@@ -25,12 +25,15 @@ flowchart TB
   fwd --> log[(decision_reason records the tier)]
 ```
 
-It runs as an inline gateway stage inside `runledger-gateway-rs` after the semantic cache and Context Compiler. **Fail-open**: if the
-classifier is unavailable, the request routes to the alias it was sent to (or a configured default tier).
+It runs in the control plane's preflight, after guardrails, the caches and the Context Compiler. The
+classifier is built in, so `heuristic` mode adds no network hop; `llm`/`hybrid` call your local model
+with a 3-second limit (`ROUTER_LLM_TIMEOUT_SECONDS`) and fall back to the heuristic. **Fail-open**: if
+classification fails, the request routes to the alias it was sent to (or the `on_failure` tier). When the
+chosen tier has no entry in `tiers`, the request keeps its alias.
 
-The classification logic was previously hosted in a standalone `runledger-router` sidecar.
-As of the sidecar collapse, it is now absorbed into the Rust data plane — the former sidecar
-is deprecated and moved to the `deprecated` Docker Compose profile.
+To use an external classifier instead, set `ROUTER_SVC_URL` (it must serve `POST /classify`; timeout
+`ROUTER_TIMEOUT_SECONDS`, default 3); on failure the built-in heuristic answers. The former
+`runledger-router` sidecar is deprecated.
 
 ### Complexity × Risk → tier (default matrix)
 
@@ -48,9 +51,9 @@ Configurable per route via `classifier_mode`:
 
 | Mode | Behaviour |
 |---|---|
-| `heuristic` | Token estimate → complexity; a configurable **risk-keyword** scan → risk. Deterministic, no LLM. |
-| `llm` | A local Ollama model zero-shot-labels `{complexity, risk, reasoning_effort}`. Falls back to heuristic if the LLM is unavailable. |
-| `hybrid` | Heuristic first, LLM refine merged on top. Default. |
+| `heuristic` | Token estimate (`complexity_thresholds`), one level up for code or multi-step signals → complexity; a configurable **risk-keyword** scan (built-in list by default) → risk. Deterministic, no LLM. |
+| `llm` | `llm_model` on `OLLAMA_BASE_URL` labels `{complexity, risk, reasoning_effort}`. Falls back to the heuristic if the model is unavailable or slow. |
+| `hybrid` | Heuristic first, LLM refinement merged on top when `llm_model` is set. Default. |
 
 ## Reasoning effort
 
@@ -86,7 +89,7 @@ future cost × quality flywheel.
 
 | Service | Port | Role |
 |---|---|---|
-| `runledger-gateway-rs` | 8210 | Classify + tier mapping (absorbed from former `runledger-router` sidecar) |
+| `runledger-api` | 8201 | Built-in classifier + tier mapping (preflight) |
 | local LLM (Ollama / vLLM) | external | `llm` / `hybrid` classifier |
 
 See [`examples/36_intelligent_routing.py`](https://github.com/avs6/runledger-community/blob/master/examples/36_intelligent_routing.py)

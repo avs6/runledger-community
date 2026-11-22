@@ -16,13 +16,12 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
+import ChargebackRulesPanel from '@/components/chargeback/ChargebackRulesPanel'
+import CostCenterReportPanel from '@/components/chargeback/CostCenterReportPanel'
 import {
-  createChargebackRule,
-  deleteChargebackRule,
   exportChargebackReport,
   getChargebackReport,
   listChargebackRules,
-  updateChargebackRule,
   getFinOpsInternalPosture,
   getChargebackCrossFeaturePosture,
   getChargebackAttributionPosture,
@@ -30,15 +29,7 @@ import {
 import type { ChargebackReport, ChargebackRuleResponse, ChargebackCrossFeaturePosture, ChargebackAttributionPosture, FinOpsInternalPosture } from '@/types/api'
 import { num } from '@/lib/utils'
 
-type Tab = 'overview' | 'rules' | 'allocations' | 'exceptions' | 'exports'
-
-const ALLOCATION_TYPES = [
-  { value: 'direct', label: 'Direct allocation' },
-  { value: 'proportional', label: 'Proportional' },
-  { value: 'fixed', label: 'Fixed weight' },
-  { value: 'shared_weight', label: 'Shared weight' },
-  { value: 'showback', label: 'Showback only' },
-] as const
+type Tab = 'overview' | 'rules' | 'cost-centers' | 'allocations' | 'exceptions' | 'exports'
 
 const DIMENSIONS = [
   { value: 'feature_tag', label: 'Workflow tag' },
@@ -52,14 +43,7 @@ const DIMENSIONS = [
   { value: 'workspace', label: 'Workspace' },
 ] as const
 
-type AllocationType = (typeof ALLOCATION_TYPES)[number]['value']
 type DimensionType = (typeof DIMENSIONS)[number]['value']
-type RuleFormState = {
-  allocation_type: AllocationType
-  dimension: DimensionType
-  weight: string
-  require_approval: boolean
-}
 
 function buildLast12Months(): string[] {
   const months: string[] = []
@@ -82,19 +66,13 @@ function pct(value: string) {
   return `${Number.parseFloat(value).toFixed(1)}%`
 }
 
-const DEFAULT_RULE: RuleFormState = {
-  allocation_type: ALLOCATION_TYPES[0].value,
-  dimension: DIMENSIONS[0].value,
-  weight: '1.0',
-  require_approval: false,
-}
-
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500'
 
 const TABS: Array<[Tab, string]> = [
   ['overview', 'Overview'],
   ['rules', 'Rules'],
+  ['cost-centers', 'Cost centers'],
   ['allocations', 'Allocations'],
   ['exceptions', 'Exceptions'],
   ['exports', 'Exports'],
@@ -109,10 +87,6 @@ export default function ChargebackPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [rules, setRules] = useState<ChargebackRuleResponse[]>([])
   const [loadingRules, setLoadingRules] = useState(true)
-  const [showRuleForm, setShowRuleForm] = useState(false)
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
-  const [savingRule, setSavingRule] = useState(false)
-  const [ruleForm, setRuleForm] = useState(DEFAULT_RULE)
 
   const months = useMemo(() => buildLast12Months(), [])
   const requestedDimension = searchParams.get('dimension')
@@ -162,7 +136,7 @@ export default function ChargebackPage() {
     } finally {
       setLoadingReport(false)
     }
-  }, [apiKey, canManageOrgSettings, selectedPeriod, reportDimension])
+  }, [apiKey, canManageOrgSettings, selectedPeriod, reportDimension, requestedAccessGroupId, requestedApiKeyId])
 
   useEffect(() => {
     void fetchRules()
@@ -184,54 +158,10 @@ export default function ChargebackPage() {
     }
   }, [activeTab, fetchReport])
 
-  function resetRuleForm() {
-    setEditingRuleId(null)
-    setRuleForm(DEFAULT_RULE)
-    setShowRuleForm(false)
-  }
-
-  async function handleSaveRule() {
-    try {
-      setSavingRule(true)
-      if (editingRuleId) {
-        await updateChargebackRule(apiKey, editingRuleId, {
-          allocation_type: ruleForm.allocation_type,
-          dimension: ruleForm.dimension,
-          weight: ruleForm.weight,
-          status: 'active',
-        })
-        toast.success('Chargeback rule updated')
-      } else {
-        await createChargebackRule(apiKey, {
-          allocation_type: ruleForm.allocation_type,
-          dimension: ruleForm.dimension,
-          weight: ruleForm.weight,
-          require_approval: ruleForm.require_approval,
-        })
-        toast.success('Chargeback rule created')
-      }
-      resetRuleForm()
-      await fetchRules()
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to save chargeback rule')
-    } finally {
-      setSavingRule(false)
-    }
-  }
-
-  async function handleDeleteRule(ruleId: string) {
-    if (!window.confirm('Delete this chargeback rule?')) return
-    try {
-      await deleteChargebackRule(apiKey, ruleId)
-      toast.success('Chargeback rule deleted')
-      if (editingRuleId === ruleId) resetRuleForm()
-      await fetchRules()
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to delete chargeback rule')
-    }
-  }
+  const refreshCounters = useCallback(() => {
+    void fetchRules()
+    if (apiKey) getFinOpsInternalPosture(apiKey).then(setFinopsPosture).catch(() => {})
+  }, [fetchRules, apiKey])
 
   async function handleExport(format: 'csv' | 'json') {
     try {
@@ -315,10 +245,10 @@ export default function ChargebackPage() {
             )}
           </div>
           <button
-            onClick={() => { setShowRuleForm((v) => !v); setActiveTab('rules') }}
+            onClick={() => setActiveTab('rules')}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-orange-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:brightness-110"
           >
-            <Plus className="h-3.5 w-3.5" /> New Rule
+            <Plus className="h-3.5 w-3.5" /> Rules &amp; cost centers
           </button>
         </div>
 
@@ -453,139 +383,9 @@ export default function ChargebackPage() {
         )
       )}
 
-      {activeTab === 'rules' && (
-        <div className="space-y-4">
-          {showRuleForm && (
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <h3 className="mb-3 text-xs font-bold text-slate-900 dark:text-white">{editingRuleId ? 'Edit Rule' : 'Create Rule'}</h3>
-              <div className="grid gap-3 md:grid-cols-4">
-                <label className="block text-xs">
-                  <span className="mb-1 block font-semibold text-slate-500">Allocation type</span>
-                  <select
-                    value={ruleForm.allocation_type}
-                    onChange={(e) => setRuleForm((c) => ({ ...c, allocation_type: e.target.value as AllocationType }))}
-                    className={inputCls}
-                  >
-                    {ALLOCATION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </label>
-                <label className="block text-xs">
-                  <span className="mb-1 block font-semibold text-slate-500">Dimension</span>
-                  <select
-                    value={ruleForm.dimension}
-                    onChange={(e) => setRuleForm((c) => ({ ...c, dimension: e.target.value as DimensionType }))}
-                    className={inputCls}
-                  >
-                    {DIMENSIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-                  </select>
-                </label>
-                <label className="block text-xs">
-                  <span className="mb-1 block font-semibold text-slate-500">Weight (0-1)</span>
-                  <input
-                    value={ruleForm.weight}
-                    onChange={(e) => setRuleForm((c) => ({ ...c, weight: e.target.value }))}
-                    className={inputCls}
-                  />
-                </label>
-                <label className="flex items-end gap-2 pb-1 text-xs text-slate-700 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={ruleForm.require_approval}
-                    onChange={(e) => setRuleForm((c) => ({ ...c, require_approval: e.target.checked }))}
-                    className="rounded"
-                  />
-                  Require approval
-                </label>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={() => void handleSaveRule()}
-                  disabled={savingRule}
-                  className="rounded-lg bg-gradient-to-r from-rose-600 to-orange-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
-                >
-                  {savingRule ? 'Saving…' : editingRuleId ? 'Save Rule' : 'Create Rule'}
-                </button>
-                <button
-                  onClick={resetRuleForm}
-                  className="rounded-lg border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+      {activeTab === 'rules' && <ChargebackRulesPanel apiKey={apiKey} period={selectedPeriod} onChange={refreshCounters} />}
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-                    {['Type', 'Dimension', 'Weight', 'Status', 'Created', 'Actions'].map((h) => (
-                      <th key={h} className={`px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 ${h === 'Actions' ? 'text-right' : 'text-left'}`}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {loadingRules ? (
-                    <tr className="bg-white dark:bg-slate-900">
-                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500">Loading rules…</td>
-                    </tr>
-                  ) : rules.length === 0 ? (
-                    <tr className="bg-white dark:bg-slate-900">
-                      <td colSpan={6} className="px-4 py-6 text-center text-slate-500">No chargeback rules yet.</td>
-                    </tr>
-                  ) : (
-                    rules.map((rule) => (
-                      <tr key={rule.id} className="bg-white hover:bg-rose-50/30 dark:bg-slate-900 dark:hover:bg-slate-800/50">
-                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{rule.allocation_type}</td>
-                        <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{rule.dimension}</td>
-                        <td className="px-4 py-2.5 font-mono font-semibold text-slate-900 dark:text-white">{rule.weight}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            rule.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                              : rule.status === 'pending_approval'
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
-                          }`}>
-                            {rule.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-slate-500">{new Date(rule.created_at).toLocaleDateString()}</td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                setEditingRuleId(rule.id)
-                                setRuleForm({
-                                  allocation_type: rule.allocation_type as AllocationType,
-                                  dimension: rule.dimension as DimensionType,
-                                  weight: rule.weight,
-                                  require_approval: rule.status === 'pending_approval',
-                                })
-                                setShowRuleForm(true)
-                              }}
-                              className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={() => void handleDeleteRule(rule.id)}
-                              className="rounded-md border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50 dark:border-rose-800/40 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'cost-centers' && <CostCenterReportPanel apiKey={apiKey} period={selectedPeriod} />}
 
       {activeTab === 'allocations' && (
         loadingReport ? (

@@ -27,9 +27,14 @@ export default function GuardrailViolationsPage() {
 
   const [items, setItems] = useState<GuardrailEventResponse[]>([])
   const [total, setTotal] = useState(0)
+  const [decisionCounts, setDecisionCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
 
   const [query, setQuery] = useState('')
+  // Search waits for a pause in typing instead of firing a request per keystroke.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [decision, setDecision] = useState<'all' | 'block' | 'modify' | 'allow'>('all')
   const [mode, setMode] = useState<'all' | 'pre_call' | 'post_call' | 'during_call' | 'both'>('all')
   const [falsePositiveFilter, setFalsePositiveFilter] = useState<FalsePositiveFilter>('all')
@@ -39,7 +44,12 @@ export default function GuardrailViolationsPage() {
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
-  useEffect(() => { setPage(1) }, [query, decision, mode, falsePositiveFilter, violationsOnly, pageSize])
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  useEffect(() => { setPage(1) }, [debouncedQuery, decision, mode, falsePositiveFilter, violationsOnly, pageSize])
 
   useEffect(() => {
     async function load() {
@@ -48,9 +58,10 @@ export default function GuardrailViolationsPage() {
         return
       }
       setLoading(true)
+      setError(null)
       try {
         const result = await listGuardrailEvents(apiKey, {
-          guardrail_name: query.trim() || undefined,
+          guardrail_name: debouncedQuery || undefined,
           decision: decision === 'all' ? undefined : decision,
           mode: mode === 'all' ? undefined : mode,
           violations_only: violationsOnly,
@@ -60,12 +71,15 @@ export default function GuardrailViolationsPage() {
         })
         setItems(result.items)
         setTotal(result.total)
+        setDecisionCounts(result.decision_counts ?? {})
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load guardrail events')
       } finally {
         setLoading(false)
       }
     }
     void load()
-  }, [apiKey, query, decision, mode, falsePositiveFilter, violationsOnly, page, pageSize])
+  }, [apiKey, debouncedQuery, decision, mode, falsePositiveFilter, violationsOnly, page, pageSize, reloadToken])
 
   if (!apiKey) {
     return <div className="p-8 text-xs text-slate-500">Sign in to view guardrail violations.</div>
@@ -98,8 +112,8 @@ export default function GuardrailViolationsPage() {
         {[
           { label: 'Total Events', value: total.toLocaleString() },
           { label: 'Page', value: `${page} / ${totalPages}` },
-          { label: 'Blocks', value: items.filter((e) => e.decision === 'block').length },
-          { label: 'Modifications', value: items.filter((e) => e.decision === 'modify').length },
+          { label: 'Blocks', value: (decisionCounts.block ?? 0).toLocaleString() },
+          { label: 'Modifications', value: (decisionCounts.modify ?? 0).toLocaleString() },
         ].map(({ label, value }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -107,6 +121,15 @@ export default function GuardrailViolationsPage() {
           </div>
         ))}
       </div>
+
+      {error && (
+        <div role="alert" className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+          <span>Couldn&apos;t load guardrail events: {error}</span>
+          <button onClick={() => setReloadToken((n) => n + 1)} className="rounded-md border border-rose-300 px-2 py-0.5 font-medium hover:bg-rose-100 dark:border-rose-800 dark:hover:bg-rose-900/40">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ── Filters ──────────────────────────────── */}
       <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3">

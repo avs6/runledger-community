@@ -178,7 +178,7 @@ class GatewayRequest(Base):
     """
     Log entry for each request forwarded through the gateway.
 
-    status values: success | error | cache_hit
+    status values: success | error | cache_hit | blocked (post-call guardrail)
     """
 
     __tablename__ = "gateway_requests"

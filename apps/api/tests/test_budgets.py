@@ -268,7 +268,11 @@ async def test_list_budgets_includes_spend(
         limit_usd=Decimal("10.00"),
         action="notify",
     )
-    mock_db_session.execute = AsyncMock(return_value=_list_result([budget]))
+    count_result = MagicMock()
+    count_result.scalar_one = MagicMock(return_value=1)
+    rows_result = MagicMock()
+    rows_result.scalars = MagicMock(return_value=MagicMock(all=MagicMock(return_value=[budget])))
+    mock_db_session.execute = AsyncMock(side_effect=[count_result, rows_result])
     mock_redis_client.get = AsyncMock(return_value="2.50")
 
     response = await authed_client.get("/budgets")

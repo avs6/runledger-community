@@ -156,17 +156,47 @@ async def authenticate_oidc_token(token: str, db: AsyncSession) -> OIDCAuthResul
     return None
 
 
+def _trusted_networks(value: str) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    networks = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(part, strict=False))
+        except ValueError:
+            continue
+    return networks
+
+
 def get_client_ip(x_forwarded_for: str | None, fallback_host: str | None) -> str | None:
+    """The client's address: the socket peer (``fallback_host``) unless the peer is a
+    trusted proxy (``TRUSTED_PROXIES``, IPs or CIDRs), in which case X-Forwarded-For is
+    walked from the right and the first address that isn't a trusted proxy wins. A client
+    can't claim an address by sending the header itself (review G-18)."""
     from runledger_api.core.config import settings  # noqa: PLC0415
 
-    if x_forwarded_for:
-        trusted = {p.strip() for p in settings.trusted_proxies.split(",") if p.strip()}
-        parts = [p.strip() for p in x_forwarded_for.split(",")]
-        if trusted:
-            client_candidates = [p for p in parts if p not in trusted]
-            return client_candidates[0] if client_candidates else parts[0]
-        return parts[0]
-    return fallback_host
+    trusted = _trusted_networks(settings.trusted_proxies)
+
+    def is_trusted(value: str | None) -> bool:
+        try:
+            ip = ipaddress.ip_address((value or "").strip())
+        except ValueError:
+            return False
+        return any(ip in net for net in trusted)
+
+    if not x_forwarded_for or not is_trusted(fallback_host):
+        return fallback_host
+    client = fallback_host
+    for hop in reversed([p.strip() for p in x_forwarded_for.split(",")]):
+        try:
+            ipaddress.ip_address(hop)
+        except ValueError:
+            break
+        client = hop
+        if not is_trusted(hop):
+            break
+    return client
 
 
 async def evaluate_ip_acl(
@@ -174,9 +204,17 @@ async def evaluate_ip_acl(
     *,
     workspace_id: uuid.UUID,
     api_key_id: uuid.UUID | None,
-    team_name: str | None,
     client_ip: str | None,
+    principal_user_id: uuid.UUID | None = None,
 ) -> None:
+    """Enforce IP ACL rules for one request; raises 403 when the client IP is refused.
+
+    Rules that apply: global, this workspace's, this API key's, and those of access
+    groups the request's principal user belongs to (legacy unmapped team rules never
+    apply). The first matching rule by priority decides (allow or deny). With no
+    match, the request is refused only if an ``allow`` rule applies (allow-list mode);
+    deny-only rule sets block just the listed ranges. ``client_ip`` is the socket peer,
+    or the forwarded address when the peer is a trusted proxy (gateway-rs; G-18)."""
     rules = (
         (
             await db.execute(
@@ -191,29 +229,50 @@ async def evaluate_ip_acl(
         .scalars()
         .all()
     )
-    if not rules:
+    group_ids = {rule.access_group_id for rule in rules if rule.access_group_id is not None}
+    member_of: set[uuid.UUID] = set()
+    if group_ids and principal_user_id is not None:
+        from runledger_api.models.access_groups import AccessGroupMember  # noqa: PLC0415
+
+        member_of = set(
+            (
+                await db.execute(
+                    select(AccessGroupMember.group_id).where(
+                        AccessGroupMember.group_id.in_(group_ids),
+                        AccessGroupMember.user_id == principal_user_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    applicable = [
+        rule
+        for rule in rules
+        if (rule.access_group_id is None and not rule.team_name)
+        or (rule.access_group_id is not None and rule.access_group_id in member_of)
+    ]
+    if not applicable:
         return
 
     if not client_ip:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP required when ACL is active")
+    try:
+        ip_obj = ipaddress.ip_address(client_ip.strip())
+    except ValueError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP is not a valid address") from None
 
-    ip_obj = ipaddress.ip_address(client_ip)
-    matching_rules = []
-    for rule in rules:
-        if rule.team_name and rule.team_name != team_name:
-            continue
+    for rule in applicable:
         try:
             network = ipaddress.ip_network(rule.cidr, strict=False)
         except ValueError:
             continue
         if ip_obj in network:
-            matching_rules.append(rule)
-
-    allow_rules = [rule for rule in matching_rules if rule.action == "allow"]
-    if allow_rules:
-        return
-
-    raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP is denied by policy")
+            if rule.action == "allow":
+                return
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP is denied by policy")
+    if any(rule.action == "allow" for rule in applicable):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Client IP is not on the allow list")
 
 
 async def get_or_create_security_settings(

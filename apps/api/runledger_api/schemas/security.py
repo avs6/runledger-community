@@ -280,9 +280,10 @@ class LDAPLoginRequest(BaseModel):
 
 
 class IpAclRuleCreate(BaseModel):
-    scope_type: str = Field(..., pattern="^(global|workspace|api_key|team)$")
+    # global: every workspace (platform admins only). team was replaced by access_group.
+    scope_type: str = Field(..., pattern="^(global|workspace|api_key|access_group)$")
     api_key_id: uuid.UUID | None = None
-    team_name: str | None = None
+    access_group_id: uuid.UUID | None = None
     cidr: str
     action: str = Field(..., pattern="^(allow|deny)$")
     priority: int = Field(100, ge=1, le=1000)
@@ -291,7 +292,7 @@ class IpAclRuleCreate(BaseModel):
 
 class IpAclRuleUpdate(BaseModel):
     api_key_id: uuid.UUID | None = None
-    team_name: str | None = None
+    access_group_id: uuid.UUID | None = None
     cidr: str | None = None
     action: str | None = Field(None, pattern="^(allow|deny)$")
     priority: int | None = Field(None, ge=1, le=1000)
@@ -303,7 +304,9 @@ class IpAclRuleResponse(BaseModel):
     workspace_id: uuid.UUID | None
     api_key_id: uuid.UUID | None
     scope_type: str
-    team_name: str | None
+    access_group_id: uuid.UUID | None = None
+    # Set only on legacy team rules that couldn't be mapped; they never match.
+    team_name: str | None = None
     cidr: str
     action: str
     priority: int
@@ -320,7 +323,7 @@ class IpAclRuleList(BaseModel):
 class IpAclTestRequest(BaseModel):
     ip: str
     api_key_id: uuid.UUID | None = None
-    team_name: str | None = None
+    user_id: uuid.UUID | None = None
 
 
 class IpAclTestResponse(BaseModel):

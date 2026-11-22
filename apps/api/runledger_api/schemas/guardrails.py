@@ -37,9 +37,11 @@ class GuardrailRuleCreate(BaseModel):
     logic: str | None = Field(
         None,
         description=(
-            "Python-like logic for custom guardrails. Available inputs: "
-            "texts, images, tools, tool_calls, structured_messages, model. "
-            "Return: allow(), block(reason), modify(texts=[], images=[], tool_calls=[])."
+            "Guardrail-language logic (a safe Python subset run by RunLedger's own "
+            "interpreter; no exec). Inputs: texts, images, tools, tool_calls, "
+            "structured_messages, model, user_id, end_user_id, metadata. Set result to "
+            "allow(), block(reason) or modify(texts=[], images=[], tool_calls=[]). "
+            "Unsupported constructs are rejected with 422."
         ),
     )
     config: dict[str, Any] = Field(default_factory=dict)
@@ -148,6 +150,9 @@ class GuardrailEventResponse(BaseModel):
 class GuardrailEventList(BaseModel):
     items: list[GuardrailEventResponse]
     total: int
+    # Counts per decision across every event matching the filters, not just this page
+    # (review G-22).
+    decision_counts: dict[str, int] = Field(default_factory=dict)
 
 
 class GuardrailStats(BaseModel):

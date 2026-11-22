@@ -23,17 +23,46 @@ import logging
 import os
 import re
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 import httpx
 
 from runledger_api.models.gateway import GatewayRoute
+from runledger_api.services.provider_credentials import (
+    env_var_allowed,
+    openai_compatible_target,
+    resolve_key,
+)
 
 log = logging.getLogger(__name__)
 
 
+# Per-request timeout override (stream?, ms) for the current task. Held in a context
+# variable, not written onto the shared GatewayRoute ORM object, so it can't be
+# committed or leak into concurrent requests (review G-20).
+_TIMEOUT_OVERRIDE: ContextVar[tuple[bool, int] | None] = ContextVar(
+    "gateway_timeout_override", default=None
+)
+
+
+@contextmanager
+def timeout_override(*, stream: bool, timeout_ms: int | None) -> Iterator[None]:
+    """Use ``timeout_ms`` for provider calls of this kind made inside the block."""
+    token = _TIMEOUT_OVERRIDE.set((stream, int(timeout_ms))) if timeout_ms else None
+    try:
+        yield
+    finally:
+        if token is not None:
+            _TIMEOUT_OVERRIDE.reset(token)
+
+
 def _http_timeout(route: GatewayRoute, *, stream: bool) -> float:
+    override = _TIMEOUT_OVERRIDE.get()
+    if override is not None and override[0] == stream:
+        return max(1.0, override[1] / 1000)
     cfg = route.config or {}
     config_timeout = None
     if isinstance(cfg, dict):
@@ -113,14 +142,16 @@ class OpenAIAdapter:
     """Handles OpenAI, Anthropic (via OpenAI-compat endpoint), Ollama, Groq,
     Mistral, and any custom OpenAI-compatible endpoint."""
 
-    def _resolve(self, route: GatewayRoute) -> tuple[str, str]:
-        """Return (base_url, api_key)."""
-        if route.api_key_env_var:
-            api_key = os.getenv(route.api_key_env_var, "none") or "none"
-        else:
-            api_key = os.getenv("OPENAI_API_KEY", "none") or "none"
-        base_url = (route.base_url or "https://api.openai.com/v1").rstrip("/")
-        return base_url, api_key
+    def _resolve(self, route: GatewayRoute) -> tuple[str, dict[str, str]]:
+        """Return (base_url, headers). Each provider's own default endpoint and key
+        variable (review G-21); only allowlisted key variables are read (S-02)."""
+        base_url, api_key = openai_compatible_target(
+            route.provider, route.base_url, route.api_key_env_var
+        )
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        return base_url, headers
 
     def build_payload(
         self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
@@ -152,12 +183,12 @@ class OpenAIAdapter:
     async def forward(
         self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
     ) -> dict[str, Any]:
-        base_url, api_key = self._resolve(route)
+        base_url, auth_headers = self._resolve(route)
         payload = self.build_payload(route, messages, **kwargs)
         async with httpx.AsyncClient(timeout=_http_timeout(route, stream=False)) as client:
             resp = await client.post(
                 f"{base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers=auth_headers,
                 json=payload,
             )
             resp.raise_for_status()
@@ -166,14 +197,14 @@ class OpenAIAdapter:
     async def stream(
         self, route: GatewayRoute, messages: list[dict[str, Any]], **kwargs: Any
     ) -> AsyncGenerator[bytes]:
-        base_url, api_key = self._resolve(route)
+        base_url, auth_headers = self._resolve(route)
         payload = self.build_payload(route, messages, stream=True, **kwargs)
         async with (
             httpx.AsyncClient(timeout=_http_timeout(route, stream=True)) as client,
             client.stream(
                 "POST",
                 f"{base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers=auth_headers,
                 json=payload,
             ) as resp,
         ):
@@ -208,8 +239,7 @@ class AzureAdapter:
 
     def _resolve(self, route: GatewayRoute) -> tuple[str, str]:
         cfg = route.config or {}
-        api_key_var = route.api_key_env_var or "AZURE_OPENAI_API_KEY"
-        api_key = os.getenv(api_key_var, "none") or "none"
+        api_key = resolve_key(route.api_key_env_var, "AZURE_OPENAI_API_KEY", "azure")
         resource_endpoint = (route.base_url or "").rstrip("/")
         if not resource_endpoint:
             raise ValueError("Azure route requires base_url set to your Azure resource endpoint")
@@ -421,6 +451,8 @@ class BedrockAdapter:
             or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         )
         prefix = (route.api_key_env_var or "").rstrip("_") or "BEDROCK"
+        if not env_var_allowed(prefix, "bedrock"):
+            prefix = "BEDROCK"
         access_key = os.getenv(f"{prefix}_AWS_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID", "")
         secret_key = os.getenv(f"{prefix}_AWS_SECRET_ACCESS_KEY") or os.getenv(
             "AWS_SECRET_ACCESS_KEY", ""
@@ -549,8 +581,8 @@ class VertexAdapter:
                 "Install with: uv add google-auth --package runledger-api"
             ) from exc
 
-        sa_json_var = route.api_key_env_var or "VERTEX_SERVICE_ACCOUNT_JSON"
-        sa_json = os.getenv(sa_json_var, "")
+        sa_json = resolve_key(route.api_key_env_var, "VERTEX_SERVICE_ACCOUNT_JSON", "vertex")
+        sa_json = "" if sa_json == "none" else sa_json
         if sa_json:
             import json as _json  # noqa: PLC0415
 

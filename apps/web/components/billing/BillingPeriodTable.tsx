@@ -5,7 +5,15 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import type { BillingPeriod } from '@/types/api'
-import { closeBillingPeriod, exportPeriodCsv, exportPeriodSignedJson } from '@/lib/api'
+import {
+  apiErrorMessage,
+  closeBillingPeriod,
+  deleteBillingPeriod,
+  exportPeriodCsv,
+  exportPeriodSignedJson,
+  getPeriodBreakdown,
+  reopenBillingPeriod,
+} from '@/lib/api'
 
 interface Props {
   items: BillingPeriod[]
@@ -44,16 +52,63 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
   const router = useRouter()
   const accessGroupQuery = accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''
 
-  async function handleClose(id: string) {
+  async function handleClose(period: BillingPeriod) {
+    const id = period.id
     setLoading(`close-${id}`)
     try {
+      // Confirm with the amount that will be frozen (review F-19).
+      const preview = await getPeriodBreakdown(apiKey, id)
+      const ok = window.confirm(
+        `Close ${period.period_start} – ${period.period_end}?
+
+` +
+          `Gross ${money(preview.gross_cost_usd)} · adjustments ${money(preview.total_adjustments_usd)} · ` +
+          `net ${money(preview.net_cost_usd)}
+
+` +
+          'Closing freezes these numbers and signs them. Usage that arrives later will not change ' +
+          'this bill unless the period is reopened.',
+      )
+      if (!ok) return
       await closeBillingPeriod(apiKey, id)
       onClosed?.(id)
       router.refresh()
-      toast.success('Billing period closed')
+      toast.success('Billing period closed and signed')
     } catch (err) {
-      console.error(err)
-      toast.error('Failed to close billing period')
+      toast.error(apiErrorMessage(err, 'Failed to close billing period'))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleReopen(period: BillingPeriod) {
+    const reason = window.prompt(
+      `Reopen ${period.period_start} – ${period.period_end}? The signed snapshot is kept as history. Reason:`,
+    )
+    if (!reason || reason.trim().length < 3) return
+    setLoading(`reopen-${period.id}`)
+    try {
+      await reopenBillingPeriod(apiKey, period.id, reason.trim())
+      onClosed?.(period.id)
+      router.refresh()
+      toast.success('Billing period reopened')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to reopen billing period'))
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleDelete(period: BillingPeriod) {
+    if (!window.confirm(`Delete the open period ${period.period_start} – ${period.period_end}?`)) return
+    setLoading(`delete-${period.id}`)
+    try {
+      await deleteBillingPeriod(apiKey, period.id)
+      onClosed?.(period.id)
+      router.refresh()
+      toast.success('Billing period deleted')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to delete billing period'))
     } finally {
       setLoading(null)
     }
@@ -117,7 +172,10 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
                 </Link>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {period.currency}
-                  {period.closed_at ? ` · Closed ${new Date(period.closed_at).toLocaleString()}` : ' · Open period'}
+                  {period.closed_at && period.status === 'closed'
+                    ? ` · Closed ${new Date(period.closed_at).toLocaleString()}${period.closed_by ? ` by ${period.closed_by}` : ''}`
+                    : ' · Open period'}
+                  {period.reopened_at ? ` · Reopened: ${period.reopen_reason ?? ''}` : ''}
                 </div>
               </td>
               <td className="px-4 py-3">
@@ -131,13 +189,30 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
               </td>
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-2">
-                  {period.status !== 'closed' ? (
+                  {period.status === 'open' ? (
+                    <>
+                      <button
+                        onClick={() => handleClose(period)}
+                        disabled={loading === `close-${period.id}`}
+                        className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {loading === `close-${period.id}` ? 'Closing...' : 'Close'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(period)}
+                        disabled={loading === `delete-${period.id}`}
+                        className="rounded border border-rose-300 px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-800 dark:text-rose-400"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  ) : period.status === 'closed' ? (
                     <button
-                      onClick={() => handleClose(period.id)}
-                      disabled={loading === `close-${period.id}`}
-                      className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                      onClick={() => handleReopen(period)}
+                      disabled={loading === `reopen-${period.id}`}
+                      className="rounded border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-800 dark:text-amber-300"
                     >
-                      {loading === `close-${period.id}` ? 'Closing...' : 'Close'}
+                      Reopen
                     </button>
                   ) : null}
                   <button

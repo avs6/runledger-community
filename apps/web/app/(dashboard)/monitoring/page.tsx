@@ -81,13 +81,14 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 function StatusDot({ status }: { status: string }) {
-  const map: Record<string, string> = { success: 'bg-emerald-500', cache_hit: 'bg-blue-500', error: 'bg-red-500' }
+  const map: Record<string, string> = { success: 'bg-emerald-500', cache_hit: 'bg-blue-500', blocked: 'bg-amber-500', error: 'bg-red-500' }
   return (
     <span className="flex items-center gap-1">
       <span className={`h-1.5 w-1.5 rounded-full ${map[status] ?? 'bg-slate-400'}`} />
       <span className={`text-[11px] font-medium ${
         status === 'success' ? 'text-emerald-700 dark:text-emerald-400' :
         status === 'cache_hit' ? 'text-blue-700 dark:text-blue-400' :
+        status === 'blocked' ? 'text-amber-700 dark:text-amber-400' :
         'text-red-700 dark:text-red-400'
       }`}>{status}</span>
     </span>

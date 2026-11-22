@@ -131,6 +131,13 @@ from runledger_api.services.gateway_runtime import (  # noqa: F401
 )
 from runledger_api.services.guardrails import evaluate_guardrails  # noqa: F401
 from runledger_api.services.pricing import calculate_cost  # noqa: F401
+from runledger_api.services.provider_credentials import (
+    RouteConfigRejected,
+    check_base_url,
+    env_var_allowed,
+    openai_compatible_target,
+    resolve_key,
+)
 from runledger_api.services.routing import analyze_routing_policy  # noqa: F401
 from runledger_api.services.security import (
     authenticate_oidc_token,
@@ -411,6 +418,18 @@ class _DirectProviderResult:
         return True
 
 
+def _check_route_host(route: GatewayRoute) -> None:
+    """SSRF guard at request time: a route's base_url must still resolve to an allowed
+    host (a DNS name may have been repointed at an internal address since it was saved)."""
+    try:
+        check_base_url(route.base_url, route.provider)
+    except RouteConfigRejected as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Route {route.alias!r} points at a host that is not allowed: {exc}",
+        ) from exc
+
+
 def _runtime_direct_provider_request(
     *,
     route: GatewayRoute,
@@ -418,26 +437,20 @@ def _runtime_direct_provider_request(
     stream: bool,
 ) -> _DirectProviderResult | None:
     provider = (route.provider or "").lower()
+    _check_route_host(route)
     if provider in {"openai", "anthropic", "ollama", "vllm", "local", "groq", "mistral", "custom"}:
-        api_key_var = route.api_key_env_var or "OPENAI_API_KEY"
-        api_key = os.getenv(api_key_var, "none") or "none"
-        default_base_url = "https://api.openai.com/v1"
-        if provider in {"local", "ollama"}:
-            default_base_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
-        elif provider == "vllm":
-            default_base_url = os.getenv("VLLM_BASE_URL", "http://host.docker.internal:8001/v1")
-        base_url = (route.base_url or default_base_url).rstrip("/")
-        return _DirectProviderResult(
-            f"{base_url}/chat/completions",
-            {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+        if provider == "custom" and not route.base_url:
+            return None
+        base_url, api_key = openai_compatible_target(
+            provider, route.base_url, route.api_key_env_var
         )
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        return _DirectProviderResult(f"{base_url}/chat/completions", headers)
     if provider == "azure":
         cfg = route.config or {}
-        api_key_var = route.api_key_env_var or "AZURE_OPENAI_API_KEY"
-        api_key = os.getenv(api_key_var, "none") or "none"
+        api_key = resolve_key(route.api_key_env_var, "AZURE_OPENAI_API_KEY", provider)
         resource_endpoint = (route.base_url or "").rstrip("/")
         if not resource_endpoint:
             return None
@@ -517,6 +530,8 @@ def _bedrock_direct_provider_request(
             or os.getenv("AWS_DEFAULT_REGION", "us-east-1")
         )
         prefix = (route.api_key_env_var or "").rstrip("_") or "BEDROCK"
+        if not env_var_allowed(prefix, "bedrock"):
+            prefix = "BEDROCK"
         access_key = os.getenv(f"{prefix}_AWS_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID", "")
         secret_key = os.getenv(f"{prefix}_AWS_SECRET_ACCESS_KEY") or os.getenv(
             "AWS_SECRET_ACCESS_KEY", ""

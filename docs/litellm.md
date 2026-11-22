@@ -193,8 +193,16 @@ curl -X POST http://localhost:8201/gateway/routes \
   }'
 ```
 
-Set `LITELLM_PROXY_KEY` in the Rust gateway runtime environment so the data
-plane can authenticate to LiteLLM.
+Set `LITELLM_PROXY_KEY` in the API server's environment so the gateway can
+authenticate to LiteLLM. Because the proxy is a private host and the key is a
+server-side secret, the operator must also allow it (routes are created by org
+admins, who can't point server-side keys at arbitrary or internal hosts):
+
+```bash
+EGRESS_PRIVATE_ALLOWLIST=runledger-redpanda,localhost   # the proxy's host may be private
+GATEWAY_BASE_URL_ALLOWLIST=localhost                     # server-side keys may go to it
+# PROVIDER_KEY_ENV_ALLOWLIST defaults to "*_API_KEY,*_PROXY_KEY,*_SERVICE_ACCOUNT_JSON", which covers LITELLM_PROXY_KEY
+```
 
 ### 2. Send completions through the RunLedger Gateway
 

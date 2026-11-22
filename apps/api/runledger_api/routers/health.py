@@ -26,8 +26,17 @@ _STARTED_AT = datetime.now(UTC)
 
 
 def _require_metrics_token(authorization: str | None) -> None:
-    expected = settings.effective_metrics_token
-    if authorization == f"Bearer {expected}":
+    import hmac  # noqa: PLC0415
+
+    token = settings.effective_metrics_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Metrics disabled: set METRICS_TOKEN to enable /metrics",
+        )
+    expected = f"Bearer {token}"
+    # Constant-time compare (review P-15).
+    if authorization and hmac.compare_digest(authorization.encode(), expected.encode()):
         return
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

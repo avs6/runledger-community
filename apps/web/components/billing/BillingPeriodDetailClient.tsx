@@ -10,7 +10,12 @@ import type {
   PeriodBreakdown,
   ReconciliationResult,
 } from '@/types/api'
-import { exportPeriodCsv, exportPeriodSignedJson, getBillingPeriodPerformancePosture } from '@/lib/api'
+import {
+  exportPeriodCsv,
+  exportPeriodSignedJson,
+  getBillingPeriodPerformancePosture,
+  verifyBillingSignature,
+} from '@/lib/api'
 import BreakdownTable from '@/components/billing/BreakdownTable'
 import BillingAdjustmentsPanel from '@/components/billing/BillingAdjustmentsPanel'
 
@@ -62,7 +67,7 @@ export default function BillingPeriodDetailClient({
   apiKeyId,
 }: Props) {
   const [tab, setTab] = useState<Tab>('summary')
-  const [loading, setLoading] = useState<'csv' | 'json' | null>(null)
+  const [loading, setLoading] = useState<'csv' | 'json' | 'verify' | null>(null)
   const [perfPosture, setPerfPosture] = useState<BillingPeriodPerformancePosture | null>(null)
 
   useEffect(() => {
@@ -86,6 +91,26 @@ export default function BillingPeriodDetailClient({
     } catch (err) {
       console.error(err)
       toast.error('Failed to export CSV')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  async function handleVerify() {
+    setLoading('verify')
+    try {
+      const data = (await exportPeriodSignedJson(apiKey, period.id, exportScope)) as unknown as Record<string, unknown>
+      const { signature, signing_key_id, ...payload } = data
+      const res = await verifyBillingSignature(apiKey, {
+        payload,
+        signature: String(signature),
+        signing_key_id: String(signing_key_id),
+      })
+      if (res.valid) toast.success(`Signature valid (key ${res.signing_key_id})`)
+      else toast.error('Signature does NOT verify')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to verify the signed export')
     } finally {
       setLoading(null)
     }
@@ -147,6 +172,11 @@ export default function BillingPeriodDetailClient({
       {period.status === 'open' ? (
         <div className="rounded-xl border border-blue-200/70 bg-blue-50/70 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
           This period is still open. Reconciliation and breakdown reflect current metered usage, and adjustments remain editable until the period is closed.
+          {period.reopened_at ? ` Reopened ${new Date(period.reopened_at).toLocaleString()}: ${period.reopen_reason ?? ''}` : ''}
+        </div>
+      ) : period.status === 'closed' ? (
+        <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300">
+          Closed{period.closed_by ? ` by ${period.closed_by}` : ''}{period.closed_at ? ` on ${new Date(period.closed_at).toLocaleString()}` : ''}. The breakdown and exports come from the signed, frozen snapshot, so usage that arrives later does not change this bill. Reopen the period from the billing list to include it.
         </div>
       ) : null}
 
@@ -305,7 +335,7 @@ export default function BillingPeriodDetailClient({
           apiKey={apiKey}
           periodId={period.id}
           initialData={adjustments}
-          canEdit={period.status !== 'closed'}
+          canEdit={period.status === 'open'}
         />
       ) : null}
 
@@ -331,7 +361,17 @@ export default function BillingPeriodDetailClient({
               >
                 {loading === 'json' ? 'Exporting...' : 'Export signed JSON'}
               </button>
+              <button
+                onClick={handleVerify}
+                disabled={loading === 'verify'}
+                className="rounded-xl border border-emerald-300 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+              >
+                {loading === 'verify' ? 'Verifying...' : 'Verify signature'}
+              </button>
             </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Signed with this workspace&apos;s billing key (HMAC-SHA256 over the canonical JSON). Org admins can fetch the key with <code>GET /billing/signing-key</code> to verify offline.
+            </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Evidence handoff</h3>

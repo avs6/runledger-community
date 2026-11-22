@@ -130,18 +130,33 @@ async def test_check_cost_cap_daily_under_limit():
     await check_cost_cap(db, route, uuid.uuid4())  # should not raise
 
 
+def _priced(monkeypatch, input_rate="2.50", output_rate="10.00"):
+    """Make the ledger pricing resolver return a price for any model."""
+    monkeypatch.setattr(
+        "runledger_api.services.pricing._get_pricing",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                input_cost_per_1m=Decimal(input_rate), output_cost_per_1m=Decimal(output_rate)
+            )
+        ),
+    )
+
+
 @pytest.mark.asyncio
-async def test_check_cost_cap_daily_exceeded():
+async def test_check_cost_cap_daily_exceeded(monkeypatch):
     """Over daily limit → HTTP 429 with X-Cost-Cap-Reason header."""
     from fastapi import HTTPException
     from runledger_api.services.gateway_controls import check_cost_cap
 
+    _priced(monkeypatch)
     route = SimpleNamespace(
         id=uuid.uuid4(),
-        daily_cost_limit_usd=Decimal("0.00"),  # cap at zero
+        provider="openai",
+        target_model="gpt-4o",
+        daily_cost_limit_usd=Decimal("1.00"),
         monthly_cost_limit_usd=None,
     )
-    # Simulate 2M input tokens → estimated cost > $0
+    # 2M input tokens at $2.50/1M = $5.00 > $1.00
     mock_monthly_row = SimpleNamespace(total_input=None, total_output=None)
     mock_daily_row = SimpleNamespace(total_input=2_000_000, total_output=0)
     monthly_result = MagicMock()
@@ -158,15 +173,18 @@ async def test_check_cost_cap_daily_exceeded():
 
 
 @pytest.mark.asyncio
-async def test_check_cost_cap_monthly_exceeded():
+async def test_check_cost_cap_monthly_exceeded(monkeypatch):
     """Over monthly limit → HTTP 429 with X-Cost-Cap-Reason header."""
     from fastapi import HTTPException
     from runledger_api.services.gateway_controls import check_cost_cap
 
+    _priced(monkeypatch)
     route = SimpleNamespace(
         id=uuid.uuid4(),
+        provider="openai",
+        target_model="gpt-4o",
         daily_cost_limit_usd=None,
-        monthly_cost_limit_usd=Decimal("0.00"),
+        monthly_cost_limit_usd=Decimal("1.00"),
     )
     mock_monthly_row = SimpleNamespace(total_input=5_000_000, total_output=0)
     monthly_result = MagicMock()
@@ -180,35 +198,83 @@ async def test_check_cost_cap_monthly_exceeded():
     assert exc_info.value.headers["X-Cost-Cap-Reason"] == "monthly_limit_exceeded"
 
 
+@pytest.mark.asyncio
+async def test_check_cost_cap_skips_unpriced_hosted_model(monkeypatch):
+    """No price for a hosted model → the cap isn't enforced against an invented price (G-17)."""
+    from runledger_api.services.gateway_controls import check_cost_cap
+
+    monkeypatch.setattr("runledger_api.services.pricing._get_pricing", AsyncMock(return_value=None))
+    route = SimpleNamespace(
+        id=uuid.uuid4(),
+        provider="openai",
+        target_model="unpriced-model",
+        daily_cost_limit_usd=Decimal("0.01"),
+        monthly_cost_limit_usd=None,
+    )
+    db = AsyncMock()
+    await check_cost_cap(db, route, uuid.uuid4())  # no raise
+    db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unpriced_local_model_costs_nothing(monkeypatch):
+    """Self-hosted providers without a price cost 0; hosted ones have no price (G-17)."""
+    from runledger_api.services.gateway_controls import _lookup_model_rates, cost_cap_pricing_error
+
+    monkeypatch.setattr("runledger_api.services.pricing._get_pricing", AsyncMock(return_value=None))
+    db = AsyncMock()
+    ws = uuid.uuid4()
+    assert await _lookup_model_rates(db, "llama3", "ollama", ws) == (Decimal("0"), Decimal("0"))
+    assert await _lookup_model_rates(db, "mystery", "openai", ws) is None
+    assert (
+        await cost_cap_pricing_error(db, provider="ollama", model="llama3", workspace_id=ws) is None
+    )
+    assert "No pricing" in (
+        await cost_cap_pricing_error(db, provider="openai", model="mystery", workspace_id=ws) or ""
+    )
+
+
 # ── Per-user RPM ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_per_user_rpm_under_limit():
-    """Under rate limit → no exception."""
+    """Under rate limit → no exception; the slot is taken atomically in Redis."""
     from runledger_api.services.gateway_controls import check_per_user_rpm
 
     redis = AsyncMock()
-    redis.incr = AsyncMock(return_value=5)
-    redis.expire = AsyncMock(return_value=True)
+    redis.eval = AsyncMock(return_value=[1, 5, 0])
 
-    await check_per_user_rpm(redis, uuid.uuid4(), "user-1", uuid.uuid4(), 60)
+    await check_per_user_rpm(redis, uuid.uuid4(), "user:u1", uuid.uuid4(), 60)
+    args = redis.eval.await_args.args
+    assert args[1] == 1 and args[6] == 1  # one key; consume
 
 
 @pytest.mark.asyncio
 async def test_per_user_rpm_exceeded():
-    """Over RPM limit → HTTP 429 with Retry-After header."""
+    """Over RPM limit → HTTP 429; Retry-After is when the oldest hit leaves the window."""
     from fastapi import HTTPException
     from runledger_api.services.gateway_controls import check_per_user_rpm
 
     redis = AsyncMock()
-    redis.incr = AsyncMock(return_value=61)
-    redis.expire = AsyncMock(return_value=True)
+    redis.eval = AsyncMock(return_value=[0, 60, 12_300])
 
     with pytest.raises(HTTPException) as exc_info:
-        await check_per_user_rpm(redis, uuid.uuid4(), "user-1", uuid.uuid4(), 60)
+        await check_per_user_rpm(redis, uuid.uuid4(), "user:u1", uuid.uuid4(), 60)
     assert exc_info.value.status_code == 429
-    assert exc_info.value.headers["Retry-After"] == "60"
+    assert exc_info.value.headers["Retry-After"] == "13"
+
+
+@pytest.mark.asyncio
+async def test_per_user_rpm_check_only_does_not_consume():
+    """Fallback routes are checked without taking a slot (review G-14)."""
+    from runledger_api.services.gateway_controls import check_per_user_rpm
+
+    redis = AsyncMock()
+    redis.eval = AsyncMock(return_value=[1, 3, 0])
+
+    await check_per_user_rpm(redis, uuid.uuid4(), "key:k1", uuid.uuid4(), 60, consume=False)
+    assert redis.eval.await_args.args[6] == 0
 
 
 @pytest.mark.asyncio
@@ -217,10 +283,19 @@ async def test_per_user_rpm_redis_error_fails_open():
     from runledger_api.services.gateway_controls import check_per_user_rpm
 
     redis = AsyncMock()
-    redis.incr = AsyncMock(side_effect=ConnectionError("redis down"))
+    redis.eval = AsyncMock(side_effect=ConnectionError("redis down"))
 
     # Should not raise
-    await check_per_user_rpm(redis, uuid.uuid4(), "user-1", uuid.uuid4(), 60)
+    await check_per_user_rpm(redis, uuid.uuid4(), "user:u1", uuid.uuid4(), 60)
+
+
+def test_rpm_subject_falls_back_to_api_key():
+    """Leaving out the end-user header limits by API key instead of bypassing (G-14)."""
+    from runledger_api.services.gateway_controls import rpm_subject
+
+    assert rpm_subject("alice", "k1") == "user:alice"
+    assert rpm_subject(None, "k1") == "key:k1"
+    assert rpm_subject(None, None) is None
 
 
 # ── Gateway health worker ─────────────────────────────────────────────────────

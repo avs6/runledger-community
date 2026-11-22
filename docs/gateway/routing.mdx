@@ -9,6 +9,54 @@ Each model alias can have multiple routes. When a request arrives, RunLedger sel
 
 Routes carry a `priority` where lower numbers are tried first. On a transient provider failure the gateway retries and then moves to the next eligible route. That means provider failures are absorbed by the fallback chain and hidden from clients unless every eligible route fails.
 
+Transient failures (429, 5xx, timeouts, connection errors) are retried `retry_count` times, waiting the
+provider's `Retry-After` or an exponential backoff from 250 ms (capped at 5 s) between attempts, and then fall
+through to plain fallbacks (`fallback_config.aliases`, request `fallback_aliases`). Non-transient failures
+(400, 403, 413…) aren't retried and skip plain fallbacks, because another route won't fix a bad request.
+They only fall through to an **error-triggered fallback** whose `on` list matches the error:
+
+```json
+{ "fallback_config": { "fallbacks": [ { "alias": "long-context", "on": ["context_window"] }, { "alias": "lenient", "on": ["content_policy"] } ] } }
+```
+
+`context_window` matches a 400/413 that mentions the context length; `content_policy` matches a 400/403
+that mentions a content filter or policy. A rule may also override `messages`, `temperature`,
+`max_tokens` and other request fields for its step. When nothing matches, the client gets the provider's
+own status (for example 400 or 413) with `upstream_status`, `upstream_body` and `error_triggers`, not a
+502; a 429 is returned as 429, and other exhausted chains as 502.
+
+## Timeouts
+
+Each route has a `timeout_ms` (1–300 s), and `config.completion_timeout_ms` / `config.stream_timeout_ms`
+can set separate limits for non-streamed and streamed calls. A caller can override them for one request
+with headers (milliseconds, 1,000–300,000):
+
+| Header | Applies to |
+|---|---|
+| `X-RunLedger-Timeout-Ms` | non-streamed calls (when no completion timeout is given) |
+| `X-RunLedger-Completion-Timeout-Ms` | non-streamed calls |
+| `X-RunLedger-Stream-Timeout-Ms` | streamed calls |
+
+A fallback rule may set its own `completion_timeout_ms`. Overrides apply to that request only and are never
+written to the route. A provider that times out returns **504** to the gateway (a transient failure, so
+retries and plain fallbacks apply); a provider error returns its own status and body.
+
+## Mirror (shadow) traffic
+
+Set `mirror_config` on a route to send a sample of its successful non-streamed requests to a second alias
+for comparison:
+
+```json
+{ "mirror_config": { "alias": "candidate-model", "sample_pct": 0.1 } }
+```
+
+The gateway samples the request and fires the shadow call in the background after it has replied, so
+users never wait for the shadow model. The shadow call reuses the prompt that already passed pre-call
+guardrails, is redacted again if the shadow route has `pii_redaction_enabled`, and is recorded as a
+priced run flagged `shadow` (`source_type: gateway-shadow`), attributed to the same workflow and counted
+against budgets, since it is real spend. The request log shows it as `mirror:<alias>` with a
+`shadow_compare:<similarity>` decision.
+
 ## Routing strategies
 
 Routing strategies are configurable through both the API and the Gateway UI.

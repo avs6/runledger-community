@@ -1,9 +1,10 @@
 use std::env;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Instant;
 
 use axum::body::Body;
-use axum::extract::State;
+use axum::extract::{ConnectInfo, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -26,6 +27,11 @@ struct AppState {
     control_plane_url: String,
     admin_secret: String,
     event_signing_secret: String,
+    /// Proxies whose X-Forwarded-For is believed (RUNLEDGER_GATEWAY_TRUSTED_PROXIES).
+    trusted_proxies: Vec<IpNet>,
+    /// Ceiling for control-plane calls (preflight, finalize, events…), so a stuck API
+    /// can't hang requests forever (RUNLEDGER_CONTROL_PLANE_TIMEOUT_MS; review G-22).
+    control_plane_timeout: std::time::Duration,
 }
 
 #[derive(Debug, Serialize)]
@@ -66,6 +72,8 @@ struct RuntimeExecutionStep {
     response_format: Option<String>,
     #[serde(default)]
     provider_stream_format: Option<String>,
+    #[serde(default)]
+    mirror_sample_pct: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -81,6 +89,11 @@ struct RuntimePreflightResponse {
     missing_metadata: Vec<String>,
     cache_hit_kind: Option<String>,
     cached_response: Option<Value>,
+    // Echoed on finalize so cache lookup and store use the same key and scope.
+    #[serde(default)]
+    cache_key: Option<String>,
+    #[serde(default)]
+    semantic_scope: Option<String>,
     prepared_messages: Vec<Value>,
     effective_tools: Option<Vec<Value>>,
     effective_reasoning_effort: Option<String>,
@@ -93,7 +106,7 @@ struct RuntimePreflightResponse {
     execution_steps: Vec<RuntimeExecutionStep>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct RuntimeFinalizeRequest {
     workspace_id: String,
     route_id: String,
@@ -113,6 +126,8 @@ struct RuntimeFinalizeRequest {
     compiler_enabled: bool,
     compiler_config: Option<Value>,
     ir_decision: Option<Value>,
+    cache_key: Option<String>,
+    semantic_scope: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -140,6 +155,10 @@ struct RuntimeMirrorRequest {
     response_json: Value,
     request_tags: Vec<String>,
     preferred_region: Option<String>,
+    sampled: bool,
+    api_key_id: Option<String>,
+    end_user_id: Option<String>,
+    request_metadata: Value,
 }
 
 #[derive(Serialize)]
@@ -154,11 +173,19 @@ struct ProviderFailure {
     body: String,
     transient: bool,
     classified_triggers: Vec<String>,
+    /// Provider's Retry-After, in milliseconds, when it sent one.
+    retry_after_ms: Option<u64>,
 }
 
 enum ProviderSuccess {
-    Json { response_json: Value, latency_ms: i64 },
-    Stream { response: Response, latency_ms: i64 },
+    Json {
+        response_json: Value,
+        latency_ms: i64,
+    },
+    Stream {
+        response: Response,
+        latency_ms: i64,
+    },
 }
 
 // ── Response normalizers ────────────────────────────────────────────────────────
@@ -308,9 +335,12 @@ fn parse_bedrock_event_stream_chunk(data: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut events = Vec::new();
     let mut offset = 0;
     while offset + 12 <= data.len() {
-        let total_len =
-            u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
-                as usize;
+        let total_len = u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]) as usize;
         if total_len < 16 || offset + total_len > data.len() {
             break;
         }
@@ -336,15 +366,15 @@ fn parse_bedrock_event_stream_chunk(data: &[u8]) -> Vec<(String, Vec<u8>)> {
             if hdr_offset + name_len > headers_end {
                 break;
             }
-            let name = String::from_utf8_lossy(&data[hdr_offset..hdr_offset + name_len]).to_string();
+            let name =
+                String::from_utf8_lossy(&data[hdr_offset..hdr_offset + name_len]).to_string();
             hdr_offset += name_len;
             if hdr_offset + 3 > headers_end {
                 break;
             }
             let _header_type = data[hdr_offset];
             hdr_offset += 1;
-            let value_len =
-                u16::from_be_bytes([data[hdr_offset], data[hdr_offset + 1]]) as usize;
+            let value_len = u16::from_be_bytes([data[hdr_offset], data[hdr_offset + 1]]) as usize;
             hdr_offset += 2;
             if hdr_offset + value_len > headers_end {
                 break;
@@ -402,15 +432,36 @@ async fn main() {
     let admin_secret = env::var("RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET")
         .or_else(|_| env::var("ADMIN_SECRET"))
         .expect("RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET or ADMIN_SECRET must be set");
-    let event_signing_secret = env::var("RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET")
-        .unwrap_or_else(|_| admin_secret.clone());
+    let event_signing_secret =
+        env::var("RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET").unwrap_or_else(|_| admin_secret.clone());
     let bind = env::var("RUNLEDGER_GATEWAY_BIND").unwrap_or_else(|_| "0.0.0.0:8210".to_string());
+    let trusted_proxies =
+        parse_trusted_proxies(&env::var("RUNLEDGER_GATEWAY_TRUSTED_PROXIES").unwrap_or_default());
+    info!(
+        "trusted proxies for X-Forwarded-For: {}",
+        trusted_proxies.len()
+    );
+
+    let control_plane_timeout = std::time::Duration::from_millis(
+        env::var("RUNLEDGER_CONTROL_PLANE_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .filter(|ms| *ms > 0)
+            .unwrap_or(30_000),
+    );
+    let http = Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .pool_idle_timeout(std::time::Duration::from_secs(90))
+        .build()
+        .expect("http client");
 
     let state = Arc::new(AppState {
-        http: Client::new(),
+        http,
         control_plane_url,
         admin_secret,
         event_signing_secret,
+        trusted_proxies,
+        control_plane_timeout,
     });
 
     let app = Router::new()
@@ -423,7 +474,12 @@ async fn main() {
         .await
         .unwrap_or_else(|err| panic!("failed to bind {}: {}", bind, err));
     info!("runledger-gateway-rs listening on {}", bind);
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn health_live() -> impl IntoResponse {
@@ -432,7 +488,13 @@ async fn health_live() -> impl IntoResponse {
 
 async fn health_ready(State(state): State<Arc<AppState>>) -> Response {
     let url = format!("{}/health/live", state.control_plane_url);
-    match state.http.get(url).send().await {
+    match state
+        .http
+        .get(url)
+        .timeout(state.control_plane_timeout)
+        .send()
+        .await
+    {
         Ok(resp) if resp.status().is_success() => {
             Json(json!({"ok": true, "ready": true})).into_response()
         }
@@ -451,9 +513,13 @@ async fn health_ready(State(state): State<Arc<AppState>>) -> Response {
 
 async fn gateway_chat_completions(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<Value>,
 ) -> Response {
+    // Whole-request clock: total_wall_ms minus provider latency is the gateway's own
+    // overhead (preflight, routing, control-plane hops) (review G-15).
+    let request_started = Instant::now();
     let auth_header = match headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
@@ -475,13 +541,22 @@ async fn gateway_chat_completions(
     let end_user_id = header_value(&headers, "x-runledger-end-user-id");
     let tags_header = header_value(&headers, "x-runledger-tags");
     let region_header = header_value(&headers, "x-runledger-region");
-    let timeout_ms = header_value(&headers, "x-runledger-timeout-ms").and_then(|v| v.parse::<i64>().ok());
+    let timeout_ms =
+        header_value(&headers, "x-runledger-timeout-ms").and_then(|v| v.parse::<i64>().ok());
     let completion_timeout_ms = header_value(&headers, "x-runledger-completion-timeout-ms")
         .and_then(|v| v.parse::<i64>().ok());
-    let stream_timeout_ms = header_value(&headers, "x-runledger-stream-timeout-ms")
-        .and_then(|v| v.parse::<i64>().ok());
-    let client_ip = header_value(&headers, "x-forwarded-for")
-        .and_then(|value| value.split(',').next().map(|part| part.trim().to_string()));
+    let stream_timeout_ms =
+        header_value(&headers, "x-runledger-stream-timeout-ms").and_then(|v| v.parse::<i64>().ok());
+    // The socket peer, or — only when the peer is a trusted proxy — the right-most
+    // untrusted X-Forwarded-For hop, so clients can't claim an allow-listed IP (G-18).
+    let client_ip = Some(
+        client_ip_from(
+            peer.ip(),
+            header_value(&headers, "x-forwarded-for").as_deref(),
+            &state.trusted_proxies,
+        )
+        .to_string(),
+    );
 
     let preflight = match call_preflight(
         &state,
@@ -504,7 +579,12 @@ async fn gateway_chat_completions(
     };
 
     if let Some(cached) = preflight.cached_response {
-        return (StatusCode::OK, Json(cached)).into_response();
+        let mut response = (StatusCode::OK, Json(cached)).into_response();
+        let kind = preflight.cache_hit_kind.as_deref().unwrap_or("exact");
+        if let Ok(value) = HeaderValue::from_str(kind) {
+            response.headers_mut().insert("x-runledger-cache", value);
+        }
+        return response;
     }
     if preflight.execution_steps.is_empty() {
         return (
@@ -518,22 +598,28 @@ async fn gateway_chat_completions(
     let mut last_upstream_status = None;
     let mut last_route_id = None;
     let mut last_error_triggers: Vec<String> = Vec::new();
+    // After a non-transient failure (400/403/413…) only steps whose error triggers match
+    // it can help; plain fallbacks are skipped and, if none matches, the provider's
+    // status is returned instead of 502 (review G-11).
+    let mut last_failure_transient = true;
     let started_at = Utc::now().to_rfc3339();
 
     for step in &preflight.execution_steps {
-        if !step.required_error_triggers.is_empty()
-            && step
-                .required_error_triggers
-                .iter()
-                .all(|trigger| !last_error_triggers.iter().any(|seen| seen == trigger))
-        {
+        if !step_runs_after(
+            &step.required_error_triggers,
+            &last_error_triggers,
+            last_failure_transient,
+        ) {
             continue;
         }
         last_route_id = Some(step.route_id.clone());
         let max_attempts = std::cmp::max(1_i64, step.retry_count + 1);
-        for _ in 0..max_attempts {
+        for attempt in 0..max_attempts {
             match execute_step(&state, step, stream).await {
-                Ok(ProviderSuccess::Stream { response, latency_ms }) => {
+                Ok(ProviderSuccess::Stream {
+                    response,
+                    latency_ms,
+                }) => {
                     let event = json!({
                         "event_type": "gateway.request.completed",
                         "request_id": uuid_like(),
@@ -556,7 +642,45 @@ async fn gateway_chat_completions(
                     {
                         error!("runtime event emit failed: {}", err);
                     }
-                    return response;
+                    // Meter streamed calls (review G-03): tee the stream and, once it ends
+                    // (or the client disconnects), finalize with the reassembled completion.
+                    let finalize_template = RuntimeFinalizeRequest {
+                        workspace_id: preflight.workspace_id.clone(),
+                        route_id: step.route_id.clone(),
+                        api_key_id: preflight.api_key_id.clone(),
+                        model_requested: preflight.model_requested.clone(),
+                        prepared_messages: preflight.prepared_messages.clone(),
+                        response_json: Value::Null,
+                        request_metadata: body
+                            .get("metadata")
+                            .cloned()
+                            .unwrap_or_else(|| json!({})),
+                        request_tags: preflight.request_tags.clone(),
+                        latency_ms: Some(latency_ms),
+                        total_wall_ms: Some(request_started.elapsed().as_millis() as i64),
+                        decision_reason: step
+                            .decision_reason
+                            .clone()
+                            .or(preflight.decision_reason.clone()),
+                        end_user_id: end_user_id.clone(),
+                        // Streamed answers aren't written to the response cache, and the
+                        // answer is already delivered, so post-call guardrails can't block
+                        // it — finalize only records the call.
+                        cache: false,
+                        semantic_cache_enabled: false,
+                        guardrails_enabled: false,
+                        compiler_enabled: preflight.compiler_enabled,
+                        compiler_config: preflight.compiler_config.clone(),
+                        ir_decision: preflight.ir_decision.clone(),
+                        cache_key: preflight.cache_key.clone(),
+                        semantic_scope: preflight.semantic_scope.clone(),
+                    };
+                    return tee_stream_for_finalize(
+                        response,
+                        state.clone(),
+                        finalize_template,
+                        step.target_model.clone(),
+                    );
                 }
                 Ok(ProviderSuccess::Json {
                     response_json,
@@ -577,7 +701,7 @@ async fn gateway_chat_completions(
                                 .unwrap_or_else(|| json!({})),
                             request_tags: preflight.request_tags.clone(),
                             latency_ms: Some(latency_ms),
-                            total_wall_ms: Some(latency_ms),
+                            total_wall_ms: Some(request_started.elapsed().as_millis() as i64),
                             decision_reason: step
                                 .decision_reason
                                 .clone()
@@ -592,14 +716,18 @@ async fn gateway_chat_completions(
                             compiler_enabled: preflight.compiler_enabled,
                             compiler_config: preflight.compiler_config.clone(),
                             ir_decision: preflight.ir_decision.clone(),
+                            cache_key: preflight.cache_key.clone(),
+                            semantic_scope: preflight.semantic_scope.clone(),
                         },
                     )
                     .await
                     {
                         Ok(()) => {
-                            let _ = call_mirror(
-                                &state,
-                                RuntimeMirrorRequest {
+                            // Shadow traffic: sample here and fire it in the background,
+                            // so the user never waits for the mirror model (review G-12).
+                            if mirror_sampled(step.mirror_sample_pct) {
+                                let mirror_state = state.clone();
+                                let payload = RuntimeMirrorRequest {
                                     workspace_id: preflight.workspace_id.clone(),
                                     route_id: step.route_id.clone(),
                                     model_requested: preflight.model_requested.clone(),
@@ -607,9 +735,20 @@ async fn gateway_chat_completions(
                                     response_json: response_json.clone(),
                                     request_tags: preflight.request_tags.clone(),
                                     preferred_region: preflight.preferred_region.clone(),
-                                },
-                            )
-                            .await;
+                                    sampled: true,
+                                    api_key_id: preflight.api_key_id.clone(),
+                                    end_user_id: end_user_id.clone(),
+                                    request_metadata: body
+                                        .get("metadata")
+                                        .cloned()
+                                        .unwrap_or_else(|| json!({})),
+                                };
+                                tokio::spawn(async move {
+                                    if let Err(err) = call_mirror(&mirror_state, payload).await {
+                                        error!("mirror call failed: {}", err);
+                                    }
+                                });
+                            }
                             return (StatusCode::OK, Json(response_json)).into_response();
                         }
                         Err(response) => return response,
@@ -619,16 +758,14 @@ async fn gateway_chat_completions(
                     last_upstream_status = failure.upstream_status;
                     last_error_body = failure.body;
                     last_error_triggers = failure.classified_triggers;
+                    last_failure_transient = failure.transient;
                     if !failure.transient {
-                        return (
-                            StatusCode::BAD_GATEWAY,
-                            Json(json!({
-                                "detail": "provider request failed",
-                                "upstream_status": last_upstream_status,
-                                "upstream_body": last_error_body
-                            })),
-                        )
-                            .into_response();
+                        // Retrying the same route won't change a non-transient answer.
+                        break;
+                    }
+                    if attempt + 1 < max_attempts {
+                        tokio::time::sleep(retry_delay(attempt as u32, failure.retry_after_ms))
+                            .await;
                     }
                 }
             }
@@ -655,14 +792,164 @@ async fn gateway_chat_completions(
         error!("runtime error event emit failed: {}", err);
     }
     (
-        StatusCode::BAD_GATEWAY,
+        failure_status(last_upstream_status, last_failure_transient),
         Json(json!({
-            "detail": "all gateway routes failed",
+            "detail": if last_failure_transient {
+                "all gateway routes failed"
+            } else {
+                "provider request failed"
+            },
             "upstream_status": last_upstream_status,
-            "upstream_body": last_error_body
+            "upstream_body": last_error_body,
+            "error_triggers": last_error_triggers
         })),
     )
         .into_response()
+}
+
+/// Delay before retrying the same route: the provider's Retry-After when given,
+/// otherwise exponential backoff from 250 ms; capped at 5 s so a request never stalls
+/// long on one route when fallbacks exist (review G-11).
+fn retry_delay(attempt: u32, retry_after_ms: Option<u64>) -> std::time::Duration {
+    let backoff = 250_u64.saturating_mul(1_u64 << attempt.min(10));
+    std::time::Duration::from_millis(retry_after_ms.unwrap_or(backoff).min(5_000))
+}
+
+/// Retry-After in seconds (the HTTP-date form is ignored), as milliseconds.
+fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<f64>().ok())
+        .filter(|secs| secs.is_finite() && *secs >= 0.0)
+        .map(|secs| (secs * 1000.0) as u64)
+}
+
+/// A CIDR block (IPv4 or IPv6) for the trusted-proxy list.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct IpNet {
+    addr: IpAddr,
+    prefix: u8,
+}
+
+impl IpNet {
+    fn parse(text: &str) -> Option<IpNet> {
+        let text = text.trim();
+        let (addr_text, prefix_text) = match text.split_once('/') {
+            Some((a, p)) => (a, Some(p)),
+            None => (text, None),
+        };
+        let addr: IpAddr = addr_text.trim().parse().ok()?;
+        let max = if addr.is_ipv4() { 32 } else { 128 };
+        let prefix = match prefix_text {
+            Some(p) => p.trim().parse::<u8>().ok().filter(|p| *p <= max)?,
+            None => max,
+        };
+        Some(IpNet { addr, prefix })
+    }
+
+    fn contains(&self, ip: IpAddr) -> bool {
+        match (self.addr, ip) {
+            (IpAddr::V4(net), IpAddr::V4(ip)) => {
+                let mask = if self.prefix == 0 {
+                    0
+                } else {
+                    u32::MAX << (32 - self.prefix)
+                };
+                u32::from(net) & mask == u32::from(ip) & mask
+            }
+            (IpAddr::V6(net), IpAddr::V6(ip)) => {
+                let mask = if self.prefix == 0 {
+                    0
+                } else {
+                    u128::MAX << (128 - self.prefix)
+                };
+                u128::from(net) & mask == u128::from(ip) & mask
+            }
+            (IpAddr::V4(_), IpAddr::V6(ip)) => match ip.to_ipv4_mapped() {
+                Some(v4) => self.contains(IpAddr::V4(v4)),
+                None => false,
+            },
+            _ => false,
+        }
+    }
+}
+
+fn parse_trusted_proxies(value: &str) -> Vec<IpNet> {
+    value
+        .split(',')
+        .filter(|part| !part.trim().is_empty())
+        .filter_map(|part| {
+            let parsed = IpNet::parse(part);
+            if parsed.is_none() {
+                error!("ignoring invalid trusted proxy entry: {}", part.trim());
+            }
+            parsed
+        })
+        .collect()
+}
+
+/// The client address for IP ACLs: the socket peer unless it is a trusted proxy, in
+/// which case X-Forwarded-For is walked from the right, skipping trusted hops, and the
+/// first untrusted address wins. Spoofed left-most entries are never used (G-18).
+fn client_ip_from(peer: IpAddr, forwarded_for: Option<&str>, trusted: &[IpNet]) -> IpAddr {
+    let is_trusted = |ip: IpAddr| trusted.iter().any(|net| net.contains(ip));
+    if !is_trusted(peer) {
+        return peer;
+    }
+    let mut client = peer;
+    for hop in forwarded_for.unwrap_or("").split(',').rev() {
+        match hop.trim().parse::<IpAddr>() {
+            Ok(ip) => {
+                client = ip;
+                if !is_trusted(ip) {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    client
+}
+
+/// Whether to mirror this request: `pct` is the route's sample rate (0–1).
+fn mirror_sampled(pct: f64) -> bool {
+    if pct.is_nan() || pct <= 0.0 {
+        return false;
+    }
+    if pct >= 1.0 {
+        return true;
+    }
+    let draw = (uuid::Uuid::new_v4().as_u128() % 1_000_000) as f64 / 1_000_000.0;
+    draw < pct
+}
+
+/// Whether an execution step runs given the previous failure. Trigger-gated steps run
+/// only when the previous failure produced one of their triggers; plain steps run unless
+/// the previous failure was non-transient (another route won't fix a bad request).
+fn step_runs_after(
+    required_triggers: &[String],
+    last_triggers: &[String],
+    last_failure_transient: bool,
+) -> bool {
+    if required_triggers.is_empty() {
+        return last_failure_transient;
+    }
+    required_triggers
+        .iter()
+        .any(|trigger| last_triggers.iter().any(|seen| seen == trigger))
+}
+
+/// Status returned when no step succeeded: the provider's own 4xx for a non-transient
+/// failure (so clients see 400/413, not 502), 429 when rate limited, otherwise 502.
+fn failure_status(upstream: Option<u16>, transient: bool) -> StatusCode {
+    match upstream {
+        Some(429) => StatusCode::TOO_MANY_REQUESTS,
+        Some(code) if !transient && (400..500).contains(&code) => {
+            StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_GATEWAY)
+        }
+        _ => StatusCode::BAD_GATEWAY,
+    }
 }
 
 // ── Control-plane calls ─────────────────────────────────────────────────────────
@@ -671,10 +958,14 @@ async fn call_preflight(
     state: &AppState,
     payload: RuntimePreflightRequest,
 ) -> Result<RuntimePreflightResponse, Response> {
-    let url = format!("{}/gateway/runtime/internal/preflight", state.control_plane_url);
+    let url = format!(
+        "{}/gateway/runtime/internal/preflight",
+        state.control_plane_url
+    );
     let resp = state
         .http
         .post(url)
+        .timeout(state.control_plane_timeout)
         .header("x-admin-secret", &state.admin_secret)
         .json(&payload)
         .send()
@@ -689,20 +980,26 @@ async fn call_preflight(
     if !resp.status().is_success() {
         return Err(response_from_upstream(resp).await);
     }
-    resp.json::<RuntimePreflightResponse>().await.map_err(|err| {
-        (
-            StatusCode::BAD_GATEWAY,
-            Json(json!({"detail": format!("gateway preflight parse failed: {}", err)})),
-        )
-            .into_response()
-    })
+    resp.json::<RuntimePreflightResponse>()
+        .await
+        .map_err(|err| {
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({"detail": format!("gateway preflight parse failed: {}", err)})),
+            )
+                .into_response()
+        })
 }
 
 async fn call_finalize(state: &AppState, payload: RuntimeFinalizeRequest) -> Result<(), Response> {
-    let url = format!("{}/gateway/runtime/internal/finalize", state.control_plane_url);
+    let url = format!(
+        "{}/gateway/runtime/internal/finalize",
+        state.control_plane_url
+    );
     let resp = state
         .http
         .post(url)
+        .timeout(state.control_plane_timeout)
         .header("x-admin-secret", &state.admin_secret)
         .json(&payload)
         .send()
@@ -730,9 +1027,15 @@ async fn call_provider_execute(
         state.control_plane_url
     );
     let started = Instant::now();
-    let resp = state
-        .http
-        .post(url)
+    let mut builder = state.http.post(url);
+    if !stream {
+        // The control plane makes the provider call with the step's timeout; allow a
+        // little more for the hop itself (review G-22).
+        builder = builder.timeout(std::time::Duration::from_millis(
+            step.timeout_ms.unwrap_or(120_000).max(1) as u64 + 5_000,
+        ));
+    }
+    let resp = builder
         .header("x-admin-secret", &state.admin_secret)
         .json(&RuntimeProviderExecuteRequest {
             route_id: step.route_id.clone(),
@@ -747,6 +1050,7 @@ async fn call_provider_execute(
             body: err.to_string(),
             transient: true,
             classified_triggers: vec!["timeout".to_string()],
+            retry_after_ms: None,
         })?;
     let latency_ms = started.elapsed().as_millis() as i64;
     if stream && resp.status().is_success() {
@@ -757,9 +1061,9 @@ async fn call_provider_execute(
             .and_then(|value| value.to_str().ok())
             .unwrap_or("text/event-stream")
             .to_string();
-        let stream_body = resp.bytes_stream().map(|chunk| {
-            chunk.map_err(|err| std::io::Error::other(err.to_string()))
-        });
+        let stream_body = resp
+            .bytes_stream()
+            .map(|chunk| chunk.map_err(|err| std::io::Error::other(err.to_string())));
         let body = Body::from_stream(stream_body);
         let response = Response::builder()
             .status(StatusCode::OK)
@@ -791,25 +1095,21 @@ async fn call_provider_execute(
                 body: format!("provider response parse failed: {}", err),
                 transient: false,
                 classified_triggers: Vec::new(),
+                retry_after_ms: None,
             });
     }
     let status_code = resp.status().as_u16();
+    let retry_after_ms = parse_retry_after(resp.headers());
     let body = resp.text().await.unwrap_or_default();
     let triggers = classify_error_triggers(Some(status_code), &body);
     let transient = matches!(status_code, 429 | 500 | 502 | 503 | 504);
-    let _ = call_route_result(
-        state,
-        &step.route_id,
-        false,
-        transient,
-        Some(body.clone()),
-    )
-    .await;
+    let _ = call_route_result(state, &step.route_id, false, transient, Some(body.clone())).await;
     Err(ProviderFailure {
         upstream_status: Some(status_code),
         body,
         transient,
         classified_triggers: triggers,
+        retry_after_ms,
     })
 }
 
@@ -831,6 +1131,7 @@ async fn execute_step(
                 body: "missing direct request url".to_string(),
                 transient: false,
                 classified_triggers: Vec::new(),
+                retry_after_ms: None,
             })
         }
     };
@@ -849,7 +1150,8 @@ async fn execute_step(
     let request_builder = state
         .http
         .request(
-            reqwest::Method::from_bytes(step.request_method.as_bytes()).unwrap_or(reqwest::Method::POST),
+            reqwest::Method::from_bytes(step.request_method.as_bytes())
+                .unwrap_or(reqwest::Method::POST),
             &request_url,
         )
         .headers(upstream_headers)
@@ -861,12 +1163,14 @@ async fn execute_step(
         Ok(resp) => resp,
         Err(err) => {
             let err_text = err.to_string();
-            let _ = call_route_result(state, &step.route_id, false, true, Some(err_text.clone())).await;
+            let _ =
+                call_route_result(state, &step.route_id, false, true, Some(err_text.clone())).await;
             return Err(ProviderFailure {
                 upstream_status: None,
                 body: err_text,
                 transient: true,
                 classified_triggers: vec!["timeout".to_string()],
+                retry_after_ms: None,
             });
         }
     };
@@ -894,25 +1198,21 @@ async fn execute_step(
                 body: format!("provider response parse failed: {}", err),
                 transient: false,
                 classified_triggers: Vec::new(),
+                retry_after_ms: None,
             });
     }
     let status_code = resp.status().as_u16();
+    let retry_after_ms = parse_retry_after(resp.headers());
     let body = resp.text().await.unwrap_or_default();
     let triggers = classify_error_triggers(Some(status_code), &body);
     let transient = matches!(status_code, 429 | 500 | 502 | 503 | 504);
-    let _ = call_route_result(
-        state,
-        &step.route_id,
-        false,
-        transient,
-        Some(body.clone()),
-    )
-    .await;
+    let _ = call_route_result(state, &step.route_id, false, transient, Some(body.clone())).await;
     Err(ProviderFailure {
         upstream_status: Some(status_code),
         body,
         transient,
         classified_triggers: triggers,
+        retry_after_ms,
     })
 }
 
@@ -930,6 +1230,7 @@ async fn execute_streaming_response(
                 body: format!("bedrock stream read failed: {}", err),
                 transient: true,
                 classified_triggers: vec!["timeout".to_string()],
+                retry_after_ms: None,
             })?;
             let events = parse_bedrock_event_stream_chunk(&all_bytes);
             let mut chunks: Vec<Vec<u8>> = Vec::new();
@@ -960,26 +1261,22 @@ async fn execute_streaming_response(
         }
         Some("gemini_sse") => {
             let model = step.target_model.clone();
-            let stream_body = resp.bytes_stream().map(move |chunk| {
-                match chunk {
-                    Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        let mut output = Vec::new();
-                        for line in text.lines() {
-                            if let Some(sse_bytes) = convert_gemini_sse_to_openai(line, &model) {
-                                output.extend_from_slice(&sse_bytes);
-                            }
-                        }
-                        if output.is_empty() {
-                            Ok(bytes::Bytes::new())
-                        } else {
-                            Ok(bytes::Bytes::from(output))
+            let stream_body = resp.bytes_stream().map(move |chunk| match chunk {
+                Ok(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    let mut output = Vec::new();
+                    for line in text.lines() {
+                        if let Some(sse_bytes) = convert_gemini_sse_to_openai(line, &model) {
+                            output.extend_from_slice(&sse_bytes);
                         }
                     }
-                    Err(err) => Err(std::io::Error::other(
-                        err.to_string(),
-                    )),
+                    if output.is_empty() {
+                        Ok(bytes::Bytes::new())
+                    } else {
+                        Ok(bytes::Bytes::from(output))
+                    }
                 }
+                Err(err) => Err(std::io::Error::other(err.to_string())),
             });
             let body = Body::from_stream(stream_body);
             let response = Response::builder()
@@ -1005,9 +1302,9 @@ async fn execute_streaming_response(
                 .and_then(|value| value.to_str().ok())
                 .unwrap_or("text/event-stream")
                 .to_string();
-            let stream_body = resp.bytes_stream().map(|chunk| {
-                chunk.map_err(|err| std::io::Error::other(err.to_string()))
-            });
+            let stream_body = resp
+                .bytes_stream()
+                .map(|chunk| chunk.map_err(|err| std::io::Error::other(err.to_string())));
             let body = Body::from_stream(stream_body);
             let response = Response::builder()
                 .status(StatusCode::OK)
@@ -1044,6 +1341,7 @@ async fn call_route_result(
     state
         .http
         .post(url)
+        .timeout(state.control_plane_timeout)
         .header("x-admin-secret", &state.admin_secret)
         .json(&RuntimeRouteResultRequest {
             route_id: route_id.to_string(),
@@ -1058,10 +1356,14 @@ async fn call_route_result(
 }
 
 async fn call_mirror(state: &AppState, payload: RuntimeMirrorRequest) -> Result<(), String> {
-    let url = format!("{}/gateway/runtime/internal/mirror", state.control_plane_url);
+    let url = format!(
+        "{}/gateway/runtime/internal/mirror",
+        state.control_plane_url
+    );
     state
         .http
         .post(url)
+        .timeout(std::time::Duration::from_secs(300))
         .header("x-admin-secret", &state.admin_secret)
         .json(&payload)
         .send()
@@ -1076,9 +1378,15 @@ fn classify_error_triggers(status_code: Option<u16>, body: &str) -> Vec<String> 
     let mut triggers = Vec::new();
     let lowered = body.to_lowercase();
     if matches!(status_code, Some(400) | Some(403))
-        && ["content policy", "content_filter", "safety", "moderation", "policy"]
-            .iter()
-            .any(|token| lowered.contains(token))
+        && [
+            "content policy",
+            "content_filter",
+            "safety",
+            "moderation",
+            "policy",
+        ]
+        .iter()
+        .any(|token| lowered.contains(token))
     {
         triggers.push("content_policy".to_string());
     }
@@ -1100,9 +1408,24 @@ fn classify_error_triggers(status_code: Option<u16>, body: &str) -> Vec<String> 
 
 // ── Utilities ───────────────────────────────────────────────────────────────────
 
+/// Control-plane response headers that tell a client why it was refused and when to
+/// retry; forwarded with the status and body (review G-13).
+const FORWARDED_REFUSAL_HEADERS: [&str; 3] = ["retry-after", "x-cost-cap-reason", "x-budget-id"];
+
 async fn response_from_upstream(resp: reqwest::Response) -> Response {
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
-    match resp.bytes().await {
+    let forwarded: Vec<(axum::http::HeaderName, axum::http::HeaderValue)> =
+        FORWARDED_REFUSAL_HEADERS
+            .iter()
+            .filter_map(|name| {
+                let value = resp.headers().get(*name)?.to_str().ok()?;
+                Some((
+                    axum::http::HeaderName::from_static(name),
+                    axum::http::HeaderValue::from_str(value).ok()?,
+                ))
+            })
+            .collect();
+    let mut response = match resp.bytes().await {
         Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
             Ok(body) => (status, Json(body)).into_response(),
             Err(_) => (
@@ -1116,7 +1439,11 @@ async fn response_from_upstream(resp: reqwest::Response) -> Response {
             Json(json!({"detail": format!("upstream response read failed: {}", err)})),
         )
             .into_response(),
+    };
+    for (name, value) in forwarded {
+        response.headers_mut().insert(name, value);
     }
+    response
 }
 
 fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -1151,6 +1478,7 @@ async fn emit_runtime_events(
     let resp = state
         .http
         .post(url)
+        .timeout(state.control_plane_timeout)
         .header("x-runledger-timestamp", timestamp)
         .header("x-runledger-signature", signature)
         .header("content-type", "application/json")
@@ -1166,5 +1494,352 @@ async fn emit_runtime_events(
 }
 
 fn uuid_like() -> String {
-    format!("gw_{}", Uuid::new_v4().simple())
+    // A real UUID: the control plane validates event request ids as UUIDs, and the
+    // old "gw_<hex>" form made every runtime event fail with 400 (review G-03).
+    Uuid::new_v4().to_string()
+}
+
+const STREAM_CAPTURE_LIMIT: usize = 2 * 1024 * 1024;
+
+/// Calls finalize with whatever was captured when dropped — at the normal end of the
+/// stream and when the client disconnects early.
+struct StreamFinalizer {
+    captured: Vec<u8>,
+    state: Option<Arc<AppState>>,
+    template: Option<RuntimeFinalizeRequest>,
+    model: String,
+    started: Instant,
+}
+
+impl Drop for StreamFinalizer {
+    fn drop(&mut self) {
+        let (Some(state), Some(mut request)) = (self.state.take(), self.template.take()) else {
+            return;
+        };
+        let response_json = sse_to_completion(&self.captured, &self.model);
+        // The provider is busy until the last chunk, so the stream's duration counts
+        // toward both provider latency and total wall time; their difference stays the
+        // gateway's own overhead (review G-15).
+        let stream_ms = self.started.elapsed().as_millis() as i64;
+        request.response_json = response_json;
+        let provider_ms = request.latency_ms.unwrap_or(0) + stream_ms;
+        request.latency_ms = Some(provider_ms);
+        request.total_wall_ms =
+            Some((request.total_wall_ms.unwrap_or(0) + stream_ms).max(provider_ms));
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                if let Err(resp) = call_finalize(&state, request).await {
+                    error!("stream finalize failed: status {}", resp.status());
+                }
+            });
+        }
+    }
+}
+
+/// Forward the streamed body unchanged while keeping a bounded copy for metering.
+fn tee_stream_for_finalize(
+    response: Response,
+    state: Arc<AppState>,
+    template: RuntimeFinalizeRequest,
+    model: String,
+) -> Response {
+    let (parts, body) = response.into_parts();
+    let upstream = body.into_data_stream();
+    let finalizer = StreamFinalizer {
+        captured: Vec::new(),
+        state: Some(state),
+        template: Some(template),
+        model,
+        started: Instant::now(),
+    };
+    let teed = futures_util::stream::unfold(
+        (upstream, finalizer),
+        |(mut upstream, mut finalizer)| async move {
+            match upstream.next().await {
+                Some(Ok(chunk)) => {
+                    let room = STREAM_CAPTURE_LIMIT.saturating_sub(finalizer.captured.len());
+                    if room > 0 {
+                        let take = room.min(chunk.len());
+                        finalizer.captured.extend_from_slice(&chunk[..take]);
+                    }
+                    Some((
+                        Ok::<bytes::Bytes, axum::Error>(chunk),
+                        (upstream, finalizer),
+                    ))
+                }
+                Some(Err(err)) => Some((Err(err), (upstream, finalizer))),
+                None => None, // dropping the state runs the finalizer
+            }
+        },
+    );
+    Response::from_parts(parts, Body::from_stream(teed))
+}
+
+/// Rebuild an OpenAI-style chat completion from captured server-sent events.
+/// Understands OpenAI chunks (choices[].delta, usage in the last chunk) and
+/// Anthropic events (message_start / content_block_delta / message_delta).
+fn sse_to_completion(raw: &[u8], fallback_model: &str) -> Value {
+    let text = String::from_utf8_lossy(raw);
+    let mut content = String::new();
+    let mut id: Option<String> = None;
+    let mut model: Option<String> = None;
+    let mut finish_reason: Option<String> = None;
+    let mut prompt_tokens: Option<i64> = None;
+    let mut completion_tokens: Option<i64> = None;
+    let mut cached_tokens: Option<i64> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        let Some(data) = line.strip_prefix("data:") else {
+            continue;
+        };
+        let data = data.trim();
+        if data.is_empty() || data == "[DONE]" {
+            continue;
+        }
+        let Ok(event) = serde_json::from_str::<Value>(data) else {
+            continue;
+        };
+        if id.is_none() {
+            id = event.get("id").and_then(Value::as_str).map(str::to_string);
+        }
+        if model.is_none() {
+            model = event
+                .get("model")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+        }
+        // OpenAI-compatible chunk
+        if let Some(choices) = event.get("choices").and_then(Value::as_array) {
+            for choice in choices {
+                if let Some(piece) = choice.pointer("/delta/content").and_then(Value::as_str) {
+                    content.push_str(piece);
+                }
+                if let Some(reason) = choice.get("finish_reason").and_then(Value::as_str) {
+                    finish_reason = Some(reason.to_string());
+                }
+            }
+        }
+        if let Some(usage) = event.get("usage").filter(|u| u.is_object()) {
+            if let Some(v) = usage.get("prompt_tokens").and_then(Value::as_i64) {
+                prompt_tokens = Some(v);
+            }
+            if let Some(v) = usage.get("completion_tokens").and_then(Value::as_i64) {
+                completion_tokens = Some(v);
+            }
+            if let Some(v) = usage
+                .pointer("/prompt_tokens_details/cached_tokens")
+                .and_then(Value::as_i64)
+            {
+                cached_tokens = Some(v);
+            }
+            // Anthropic message_delta usage
+            if let Some(v) = usage.get("output_tokens").and_then(Value::as_i64) {
+                completion_tokens = Some(v);
+            }
+        }
+        // Anthropic events
+        match event.get("type").and_then(Value::as_str) {
+            Some("message_start") => {
+                if let Some(msg) = event.get("message") {
+                    id = id.or_else(|| msg.get("id").and_then(Value::as_str).map(str::to_string));
+                    model = model
+                        .or_else(|| msg.get("model").and_then(Value::as_str).map(str::to_string));
+                    if let Some(v) = msg.pointer("/usage/input_tokens").and_then(Value::as_i64) {
+                        prompt_tokens = Some(v);
+                    }
+                    if let Some(v) = msg
+                        .pointer("/usage/cache_read_input_tokens")
+                        .and_then(Value::as_i64)
+                    {
+                        cached_tokens = Some(v);
+                    }
+                }
+            }
+            Some("content_block_delta") => {
+                if let Some(piece) = event.pointer("/delta/text").and_then(Value::as_str) {
+                    content.push_str(piece);
+                }
+            }
+            Some("message_delta") => {
+                if let Some(reason) = event.pointer("/delta/stop_reason").and_then(Value::as_str) {
+                    finish_reason = Some(reason.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut completion = json!({
+        "id": id.unwrap_or_else(uuid_like),
+        "object": "chat.completion",
+        "model": model.unwrap_or_else(|| fallback_model.to_string()),
+        "choices": [{
+            "index": 0,
+            "message": {"role": "assistant", "content": content},
+            "finish_reason": finish_reason.unwrap_or_else(|| "stop".to_string()),
+        }],
+        "x_runledger_streamed": true,
+    });
+    if prompt_tokens.is_some() || completion_tokens.is_some() {
+        let p = prompt_tokens.unwrap_or(0);
+        let c = completion_tokens.unwrap_or(0);
+        let mut usage = json!({"prompt_tokens": p, "completion_tokens": c, "total_tokens": p + c});
+        if let Some(cached) = cached_tokens {
+            usage["prompt_tokens_details"] = json!({"cached_tokens": cached});
+        }
+        completion["usage"] = usage;
+    }
+    completion
+}
+
+#[cfg(test)]
+mod stream_tests {
+    use super::*;
+
+    #[test]
+    fn openai_chunks_reassemble_with_usage() {
+        let raw = b"data: {\"id\":\"c1\",\"model\":\"gpt-4o-mini\",\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n\
+data: {\"choices\":[{\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}]}\n\n\
+data: {\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3,\"prompt_tokens_details\":{\"cached_tokens\":4}}}\n\n\
+data: [DONE]\n\n";
+        let out = sse_to_completion(raw, "fallback");
+        assert_eq!(out["choices"][0]["message"]["content"], "Hello");
+        assert_eq!(out["model"], "gpt-4o-mini");
+        assert_eq!(out["usage"]["prompt_tokens"], 12);
+        assert_eq!(out["usage"]["completion_tokens"], 3);
+        assert_eq!(out["usage"]["total_tokens"], 15);
+        assert_eq!(out["usage"]["prompt_tokens_details"]["cached_tokens"], 4);
+    }
+
+    #[test]
+    fn anthropic_events_reassemble_with_usage() {
+        let raw = b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"m1\",\"model\":\"claude-x\",\"usage\":{\"input_tokens\":20}}}\n\n\
+data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"Hi\"}}\n\n\
+data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\n";
+        let out = sse_to_completion(raw, "fallback");
+        assert_eq!(out["choices"][0]["message"]["content"], "Hi");
+        assert_eq!(out["usage"]["prompt_tokens"], 20);
+        assert_eq!(out["usage"]["completion_tokens"], 5);
+        assert_eq!(out["choices"][0]["finish_reason"], "end_turn");
+    }
+
+    #[test]
+    fn no_usage_means_no_usage_block() {
+        let out = sse_to_completion(
+            b"data: {\"choices\":[{\"delta\":{\"content\":\"x\"}}]}\n",
+            "m",
+        );
+        assert!(out.get("usage").is_none());
+        assert_eq!(out["model"], "m");
+    }
+
+    #[test]
+    fn uuid_like_is_a_uuid() {
+        assert!(Uuid::parse_str(&uuid_like()).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod fallback_tests {
+    use super::*;
+
+    fn v(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn trigger_steps_run_only_after_a_matching_failure() {
+        let ctx = v(&["context_window"]);
+        assert!(!step_runs_after(&ctx, &[], true), "no failure yet");
+        assert!(step_runs_after(&ctx, &v(&["context_window"]), false));
+        assert!(!step_runs_after(&ctx, &v(&["content_policy"]), false));
+    }
+
+    #[test]
+    fn plain_steps_skip_after_non_transient_failure() {
+        assert!(step_runs_after(&[], &[], true));
+        assert!(!step_runs_after(&[], &v(&["content_policy"]), false));
+    }
+
+    #[test]
+    fn non_transient_failures_keep_the_provider_status() {
+        assert_eq!(failure_status(Some(400), false), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            failure_status(Some(413), false),
+            StatusCode::PAYLOAD_TOO_LARGE
+        );
+        assert_eq!(
+            failure_status(Some(429), true),
+            StatusCode::TOO_MANY_REQUESTS
+        );
+        assert_eq!(failure_status(Some(503), true), StatusCode::BAD_GATEWAY);
+        assert_eq!(failure_status(None, true), StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn retry_delay_backs_off_and_respects_retry_after() {
+        use std::time::Duration;
+        assert_eq!(retry_delay(0, None), Duration::from_millis(250));
+        assert_eq!(retry_delay(2, None), Duration::from_millis(1000));
+        assert_eq!(retry_delay(9, None), Duration::from_millis(5000));
+        assert_eq!(retry_delay(0, Some(1500)), Duration::from_millis(1500));
+        assert_eq!(retry_delay(0, Some(60_000)), Duration::from_millis(5000));
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, "2".parse().unwrap());
+        assert_eq!(parse_retry_after(&headers), Some(2000));
+        headers.insert(
+            reqwest::header::RETRY_AFTER,
+            "Wed, 21 Oct 2015 07:28:00 GMT".parse().unwrap(),
+        );
+        assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn mirror_sampling_respects_the_rate() {
+        assert!(!mirror_sampled(0.0));
+        assert!(!mirror_sampled(f64::NAN));
+        assert!(mirror_sampled(1.0));
+        let hits = (0..10_000).filter(|_| mirror_sampled(0.25)).count();
+        assert!((2_000..3_000).contains(&hits), "{hits}");
+    }
+
+    #[test]
+    fn client_ip_ignores_spoofed_forwarded_for() {
+        let ip = |s: &str| s.parse::<IpAddr>().unwrap();
+        let trusted = parse_trusted_proxies("172.16.0.0/12, 10.0.0.1");
+        // Untrusted peer: X-Forwarded-For is ignored entirely.
+        assert_eq!(
+            client_ip_from(ip("203.0.113.9"), Some("10.9.9.9"), &trusted),
+            ip("203.0.113.9")
+        );
+        // Trusted proxy: the right-most untrusted hop, not the client-supplied left one.
+        assert_eq!(
+            client_ip_from(ip("172.18.0.5"), Some("1.2.3.4, 198.51.100.7"), &trusted),
+            ip("198.51.100.7")
+        );
+        // Chain of trusted proxies is skipped.
+        assert_eq!(
+            client_ip_from(ip("172.18.0.5"), Some("198.51.100.7, 10.0.0.1"), &trusted),
+            ip("198.51.100.7")
+        );
+        // Trusted proxy without the header: the proxy itself.
+        assert_eq!(
+            client_ip_from(ip("172.18.0.5"), None, &trusted),
+            ip("172.18.0.5")
+        );
+        assert!(parse_trusted_proxies("nope, 10.0.0.0/40").is_empty());
+        assert!(IpNet::parse("::ffff:0:0/96").is_some());
+    }
+
+    #[test]
+    fn classifies_context_window_and_content_policy() {
+        assert_eq!(
+            classify_error_triggers(Some(400), "maximum context length exceeded"),
+            v(&["context_window"])
+        );
+        assert_eq!(
+            classify_error_triggers(Some(400), "blocked by content_filter"),
+            v(&["content_policy"])
+        );
+        assert!(classify_error_triggers(Some(500), "context").is_empty());
+    }
 }

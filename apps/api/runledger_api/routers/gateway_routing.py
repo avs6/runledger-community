@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
+
+from runledger_api.core.pagination import PageDep, paginate
+from runledger_api.services.gateway_controls import cost_cap_pricing_error
 
 from .gateway_shared import *
 
@@ -225,6 +228,39 @@ async def delete_gateway_routing_group(
     await db.commit()
 
 
+async def _require_cap_pricing(
+    db: AsyncSession, provider: str, model: str, workspace_id: uuid.UUID
+) -> None:
+    """A cost cap needs a price to be enforced: 422 for an unpriced hosted model
+    instead of silently guessing one at request time (review G-17)."""
+    reason = await cost_cap_pricing_error(
+        db, provider=provider, model=model, workspace_id=workspace_id
+    )
+    if reason:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, reason)
+
+
+def _validate_route_target(
+    auth: Any, provider: str | None, base_url: str | None, api_key_env_var: str | None
+) -> None:
+    """Credential and host rules for a route (review S-02), see provider_credentials."""
+    from runledger_api.services.provider_credentials import (  # noqa: PLC0415
+        RouteConfigRejected,
+        validate_route,
+    )
+
+    user = auth[1] if len(auth) > 1 else None
+    try:
+        validate_route(
+            provider=provider,
+            base_url=base_url,
+            api_key_env_var=api_key_env_var,
+            is_platform_admin=bool(getattr(user, "is_platform_admin", False)),
+        )
+    except RouteConfigRejected as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
 @router.post("/routes", response_model=GatewayRouteResponse, status_code=status.HTTP_201_CREATED)
 async def create_gateway_route(
     body: GatewayRouteCreate,
@@ -232,6 +268,9 @@ async def create_gateway_route(
     db: DbDep,
 ) -> GatewayRouteResponse:
     workspace = auth[0]
+    _validate_route_target(auth, body.provider, body.base_url, body.api_key_env_var)
+    if body.daily_cost_limit_usd is not None or body.monthly_cost_limit_usd is not None:
+        await _require_cap_pricing(db, body.provider, body.target_model, workspace.id)
     routing_group_name: str | None = None
     if body.routing_group_id is not None:
         group = await db.get(GatewayRoutingGroup, body.routing_group_id)
@@ -282,15 +321,18 @@ async def create_gateway_route(
 async def list_gateway_routes(
     auth: OrgAdminDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
     include_inactive: bool = Query(False),
 ) -> GatewayRouteList:
     workspace = auth[0]
     stmt = select(GatewayRoute).where(GatewayRoute.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(GatewayRoute.is_active.is_(True))
-    stmt = stmt.order_by(GatewayRoute.priority.asc(), GatewayRoute.created_at.asc())
-    result = await db.execute(stmt)
-    routes = list(result.scalars().all())
+    stmt = stmt.order_by(
+        GatewayRoute.priority.asc(), GatewayRoute.created_at.asc(), GatewayRoute.id
+    )
+    routes = await paginate(db, stmt, page, response)
     group_names: dict[uuid.UUID, str] = {}
     group_ids = [route.routing_group_id for route in routes if route.routing_group_id is not None]
     if group_ids:
@@ -346,6 +388,15 @@ async def update_gateway_route(
         route.priority = body.priority
     if body.is_active is not None:
         route.is_active = body.is_active
+    if {"base_url", "api_key_env_var"} & body.model_fields_set:
+        _validate_route_target(
+            auth,
+            route.provider,
+            body.base_url if "base_url" in body.model_fields_set else route.base_url,
+            body.api_key_env_var
+            if "api_key_env_var" in body.model_fields_set
+            else route.api_key_env_var,
+        )
     if "base_url" in body.model_fields_set:
         route.base_url = body.base_url
     if "api_key_env_var" in body.model_fields_set:
@@ -388,6 +439,14 @@ async def update_gateway_route(
         route.mirror_config = body.mirror_config
     if body.health_auto_disable is not None:
         route.health_auto_disable = body.health_auto_disable
+    caps_touched = bool(
+        {"daily_cost_limit_usd", "monthly_cost_limit_usd", "provider", "target_model"}
+        & body.model_fields_set
+    )
+    if caps_touched and (
+        route.daily_cost_limit_usd is not None or route.monthly_cost_limit_usd is not None
+    ):
+        await _require_cap_pricing(db, route.provider, route.target_model, workspace.id)
 
     await db.commit()
     await db.refresh(route)
@@ -619,3 +678,64 @@ async def rollback_policy_rollout(
         summary="Rollback applied to routing policy.",
         config=config,
     )
+
+
+# ── Get by id (review G-25) ─────────────────────────────────────────────────────
+# Declared last so fixed paths such as /routing-groups/strategy-comparison match first.
+
+
+@router.get("/routes/{route_id}", response_model=GatewayRouteResponse)
+async def get_gateway_route(
+    route_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayRouteResponse:
+    workspace = auth[0]
+    route = await db.get(GatewayRoute, route_id)
+    if route is None or route.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway route not found")
+    group_name = None
+    if route.routing_group_id is not None:
+        group = await db.get(GatewayRoutingGroup, route.routing_group_id)
+        group_name = group.name if group is not None else None
+    return _serialize_gateway_route(route, routing_group_name=group_name)
+
+
+@router.get("/policies/{policy_id}", response_model=RoutingPolicyResponse)
+async def get_routing_policy(
+    policy_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> RoutingPolicyResponse:
+    workspace = auth[0]
+    policy = await db.get(RoutingPolicy, policy_id)
+    if policy is None or policy.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Routing policy not found")
+    return RoutingPolicyResponse.model_validate(policy)
+
+
+@router.get("/routing-groups/{group_id}", response_model=GatewayRoutingGroupResponse)
+async def get_gateway_routing_group(
+    group_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayRoutingGroupResponse:
+    workspace = auth[0]
+    group = await db.get(GatewayRoutingGroup, group_id)
+    if group is None or group.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gateway routing group not found")
+    routes = list(
+        (
+            await db.execute(
+                select(GatewayRoute)
+                .where(
+                    GatewayRoute.workspace_id == workspace.id,
+                    GatewayRoute.routing_group_id == group.id,
+                )
+                .order_by(GatewayRoute.priority.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return _serialize_routing_group(group, routes)

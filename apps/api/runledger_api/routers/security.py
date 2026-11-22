@@ -413,6 +413,47 @@ async def delete_ldap_provider(
     await db.commit()
 
 
+async def _check_acl_rule(
+    db: AsyncSession,
+    workspace: Workspace,
+    *,
+    scope_type: str,
+    cidr: str | None,
+    api_key_id: uuid.UUID | None,
+    access_group_id: uuid.UUID | None,
+) -> None:
+    """Validate an IP ACL rule before saving (review G-18): a real CIDR, and the key or
+    access group it names must belong to this workspace."""
+    if cidr is not None:
+        try:
+            ipaddress.ip_network(cidr.strip(), strict=False)
+        except ValueError as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid CIDR") from exc
+    if scope_type == "api_key" and api_key_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "api_key_id is required")
+    if scope_type == "access_group" and access_group_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "access_group_id is required")
+    if api_key_id is not None:
+        key = await db.get(ApiKey, api_key_id)
+        if key is None or key.workspace_id != workspace.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "API key not found")
+    if access_group_id is not None:
+        from runledger_api.models.access_groups import AccessGroup  # noqa: PLC0415
+
+        group = await db.get(AccessGroup, access_group_id)
+        if group is None or group.workspace_id != workspace.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Access group not found")
+
+
+def _require_platform_admin_for_global(auth: Any, workspace_id: uuid.UUID | None) -> None:
+    """Global rules apply to every workspace and tenant, so only platform admins may
+    create, change or delete them (review G-18)."""
+    if workspace_id is None and not getattr(auth[1], "is_platform_admin", False):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only platform admins can manage global IP ACL rules"
+        )
+
+
 @router.get("/ip-acl", response_model=IpAclRuleList)
 async def list_ip_acl_rules(auth: OrgAdminDep, db: DbDep) -> IpAclRuleList:
     workspace = auth[0]
@@ -438,6 +479,15 @@ async def create_ip_acl_rule(
 ) -> IpAclRuleResponse:
     workspace = auth[0]
     workspace_id = None if body.scope_type == "global" else workspace.id
+    _require_platform_admin_for_global(auth, workspace_id)
+    await _check_acl_rule(
+        db,
+        workspace,
+        scope_type=body.scope_type,
+        cidr=body.cidr,
+        api_key_id=body.api_key_id,
+        access_group_id=body.access_group_id,
+    )
     item = IpAclRule(workspace_id=workspace_id, **body.model_dump())
     db.add(item)
     await db.flush()
@@ -465,8 +515,22 @@ async def update_ip_acl_rule(
     item = await db.get(IpAclRule, rule_id)
     if item is None or (item.workspace_id not in (None, workspace.id)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "IP ACL rule not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    _require_platform_admin_for_global(auth, item.workspace_id)
+    changes = body.model_dump(exclude_none=True)
+    await _check_acl_rule(
+        db,
+        workspace,
+        scope_type=item.scope_type,
+        cidr=changes.get("cidr"),
+        api_key_id=changes.get("api_key_id", item.api_key_id),
+        access_group_id=changes.get("access_group_id", item.access_group_id),
+    )
+    for field, value in changes.items():
         setattr(item, field, value)
+    if "access_group_id" in changes:
+        # Reassigning a legacy team rule to an access group (review G-18).
+        item.scope_type = "access_group"
+        item.team_name = None
     await emit_audit_event(
         db,
         auth[0].id,
@@ -490,6 +554,7 @@ async def delete_ip_acl_rule(
     item = await db.get(IpAclRule, rule_id)
     if item is None or (item.workspace_id not in (None, workspace.id)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "IP ACL rule not found")
+    _require_platform_admin_for_global(auth, item.workspace_id)
     await db.delete(item)
     await emit_audit_event(
         db,
@@ -514,8 +579,8 @@ async def test_ip_acl(body: IpAclTestRequest, auth: OrgAdminDep, db: DbDep) -> I
             db,
             workspace_id=workspace.id,
             api_key_id=body.api_key_id,
-            team_name=body.team_name,
             client_ip=body.ip,
+            principal_user_id=body.user_id,
         )
         return IpAclTestResponse(ip=body.ip, allowed=True)
     except HTTPException:

@@ -784,12 +784,11 @@ async def get_traces_insights(
     batches = rows.scalars().all()
 
     hourly_buckets: dict[str, dict[str, Any]] = {}
+    # 24 hourly buckets ending with the current hour (review O-21: the old anchor on
+    # now-24h dropped the hour in progress).
+    current_hour = now.replace(minute=0, second=0, microsecond=0)
     for hour_offset in range(24):
-        bucket_dt = (last_24h_cutoff + timedelta(hours=hour_offset)).replace(
-            minute=0,
-            second=0,
-            microsecond=0,
-        )
+        bucket_dt = current_hour - timedelta(hours=23 - hour_offset)
         hourly_buckets[bucket_dt.isoformat()] = {
             "timestamp": bucket_dt.isoformat(),
             "batches": 0,
