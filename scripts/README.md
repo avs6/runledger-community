@@ -71,6 +71,7 @@ python scripts/run_demo.py seed-demo          # REST demo seed (quick, ~30s)
 python scripts/run_demo.py verify-org-access  # assert org/invite/session/lockout controls
 python scripts/run_demo.py verify-budgets     # assert scoped budget counting + enforcement
 python scripts/run_demo.py verify-ingestion   # assert ingest limits, dead letters, OTLP, signing, SSRF
+python scripts/run_demo.py verify-api-health  # every dashboard read endpoint returns without a 5xx
 python scripts/run_demo.py full-simulate      # full cluster simulation
 python scripts/run_demo.py all                # cleanup → seed-demo
 python scripts/run_demo.py all --full         # cleanup → full-simulate
@@ -116,6 +117,7 @@ python scripts/run_demo.py backup --list      # list existing backups
 | `run_demo.py full-simulate` | Broad synthetic traffic, observability depth, and richer cross-surface demo data |
 | `run_demo.py verify-org-access` | Asserts Org & Access controls end to end: temporary passwords, password policy, pending invitations, cross-org identity guard, session revocation, audit events, viewer/editor write enforcement, API key scopes, platform-only backups and pricing import, cross-org ingest isolation, closed unauthenticated surfaces, sign-in throttling (creates and deletes two throwaway orgs) |
 | `run_demo.py verify-budgets` | Asserts scoped budgets end to end: priced ingest calls counted exactly once against feature-tag, end-user and API-key budgets, retries not double counted, one breach recorded, `/budgets/check` blocks the exhausted workflow. With `--gateway-url` and `--alias`, also expects the gateway to return 429. Needs the pipeline worker running |
+| `run_demo.py verify-api-health` | Signs in as the platform admin and sends GET to every route in the OpenAPI spec without path or required query parameters (~290: analytics and posture views, settings, lists); fails on any 5xx. Catches stale column names, missing tables and response-schema mismatches. `-- --prefix /analytics` narrows it |
 | `run_demo.py verify-ingestion` | Asserts Ingestion & Integrations end to end: batch and body limits, one bad event dead-lettered without dropping its batch (replay, discard), idempotent tool calls, status normalization, OTLP gating (dropped vs runs), protobuf, gzip-bomb refusal, raw payload not stored, signed ingest (nonce replay, bad signature), SSRF refusals, `POST /mcp` without redirect. Needs both Celery workers |
 | `run_demo.py traffic --continuous` | Keep dashboards moving with indefinite agent traffic |
 | `run_demo.py cleanup` | Reset the stack to a blank slate |

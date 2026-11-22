@@ -63,7 +63,7 @@ from runledger_api.models.mcp_registry import McpServer, McpToolCall
 from runledger_api.models.metering import ProviderPricing, UsageDaily
 from runledger_api.models.model_budgets import ModelBudget
 from runledger_api.models.otlp import OtlpIngestBatch
-from runledger_api.models.prompts import Prompt
+from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAnomaly
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.search_tools import SearchTool
@@ -238,6 +238,10 @@ from runledger_api.schemas.scores import (
     ScoreSummary,
     ScoreSummaryItem,
 )
+
+# Provider calls carry no tool reference: spend "on tools" is the model spend of runs
+# that made at least one tool call.
+_IN_TOOL_RUN = select(ToolCall.id).where(ToolCall.run_id == ProviderCall.run_id).exists()
 
 router = APIRouter(
     prefix="/analytics", tags=["analytics"], dependencies=[Depends(analytics_rate_limit)]
@@ -2068,10 +2072,13 @@ async def savings_analytics(
         )
     ).all()
 
+    # Build the bucket once: separate date_trunc() calls bind 'day' as separate
+    # parameters, and Postgres then rejects the GROUP BY.
+    day_col = func.date_trunc("day", ProviderCall.created_at).label("day")
     timeline = (
         await db.execute(
             select(
-                func.date_trunc("day", ProviderCall.created_at).label("day"),
+                day_col,
                 func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
                 func.coalesce(func.sum(ProviderCall.baseline_cost_usd), Decimal(0)).label(
                     "baseline"
@@ -2079,8 +2086,8 @@ async def savings_analytics(
                 func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("actual"),
             )
             .where(*base)
-            .group_by(func.date_trunc("day", ProviderCall.created_at))
-            .order_by(func.date_trunc("day", ProviderCall.created_at))
+            .group_by(day_col)
+            .order_by(day_col)
         )
     ).all()
 
@@ -2235,10 +2242,11 @@ async def trends(
         ProviderCall.status == "success",
     ]
 
+    period_col = func.date_trunc(trunc, ProviderCall.created_at).label("period")
     rows = (
         await db.execute(
             select(
-                func.date_trunc(trunc, ProviderCall.created_at).label("period"),
+                period_col,
                 func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
                 func.count(ProviderCall.run_id.distinct()).label("runs"),
                 func.count(ProviderCall.id).label("calls"),
@@ -2249,8 +2257,8 @@ async def trends(
                 func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
             )
             .where(*base)
-            .group_by(func.date_trunc(trunc, ProviderCall.created_at))
-            .order_by(func.date_trunc(trunc, ProviderCall.created_at))
+            .group_by(period_col)
+            .order_by(period_col)
         )
     ).all()
 
@@ -3366,7 +3374,13 @@ async def api_key_observe_footprint(
     run_stmt = select(
         func.count(AgentRun.id).label("run_count"),
         func.coalesce(func.sum(AgentRun.total_cost_usd), 0).label("total_cost"),
-        func.coalesce(func.sum(AgentRun.total_tokens), 0).label("total_tokens"),
+        func.coalesce(
+            func.sum(
+                func.coalesce(AgentRun.total_input_tokens, 0)
+                + func.coalesce(AgentRun.total_output_tokens, 0)
+            ),
+            0,
+        ).label("total_tokens"),
     ).where(
         AgentRun.workspace_id == workspace.id,
         AgentRun.api_key_id == api_key_id,
@@ -3426,7 +3440,13 @@ async def workspace_observe_posture(
     run_stmt = select(
         func.count(AgentRun.id).label("run_count"),
         func.coalesce(func.sum(AgentRun.total_cost_usd), 0).label("total_cost"),
-        func.coalesce(func.sum(AgentRun.total_tokens), 0).label("total_tokens"),
+        func.coalesce(
+            func.sum(
+                func.coalesce(AgentRun.total_input_tokens, 0)
+                + func.coalesce(AgentRun.total_output_tokens, 0)
+            ),
+            0,
+        ).label("total_tokens"),
         func.count(func.distinct(AgentRun.end_user_id)).label("active_users"),
     ).where(
         AgentRun.workspace_id == workspace.id,
@@ -3443,7 +3463,7 @@ async def workspace_observe_posture(
     error_stmt = select(func.count(AgentRun.id)).where(
         AgentRun.workspace_id == workspace.id,
         AgentRun.started_at >= since,
-        AgentRun.status == "error",
+        AgentRun.status == "failed",  # run_status_enum has no "error"
     )
     error_count = (await db.execute(error_stmt)).scalar() or 0
 
@@ -3459,9 +3479,10 @@ async def workspace_observe_posture(
 
     notification_count = (
         await db.execute(
-            select(func.count(BudgetNotification.id))
-            .join(Budget)
-            .where(Budget.workspace_id == workspace.id)
+            # Notification channels belong to the workspace, not to a budget.
+            select(func.count(BudgetNotification.id)).where(
+                BudgetNotification.workspace_id == workspace.id
+            )
         )
     ).scalar() or 0
 
@@ -3914,7 +3935,7 @@ async def ai_hub_runtime_posture(
         await db.execute(
             select(func.count(func.distinct(ProviderCall.model))).where(
                 ProviderCall.workspace_id == workspace.id,
-                ProviderCall.started_at >= thirty_days_ago,
+                ProviderCall.created_at >= thirty_days_ago,
             )
         )
     ).scalar() or 0
@@ -4970,7 +4991,7 @@ async def gateway_safety_posture(
                 AuditEvent.workspace_id == workspace.id,
                 AuditEvent.created_at >= since,
                 or_(
-                    AuditEvent.resource_type.in_(
+                    AuditEvent.target_type.in_(
                         [
                             "gateway_route",
                             "routing_policy",
@@ -5478,9 +5499,10 @@ async def response_cache_economics_posture(
 
     budget_overrides = (
         await db.execute(
-            select(func.count(BudgetOverride.id)).where(
-                BudgetOverride.workspace_id == workspace.id,
-            )
+            # Overrides belong to a budget; scope them through it.
+            select(func.count(BudgetOverride.id))
+            .join(Budget, Budget.id == BudgetOverride.budget_id)
+            .where(Budget.workspace_id == workspace.id)
         )
     ).scalar() or 0
 
@@ -5519,8 +5541,9 @@ async def response_cache_economics_posture(
 
     users_count = (
         await db.execute(
+            # Memberships are per organization (tenant), not per workspace.
             select(func.count(TenantUser.id)).where(
-                TenantUser.workspace_id == workspace.id,
+                TenantUser.tenant_id == workspace.tenant_id,
             )
         )
     ).scalar() or 0
@@ -5578,7 +5601,7 @@ async def rate_limit_scope_posture(
         await db.execute(
             select(func.count(GatewayPassThroughEndpoint.id)).where(
                 GatewayPassThroughEndpoint.workspace_id == workspace.id,
-                GatewayPassThroughEndpoint.rpm_limit.isnot(None),
+                GatewayPassThroughEndpoint.rate_limit_rpm.isnot(None),
             )
         )
     ).scalar() or 0
@@ -5766,8 +5789,9 @@ async def gateway_control_plane_posture(
 ):
     users_count = (
         await db.execute(
+            # Memberships are per organization (tenant), not per workspace.
             select(func.count(TenantUser.id)).where(
-                TenantUser.workspace_id == workspace.id,
+                TenantUser.tenant_id == workspace.tenant_id,
             )
         )
     ).scalar() or 0
@@ -5897,8 +5921,9 @@ async def provider_profile_runtime_posture(
 
     users_count = (
         await db.execute(
+            # Memberships are per organization (tenant), not per workspace.
             select(func.count(TenantUser.id)).where(
-                TenantUser.workspace_id == workspace.id,
+                TenantUser.tenant_id == workspace.tenant_id,
             )
         )
     ).scalar() or 0
@@ -8535,7 +8560,7 @@ async def tool_registry_finops_posture(
                 select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
                     ProviderCall.workspace_id == ws,
                     ProviderCall.created_at >= from_dt,
-                    ProviderCall.tool_call_id.isnot(None),
+                    _IN_TOOL_RUN,
                 )
             )
         ).scalar()
@@ -8547,7 +8572,7 @@ async def tool_registry_finops_posture(
                 select(func.count(ProviderCall.id)).where(
                     ProviderCall.workspace_id == ws,
                     ProviderCall.created_at >= from_dt,
-                    ProviderCall.tool_call_id.isnot(None),
+                    _IN_TOOL_RUN,
                 )
             )
         ).scalar()
@@ -8653,8 +8678,10 @@ async def approvals_alert_finops_posture(
     active_overrides = int(
         (
             await db.execute(
-                select(func.count(BudgetOverride.id)).where(
-                    BudgetOverride.workspace_id == ws,
+                select(func.count(BudgetOverride.id))
+                .join(Budget, Budget.id == BudgetOverride.budget_id)
+                .where(
+                    Budget.workspace_id == ws,
                     BudgetOverride.status == "active",
                 )
             )
@@ -9175,7 +9202,7 @@ async def tool_governance_gateway_posture(
                 select(func.count(ProviderCall.id)).where(
                     ProviderCall.workspace_id == ws,
                     ProviderCall.created_at >= from_dt,
-                    ProviderCall.tool_call_id.isnot(None),
+                    _IN_TOOL_RUN,
                 )
             )
         ).scalar()
@@ -9493,7 +9520,7 @@ async def exception_workflows_gateway_posture(
                 select(func.count(ProviderCall.id)).where(
                     ProviderCall.workspace_id == ws,
                     ProviderCall.created_at >= from_dt,
-                    ProviderCall.tool_call_id.isnot(None),
+                    _IN_TOOL_RUN,
                 )
             )
         ).scalar()
@@ -9729,7 +9756,7 @@ async def data_protection_gateway_posture(
     total_providers = int(
         (
             await db.execute(
-                select(func.count(func.distinct(GatewayRoute.provider_id))).where(
+                select(func.count(func.distinct(GatewayRoute.provider))).where(
                     GatewayRoute.workspace_id == ws
                 )
             )
@@ -9781,7 +9808,7 @@ async def data_protection_gateway_posture(
             await db.execute(
                 select(func.count(GatewayRoute.id)).where(
                     GatewayRoute.workspace_id == ws,
-                    GatewayRoute.rpm_limit.isnot(None),
+                    GatewayRoute.per_user_rpm_limit.isnot(None),
                 )
             )
         ).scalar()
@@ -9826,7 +9853,7 @@ async def data_protection_gateway_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -9944,7 +9971,7 @@ async def evidence_audit_cross_posture(
     total_providers = int(
         (
             await db.execute(
-                select(func.count(func.distinct(GatewayRoute.provider_id))).where(
+                select(func.count(func.distinct(GatewayRoute.provider))).where(
                     GatewayRoute.workspace_id == ws
                 )
             )
@@ -9956,7 +9983,7 @@ async def evidence_audit_cross_posture(
             await db.execute(
                 select(func.count(GatewayRoute.id)).where(
                     GatewayRoute.workspace_id == ws,
-                    GatewayRoute.rpm_limit.isnot(None),
+                    GatewayRoute.per_user_rpm_limit.isnot(None),
                 )
             )
         ).scalar()
@@ -10000,7 +10027,7 @@ async def evidence_audit_cross_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -10140,7 +10167,7 @@ async def governance_internal_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -10254,7 +10281,7 @@ async def tool_registry_runtime_posture(
                 select(func.count(func.distinct(ProviderCall.api_key_id))).where(
                     ProviderCall.workspace_id == ws,
                     ProviderCall.created_at >= from_dt,
-                    ProviderCall.tool_call_id.isnot(None),
+                    _IN_TOOL_RUN,
                 )
             )
         ).scalar()
@@ -10335,7 +10362,7 @@ async def tool_registry_runtime_posture(
                 select(func.count(ProviderCall.id)).where(
                     ProviderCall.workspace_id == ws,
                     ProviderCall.created_at >= from_dt,
-                    ProviderCall.tool_call_id.isnot(None),
+                    _IN_TOOL_RUN,
                 )
             )
         ).scalar()
@@ -10513,7 +10540,7 @@ async def tool_policies_runtime_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -10692,7 +10719,7 @@ async def approvals_runtime_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -11049,7 +11076,7 @@ async def security_runtime_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -11143,7 +11170,7 @@ async def alert_rules_runtime_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -11493,7 +11520,7 @@ async def governance_pack_runtime_posture(
             await db.execute(
                 select(func.count(AlertFiring.id)).where(
                     AlertFiring.workspace_id == ws,
-                    AlertFiring.created_at >= from_dt,
+                    AlertFiring.fired_at >= from_dt,
                 )
             )
         ).scalar()
@@ -12055,7 +12082,7 @@ async def budget_override_governance_posture(
         await db.execute(
             select(func.count(Approval.id)).where(
                 Approval.workspace_id == workspace.id,
-                Approval.entity_type == "budget_override",
+                Approval.request_type == "budget_increase",
                 Approval.status == "pending",
             )
         )
@@ -12065,10 +12092,10 @@ async def budget_override_governance_posture(
         await db.execute(
             select(func.count(Approval.id)).where(
                 Approval.workspace_id == workspace.id,
-                Approval.entity_type == "budget_override",
+                Approval.request_type == "budget_increase",
                 Approval.status == "approved",
-                Approval.updated_at >= t_from,
-                Approval.updated_at < t_to,
+                Approval.decided_at >= t_from,
+                Approval.decided_at < t_to,
             )
         )
     ).scalar() or 0
@@ -12077,10 +12104,10 @@ async def budget_override_governance_posture(
         await db.execute(
             select(func.count(Approval.id)).where(
                 Approval.workspace_id == workspace.id,
-                Approval.entity_type == "budget_override",
+                Approval.request_type == "budget_increase",
                 Approval.status == "denied",
-                Approval.updated_at >= t_from,
-                Approval.updated_at < t_to,
+                Approval.decided_at >= t_from,
+                Approval.decided_at < t_to,
             )
         )
     ).scalar() or 0
@@ -12108,7 +12135,7 @@ async def budget_override_governance_posture(
         await db.execute(
             select(func.count(AuditEvent.id)).where(
                 AuditEvent.workspace_id == workspace.id,
-                AuditEvent.entity_type == "budget_override",
+                AuditEvent.target_type == "budget_override",
                 AuditEvent.created_at >= t_from,
                 AuditEvent.created_at < t_to,
             )
@@ -12119,7 +12146,7 @@ async def budget_override_governance_posture(
         await db.execute(
             select(func.count(Tag.id)).where(
                 Tag.workspace_id == workspace.id,
-                Tag.entity_type == "budget",
+                Tag.category == "budget",
             )
         )
     ).scalar() or 0
@@ -12128,7 +12155,7 @@ async def budget_override_governance_posture(
         await db.execute(
             select(func.count(Tag.id)).where(
                 Tag.workspace_id == workspace.id,
-                Tag.entity_type == "budget_override",
+                Tag.category == "budget_override",
             )
         )
     ).scalar() or 0
@@ -12539,7 +12566,7 @@ async def billing_org_scope_posture(
     ).scalar() or 0
 
     return BillingOrgScopePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         billing_context={
             "total_periods": len(billing_periods),
@@ -12674,7 +12701,7 @@ async def finops_internal_posture(
     )
 
     return FinOpsInternalPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         budget_context={
             "total_budgets": len(budgets),
@@ -12890,7 +12917,7 @@ async def budget_control_build_posture(
     ).scalar() or 0
 
     return BudgetControlBuildPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         budget_policy={
             "total_budgets": len(budgets),
@@ -13014,7 +13041,7 @@ async def billing_cross_feature_posture(
     total_orgs = (await db.execute(select(func.count()).select_from(Tenant))).scalar() or 0
 
     return BillingCrossFeaturePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         gateway_context={
             "routes": routes,
@@ -13171,7 +13198,7 @@ async def chargeback_cross_feature_posture(
     ).scalar() or 0
 
     return ChargebackCrossFeaturePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         org_context={
             "workspace_users": workspace_users,
@@ -13302,7 +13329,7 @@ async def ledger_cross_feature_posture(
     )
 
     return LedgerCrossFeaturePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         org_context={
             "workspace_users": workspace_users,
@@ -13431,7 +13458,7 @@ async def budget_scope_governance_posture(
     ).scalar() or 0
 
     return BudgetScopeGovernancePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         identity_context={
             "workspace_users": workspace_users,
@@ -13578,7 +13605,7 @@ async def budget_detail_drillback_posture(
     ).scalar() or 0
 
     return BudgetDetailDrillbackPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         scope_context={
             "workspace_users": workspace_users,
@@ -13646,7 +13673,7 @@ async def budget_override_exception_posture(
                 BudgetOverride.budget_id.in_(
                     select(Budget.id).where(Budget.workspace_id == workspace.id)
                 ),
-                BudgetOverride.is_active.is_(False),
+                BudgetOverride.status != "active",
             )
         )
     ).scalar() or 0
@@ -13742,7 +13769,7 @@ async def budget_override_exception_posture(
     ).scalar() or 0
 
     return BudgetOverrideExceptionPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         override_context={
             "total_overrides": total_overrides,
@@ -13880,7 +13907,7 @@ async def billing_reconciliation_posture(
     ).scalar() or 0
 
     return BillingReconciliationPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         identity_context={
             "workspace_users": workspace_users,
@@ -13964,11 +13991,12 @@ async def billing_detail_evidence_posture(
 
     sessions_30d = (
         await db.execute(
-            select(func.count(func.distinct(Span.session_id))).where(
-                Span.workspace_id == workspace.id,
-                Span.session_id.isnot(None),
-                Span.created_at >= t_from,
-                Span.created_at < t_to,
+            # Sessions are recorded on runs.
+            select(func.count(func.distinct(AgentRun.session_id))).where(
+                AgentRun.workspace_id == workspace.id,
+                AgentRun.session_id.isnot(None),
+                AgentRun.started_at >= t_from,
+                AgentRun.started_at < t_to,
             )
         )
     ).scalar() or 0
@@ -14002,7 +14030,7 @@ async def billing_detail_evidence_posture(
     ).scalar() or 0
 
     return BillingDetailEvidencePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         identity_context={
             "workspace_users": workspace_users,
@@ -14124,7 +14152,7 @@ async def chargeback_attribution_posture(
     ).scalar() or 0
 
     return ChargebackAttributionPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         identity_context={
             "workspace_users": workspace_users,
@@ -14245,10 +14273,11 @@ async def playground_org_gateway_posture(
 
     cache_hit_savings = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
+            # Savings recorded on calls served by the semantic cache.
+            select(func.coalesce(func.sum(ProviderCall.savings_usd), 0)).where(
                 ProviderCall.workspace_id == workspace.id,
                 ProviderCall.created_at >= since,
-                ProviderCall.cache_hit.is_(True),
+                ProviderCall.savings_category == "semantic_cache",
             )
         )
     ).scalar() or 0
@@ -14258,7 +14287,7 @@ async def playground_org_gateway_posture(
             select(func.count(GatewayRoute.id)).where(
                 GatewayRoute.workspace_id == workspace.id,
                 GatewayRoute.is_active.is_(True),
-                GatewayRoute.rpm_limit.isnot(None),
+                GatewayRoute.per_user_rpm_limit.isnot(None),
             )
         )
     ).scalar() or 0
@@ -14272,7 +14301,7 @@ async def playground_org_gateway_posture(
     ).scalar() or 0
 
     return PlaygroundOrgGatewayPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         workspace_context={
             "workspace_name": workspace.name,
@@ -14365,15 +14394,18 @@ async def prompts_org_gateway_posture(
 
     prompts_with_model_hint = (
         await db.execute(
-            select(func.count(Prompt.id)).where(
+            # The model hint lives on prompt versions.
+            select(func.count(func.distinct(Prompt.id)))
+            .join(PromptVersion, PromptVersion.prompt_id == Prompt.id)
+            .where(
                 Prompt.workspace_id == workspace.id,
-                Prompt.model_hint.isnot(None),
+                PromptVersion.model_hint.isnot(None),
             )
         )
     ).scalar() or 0
 
     return PromptsOrgGatewayPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         workspace_context={
             "workspace_name": workspace.name,
@@ -14486,7 +14518,7 @@ async def playground_observe_posture(
     cache_savings = float(cache_configs * 0.12) if cache_enabled > 0 else 0.0
 
     return PlaygroundObservePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         runs_context={
             "runs_30d": runs_30d,
@@ -14580,7 +14612,7 @@ async def prompt_detail_observe_posture(
     avg_cost_per_call = total_cost_30d / provider_calls_30d if provider_calls_30d > 0 else 0.0
 
     return PromptDetailObservePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         prompt_name=resolved_name,
         analytics_context={
@@ -14742,7 +14774,7 @@ async def workflow_detail_cross_feature_posture(
     total_budget_limit = float(budget_limit_row.scalar() or 0)
 
     return WorkflowDetailCrossFeaturePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         org_context={
             "workspace_name": workspace.name,
@@ -14854,7 +14886,7 @@ async def get_eval_replay_org_gateway_posture(
     ).scalar() or 0
 
     return EvalReplayOrgGatewayPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         workspace_context={
             "workspace_name": workspace.name,
@@ -14958,7 +14990,7 @@ async def get_eval_replay_observe_posture(
     estimated_savings = round(total_cost_30d * 0.15, 2) if cache_configs > 0 else 0.0
 
     return EvalReplayObservePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         runs_context={
             "runs_30d": runs_30d,
@@ -15059,7 +15091,7 @@ async def get_optimization_org_gateway_posture(
     ).scalar() or 0
 
     return OptimizationOrgGatewayPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         workspace_context={
             "workspace_name": workspace.name,
@@ -15165,7 +15197,7 @@ async def get_optimization_observe_posture(
     estimated_savings = round(total_cost_30d * 0.15, 2) if cache_configs > 0 else 0.0
 
     return OptimizationObservePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         runs_context={
             "runs_30d": runs_30d,
@@ -15272,7 +15304,7 @@ async def optimization_finops_posture(
     ).scalar() or 0
 
     return OptimizationFinOpsPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         budget_context={
             "active_budgets": active_budgets,
@@ -15395,7 +15427,7 @@ async def get_build_internal_posture(
     spend_30d = float(
         (
             await db.execute(
-                select(func.coalesce(func.sum(ProviderCall.cost), 0)).where(
+                select(func.coalesce(func.sum(ProviderCall.cost_usd), 0)).where(
                     ProviderCall.workspace_id == workspace.id,
                     ProviderCall.created_at >= cutoff,
                 )
@@ -15405,7 +15437,7 @@ async def get_build_internal_posture(
     )
 
     return BuildInternalPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=30,
         playground_context={
             "sessions_30d": playground_sessions,
@@ -15504,7 +15536,7 @@ async def prompts_list_observe_posture(
     ).scalar_one()
 
     return PromptsListObservePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         observe_context={
             "runs_30d": runs_30d,
@@ -15568,7 +15600,7 @@ async def prompt_detail_hub_finops_posture(
     ).scalar_one()
 
     return PromptDetailHubFinOpsPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         hub_context={
             "hub_models": hub_models,
@@ -15645,7 +15677,7 @@ async def agents_list_posture(
 
     spend_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -15669,7 +15701,7 @@ async def agents_list_posture(
     ).scalar_one()
 
     return AgentsListPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         org_context={
             "workspace_name": workspace_name,
@@ -15767,7 +15799,7 @@ async def agent_detail_governance_posture(
     ).scalar_one()
 
     return AgentDetailGovernancePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         guardrail_context={
             "rules": guardrail_rules,
@@ -15848,7 +15880,7 @@ async def workflows_list_posture(
 
     spend_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -15872,7 +15904,7 @@ async def workflows_list_posture(
     ).scalar_one()
 
     return WorkflowsListPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         org_context={
             "workspace_name": ws,
@@ -15935,7 +15967,7 @@ async def workflow_detail_loop_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -15959,7 +15991,7 @@ async def workflow_detail_loop_posture(
     ).scalar_one()
 
     return WorkflowDetailLoopPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         runs_context={
             "runs_30d": runs_30d,
@@ -16044,7 +16076,7 @@ async def workflow_run_evidence_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16061,7 +16093,7 @@ async def workflow_run_evidence_posture(
     ).scalar_one()
 
     return WorkflowRunEvidencePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         gateway_context={
             "guardrail_rules": guardrail_rules,
@@ -16126,7 +16158,7 @@ async def datasets_eval_asset_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16150,7 +16182,7 @@ async def datasets_eval_asset_posture(
     ).scalar_one()
 
     return DatasetsEvalAssetPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         org_context={
             "workspace_name": ws,
@@ -16210,7 +16242,7 @@ async def eval_studio_parent_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16242,7 +16274,7 @@ async def eval_studio_parent_posture(
     ).scalar_one()
 
     return EvalStudioParentPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         billing_context={
             "billing_periods": billing_periods_total,
@@ -16300,7 +16332,7 @@ async def experiments_comparison_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16332,7 +16364,7 @@ async def experiments_comparison_posture(
     ).scalar_one()
 
     return ExperimentsComparisonPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         billing_context={
             "billing_periods": billing_periods_total,
@@ -16373,7 +16405,7 @@ async def replay_lab_mode_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16397,7 +16429,7 @@ async def replay_lab_mode_posture(
     ).scalar_one()
 
     return ReplayLabModePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         chargeback_context={
             "chargeback_rules": chargeback_rules,
@@ -16459,7 +16491,7 @@ async def replay_result_analysis_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16475,7 +16507,7 @@ async def replay_result_analysis_posture(
     ).scalar_one()
 
     return ReplayResultAnalysisPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         gateway_context={
             "guardrail_rules": guardrail_rules,
@@ -16542,7 +16574,7 @@ async def runbooks_remediation_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16566,7 +16598,7 @@ async def runbooks_remediation_posture(
     ).scalar_one()
 
     return RunbooksRemediationPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         observe_context={
             "runs_30d": runs_30d,
@@ -16601,7 +16633,7 @@ async def opt_opps_rationale_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16634,7 +16666,7 @@ async def opt_opps_rationale_posture(
     ).scalar_one()
 
     return OptOppsRationalePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         cost_context={
             "cost_30d": cost_30d,
@@ -16662,7 +16694,7 @@ async def opt_sim_decision_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16695,7 +16727,7 @@ async def opt_sim_decision_posture(
     ).scalar_one()
 
     return OptSimDecisionPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         cost_context={
             "cost_30d": cost_30d,
@@ -16740,7 +16772,7 @@ async def model_scorecards_intel_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16765,7 +16797,7 @@ async def model_scorecards_intel_posture(
     ).scalar_one()
 
     return ModelScorecardsIntelPosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         model_context={
             "hub_models": hub_models,
@@ -16809,7 +16841,7 @@ async def vector_stores_lifecycle_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16841,7 +16873,7 @@ async def vector_stores_lifecycle_posture(
     ).scalar_one()
 
     return VectorStoresLifecyclePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         workspace_context={
             "workspace_name": workspace,
@@ -16893,7 +16925,7 @@ async def vector_store_detail_evidence_posture(
 
     cost_30d = (
         await db.execute(
-            select(func.coalesce(func.sum(ProviderCall.cost), 0.0)).where(
+            select(func.coalesce(func.sum(ProviderCall.cost_usd), 0.0)).where(
                 ProviderCall.workspace_id == workspace_id,
                 ProviderCall.created_at >= since,
             )
@@ -16925,7 +16957,7 @@ async def vector_store_detail_evidence_posture(
     ).scalar_one()
 
     return VectorStoreDetailEvidencePosture(
-        workspace_id=workspace_id,
+        workspace_id=str(workspace_id),
         period_days=period_days,
         observe_context={
             "provider_calls_30d": provider_calls_30d,
@@ -17066,7 +17098,7 @@ async def platform_settings_convergence_posture(
     alert_rules = (await db.execute(select(func.count(AlertRule.id)))).scalar() or 0
 
     alert_firings = (
-        await db.execute(select(func.count(AlertFiring.id)).where(AlertFiring.created_at >= t_from))
+        await db.execute(select(func.count(AlertFiring.id)).where(AlertFiring.fired_at >= t_from))
     ).scalar() or 0
 
     return PlatformSettingsConvergencePosture(
@@ -17107,7 +17139,7 @@ async def platform_admin_observe_posture(
     alert_rules = (await db.execute(select(func.count(AlertRule.id)))).scalar() or 0
 
     alert_firings = (
-        await db.execute(select(func.count(AlertFiring.id)).where(AlertFiring.created_at >= t_from))
+        await db.execute(select(func.count(AlertFiring.id)).where(AlertFiring.fired_at >= t_from))
     ).scalar() or 0
 
     otlp_batches = (
@@ -18901,6 +18933,21 @@ async def hot_path_migration_posture(
             "requests_7d": requests_7d,
             "cache_hits_7d": cache_hits_7d,
             "audit_events_30d": audit_events_30d,
+        },
+        # Required by HotPathMigrationPosture; same palette as the sibling posture views.
+        status_semantics={
+            "operational_states": {
+                "success": "emerald",
+                "warning": "amber",
+                "error": "red",
+                "info": "blue",
+                "neutral": "slate",
+            },
+            "migration_states": {
+                "complete": "emerald",
+                "in_progress": "amber",
+                "migrated": "emerald",
+            },
         },
     )
 

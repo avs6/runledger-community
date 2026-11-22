@@ -607,7 +607,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <h3>Still open</h3>
 <ul>
 <li><b>I-28</b> — publishing the SDKs to PyPI / npm.</li>
-<li>Found during verification, outside this area: five Gateway page posture endpoints return 500 (<code>analytics.py</code> references fields that don't exist: <code>TenantUser.workspace_id</code>, <code>BudgetOverride.workspace_id</code>, <code>AuditEvent.resource_type</code>, <code>GatewayPassThroughEndpoint.rpm_limit</code>, and a missing <code>HotPathMigrationPosture</code> field).</li>
+<li><span class="b ok">Resolved</span> Found during verification (branch <code>fix/gateway-posture-500s</code>): <b>45 dashboard read endpoints returned 500</b>, not only the five on the Gateway page. Causes: stale column names in <code>analytics.py</code>, <code>org.py</code> and <code>hub.py</code> (e.g. <code>ProviderCall.cost</code>, <code>AlertFiring.created_at</code>, <code>TenantUser.workspace_id</code>); UUIDs passed where response schemas expect strings; an invalid run status; a GROUP BY that asyncpg rejects (<code>/analytics/savings</code>, <code>/analytics/trends</code>); and three billing tables (<code>billing_adjustments</code>, <code>cost_centers</code>, <code>shared_cost_policies</code>) that lost their migration in the Community Edition extraction (restored by migration 093). All 288 parameterless GET endpoints now succeed; <code>verify-api-health</code> and two static tests (no references to missing model fields; every ORM table has a creating migration) keep it that way. Three unused enterprise pricing models were removed.</li>
 </ul>
 </section>
 <section id="roadmap"><h2>Remediation roadmap</h2>

@@ -1634,7 +1634,7 @@ async def get_org_runtime(
         select(RoutingPolicy.workspace_id, func.count().label("cnt"))
         .where(
             RoutingPolicy.workspace_id.in_(ws_ids),
-            RoutingPolicy.status == "active",
+            RoutingPolicy.is_active.is_(True),
         )
         .group_by(RoutingPolicy.workspace_id)
     )
@@ -1728,7 +1728,7 @@ async def get_org_observe(
 
     run_result = await db.execute(
         select(AgentRun.workspace_id, func.count().label("cnt"))
-        .where(AgentRun.workspace_id.in_(ws_ids), AgentRun.created_at >= since)
+        .where(AgentRun.workspace_id.in_(ws_ids), AgentRun.started_at >= since)
         .group_by(AgentRun.workspace_id)
     )
     runs_by_ws: dict[uuid.UUID, int] = {row.workspace_id: row.cnt for row in run_result.all()}
@@ -1740,7 +1740,7 @@ async def get_org_observe(
             func.count(func.distinct(ProviderCall.model)).label("models"),
             func.sum(
                 case(
-                    (ProviderCall.status_code >= 400, 1),
+                    (ProviderCall.status == "error", 1),
                     else_=0,
                 )
             ).label("errors"),

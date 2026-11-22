@@ -17,6 +17,7 @@ Single entry point for the entire demo lifecycle:
     python scripts/run_demo.py verify-org-access  # assert org/invite/session/lockout controls
     python scripts/run_demo.py verify-budgets     # assert scoped budget counting + enforcement
     python scripts/run_demo.py verify-ingestion   # assert ingest limits, dead letters, OTLP, signing, SSRF
+    python scripts/run_demo.py verify-api-health  # every dashboard read endpoint returns without a 5xx
 
   ── Traffic & Agents ──────────────────────────────────────────
     python scripts/run_demo.py traffic            # generate agent traffic (batch mode)
@@ -74,6 +75,7 @@ def _banner(text: str) -> None:
 
 # ── Setup & Seed ──────────────────────────────────────────────────────────────
 
+
 def cmd_scenario(_args: argparse.Namespace) -> int:
     print("\n".join(scenario_lines()))
     return 0
@@ -115,6 +117,10 @@ def cmd_verify_ingestion(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_ingestion.py", getattr(args, "args", []))
 
 
+def cmd_verify_api_health(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_api_health.py", getattr(args, "args", []))
+
+
 def cmd_all(args: argparse.Namespace) -> int:
     _banner("Step 1/2: Cleanup")
     cleanup_args = ["--hard"] if getattr(args, "hard", False) else []
@@ -135,6 +141,7 @@ def cmd_all(args: argparse.Namespace) -> int:
 
 
 # ── Traffic & Agents ──────────────────────────────────────────────────────────
+
 
 def cmd_traffic(args: argparse.Namespace) -> int:
     passthrough = []
@@ -172,6 +179,7 @@ def cmd_otlp_traffic(args: argparse.Namespace) -> int:
 
 # ── Gateway & Bench ───────────────────────────────────────────────────────────
 
+
 def cmd_bench(args: argparse.Namespace) -> int:
     passthrough = ["--api-key", args.api_key, "--alias", args.alias]
     if args.base_url:
@@ -204,6 +212,7 @@ def cmd_bench_report(args: argparse.Namespace) -> int:
 
 
 # ── Integrations ──────────────────────────────────────────────────────────────
+
 
 def cmd_localai(args: argparse.Namespace) -> int:
     passthrough = []
@@ -258,6 +267,7 @@ def cmd_backup(args: argparse.Namespace) -> int:
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -327,7 +337,9 @@ def main() -> int:
 
     # ── Integrations ──
     p = sub.add_parser("localai", help="Bootstrap LocalAI Agent Stack org and workspaces.")
-    p.add_argument("--inject", action="store_true", help="Also inject MCP configs into Claude/Codex.")
+    p.add_argument(
+        "--inject", action="store_true", help="Also inject MCP configs into Claude/Codex."
+    )
     p.add_argument("--rotate-keys", action="store_true", help="Mint fresh API keys.")
     p.add_argument("--base-url", default=None)
 
@@ -349,6 +361,12 @@ def main() -> int:
     )
     p.add_argument("args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser(
+        "verify-api-health",
+        help="Call every dashboard read endpoint and assert none returns a 5xx.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("mcp-validate", help="Validate MCP endpoint connectivity and tools.")
     p.add_argument("--endpoint", default=None)
     p.add_argument("--api-key", default=None)
@@ -366,7 +384,7 @@ def main() -> int:
 
     # Pass-through subcommands forward their flags (e.g. --gateway-url) verbatim to the
     # underlying script; argparse.REMAINDER alone rejects a leading option.
-    passthrough = {"verify-org-access", "verify-budgets", "verify-ingestion"}
+    passthrough = {"verify-org-access", "verify-budgets", "verify-ingestion", "verify-api-health"}
     if len(sys.argv) > 1 and sys.argv[1] in passthrough:
         args = argparse.Namespace(command=sys.argv[1], args=sys.argv[2:])
     else:
@@ -381,6 +399,7 @@ def main() -> int:
         "verify-org-access": cmd_verify_org_access,
         "verify-budgets": cmd_verify_budgets,
         "verify-ingestion": cmd_verify_ingestion,
+        "verify-api-health": cmd_verify_api_health,
         "all": cmd_all,
         "traffic": cmd_traffic,
         "otlp-traffic": cmd_otlp_traffic,
