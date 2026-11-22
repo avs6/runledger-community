@@ -410,6 +410,21 @@ Set `COMPOSE_PROFILES=streaming` in `.env` to include it in every compose comman
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and workflow.
 
+Every pull request runs these checks (`.github/workflows/ci.yml`); run them locally before pushing:
+
+| Check | Command |
+|---|---|
+| API lint, types, tests | `uv run ruff check apps/api && uv run mypy apps/api/runledger_api && uv run pytest apps/api/tests` |
+| Migrations: one Alembic head, upgrade and downgrade on Postgres | `cd apps/api && uv run alembic heads && uv run alembic upgrade head` |
+| Web types, lint and build | `cd apps/web && npm run typecheck && npm run lint && npm run build` |
+| Dead links: every internal link matches a page | `cd apps/web && npm run check:routes` (`npm run gen:routes` after adding a page) |
+| Accessibility lint (report only for now) | `cd apps/web && npm run lint:a11y` |
+| Gateway (Rust) | `cd apps/gateway-rs && cargo fmt --check && cargo clippy --all-targets && cargo test` |
+| Helm chart | `helm lint infra/helm/runledger` |
+| E2E smoke: sign in and open every sidebar page | `docker compose up -d`, then `cd apps/web && npm run e2e` |
+
+New UI should use the shared kit in `apps/web/components/ui` (see its README).
+
 ## License
 
 [Apache License 2.0](LICENSE)

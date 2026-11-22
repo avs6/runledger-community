@@ -55,6 +55,18 @@ jobs:
       - name: Type check
         run: cd apps/web && npm run typecheck
 
+      - name: Lint
+        run: cd apps/web && npm run lint
+
+      # Every internal href / router.push / redirect must match a page (lib/routes.ts).
+      - name: Dead-link check
+        run: cd apps/web && npm run check:routes
+
+      # Accessibility lint reports only until Wave 2-B makes it an error.
+      - name: Accessibility lint (report only)
+        run: cd apps/web && npm run lint:a11y
+        continue-on-error: true
+
       - name: Build
         run: cd apps/web && npm run build
         env:
@@ -83,3 +95,125 @@ jobs:
 
       - name: Test
         run: cd packages/ts-sdk && npm test
+
+  migrations:
+    name: Migrations (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: runledger
+          POSTGRES_PASSWORD: runledger
+          POSTGRES_DB: runledger
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U runledger" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://runledger:runledger@localhost:5432/runledger
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync --all-packages
+      # One linear chain: more than one head means two branches added revisions.
+      - name: Single Alembic head
+        working-directory: apps/api
+        run: test "$(uv run alembic heads | wc -l)" -eq 1 || (uv run alembic heads; exit 1)
+      - name: Upgrade to head on a fresh database
+        working-directory: apps/api
+        run: uv run alembic upgrade head
+      - name: Downgrade one step and upgrade again
+        working-directory: apps/api
+        run: uv run alembic downgrade -1 && uv run alembic upgrade head
+
+  gateway-rs:
+    name: Gateway (Rust)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/gateway-rs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/gateway-rs
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D clippy::correctness
+      - run: cargo test
+
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint infra/helm/runledger
+      - run: helm template ci infra/helm/runledger > /dev/null
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: .
+            file: apps/api/Dockerfile
+          - name: web
+            context: apps/web
+            file: apps/web/Dockerfile
+          - name: gateway-rs
+            context: apps/gateway-rs
+            file: apps/gateway-rs/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  e2e:
+    name: E2E smoke (Playwright)
+    runs-on: ubuntu-latest
+    needs: [api, web]
+    # Skeleton: reports only until it has run green in CI a few times.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write CI .env
+        run: |
+          {
+            echo "ADMIN_SECRET=ci-admin-secret-0123456789abcdef"
+            echo "SECRET_KEY=ci-secret-key-0123456789abcdef0123456789"
+            echo "NEXTAUTH_SECRET=ci-nextauth-secret-0123456789abcdef"
+          } > .env
+      - name: Start the stack
+        run: docker compose up -d --build runledger-postgres runledger-redis runledger-api runledger-web
+      - name: Wait for the API and web
+        run: |
+          for i in $(seq 1 60); do curl -fs http://localhost:8201/health/live && curl -fs -o /dev/null http://localhost:3201/login && exit 0; sleep 5; done
+          docker compose logs runledger-api | tail -100; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+      - run: cd apps/web && npm ci && npx playwright install --with-deps chromium
+      - name: Smoke test every sidebar page
+        run: cd apps/web && npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/test-results
