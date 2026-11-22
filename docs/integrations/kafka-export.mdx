@@ -126,14 +126,28 @@ curl -X POST http://localhost:8201/integrations/kafka/configs \
 
 ## Delivery behavior
 
-Current behavior:
+Kafka export is a **transactional outbox**:
 
-- deliveries are recorded in the database
-- idempotency keys are stable for the same logical event payload
-- retry attempts can be configured per export config and are processed by a background worker
-- failed events can be routed to a dead-letter topic
-- manual retry is available through the API
-- Kafka remains fanout-only; Postgres stays the system of record
+- An event is written as a `pending` delivery row in the same database transaction as
+  the change that produced it. It is exported if and only if that change committed, and
+  nothing is sent to Kafka while a request or ingest batch is still in progress.
+- The `kafka.retry_pending_deliveries` worker (every 10 seconds) delivers pending rows and
+  due retries. Rows are locked with `SKIP LOCKED`, so two workers never send the same
+  delivery, and one producer is reused per export config for the whole sweep.
+- Idempotency keys are stable for the same logical event payload.
+- Retry attempts and backoff are configured per export config; exhausted deliveries go
+  to the dead-letter topic if one is set. Manual retry is available through the API.
+- Finished deliveries are deleted after `OTLP_RAW_RETENTION_DAYS` (pending ones never).
+- Kafka remains fanout-only; Postgres stays the system of record.
+
+## Allowed brokers
+
+Bootstrap servers are checked when a config is saved, tested and used: they must
+resolve to public addresses. Private and internal addresses (RFC 1918, loopback,
+link-local, cloud metadata) are refused unless the host is on `EGRESS_PRIVATE_ALLOWLIST`
+(default `runledger-redpanda`, the bundled broker) or the operator sets
+`EGRESS_ALLOW_PRIVATE=true`. Connection-test errors are returned generically; the broker
+error is logged.
 
 ## Redaction mode
 
@@ -147,7 +161,7 @@ Kafka is optional. The core stack does not require it to boot.
 
 For a local demo on Friday, August 7, 2026:
 
-1. start the bundled Redpanda profile:
+1. start the bundled Redpanda broker (the `streaming` compose profile; set `COMPOSE_PROFILES=streaming` in `.env` to keep it on):
 
 ```bash
 docker compose --profile streaming up -d runledger-redpanda runledger-redpanda-console

@@ -130,7 +130,7 @@ export default function UsersPage() {
           <div className="flex flex-wrap gap-2">
             {[
               { label: 'Organization', href: '/organization' },
-              { label: 'Workspaces', href: '/workspaces' },
+              { label: 'Workspaces', href: '/workspace' },
               { label: 'Users', href: '/users' },
               { label: 'API Keys', href: '/api-keys' },
               { label: 'API Key Detail', href: '/api-keys' },
@@ -168,9 +168,9 @@ export default function UsersPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {[
-              { label: 'Model Gateway', href: '/model-gateway' },
-              { label: 'Provider Profiles', href: '/providers' },
-              { label: 'Routes', href: '/routes' },
+              { label: 'Model Gateway', href: '/gateway' },
+              { label: 'Provider Profiles', href: '/provider-profiles' },
+              { label: 'Routes', href: '/gateway?tab=routes' },
             ].map(({ label, href }) => (
               <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
                 {label}

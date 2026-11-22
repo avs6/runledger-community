@@ -588,7 +588,7 @@ function RequestDetail({
               <Link href="/provider-profiles" className="hover:underline">Providers</Link>
               <Link href="/gateway" className="hover:underline">Routes</Link>
               <Link href="/guardrails" className="hover:underline">Guardrails</Link>
-              <Link href="/cache-config" className="hover:underline">Cache</Link>
+              <Link href="/gateway?tab=cache" className="hover:underline">Cache</Link>
             </div>
           </div>
           <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">

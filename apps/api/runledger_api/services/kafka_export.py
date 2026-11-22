@@ -198,18 +198,35 @@ def prepare_event_payload(config: KafkaExportConfig, payload: dict[str, Any]) ->
     return _redact_value(payload)
 
 
-async def _send(config: KafkaExportConfig, topic: str, payload: dict[str, Any]) -> None:
+def _new_producer(config: KafkaExportConfig) -> Any:
     from aiokafka import AIOKafkaProducer  # noqa: PLC0415
 
-    producer = AIOKafkaProducer(
+    from runledger_api.services.egress import check_bootstrap_servers  # noqa: PLC0415
+
+    check_bootstrap_servers(config.bootstrap_servers)
+
+    return AIOKafkaProducer(
         **_producer_kwargs(config),
         value_serializer=lambda value: json.dumps(value, default=_json_default).encode("utf-8"),
     )
-    await producer.start()
-    try:
+
+
+async def _send(
+    config: KafkaExportConfig,
+    topic: str,
+    payload: dict[str, Any],
+    producer: Any | None = None,
+) -> None:
+    """Send one message; reuses ``producer`` when given (one per config per sweep)."""
+    if producer is not None:
         await producer.send_and_wait(topic, payload)
+        return
+    own = _new_producer(config)
+    await own.start()
+    try:
+        await own.send_and_wait(topic, payload)
     finally:
-        await producer.stop()
+        await own.stop()
 
 
 async def _send_dead_letter(
@@ -242,13 +259,14 @@ async def _deliver_once(
     *,
     delivery: KafkaExportDelivery,
     payload: dict[str, Any],
+    producer: Any | None = None,
 ) -> bool:
     topic = delivery.topic
     attempt = max(1, int(delivery.attempt or 1))
     delivery.attempt = attempt
     max_attempts = max(1, int(config.max_retries) + 1)
     try:
-        await _send(config, topic, payload)
+        await _send(config, topic, payload, producer)
         delivery.status = "success"
         delivery.error_detail = None
         delivery.next_retry_at = None
@@ -277,6 +295,12 @@ async def publish_event(
     event_type: str,
     payload: dict[str, Any],
 ) -> list[KafkaExportDelivery]:
+    """Record the event in the outbox (``pending`` delivery rows); never sends.
+
+    The rows commit together with the caller's transaction, so an event is exported
+    if and only if the change that produced it was committed. The
+    ``kafka.retry_pending_deliveries`` worker delivers them (review I-17).
+    """
     configs = list(
         (
             await db.execute(
@@ -311,26 +335,6 @@ async def publish_event(
         )
         db.add(delivery)
         await db.flush()
-        try:
-            await _deliver_once(config, delivery=delivery, payload=event_payload)
-            log.info(
-                "kafka_export.delivery.ok",
-                workspace_id=str(workspace_id),
-                config_id=str(config.id),
-                event_type=event_type,
-                topic=topic,
-            )
-        except Exception as exc:  # noqa: BLE001
-            delivery.status = "failed"
-            delivery.error_detail = str(exc)
-            log.warning(
-                "kafka_export.delivery.failed",
-                workspace_id=str(workspace_id),
-                config_id=str(config.id),
-                event_type=event_type,
-                topic=topic,
-                error=str(exc),
-            )
         deliveries.append(delivery)
     return deliveries
 
@@ -389,7 +393,14 @@ async def retry_delivery(
     return delivery
 
 
-async def process_pending_deliveries(db: AsyncSession, *, limit: int = 100) -> int:
+async def process_pending_deliveries(db: AsyncSession, *, limit: int = 500) -> int:
+    """Deliver outbox rows: new (``pending``) and due retries (``retry_scheduled``).
+
+    Rows are locked with SKIP LOCKED so concurrent workers never send one twice, and
+    one producer is reused per config for the whole sweep.
+    """
+    from sqlalchemy import or_  # noqa: PLC0415
+
     now = datetime.now(UTC)
     rows = list(
         (
@@ -398,29 +409,56 @@ async def process_pending_deliveries(db: AsyncSession, *, limit: int = 100) -> i
                 .join(KafkaExportConfig, KafkaExportConfig.id == KafkaExportDelivery.config_id)
                 .where(
                     KafkaExportConfig.enabled.is_(True),
-                    KafkaExportDelivery.status == "retry_scheduled",
-                    KafkaExportDelivery.next_retry_at.is_not(None),
-                    KafkaExportDelivery.next_retry_at <= now,
+                    or_(
+                        KafkaExportDelivery.status == "pending",
+                        (KafkaExportDelivery.status == "retry_scheduled")
+                        & (KafkaExportDelivery.next_retry_at <= now),
+                    ),
                 )
-                .order_by(KafkaExportDelivery.next_retry_at.asc())
+                .order_by(KafkaExportDelivery.created_at.asc())
                 .limit(limit)
+                .with_for_update(of=KafkaExportDelivery, skip_locked=True)
             )
         ).all()
     )
+    producers: dict[Any, Any] = {}
     processed = 0
-    for delivery, config in rows:
-        delivery.attempt = max(1, int(delivery.attempt or 1)) + 1
-        try:
-            await _deliver_once(config, delivery=delivery, payload=delivery.payload or {})
-        except Exception as exc:  # noqa: BLE001
-            log.warning(
-                "kafka_export.retry.failed",
-                config_id=str(config.id),
-                delivery_id=str(delivery.id),
-                event_type=delivery.event_type,
-                error=str(exc),
-            )
-        processed += 1
+    try:
+        for delivery, config in rows:
+            if delivery.status == "retry_scheduled":
+                delivery.attempt = max(1, int(delivery.attempt or 1)) + 1
+            producer = producers.get(config.id)
+            if producer is None:
+                try:
+                    producer = _new_producer(config)
+                    await producer.start()
+                    producers[config.id] = producer
+                except Exception as exc:  # noqa: BLE001
+                    producer = None
+                    log.warning(
+                        "kafka_export.producer_start_failed",
+                        config_id=str(config.id),
+                        error=str(exc),
+                    )
+            try:
+                await _deliver_once(
+                    config, delivery=delivery, payload=delivery.payload or {}, producer=producer
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "kafka_export.delivery.failed",
+                    config_id=str(config.id),
+                    delivery_id=str(delivery.id),
+                    event_type=delivery.event_type,
+                    error=str(exc),
+                )
+            processed += 1
+    finally:
+        for producer in producers.values():
+            try:
+                await producer.stop()
+            except Exception:  # noqa: BLE001
+                log.warning("kafka_export.producer_stop_failed")
     if processed:
         await db.commit()
     return processed

@@ -3,8 +3,9 @@ title: "Docker Compose"
 description: "Self-host the entire RunLedger stack on a single host with one command — control plane, gateway, optimization services, and stores."
 ---
 
-Docker Compose is the fastest way to run RunLedger. The default `docker compose up -d` now brings up the
-**core** control plane. Optional profiles layer in optimization sidecars, OTEL, backup tooling, and local TLS.
+Docker Compose is the fastest way to run RunLedger. `docker compose up -d` brings up the whole stack:
+control plane, gateway, workers, optimization services, OTel Collector, stores and the local TLS proxy.
+Only the bundled Kafka broker is optional (the `streaming` profile).
 
 ## Prerequisites
 
@@ -20,10 +21,8 @@ cp .env.example .env
 # set SECRET_KEY:
 python -c "import secrets; print(secrets.token_hex(32))"
 
-docker compose up -d          # core control plane
-docker compose --profile aux up -d                                      # optional optimization sidecars
-docker compose --profile observability up -d runledger-otel-collector   # optional OTLP receiver
-docker compose --profile full-demo up -d                                # full local demo footprint
+docker compose up -d                          # full stack
+docker compose --profile streaming up -d      # also start Redpanda for Kafka export
 ```
 
 Bootstrap the first admin:
@@ -44,14 +43,15 @@ curl -s -X POST http://localhost:8201/admin/bootstrap \
 | `http://localhost:8201/mcp` | Canonical RunLedger MCP endpoint |
 | `http://localhost:8206/mcp` | Optimization MCP gateway |
 
-## Profile model
+## Profiles
 
-- `core` → plain `docker compose up -d`
-- `aux` → optimization and agentic sidecars
-- `observability` → OTEL collector
-- `backup` → MinIO S3-compatible target
-- `tls-demo` → local HTTPS reverse proxy with internal certs
-- `full-demo` → all optional services together
+Every service starts by default except:
+
+- `streaming` → `runledger-redpanda` and `runledger-redpanda-console`, the bundled broker for
+  [Kafka export](/integrations/kafka-export). Start it with `--profile streaming`, or set
+  `COMPOSE_PROFILES=streaming` in `.env` so every `docker compose` command includes it.
+  Skip it if you don't export to Kafka or export to your own brokers.
+- `deprecated` → retired services kept only for reference; never needed.
 
 ## Load demo data (optional)
 
@@ -102,7 +102,7 @@ For contributor workflows — hot-reload dev servers, tests, lint, and type-chec
 
 ## What comes up
 
-### Core (no profile required)
+### Control plane
 
 | Component | Host port | Env override | Role |
 |---|---|---|---|
@@ -111,7 +111,8 @@ For contributor workflows — hot-reload dev servers, tests, lint, and type-chec
 | `runledger-gateway-rs` | 8210 | `GATEWAY_RUNTIME_PORT` | Rust gateway (OpenAI-compatible data plane) |
 | `runledger-postgres` | 5432 | `POSTGRES_PORT` | System of record |
 | `runledger-redis` | 6379 | `REDIS_PORT` | Queue / cache / budget hot-path |
-| `runledger-worker` | — | — | Celery async worker |
+| `runledger-worker` | — | — | Celery worker for the default queue (enrichment, rollups, exports, backups) |
+| `runledger-worker-ingest` | — | — | Celery worker for the `ingest` queue only, so event processing never waits behind slow jobs |
 | `runledger-beat` | — | — | Celery periodic scheduler |
 
 ### Network exposure
@@ -120,18 +121,18 @@ Only client-facing ports listen on all interfaces: API (8201), gateway (8210), w
 
 The optimization microservices also require `X-Internal-Token` (`INTERNAL_SERVICE_TOKEN`, default `ADMIN_SECRET`) on every non-health request, so reaching a port is not enough to read or write workspace data.
 
-### Infrastructure (`infra` / `full-demo`)
+### Infrastructure
 
 | Component | Host port | Env override | Role |
 |---|---|---|---|
 | `runledger-qdrant` | 8202 (HTTP) / 8203 (gRPC) | `QDRANT_HTTP_PORT` / `QDRANT_GRPC_PORT` | Vector store (semantic cache, embeddings) |
 | `runledger-minio` | 9010 (S3) / 9011 (console) | — | S3-compatible object store (backups) |
-| `runledger-redpanda` | 19092 (Kafka) / 18082 (admin) | — | Streaming export broker |
-| `runledger-redpanda-console` | 19091 | — | Redpanda web UI |
+| `runledger-redpanda` | 19092 (Kafka) / 18082 (admin) | — | Streaming export broker (`streaming` profile) |
+| `runledger-redpanda-console` | 19091 | — | Redpanda web UI (`streaming` profile) |
 | `runledger-memory-db` | — | — | Letta Postgres (internal) |
 | `runledger-letta` | 8214 | `LETTA_PORT` | Memory agent runtime |
 
-### Optimization & agentic (`aux` / `full-demo`)
+### Optimization & agentic
 
 | Component | Host port | Env override | Role |
 |---|---|---|---|
@@ -147,7 +148,7 @@ The optimization microservices also require `X-Internal-Token` (`INTERNAL_SERVIC
 | `runledger-skill-registry` | 8213 | `SKILL_PORT` | Agent skill registry |
 | `runledger-flywheel` | 8215 | `FLYWHEEL_PORT` | Optimization flywheel / analyzer |
 
-### Observability & TLS (`full-demo`)
+### Observability & TLS
 
 | Component | Host port | Role |
 |---|---|---|
@@ -158,12 +159,10 @@ The optimization microservices also require `X-Internal-Token` (`INTERNAL_SERVIC
 Local LLM runtimes (Ollama / vLLM) stay **external** — point `OLLAMA_BASE_URL` / `VLLM_BASE_URL` at them.
 See the [Token Optimization overview](/optimization) for the full service map.
 
-For local OTLP ingestion, `observability` is the canonical Compose profile name.
-The older `otel` profile name is still accepted as a compatibility alias.
 The API exposes `/health/live` plus `/health/ready`, and the optimization sidecars expose
 `/health/ready` as a consistent readiness path for local probes and container healthchecks.
-For local HTTPS demos, start `runledger-caddy` under the `tls-demo` profile and use
-`https://runledger.localhost:3443` plus `https://api.runledger.localhost:8443`.
+For local HTTPS, `runledger-caddy` serves `https://runledger.localhost:3443` and
+`https://api.runledger.localhost:8443`.
 
 ## Next steps
 

@@ -18,8 +18,14 @@ inference latency**.
 ## Install
 
 ```bash
-npm install @runledger/sdk
+# Not yet on npm: build and install from the repository
+git clone https://github.com/avs6/runledger-community.git
+cd runledger-community/packages/ts-sdk && npm install && npm run build && npm pack
+npm install /path/to/runledger-community/packages/ts-sdk/runledger-sdk-*.tgz   # in your app
 ```
+
+Use an API key with the `read` and `ingest` scopes. The transport buffers at most 1,000
+events (oldest dropped first) and flushes on `shutdown()` and on Node `beforeExit`.
 
 ## Usage
 

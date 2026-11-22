@@ -1216,10 +1216,10 @@ export default function GatewayPage() {
               { label: 'Budgets', href: '/budgets' },
               { label: 'Billing', href: '/billing' },
               { label: 'Chargeback', href: '/chargeback' },
-              { label: 'Audit Log', href: '/audit-log' },
-              { label: 'Governance', href: '/governance' },
+              { label: 'Audit Log', href: '/audit' },
+              { label: 'Governance', href: '/governance-pack' },
               { label: 'Analytics', href: '/analytics/users?detail=true' },
-              { label: 'Platform Settings', href: '/admin/settings' },
+              { label: 'Platform Settings', href: '/settings' },
             ].map(({ label, href }) => (
               <Link key={label} href={href} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">{label}</Link>
             ))}
@@ -1279,7 +1279,7 @@ export default function GatewayPage() {
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Overrides</Link>
-            <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
             <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
             <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Period Detail</Link>
             <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
@@ -1337,13 +1337,13 @@ export default function GatewayPage() {
           </div>
           <div className="mt-3 flex flex-wrap gap-3">
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
-            <Link href="/monitoring/sessions" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Sessions</Link>
-            <Link href="/analytics/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/sessions" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Sessions</Link>
+            <Link href="/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
             <Link href="/analytics/economics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Economics</Link>
             <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
-            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
             <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
-            <Link href="/analytics/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
+            <Link href="/engineering" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Engineering</Link>
             <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
           </div>
         </div>
@@ -1399,8 +1399,8 @@ export default function GatewayPage() {
             <Link href="/data-capture" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Data Capture</Link>
             <Link href="/security" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Security</Link>
             <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules</Link>
-            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
-            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
             <Link href="/tags" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tags</Link>
             <Link href="/policy-dry-run" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Policy Dry Run</Link>
           </div>
@@ -1456,8 +1456,8 @@ export default function GatewayPage() {
             <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
             <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
             <Link href="/replay" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Replay Lab</Link>
-            <Link href="/optimization" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Optimization</Link>
-            <Link href="/scorecards" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Scorecards</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Optimization</Link>
+            <Link href="/model-scorecards" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Scorecards</Link>
             <Link href="/runbooks" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runbooks</Link>
           </div>
         </div>
@@ -1497,8 +1497,8 @@ export default function GatewayPage() {
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
             <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
             <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
-            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1541,8 +1541,8 @@ export default function GatewayPage() {
           <div className="flex flex-wrap gap-3">
             <Link href="/provider-profiles" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Provider Profiles</Link>
             <Link href="/guardrails" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Guardrails</Link>
-            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1602,14 +1602,14 @@ export default function GatewayPage() {
             <Link href="/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Users</Link>
             <Link href="/access-groups" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Access Groups</Link>
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
-            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
             <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
             <Link href="/analytics/users?detail=true" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics User Detail</Link>
             <Link href="/approvals" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
-            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
-            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
-            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+            <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1663,13 +1663,13 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Runs</Link>
-            <Link href="/analytics/monitoring" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Monitoring</Link>
+            <Link href="/runs" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Runs</Link>
+            <Link href="/monitoring" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Monitoring</Link>
             <Link href="/budgets" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Budgets</Link>
             <Link href="/tool-policies" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Tool Policies</Link>
             <Link href="/guardrails" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Guardrails</Link>
-            <Link href="/audit-log" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Audit Log</Link>
-            <Link href="/admin/settings" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Platform Settings</Link>
+            <Link href="/audit" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Audit Log</Link>
+            <Link href="/settings" className="text-xs text-teal-600 hover:underline dark:text-teal-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1723,11 +1723,11 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
-            <Link href="/optimization" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization</Link>
-            <Link href="/analytics/monitoring" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Monitoring</Link>
+            <Link href="/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization</Link>
+            <Link href="/monitoring" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Monitoring</Link>
             <Link href="/guardrails" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Guardrails</Link>
-            <Link href="/admin/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings</Link>
+            <Link href="/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1781,8 +1781,8 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
-            <Link href="/admin/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings</Link>
+            <Link href="/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
+            <Link href="/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1819,9 +1819,9 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
-            <Link href="/optimization" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Optimization</Link>
-            <Link href="/admin/settings" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Platform Settings</Link>
+            <Link href="/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
+            <Link href="/optimization-opportunities" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Optimization</Link>
+            <Link href="/settings" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1875,8 +1875,8 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
-            <Link href="/audit-log" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Audit Log</Link>
+            <Link href="/runs" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Runs</Link>
+            <Link href="/audit" className="text-xs text-orange-600 hover:underline dark:text-orange-400">Audit Log</Link>
           </div>
         </div>
       )}
@@ -1927,10 +1927,10 @@ export default function GatewayPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/governance" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Governance</Link>
+            <Link href="/governance-pack" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Governance</Link>
             <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
             <Link href="/analytics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Analytics</Link>
-            <Link href="/admin/settings" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Platform Settings</Link>
+            <Link href="/settings" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Platform Settings</Link>
           </div>
         </div>
       )}
@@ -1976,10 +1976,10 @@ export default function GatewayPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/governance" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Governance</Link>
+            <Link href="/governance-pack" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Governance</Link>
             <Link href="/guardrails" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Guardrails</Link>
             <Link href="/analytics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Analytics</Link>
-            <Link href="/analytics/monitoring" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Monitoring</Link>
+            <Link href="/monitoring" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Monitoring</Link>
           </div>
         </div>
       )}
@@ -2025,7 +2025,7 @@ export default function GatewayPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href="/governance" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Governance</Link>
+            <Link href="/governance-pack" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Governance</Link>
             <Link href="/guardrails" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Guardrails</Link>
             <Link href="/analytics" className="text-xs text-rose-600 hover:underline dark:text-rose-400">Analytics</Link>
           </div>
@@ -2226,8 +2226,8 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
-            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/runs" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Runs</Link>
+            <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
           </div>
         </div>
       )}
@@ -2281,8 +2281,8 @@ export default function GatewayPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href="/analytics" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Analytics Overview</Link>
-            <Link href="/analytics/runs" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Runs</Link>
-            <Link href="/audit-log" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Audit Log</Link>
+            <Link href="/runs" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Runs</Link>
+            <Link href="/audit" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Audit Log</Link>
           </div>
         </div>
       )}
@@ -2322,13 +2322,13 @@ export default function GatewayPage() {
             <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
             <Link href="/analytics" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Overview</Link>
-            <Link href="/analytics/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
-            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/model-usage" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Model Usage</Link>
+            <Link href="/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
-            <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
             <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
             <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
-            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
             <Link href="/evaluation" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Evaluation Studio</Link>
             <Link href="/experiments" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Experiments</Link>
             <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring</Link>
@@ -2432,8 +2432,8 @@ export default function GatewayPage() {
             <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
             <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
-            <Link href="/admin/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
-            <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+            <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">All Organizations</Link>
+            <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
           </div>
         </section>
       )}
@@ -2479,15 +2479,15 @@ export default function GatewayPage() {
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budgets</Link>
             <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Detail</Link>
             <Link href="/budgets?view=overrides" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Overrides</Link>
-            <Link href="/budget-notifications" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
+            <Link href="/budgets" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Budget Notifications</Link>
             <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
             <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Summary</Link>
             <Link href="/ledger" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Ledger</Link>
-            <Link href="/audit-log" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
-            <Link href="/governance" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
+            <Link href="/audit" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Audit Log</Link>
+            <Link href="/governance-pack" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Governance Pack</Link>
             <Link href="/onboarding" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Onboarding</Link>
             <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspace Dashboard</Link>
-            <Link href="/analytics/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
+            <Link href="/outcomes" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Outcomes & ROI</Link>
             <Link href="/analytics/users" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics Users</Link>
             <Link href="/analytics/users?detail=true" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Analytics User Detail</Link>
             <Link href="/playground" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Playground</Link>
@@ -2510,7 +2510,7 @@ export default function GatewayPage() {
               <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
               <Link href="/workspace" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
               <Link href="/api-keys" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">API Keys</Link>
-              <Link href="/admin/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
+              <Link href="/settings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Platform Settings</Link>
             </div>
           </div>
           <button

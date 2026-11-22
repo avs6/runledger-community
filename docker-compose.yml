@@ -105,7 +105,9 @@ services:
     image: abijith13/runledger-redpanda:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-redpanda
     restart: unless-stopped
-    # profiles: removed — always starts
+    # Only needed for Kafka export to the bundled broker. Start with
+    # `docker compose --profile streaming up -d`, or set COMPOSE_PROFILES=streaming in .env.
+    profiles: ["streaming"]
     command:
       - redpanda
       - start
@@ -146,7 +148,7 @@ services:
     image: abijith13/runledger-redpanda-console:${RUNLEDGER_TAG:-v1beta1}
     container_name: runledger-redpanda-console
     restart: unless-stopped
-    # profiles: removed — always starts
+    profiles: ["streaming"]
     environment:
       CONFIG_FILEPATH: /tmp/console-config.yml
     entrypoint:
@@ -326,7 +328,8 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: runledger-worker
     restart: unless-stopped
-    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo
+    # Default queue; ingest events are handled by runledger-worker-ingest.
+    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo -Q celery -n default@%h
     environment:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
@@ -374,6 +377,19 @@ services:
       - ./config:/app/config:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      runledger-postgres:
+        condition: service_healthy
+      runledger-redis:
+        condition: service_healthy
+
+  # ── Ingest worker: pipeline.process_events only, so ingest never waits behind
+  #    enrichment, backups or rollups (review I-27).
+  runledger-worker-ingest:
+    extends:
+      service: runledger-worker
+    container_name: runledger-worker-ingest
+    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo -Q ingest -n ingest@%h
     depends_on:
       runledger-postgres:
         condition: service_healthy

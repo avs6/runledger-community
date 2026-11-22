@@ -258,9 +258,9 @@ export default function ExperimentsPage() {
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
             <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
-            <Link href="/routes" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Routes</Link>
+            <Link href="/gateway?tab=routes" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Routes</Link>
             <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
-            <Link href="/response-cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
+            <Link href="/gateway?tab=cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
           </div>
         </div>
       )}

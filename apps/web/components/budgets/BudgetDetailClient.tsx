@@ -318,7 +318,7 @@ export default function BudgetDetailClient({
             <Link href="/access-groups" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Access Groups</Link>
             <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
             <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
-            <Link href="/telemetry" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Telemetry</Link>
+            <Link href="/monitoring/telemetry" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Telemetry</Link>
             <Link href="/users" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Users</Link>
           </div>
         </div>
@@ -670,8 +670,8 @@ export default function BudgetDetailClient({
               <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
               <Link href="/gateway#cache" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Response Cache</Link>
               <Link href="/gateway#rate-limits" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
-              <Link href="/billing-periods" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
-              <Link href="/billing-periods?view=detail" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
+              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
+              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
               <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
               <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
               <Link href="/approvals?status=pending" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
@@ -721,9 +721,9 @@ export default function BudgetDetailClient({
             <div className="flex flex-wrap gap-3 pt-2 border-t border-amber-200 dark:border-amber-800">
               <Link href="/approvals?status=pending" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Approvals</Link>
               <Link href="/alert-rules" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
-              <Link href="/audit-log" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
+              <Link href="/audit" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
               <Link href="/tags" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tags</Link>
-              <Link href="/governance" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Governance Pack</Link>
+              <Link href="/governance-pack" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Governance Pack</Link>
             </div>
           </div>
         ) : (
@@ -854,10 +854,10 @@ export default function BudgetDetailClient({
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <Link href="/approvals" className="text-emerald-600 hover:underline dark:text-emerald-400">Approvals →</Link>
-            <Link href="/alerts" className="text-emerald-600 hover:underline dark:text-emerald-400">Alert Rules →</Link>
+            <Link href="/alert-rules" className="text-emerald-600 hover:underline dark:text-emerald-400">Alert Rules →</Link>
             <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
             <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
-            <Link href="/governance" className="text-emerald-600 hover:underline dark:text-emerald-400">Governance →</Link>
+            <Link href="/governance-pack" className="text-emerald-600 hover:underline dark:text-emerald-400">Governance →</Link>
           </div>
         </div>
       )}

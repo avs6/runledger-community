@@ -82,11 +82,10 @@ processors:
     check_interval: 1s
     limit_mib: 256
     spike_limit_mib: 64
-  filter/ai_only:
-    error_mode: ignore
-    traces:
-      span:
-        - 'attributes["openinference.span.kind"] == nil and attributes["gen_ai.system"] == nil and not IsMatch(name, "^(llm|chat|agent|tool|retriev).*")'
+  # No span-level filtering here: dropping individual non-AI spans orphans their
+  # children (a tool span under a dropped HTTP span loses its parent). RunLedger
+  # gates at the trace level instead (OTLP_RUN_GATING): a trace becomes a run only
+  # if it contains an LLM / agent / tool span; other traces are counted as dropped.
 
 exporters:
   otlphttp/runledger:
@@ -120,7 +119,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource/runledger, filter/ai_only, batch]
+      processors: [memory_limiter, resource/runledger, batch]
       exporters: [spanmetrics, otlphttp/runledger, debug]
     metrics:
       receivers: [otlp, spanmetrics]

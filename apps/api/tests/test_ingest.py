@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -158,51 +157,130 @@ async def test_unsigned_ingest_webhook_is_removed(
     assert response.status_code in (404, 405)
 
 
-@pytest.mark.asyncio
-async def test_ingest_signed_accepts_valid_signature(
+class _NonceRedis:
+    def __init__(self) -> None:
+        self.keys: set[str] = set()
+
+    async def set(self, key: str, value: str, nx: bool = False, ex: int | None = None) -> bool:
+        if nx and key in self.keys:
+            return False
+        self.keys.add(key)
+        return True
+
+
+async def _post_signed(
     client: AsyncClient,
-    mock_db_session: AsyncMock,
-    mock_workspace: SimpleNamespace,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "ingest_signing_secret", "phase1a-secret")
-    monkeypatch.setattr(
-        "runledger_api.routers.ingest.validate_workspace_status",
-        AsyncMock(return_value=mock_workspace),
-    )
-    mock_db_session.get = AsyncMock(return_value=mock_workspace)
+    workspace: SimpleNamespace,
+    *,
+    nonce: str = "n-1",
+    secret_version: int = 1,
+    tamper: bool = False,
+) -> Any:
+    from runledger_api.services.ingest_signing import sign, workspace_signing_secret
+
     payload = {
-        "workspace_id": str(mock_workspace.id),
+        "workspace_id": str(workspace.id),
         "events": [
             {
                 "event_type": "run_start",
                 "run_id": str(uuid.uuid4()),
                 "started_at": datetime.now(UTC).isoformat(),
+                "api_key_id": str(uuid.uuid4()),  # client claim; must be stripped
             }
         ],
     }
     raw_body = json.dumps(payload).encode()
     timestamp = datetime.now(UTC).isoformat()
-    signature = hmac.new(
-        settings.effective_ingest_signing_secret.encode(),
-        b".".join([str(mock_workspace.id).encode(), timestamp.encode(), raw_body]),
-        hashlib.sha256,
-    ).hexdigest()
+    secret = workspace_signing_secret(workspace.id, secret_version)
+    signature = sign(secret, workspace.id, timestamp, nonce, raw_body)
+    if tamper:
+        raw_body = raw_body + b" "  # still valid JSON, but not what was signed
+    return await client.post(
+        "/ingest/v1/signed",
+        content=raw_body,
+        headers={
+            "Content-Type": "application/json",
+            "X-RunLedger-Timestamp": timestamp,
+            "X-RunLedger-Signature": signature,
+            "X-RunLedger-Nonce": nonce,
+        },
+    )
+
+
+@pytest.fixture
+def signed_setup(
+    mock_db_session: AsyncMock,
+    mock_workspace: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+) -> _NonceRedis:
+    from runledger_api.core.redis import get_redis
+    from runledger_api.main import app
+
+    monkeypatch.setattr(settings, "ingest_signing_secret", "phase1a-secret")
+    monkeypatch.setattr(
+        "runledger_api.routers.ingest.validate_workspace_status",
+        AsyncMock(return_value=mock_workspace),
+    )
+    mock_workspace.ingest_signing_version = 1
+    mock_db_session.get = AsyncMock(return_value=mock_workspace)
+    redis = _NonceRedis()
+
+    async def _redis() -> _NonceRedis:
+        return redis
+
+    app.dependency_overrides[get_redis] = _redis
+    return redis
+
+
+@pytest.mark.asyncio
+async def test_ingest_signed_accepts_valid_signature(
+    client: AsyncClient, mock_workspace: SimpleNamespace, signed_setup: _NonceRedis
+) -> None:
     with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
         mock_task.delay = MagicMock()
-        response = await client.post(
-            "/ingest/v1/signed",
-            content=raw_body,
-            headers={
-                "Content-Type": "application/json",
-                "X-RunLedger-Timestamp": timestamp,
-                "X-RunLedger-Signature": signature,
-            },
-        )
+        response = await _post_signed(client, mock_workspace)
 
     assert response.status_code == 202
     assert response.json() == {"accepted": 1}
-    mock_task.delay.assert_called_once()
+    events = mock_task.delay.call_args.kwargs["events"]
+    assert events[0]["api_key_id"] is None  # unauthenticated sender cannot claim a key
+
+
+@pytest.mark.asyncio
+async def test_ingest_signed_rejects_replayed_nonce(
+    client: AsyncClient, mock_workspace: SimpleNamespace, signed_setup: _NonceRedis
+) -> None:
+    with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
+        mock_task.delay = MagicMock()
+        first = await _post_signed(client, mock_workspace, nonce="same")
+        second = await _post_signed(client, mock_workspace, nonce="same")
+    assert first.status_code == 202
+    assert second.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_ingest_signed_rejects_bad_or_rotated_signature(
+    client: AsyncClient, mock_workspace: SimpleNamespace, signed_setup: _NonceRedis
+) -> None:
+    with patch("runledger_api.routers.ingest.process_events_task"):
+        tampered = await _post_signed(client, mock_workspace, nonce="a", tamper=True)
+        mock_workspace.ingest_signing_version = 2  # rotated: version-1 secret is dead
+        stale = await _post_signed(client, mock_workspace, nonce="b", secret_version=1)
+    assert tampered.status_code == 401
+    assert stale.status_code == 401
+
+
+def test_workspace_signing_secrets_differ_and_ignore_admin_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from runledger_api.services.ingest_signing import workspace_signing_secret
+
+    monkeypatch.setattr(settings, "ingest_signing_secret", "")
+    a = workspace_signing_secret("ws-a", 1)
+    assert a != workspace_signing_secret("ws-b", 1)
+    assert a != workspace_signing_secret("ws-a", 2)
+    monkeypatch.setattr(settings, "admin_secret", "changed-admin-secret")
+    assert workspace_signing_secret("ws-a", 1) == a
 
 
 def test_ingest_events_are_attributed_to_the_sending_key() -> None:

@@ -214,15 +214,12 @@ RunLedger intentionally supports multiple adoption paths:
 
 ## Deployment profiles
 
-The repository currently supports these practical local profiles:
+`docker compose up -d` starts every service: API, web, workers (default and ingest queues),
+database, Redis, optimization and agentic sidecars, MinIO, the OpenTelemetry Collector and the
+local HTTPS proxy. Compose profiles:
 
-- `core`: API, web, worker, database, and redis
-- `aux`: optimization and agentic sidecars
-- `backup`: MinIO-backed local object storage
-- `observability`: bundled OpenTelemetry Collector
-- `streaming`: Redpanda and console for Kafka-compatible demos
-- `tls-demo`: local HTTPS proxy for realistic demos
-- `full-demo`: all optional demo-facing services together
+- `streaming`: Redpanda and console, the bundled broker for Kafka export (optional)
+- `deprecated`: retired services, never needed
 
 ## Operational principles
 

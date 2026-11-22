@@ -441,6 +441,16 @@ async def _budget_rollup_workspace_ids(
 # ── POST /budgets ─────────────────────────────────────────────────────────────
 
 
+def _check_destination(url: str) -> None:
+    """Webhook/Slack destinations must resolve to public addresses (SSRF)."""
+    from runledger_api.services.egress import EgressBlocked, check_url  # noqa: PLC0415
+
+    try:
+        check_url(url)
+    except EgressBlocked as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
 @router.post("", response_model=BudgetResponse, status_code=status.HTTP_201_CREATED)
 async def create_budget(
     body: BudgetCreate,
@@ -870,6 +880,7 @@ async def create_notification(
 ) -> NotificationResponse:
     workspace: Workspace = auth[0]
     """Create a webhook or Slack notification channel."""
+    _check_destination(body.destination_url)
     notification = BudgetNotification(
         workspace_id=workspace.id,
         channel=body.channel,
@@ -920,6 +931,8 @@ async def update_notification(
     }
 
     data = body.model_dump(exclude_unset=True)
+    if data.get("destination_url"):
+        _check_destination(data["destination_url"])
     for key, value in data.items():
         setattr(notification, key, value)
 

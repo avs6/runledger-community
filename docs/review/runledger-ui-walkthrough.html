@@ -65,6 +65,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 .page .ev{font-size:12px;color:var(--muted)}
 .themebtn{position:fixed;top:14px;right:16px;z-index:5;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
 @media (max-width:1000px){.layout{grid-template-columns:1fr} nav.toc{display:none} main{padding:22px 16px 60px} .g4{grid-template-columns:repeat(2,minmax(0,1fr))} .g2{grid-template-columns:1fr} .page .facts{grid-template-columns:repeat(2,minmax(0,1fr))} h1{font-size:25px}}
+.fx{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}.fx.ok{color:var(--low);background:var(--low-soft)}.fx.part{color:var(--med);background:var(--med-soft)}
 </style>
 </head>
 <body>
@@ -114,7 +115,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
   <div class="card stat"><div class="n">3</div><div class="l">screens with hard-coded model lists (Playground, Simulator, Run filters)</div></div>
   <div class="card stat"><div class="n">4</div><div class="l">"posture unavailable" error states rendered on Organization and Budget detail</div></div>
 </div>
-<div class="callout warn"><strong>Biggest UX themes.</strong> (1) The app links to routes that don't exist: <code>/telemetry</code>, <code>/governance</code>, <code>/audit-log</code>, <code>/workspaces</code>, <code>/admin/*</code>, <code>/analytics/*</code> and more. (2) Backends with full CRUD are exposed read-only: Workflows have no create, edit or delete; Agents have no edit or delete; OAuth2/LDAP aren't on the Security page. (3) Pagination is inconsistent: four styles, and none on Routes, API Keys, Alert Rules, Scores or Approvals. (4) The UI offers actions the role or backend can't perform: per-key quota tiers, per-model quotas, Throttle/Fallback budget actions, partner guardrails, demo reset for non-platform admins, and the Ledger link.</div>
+<div class="callout warn"><strong>Biggest UX themes.</strong> (1) The app links to routes that don't exist: <code>/telemetry</code>, <code>/governance</code>, <code>/audit-log</code>, <code>/workspaces</code>, <code>/admin/*</code>, <code>/analytics/*</code> and more. (2) Backends with full CRUD are exposed read-only: Workflows have no create, edit or delete; Agents have no edit or delete; OAuth2/LDAP aren't on the Security page. (3) Pagination is inconsistent: four styles, and none on Routes, API Keys, Alert Rules, Scores or Approvals. (4) The UI offers actions the role or backend can't perform: per-key quota tiers, per-model quotas, Throttle/Fallback budget actions, partner guardrails, demo reset for non-platform admins, and the Ledger link. <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: demo controls shown to platform admins only</span> <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: all 22 dead links repointed, old paths redirect</span></div>
 </section>
 
 <section id="nav">
@@ -250,7 +251,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <div class="page" id="p-mon"><div class="ph"><h3>Monitoring · Telemetry</h3><span class="b ok">Good</span><span class="route">/monitoring · /monitoring/telemetry</span></div>
 <ul>
 <li>Monitoring tabs: Security (100), Alerts (8), Gateway; type filter, search, 1d/7d/30d; Prev/Next pagination. Telemetry: ingest batches table with Prev/Next and 2 charts.</li>
-<li>Telemetry shows OTLP batches but has no accept/drop ratio or LLM-vs-noise breakdown. That would have surfaced the 92% noise-run problem.</li>
+<li>Telemetry shows OTLP batches but has no accept/drop ratio or LLM-vs-noise breakdown. That would have surfaced the 92% noise-run problem. <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: Ingest health strip and per-batch runs/dropped columns</span></li>
 </ul></div>
 
 <div class="page" id="p-outcomes"><div class="ph"><h3>Outcomes &amp; ROI</h3><span class="b part">Empty</span><span class="route">/outcomes</span></div>
@@ -393,7 +394,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <div class="page" id="p-budgets"><div class="ph"><h3>Budgets · Budget detail</h3><span class="b part">Rich UI, not enforced</span><span class="route">/budgets?tab=… · /budgets/[id]</span></div>
 <ul>
 <li>List: New Budget; Policies / Overrides / Notifications tabs; table (Scope, Period, Limit, <strong>Live Spend</strong>, Action, Controls), 8 budgets. "Live Spend" reads Redis counters that skip gateway traffic (pass 2, B-02).</li>
-<li>Detail: edit form with scope types <em>Workspace · End user · Feature tag · App/workflow · Access group · API key…</em> and actions <em>Block · Notify · Downgrade · Throttle · Fallback</em>. <strong>Throttle</strong> is ignored and <strong>Fallback</strong> is treated as Block by <code>/policies/check</code>. App, access-group and API-key scopes never accrue spend, and the nightly sync overwrites feature/access-group scopes with workspace totals (B-03/B-04).</li>
+<li>Detail: edit form with scope types <em>Workspace · End user · Feature tag · App/workflow · Access group · API key…</em> and actions <em>Block · Notify · Downgrade · Throttle · Fallback</em>. <strong>Throttle</strong> is ignored and <strong>Fallback</strong> is treated as Block by <code>/policies/check</code>. App, access-group and API-key scopes never accrue spend, and the nightly sync overwrites feature/access-group scopes with workspace totals (B-03/B-04). <span class="fx part" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Partly resolved: all scopes accrue and the gateway enforces block/throttle/downgrade; nightly sync overwrite (I-08) still open</span></li>
 <li>Renders "Governance posture unavailable.", "No breaches recorded yet." Links to <code>/billing-periods</code> and <code>/telemetry</code> (both 404).</li>
 <li>The budgets page links to <code>/gateway#gateway-quota-tiers</code> and <code>#gateway-model-quotas</code>, i.e. two more budget systems on another page.</li>
 </ul></div>
@@ -418,12 +419,12 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 </ul></div>
 
 <div class="page" id="p-users"><div class="ph"><h3>Users · Workspaces · Access Groups</h3><span class="b ok">Functional</span><span class="route">/users · /users/[id] · /workspace · /access-groups</span></div>
-<ul><li>Users: search, Verified/Active/Unverified chips, New User. Workspaces: search, New, Rename, View/Add members. Access groups: empty state with Create. No pagination on any of them (acceptable at 3 users; the APIs are unpaginated too).</li></ul></div>
+<ul><li>Users: search, Verified/Active/Unverified chips, New User. Workspaces: search, New, Rename, View/Add members. Access groups: empty state with Create. No pagination on any of them (acceptable at 3 users; the APIs are unpaginated too). <span class="fx part" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Partly resolved: users, members and org lists paginated in the API; UI controls not added</span></li></ul></div>
 
 <div class="page" id="p-keys"><div class="ph"><h3>API Keys · Key detail</h3><span class="b part">Functional</span><span class="route">/api-keys · /api-keys/[id]</span></div>
 <ul>
 <li>Create (ownership User / Service account / Agent / Org; owner reference; email), search within 19 keys, Edit / Observe / Revoke, Rotation automation with grace hours. Good lifecycle features.</li>
-<li><strong>No scopes selector</strong>, matching the backend, which stores scopes but never enforces them (S-03). No expiry field and no last-used column. No pagination.</li>
+<li><strong>No scopes selector</strong>, matching the backend, which stores scopes but never enforces them (S-03). No expiry field and no last-used column. No pagination. <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: scope picker with presets, expiry option and last-used column added; no pagination yet</span></li>
 <li>Detail: budget assignment, spend attribution, billing periods; <strong>no actions</strong> (rotate or revoke only from the list). Links to <code>/governance</code> (404).</li>
 </ul></div>
 

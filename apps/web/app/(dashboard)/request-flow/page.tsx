@@ -159,7 +159,7 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         { href: '/organization', text: 'Organization' },
         { href: '/users', text: 'Users' },
         { href: '/api-keys', text: 'API Keys' },
-        { href: '/telemetry', text: 'Telemetry' },
+        { href: '/monitoring/telemetry', text: 'Telemetry' },
         { href: '/mcp-registry', text: 'MCP Registry' },
       ],
     })
@@ -173,7 +173,7 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         { href: '/provider-profiles', text: 'Provider Profiles' },
         { href: '/gateway', text: 'Gateway Routes' },
         { href: '/guardrails', text: 'Guardrails' },
-        { href: '/cache-config', text: 'Response Cache' },
+        { href: '/gateway?tab=cache', text: 'Response Cache' },
         { href: '/rate-limits', text: 'Rate Limits' },
       ],
     })

@@ -186,10 +186,57 @@ def test_missing_prompt_id_falls_back_to_one_run_per_request() -> None:
     assert len(runs) == 2
 
 
-def test_other_claude_code_events_are_ignored() -> None:
-    record = _api_request(**{"event.name": "tool_result"})
-    record["body"] = {"stringValue": "claude_code.tool_result"}
+def test_unmapped_claude_code_events_are_ignored() -> None:
+    record = _api_request(**{"event.name": "user_prompt"})
+    record["body"] = {"stringValue": "claude_code.user_prompt"}
     assert synthesize_claude_code_events(WORKSPACE_ID, _logs_payload([record])) == []
+
+
+def test_tool_result_becomes_tool_call_on_prompt_run() -> None:
+    request = _api_request()
+    tool = _api_request(
+        **{"event.name": "tool_result", "tool_name": "Bash", "success": "false", "request_id": None}
+    )
+    events = synthesize_claude_code_events(WORKSPACE_ID, _logs_payload([request, tool]))
+    calls = _by_type(events, "tool_call")
+    assert len(calls) == 1
+    assert calls[0]["tool_name"] == "Bash"
+    assert calls[0]["status"] == "error"
+    # Same prompt → same run as the model request.
+    assert calls[0]["run_id"] == _by_type(events, "provider_call")[0]["run_id"]
+    assert calls[0]["tool_call_id"]
+
+
+def test_rejected_tool_decision_is_denied_and_accept_ignored() -> None:
+    reject = _api_request(
+        **{"event.name": "tool_decision", "tool_name": "Write", "decision": "reject"}
+    )
+    accept = _api_request(
+        **{"event.name": "tool_decision", "tool_name": "Read", "decision": "accept"}
+    )
+    events = synthesize_claude_code_events(WORKSPACE_ID, _logs_payload([reject, accept]))
+    calls = _by_type(events, "tool_call")
+    assert [c["status"] for c in calls] == ["denied"]
+
+
+def test_api_error_becomes_failed_provider_call() -> None:
+    error = _api_request(
+        **{"event.name": "api_error", "status_code": "529", "error": "overloaded", "attempt": "2"}
+    )
+    events = synthesize_claude_code_events(WORKSPACE_ID, _logs_payload([error]))
+    call = _by_type(events, "provider_call")[0]
+    assert call["status"] == "error"
+    assert call["error_type"] == "529"
+    assert _by_type(events, "span_end")[0]["status"] == "failed"
+
+
+def test_feature_tag_from_resource_attributes() -> None:
+    payload = _logs_payload([_api_request()])
+    payload["resourceLogs"][0]["resource"]["attributes"].append(
+        _attr("runledger.feature_tag", "code-review")
+    )
+    run_start = _by_type(synthesize_claude_code_events(WORKSPACE_ID, payload), "run_start")[0]
+    assert run_start["feature_tag"] == "code-review"
 
 
 def test_logs_from_other_services_are_ignored() -> None:

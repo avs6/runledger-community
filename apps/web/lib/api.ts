@@ -3029,6 +3029,73 @@ export async function getOtlpInsights(apiKey: string): Promise<OtlpInsights> {
   return apiFetch<OtlpInsights>('/v1/traces/insights', apiKey)
 }
 
+// ── OTLP metrics (daily rollups) and GenAI usage reconciliation ──────────────
+
+export async function listOtlpMetricSeries(
+  apiKey: string,
+  days = 7,
+  name?: string,
+  limit = 100,
+): Promise<import('@/types/api').OtlpMetricSeriesList> {
+  const qs = new URLSearchParams({ days: String(days), limit: String(limit) })
+  if (name) qs.set('name', name)
+  return apiFetch(`/v1/metrics/series?${qs}`, apiKey)
+}
+
+export async function getOtlpMetricUsage(
+  apiKey: string,
+  days = 7,
+): Promise<import('@/types/api').OtlpMetricUsage> {
+  return apiFetch(`/v1/metrics/usage?days=${days}`, apiKey)
+}
+
+// ── Model calls enrichment could not price ────────────────────────────────────
+
+export async function getUnpricedUsage(
+  apiKey: string,
+  days = 30,
+): Promise<import('@/types/api').UnpricedUsage> {
+  return apiFetch(`/providers/pricing/unpriced?days=${days}`, apiKey)
+}
+
+// ── Ingest dead letters (events the pipeline could not apply) ────────────────
+
+export async function listIngestDeadLetters(
+  apiKey: string,
+  status: 'pending' | 'replayed' | 'discarded' = 'pending',
+  limit = 50,
+  offset = 0,
+): Promise<import('@/types/api').IngestDeadLetterList> {
+  const qs = new URLSearchParams({ status, limit: String(limit), offset: String(offset) })
+  return apiFetch(`/ingest/v1/dead-letters?${qs}`, apiKey)
+}
+
+export async function replayIngestDeadLetter(apiKey: string, id: string): Promise<{ requeued: number }> {
+  return apiFetch(`/ingest/v1/dead-letters/${id}/replay`, apiKey, { method: 'POST' })
+}
+
+export async function replayAllIngestDeadLetters(apiKey: string): Promise<{ requeued: number }> {
+  return apiFetch('/ingest/v1/dead-letters/replay', apiKey, { method: 'POST' })
+}
+
+export async function discardIngestDeadLetter(apiKey: string, id: string): Promise<void> {
+  await apiFetch<void>(`/ingest/v1/dead-letters/${id}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Signed ingest secret (per workspace) ──────────────────────────────────────
+
+export async function getIngestSigningSecret(
+  apiKey: string,
+): Promise<import('@/types/api').IngestSigningSecret> {
+  return apiFetch('/ingest/v1/signing-secret', apiKey)
+}
+
+export async function rotateIngestSigningSecret(
+  apiKey: string,
+): Promise<import('@/types/api').IngestSigningSecret> {
+  return apiFetch('/ingest/v1/signing-secret/rotate', apiKey, { method: 'POST' })
+}
+
 export async function retryKafkaExportDelivery(
   apiKey: string,
   configId: string,

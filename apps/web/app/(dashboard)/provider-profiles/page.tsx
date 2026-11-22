@@ -21,6 +21,7 @@ import {
 } from '@/lib/api'
 import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderProfileObservePosture, ProviderProfileRuntimePosture } from '@/types/api'
 import { num } from '@/lib/utils'
+import UnpricedUsagePanel from '@/components/monitoring/UnpricedUsagePanel'
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -318,12 +319,15 @@ export default function ProviderProfilesPage() {
           { label: 'Guardrails', href: '/guardrails' },
           { label: 'Budgets', href: '/budgets' },
           { label: 'Billing', href: '/billing' },
-          { label: 'Analytics', href: '/analytics/model-usage' },
+          { label: 'Analytics', href: '/model-usage' },
           { label: 'Playground', href: '/playground' },
         ].map(({ label, href }) => (
           <Link key={label} href={href} className="rounded-full bg-indigo-100 dark:bg-indigo-900/30 px-2.5 py-1 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors">{label}</Link>
         ))}
       </div>
+
+      {/* ── Calls with no price (cost missing from spend and budgets) ── */}
+      {apiKey && canManage && <UnpricedUsagePanel apiKey={apiKey} />}
 
       {/* ── Add form ─────────────────────────────── */}
       {showForm && canManage && (

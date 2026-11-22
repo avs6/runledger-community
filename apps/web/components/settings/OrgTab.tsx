@@ -750,7 +750,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Link href="/tools" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                <Link href="/tool-registry" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Cpu className="h-4 w-4 text-indigo-600" />Tool Registry</div>
                   <p className="mt-1 text-xs text-slate-500">MCP servers, search tools, and tool inventory.</p>
                 </Link>
@@ -758,7 +758,7 @@ export default function OrgTab({ apiKey, apiBase }: { apiKey: string; apiBase: s
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><Shield className="h-4 w-4 text-indigo-600" />Tool Policies</div>
                   <p className="mt-1 text-xs text-slate-500">Governance rules for tool access and usage.</p>
                 </Link>
-                <Link href="/governance" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
+                <Link href="/governance-pack" className="rounded-xl border border-slate-200 px-4 py-3 transition hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-800 dark:hover:bg-slate-800/70">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white"><FileCheck className="h-4 w-4 text-indigo-600" />Governance Pack</div>
                   <p className="mt-1 text-xs text-slate-500">Approval workflows, audit trails, and compliance evidence.</p>
                 </Link>

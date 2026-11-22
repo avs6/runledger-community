@@ -183,7 +183,7 @@ export default async function BillingPage({
           { label: 'Gateway', href: '/gateway' },
           { label: 'Alert Rules', href: '/alert-rules' },
           { label: 'Audit Log', href: '/audit' },
-          { label: 'Telemetry', href: '/telemetry' },
+          { label: 'Telemetry', href: '/monitoring/telemetry' },
         ].map(({ label, href }) => (
           <Link
             key={label}

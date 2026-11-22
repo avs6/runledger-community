@@ -45,7 +45,7 @@ spec:
             - --loglevel=info
             - --concurrency=4
             - -Q
-            - celery,priority,low
+            - celery,priority,low,ingest
           env:
             {{- include "runledger.commonEnv" . | nindent 12 }}
           resources:

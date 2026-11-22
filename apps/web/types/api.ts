@@ -1704,6 +1704,9 @@ export interface OtlpBatchResponse {
   span_count: number
   metric_count: number
   log_record_count: number
+  /** Traces recorded as runs / dropped by LLM-span gating (trace batches). */
+  runs_created?: number
+  traces_dropped?: number
   status: string
   error: string | null
   content_type: string
@@ -1785,6 +1788,40 @@ export interface OtlpInsights {
   attribute_coverage: OtlpAttributeCoverage
   semantic_dimensions: OtlpSemanticDimension[]
   status_breakdown: OtlpStatusBreakdown[]
+  ingest_health?: {
+    gating: string
+    runs_created: number
+    traces_dropped: number
+    keep_ratio_pct: number | null
+  }
+}
+
+// ── Ingest dead letters & signed ingest ───────────────────────────────────────
+
+export interface IngestDeadLetter {
+  id: string
+  workspace_id: string
+  event_type: string | null
+  run_id: string | null
+  event: Record<string, unknown>
+  error: string
+  attempts: number
+  status: 'pending' | 'replayed' | 'discarded'
+  created_at: string
+  last_attempt_at: string
+}
+
+export interface IngestDeadLetterList {
+  items: IngestDeadLetter[]
+  total: number
+}
+
+export interface IngestSigningSecret {
+  workspace_id: string
+  version: number
+  secret: string
+  signature?: string
+  headers?: string[]
 }
 
 // ── Retention ─────────────────────────────────────────────────────────────────
@@ -6966,4 +7003,71 @@ export interface DocsIaRefreshPosture {
     requests_30d: number
     audit_events_30d: number
   }
+}
+
+// ── OTLP metric rollups and GenAI usage reconciliation ────────────────────────
+
+export interface OtlpMetricSeries {
+  series_key: string
+  name: string
+  unit: string | null
+  kind: 'sum' | 'gauge' | 'histogram' | 'exponentialHistogram' | 'summary'
+  temporality: 'delta' | 'cumulative' | null
+  service_name: string | null
+  attributes: Record<string, string | number | boolean>
+  points: number
+  /** Summed increase (counters) or sum of values (histograms); null for gauges. */
+  total: number | null
+  observations: number | null
+  min: number | null
+  max: number | null
+  last: number | null
+  last_seen: string | null
+}
+
+export interface OtlpMetricSeriesList {
+  days: number
+  total: number
+  items: OtlpMetricSeries[]
+}
+
+export interface OtlpMetricUsage {
+  days: number
+  reported: {
+    reported: boolean
+    input_tokens: number
+    output_tokens: number
+    cached_input_tokens: number
+    cost_usd: number
+  }
+  recorded: {
+    input_tokens: number
+    output_tokens: number
+    cached_input_tokens: number
+    cost_usd: number
+    calls: number
+  }
+  token_coverage_pct: number | null
+  cost_coverage_pct: number | null
+}
+
+// ── Model calls enrichment could not price ────────────────────────────────────
+
+export interface UnpricedModel {
+  provider: string
+  model: string
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  first_seen: string
+  last_seen: string
+}
+
+export interface UnpricedUsage {
+  days: number
+  unpriced_calls: number
+  unpriced_tokens: number
+  total_calls: number
+  unpriced_pct: number
+  items: UnpricedModel[]
 }

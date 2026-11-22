@@ -66,21 +66,22 @@ const prompts = [
   'runledger_debug_expensive_request',
 ]
 
+// Every snippet sends the key as an Authorization header (the HTTP transport ignores
+// env vars). Use a key with the MCP client preset: read + ingest + mcp scopes.
 const connectors: Connector[] = [
   {
     id: 'claude-desktop',
     name: 'Claude Desktop',
     label: 'Desktop MCP',
     icon: Bot,
-    description: 'Add RunLedger as an HTTP MCP server for local Claude workflows.',
+    description: 'Claude Desktop reaches HTTP MCP servers through the mcp-remote bridge.',
     configTitle: 'claude_desktop_config.json',
     config: (apiUrl, apiKey) => `{
   "mcpServers": {
     "runledger": {
-      "url": "${apiUrl}/mcp",
-      "env": {
-        "RUNLEDGER_API_KEY": "${apiKey}"
-      }
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "${apiUrl}/mcp",
+               "--header", "Authorization:Bearer ${apiKey}"]
     }
   }
 }`,
@@ -93,7 +94,8 @@ const connectors: Connector[] = [
     description: 'Register RunLedger once, then every Claude Code task can log cost and policy checks.',
     configTitle: 'Terminal command',
     config: (apiUrl, apiKey) =>
-      `RUNLEDGER_API_KEY=${apiKey} claude mcp add --transport http runledger ${apiUrl}/mcp`,
+      `claude mcp add --transport http runledger ${apiUrl}/mcp \
+  --header "Authorization: Bearer ${apiKey}"`,
   },
   {
     id: 'cursor',
@@ -106,9 +108,7 @@ const connectors: Connector[] = [
   "mcpServers": {
     "runledger": {
       "url": "${apiUrl}/mcp",
-      "env": {
-        "RUNLEDGER_API_KEY": "${apiKey}"
-      }
+      "headers": { "Authorization": "Bearer ${apiKey}" }
     }
   }
 }`,
@@ -119,14 +119,12 @@ const connectors: Connector[] = [
     label: 'Cascade rules',
     icon: Workflow,
     description: 'Connect Cascade to RunLedger and ship a workspace rule file with every repo.',
-    configTitle: '.windsurf/mcp.json',
+    configTitle: '~/.codeium/windsurf/mcp_config.json',
     config: (apiUrl, apiKey) => `{
-  "servers": {
+  "mcpServers": {
     "runledger": {
-      "url": "${apiUrl}/mcp",
-      "headers": {
-        "Authorization": "Bearer ${apiKey}"
-      }
+      "serverUrl": "${apiUrl}/mcp",
+      "headers": { "Authorization": "Bearer ${apiKey}" }
     }
   }
 }`,
@@ -137,10 +135,11 @@ const connectors: Connector[] = [
     label: 'Agent hook',
     icon: Sparkles,
     description: 'Use a repo instruction file plus MCP endpoint so spawned agents report to RunLedger.',
-    configTitle: 'config.toml / AGENTS.md hint',
-    config: (apiUrl, apiKey) => `[mcp_servers.runledger]
+    configTitle: '~/.codex/config.toml + AGENTS.md hint',
+    config: (apiUrl, apiKey) => `# export RUNLEDGER_API_KEY=${apiKey}
+[mcp_servers.runledger]
 url = "${apiUrl}/mcp"
-env = { RUNLEDGER_API_KEY = "${apiKey}" }
+bearer_token_env_var = "RUNLEDGER_API_KEY"
 
 # Add to AGENTS.md:
 # Use RunLedger MCP tools for budget checks, policy checks, spans, model calls, and outcomes.`,
@@ -151,9 +150,9 @@ env = { RUNLEDGER_API_KEY = "${apiKey}" }
     label: 'Hosted agent',
     icon: Laptop,
     description: 'Give Devin a workspace-scoped key and repo instruction file for task-level reporting.',
-    configTitle: 'Environment + instruction block',
-    config: (apiUrl, apiKey) => `RUNLEDGER_BASE_URL=${apiUrl}
-RUNLEDGER_API_KEY=${apiKey}
+    configTitle: 'MCP server + instruction block',
+    config: (apiUrl, apiKey) => `MCP server URL: ${apiUrl}/mcp   (must be reachable from Devin's cloud)
+Header:         Authorization: Bearer ${apiKey}
 
 Instruction:
 Before each task call runledger.budget_check, record run start, model calls, tool calls, and final outcome.`,
@@ -165,10 +164,10 @@ Before each task call runledger.budget_check, record run start, model calls, too
     icon: RadioTower,
     description: 'Use this for LiteLLM, Open WebUI, LangGraph, OpenHands, Dify, n8n, and custom agents.',
     configTitle: 'HTTP endpoint',
-    config: (apiUrl, apiKey) => `MCP endpoint: ${apiUrl}/mcp
+    config: (apiUrl, apiKey) => `MCP endpoint: ${apiUrl}/mcp   (/mcp and /mcp/ both work)
 Authorization: Bearer ${apiKey}
 Transport: streamable HTTP
-Scope: current workspace API key`,
+Key scopes: read, ingest, mcp`,
   },
   {
     id: 'stdio',
@@ -179,7 +178,7 @@ Scope: current workspace API key`,
     configTitle: 'stdio bridge command',
     config: (apiUrl, apiKey) => `RUNLEDGER_BASE_URL=${apiUrl}
 RUNLEDGER_API_KEY=${apiKey}
-python scripts/runledger/mcp_stdio_bridge.py`,
+python scripts/mcp/mcp_stdio_bridge.py`,
   },
 ]
 

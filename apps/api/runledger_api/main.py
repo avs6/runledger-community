@@ -93,6 +93,14 @@ from runledger_api.core.ratelimit_middleware import RateLimitHeaderMiddleware  #
 
 app.add_middleware(RateLimitHeaderMiddleware)
 
+from runledger_api.core.ingest_limits import IngestBodyLimitMiddleware  # noqa: E402
+
+app.add_middleware(IngestBodyLimitMiddleware)
+
+from runledger_api.core.mcp_guard import McpPathNormalizer  # noqa: E402
+
+app.add_middleware(McpPathNormalizer)
+
 app.include_router(health.router)
 app.include_router(ingest.router)
 app.include_router(auth.router)

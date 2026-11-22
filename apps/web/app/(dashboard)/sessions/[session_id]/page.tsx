@@ -161,7 +161,7 @@ export default function SessionDetailPage({
         )}
         <Link href="/users" className="text-blue-800 hover:underline dark:text-blue-100">Users</Link>
         <Link href="/api-keys" className="text-blue-800 hover:underline dark:text-blue-100">API Keys</Link>
-        <Link href="/telemetry" className="text-blue-800 hover:underline dark:text-blue-100">Telemetry</Link>
+        <Link href="/monitoring/telemetry" className="text-blue-800 hover:underline dark:text-blue-100">Telemetry</Link>
         <span className="mx-1 text-slate-300 dark:text-slate-600">|</span>
         <span className="text-emerald-700 dark:text-emerald-200">FinOps:</span>
         <Link href="/budgets" className="text-emerald-800 hover:underline dark:text-emerald-100">Budgets</Link>

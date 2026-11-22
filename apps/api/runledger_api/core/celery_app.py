@@ -31,6 +31,9 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    # Ingest gets its own queue and worker so slow jobs (enrichment, backups, rollups)
+    # never delay event processing. docker-compose runs runledger-worker-ingest on it.
+    task_routes={"pipeline.process_events": {"queue": "ingest"}},
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
@@ -130,6 +133,11 @@ celery_app.conf.update(
             "task": "retention.apply_policies",
             "schedule": 86400.0,
         },
+        # Raw OTLP data, finished Kafka deliveries, resolved dead letters.
+        "ingest-purge-raw-telemetry-daily": {
+            "task": "ingest.purge_raw_telemetry",
+            "schedule": 86400.0,
+        },
         # Expired / revoked dashboard session keys: daily purge (7-day grace).
         "auth-purge-session-keys-daily": {
             "task": "auth.purge_session_keys",
@@ -173,9 +181,10 @@ celery_app.conf.update(
             "task": "backups.run_scheduled",
             "schedule": 3600.0,
         },
-        "kafka-retry-30s": {
+        # Kafka outbox: deliver pending rows and due retries.
+        "kafka-outbox-10s": {
             "task": "kafka.retry_pending_deliveries",
-            "schedule": 30.0,
+            "schedule": 10.0,
         },
     },
 )

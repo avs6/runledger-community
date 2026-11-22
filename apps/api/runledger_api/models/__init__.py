@@ -55,6 +55,7 @@ from runledger_api.models.guardrails import (
     PartnerGuardrail,
 )
 from runledger_api.models.hub import HubModel
+from runledger_api.models.ingest_dead_letters import IngestDeadLetter
 from runledger_api.models.kafka import KafkaExportConfig, KafkaExportDelivery
 from runledger_api.models.ledger import (
     CapturePolicy,
@@ -80,7 +81,7 @@ from runledger_api.models.ml import (
     MLPattern,
 )
 from runledger_api.models.model_budgets import ModelBudget
-from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
+from runledger_api.models.otlp import OtlpIngestBatch, OtlpMetricRollup, OtlpSpanRaw
 from runledger_api.models.outcomes import Outcome, OutcomeRollupDaily
 from runledger_api.models.platform_settings import PlatformWebhookSettings
 from runledger_api.models.playground import PlaygroundRequest, PlaygroundSession
@@ -178,6 +179,7 @@ __all__ = [
     "BudgetTier",
     "ModelBudget",
     "BudgetOverride",
+    "IngestDeadLetter",
     "Tag",
     "AutoTaggingRule",
     "SearchTool",
@@ -216,6 +218,7 @@ __all__ = [
     "McpPermission",
     "McpToolCall",
     "OtlpIngestBatch",
+    "OtlpMetricRollup",
     "OtlpSpanRaw",
     "Outcome",
     "OutcomeRollupDaily",

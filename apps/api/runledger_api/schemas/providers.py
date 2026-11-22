@@ -65,3 +65,24 @@ class PricingImportResult(BaseModel):
     providers: list[str]
     tags: list[str]
     errors: list[str] = []
+
+
+class UnpricedModel(BaseModel):
+    """Calls to one provider/model that enrichment could not price."""
+
+    provider: str
+    model: str
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    first_seen: datetime
+    last_seen: datetime
+
+
+class UnpricedUsage(BaseModel):
+    days: int
+    unpriced_calls: int
+    unpriced_tokens: int
+    total_calls: int
+    unpriced_pct: float
+    items: list[UnpricedModel]

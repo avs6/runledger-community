@@ -1753,6 +1753,18 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-proto"
+version = "1.45.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/24/9c/1aa4ce60e9bc72af20dc49c92cc0566825092d92b3d6a277439fb5fb7c01/opentelemetry_proto-1.45.2.tar.gz", hash = "sha256:bd8d23cf770605b0af9b7be2071d26a464fea289d35429abfd2a66226114ad64", size = 46486, upload-time = "2026-10-29T17:29:53.007Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/0d/a0b8f2b9efe2ec1abdf639d3696db9b1563ebeb11d91aac08ba7341e9122/opentelemetry_proto-1.45.2-py3-none-any.whl", hash = "sha256:03a7ca1b43f89fd5b965d5975902bb2515c0c86e2428b456836e9a6149c6235a", size = 72484, upload-time = "2026-10-29T17:29:31.403Z" },
+]
+
+[[package]]
 name = "opentelemetry-sdk"
 version = "1.39.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2512,6 +2524,7 @@ dependencies = [
     { name = "google-auth" },
     { name = "mcp" },
     { name = "numpy" },
+    { name = "opentelemetry-proto" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
@@ -2546,6 +2559,7 @@ requires-dist = [
     { name = "google-auth", specifier = ">=2.29.0" },
     { name = "mcp", specifier = ">=1.9.0,<2" },
     { name = "numpy", specifier = ">=1.26.0" },
+    { name = "opentelemetry-proto", specifier = ">=1.27,<2" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pyarrow", specifier = ">=15.0.0" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },

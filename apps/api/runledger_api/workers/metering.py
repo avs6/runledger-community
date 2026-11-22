@@ -37,7 +37,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -99,24 +99,31 @@ async def _run_cost_enrichment() -> dict[str, int]:
     redis = Redis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
     try:
         async with factory() as session:
-            # Fetch up to 500 provider_calls that have tokens but no cost
+            # Up to 500 calls with tokens but no cost. Calls that could not be priced
+            # in the last hour are skipped (cost_checked_at), so unpriceable models
+            # never block newer calls; adding pricing for a model clears the flag.
+            now = datetime.now(UTC)
             stmt = (
                 select(ProviderCall)
                 .where(
                     ProviderCall.cost_usd.is_(None),
                     ProviderCall.input_tokens.is_not(None),
+                    or_(
+                        ProviderCall.cost_checked_at.is_(None),
+                        ProviderCall.cost_checked_at < now - timedelta(hours=1),
+                    ),
                 )
                 .order_by(ProviderCall.created_at)
                 .limit(500)
             )
             result = await session.execute(stmt)
             calls: list[ProviderCall] = list(result.scalars())
+            unpriced: list[Any] = []
 
             for pc in calls:
                 cost = await _provider_call_cost(session, pc)
                 if cost is None:
-                    # No pricing row found — leave cost_usd as NULL so it will
-                    # be re-enriched once pricing is configured.
+                    unpriced.append(pc.id)
                     continue
 
                 await session.execute(
@@ -141,10 +148,18 @@ async def _run_cost_enrichment() -> dict[str, int]:
                             app_id=run.application_id if run else None,
                             provider=pc.provider,
                             model=pc.model,
+                            occurred_at=pc.created_at,
                         )
                 except Exception:
                     log.exception("budget_spend_record_failed", provider_call_id=str(pc.id))
 
+            if unpriced:
+                await session.execute(
+                    update(ProviderCall)
+                    .where(ProviderCall.id.in_(unpriced))
+                    .values(cost_checked_at=now)
+                )
+                log.info("cost_enrichment_unpriced", count=len(unpriced))
             await session.commit()
     finally:
         await redis.aclose()

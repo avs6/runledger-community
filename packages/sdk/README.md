@@ -11,7 +11,7 @@ Not yet published to PyPI. Install from the repo:
 pip install -e "/path/to/runledger/packages/sdk[all]"
 
 # or directly from GitHub
-pip install "runledger-sdk[all] @ git+https://github.com/avs6/runledger.git#subdirectory=packages/sdk"
+pip install "runledger-sdk[all] @ git+https://github.com/avs6/runledger-community#subdirectory=packages/sdk"
 ```
 
 Available extras:

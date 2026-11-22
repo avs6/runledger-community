@@ -452,8 +452,8 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
-              <Link href="/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
-              <Link href="/retention" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Retention →</Link>
+              <Link href="/monitoring/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
+              <Link href="/settings?tab=retention" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Retention →</Link>
               <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring →</Link>
               <Link href="/organizations" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Organizations →</Link>
             </div>
@@ -493,8 +493,8 @@ export default function SettingsPage() {
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
               <Link href="/audit" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Audit Log →</Link>
-              <Link href="/alerts" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Alerts →</Link>
-              <Link href="/governance" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
+              <Link href="/alert-rules" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Alerts →</Link>
+              <Link href="/governance-pack" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
               <Link href="/evaluation" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Evaluation Studio →</Link>
               <Link href="/organizations" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Organizations →</Link>
             </div>

@@ -31,10 +31,10 @@ docker run --rm -p 4317:4317 -p 4318:4318 \
   otel/opentelemetry-collector-contrib:latest
 ```
 
-Or use the Docker Compose observability profile included in the RunLedger repo:
+Or use the Collector that ships in the RunLedger `docker-compose.yml` (it starts with the stack; there is no separate profile):
 
 ```bash
-docker compose --profile observability up
+docker compose up -d runledger-otel-collector
 ```
 
 This starts the Collector at:
@@ -46,7 +46,7 @@ This starts the Collector at:
 - `localhost:8889` for span-derived metrics
 - `localhost:55679` for zPages
 
-`otel` remains available as a compatibility alias, but `observability` is the canonical local profile name.
+The bundled Collector requires the same `Authorization: Bearer <RunLedger API key>` from your applications that it uses upstream (key scope: `ingest`).
 
 ### 2. Configure the Collector
 
@@ -107,15 +107,10 @@ processors:
   memory_limiter:
     check_interval: 1s
     limit_mib: 512
-  filter/ai_only:
-    error_mode: ignore
-    traces:
-      span:
-        - 'attributes["openinference.span.kind"] == nil and attributes["gen_ai.system"] == nil and not IsMatch(name, "^(llm|chat|agent|tool|retriev).*")'
 
 exporters:
   otlphttp/runledger:
-    endpoint: https://api.runledger.io
+    endpoint: http://YOUR_RUNLEDGER_API:8201
     headers:
       Authorization: "Bearer ${RUNLEDGER_API_KEY}"
     encoding: json
@@ -131,7 +126,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource/runledger, filter/ai_only, batch]
+      processors: [memory_limiter, resource/runledger, batch]
       exporters: [spanmetrics, otlphttp/runledger]
     metrics:
       receivers: [otlp, spanmetrics]
@@ -224,22 +219,18 @@ Recommended resource attributes for correlation:
 
 ---
 
-## Filtering Noisy Spans
+## Noisy Spans
 
-Use the `filter` processor to drop spans you don't want in RunLedger:
+Don't drop individual spans in the Collector: removing a non-AI parent (an HTTP or
+file-system span) orphans the AI spans under it. RunLedger filters at the trace level
+instead: with `OTLP_RUN_GATING=llm` (the default) a trace becomes a run only when it
+contains an LLM, agent or tool span (or `gen_ai.*` attributes); other traces are
+counted as **dropped** on the batch and shown in **Monitoring → Telemetry → Ingest
+health**. Set the resource attribute `runledger.capture=all` to record every trace from
+one service, or `OTLP_RUN_GATING=all` to record everything.
 
-```yaml
-processors:
-  filter/ai_only:
-    error_mode: ignore
-    traces:
-      span:
-        - 'attributes["openinference.span.kind"] == nil and
-           attributes["gen_ai.system"] == nil and
-           not IsMatch(name, "^(llm|chat|agent|tool|retriev).*")'
-```
-
-This keeps only AI-relevant spans and drops infra/HTTP spans.
+To cut volume before it leaves your network, drop whole traces with a
+`tail_sampling` policy rather than individual spans.
 
 ---
 
@@ -297,8 +288,8 @@ service:
 The RunLedger repo includes a pre-configured Collector for local development:
 
 ```bash
-# Start full stack including the OTel Collector
-docker compose --profile observability up
+# Start the full stack (the OTel Collector starts with it)
+docker compose up -d
 
 # Collector endpoints:
 #   gRPC:  localhost:4317

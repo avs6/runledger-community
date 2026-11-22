@@ -6,7 +6,14 @@ Routes:
   POST /otlp/v1/traces       — compatibility alias for collectors using /otlp prefix
 
 Auth: Bearer <RunLedger API key>  (same key used for SDK ingest)
-Content-Type: application/json    (OTLP JSON; protobuf support deferred to Phase 2)
+Content-Type: application/json (OTLP/JSON) or application/x-protobuf (OTLP/protobuf,
+the default of most OpenTelemetry HTTP exporters). gzip bodies are inflated with a
+size cap (OTLP_MAX_DECOMPRESSED_BYTES).
+
+Only traces containing an LLM / agent / tool span become runs (OTLP_RUN_GATING);
+other traces are counted as dropped on the batch. Raw payloads and raw spans keep
+prompt/response content only when the workspace capture policy is FULL, and are
+deleted after OTLP_RAW_RETENTION_DAYS.
 
 On success returns:
   {"partialSuccess": {}}          — OTLP-spec compliant response
@@ -14,9 +21,9 @@ On success returns:
 
 from __future__ import annotations
 
-import gzip
 import json
 import uuid
+import zlib
 from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
@@ -26,6 +33,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
     get_current_workspace,
@@ -33,24 +41,38 @@ from runledger_api.core.deps import (
     require_workspace_writer,
 )
 from runledger_api.core.ratelimit import ingest_rate_limit
-from runledger_api.models.otlp import OtlpIngestBatch, OtlpSpanRaw
+from runledger_api.models.otlp import OtlpIngestBatch, OtlpMetricRollup, OtlpSpanRaw
 from runledger_api.services.claude_code_logs import synthesize_claude_code_events
+from runledger_api.services.otlp_metrics import metric_usage_summary, record_metric_rollups
 from runledger_api.services.otlp_parse import (
     OtlpTrace,
     parse_otlp_json,
     synthesize_canonical_events,
+    trace_should_create_run,
 )
+from runledger_api.services.scrubbing import scrub_dict
 
 log = structlog.get_logger()
 
 router = APIRouter(tags=["OTLP"])
 OrgAdminDep = Annotated[tuple[Any, ...], Depends(require_org_admin)]
 
-_MAX_PAYLOAD_BYTES = 10 * 1024 * 1024  # 10 MB hard limit
-_SUPPORTED_CONTENT_TYPES = {
-    "application/json",
-    "application/x-protobuf",  # accepted but we return 415 for protobuf for now
-}
+_PROTOBUF_TYPES = {"application/x-protobuf", "application/protobuf"}
+
+
+def _inflate_gzip(body: bytes, limit: int) -> bytes:
+    """Inflate a gzip body, refusing to produce more than ``limit`` bytes (gzip bombs)."""
+    inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
+    try:
+        out = inflater.decompress(body, limit + 1)
+    except zlib.error as exc:
+        raise HTTPException(status_code=422, detail=f"gzip decompression failed: {exc}") from exc
+    if len(out) > limit or inflater.unconsumed_tail:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Decompressed payload too large (max {limit} bytes)",
+        )
+    return out
 
 
 async def _read_body(request: Request) -> tuple[bytes, str, str | None]:
@@ -59,32 +81,123 @@ async def _read_body(request: Request) -> tuple[bytes, str, str | None]:
     encoding: str | None = request.headers.get("content-encoding")
 
     body = await request.body()
-    if len(body) > _MAX_PAYLOAD_BYTES:
+    if len(body) > settings.ingest_max_body_bytes:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Payload too large"
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Payload too large"
         )
-
     if encoding == "gzip":
-        try:
-            body = gzip.decompress(body)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=422, detail=f"gzip decompression failed: {exc}"
-            ) from exc
-
+        body = _inflate_gzip(body, settings.otlp_max_decompressed_bytes)
     return body, content_type, encoding
 
 
-def _parse_body(body: bytes, content_type: str) -> dict[str, Any]:
-    if content_type == "application/x-protobuf":
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="OTLP protobuf not yet supported. Use Content-Type: application/json",
-        )
+def _protobuf_to_dict(body: bytes, signal: str) -> dict[str, Any]:
+    """Decode an OTLP/protobuf export request into the OTLP/JSON shape."""
+    from google.protobuf.json_format import MessageToDict  # noqa: PLC0415
+    from google.protobuf.message import DecodeError  # noqa: PLC0415
+    from opentelemetry.proto.collector.logs.v1 import logs_service_pb2  # noqa: PLC0415
+    from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2  # noqa: PLC0415
+    from opentelemetry.proto.collector.trace.v1 import trace_service_pb2  # noqa: PLC0415
+
+    message_type: Any = {
+        "trace": trace_service_pb2.ExportTraceServiceRequest,
+        "metric": metrics_service_pb2.ExportMetricsServiceRequest,
+        "log": logs_service_pb2.ExportLogsServiceRequest,
+    }[signal]
+    message = message_type()
+    try:
+        message.ParseFromString(body)
+    except DecodeError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid OTLP protobuf: {exc}") from exc
+    # Ids come out base64-encoded, which the parser decodes like OTLP/JSON ids.
+    return MessageToDict(message)  # type: ignore[no-any-return]
+
+
+def _parse_body(body: bytes, content_type: str, signal: str = "trace") -> dict[str, Any]:
+    if content_type in _PROTOBUF_TYPES:
+        return _protobuf_to_dict(body, signal)
     try:
         return json.loads(body)  # type: ignore[no-any-return]
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid JSON: {exc}") from exc
+
+
+# Span attributes that carry prompt / response / tool-argument content. They are
+# kept in raw spans only when the workspace capture policy is FULL.
+_PAYLOAD_ATTR_PREFIXES = (
+    "gen_ai.prompt",
+    "gen_ai.completion",
+    "gen_ai.input",
+    "gen_ai.output",
+    "gen_ai.tool.call.function.arguments",
+    "llm.input_messages",
+    "llm.output_messages",
+    "llm.prompts",
+    "llm.prompt_template",
+    "input.value",
+    "output.value",
+    "tool.parameters",
+    "tool_call.function.arguments",
+    "message.content",
+)
+
+
+def _raw_span_attributes(attrs: dict[str, Any], capture_full: bool) -> dict[str, Any] | None:
+    if not attrs:
+        return attrs
+    if capture_full:
+        return scrub_dict(attrs)
+    return scrub_dict(
+        {k: v for k, v in attrs.items() if not str(k).startswith(_PAYLOAD_ATTR_PREFIXES)}
+    )
+
+
+async def _capture_full(db: AsyncSession, workspace_id: uuid.UUID) -> bool:
+    """Whether the workspace capture policy allows storing raw payloads (FULL only)."""
+    from runledger_api.workers.pipeline import _get_capture_policy  # noqa: PLC0415
+
+    privacy_mode, _rate = await _get_capture_policy(db, str(workspace_id))
+    return privacy_mode == "FULL"
+
+
+def _summarize_resources(payload: dict[str, Any]) -> dict[str, Any]:
+    """Resource-attribute summary stored on the batch (insights read this, not raw)."""
+    services: Counter[str] = Counter()
+    hits: Counter[str] = Counter()
+    semantic: Counter[str] = Counter()
+    maps = 0
+    for attrs in _iter_resource_attribute_maps(payload):
+        maps += 1
+        if attrs.get("service.name"):
+            services[str(attrs["service.name"])] += 1
+            hits["service_name"] += 1
+        if attrs.get("runledger.session_id") or attrs.get("session.id"):
+            hits["session_id"] += 1
+        if attrs.get("runledger.end_user_id") or attrs.get("user.id"):
+            hits["end_user_id"] += 1
+        if attrs.get("runledger.feature_tag") or attrs.get("feature_tag"):
+            hits["feature_tag"] += 1
+        if attrs.get("runledger.deployment_version") or attrs.get("service.version"):
+            hits["deployment_version"] += 1
+        if attrs.get("runledger.workspace_name"):
+            hits["workspace_name"] += 1
+        if attrs.get("runledger.organization_name"):
+            hits["organization_name"] += 1
+        for key in (
+            "service.name",
+            "service.version",
+            "deployment.environment",
+            "runledger.feature_tag",
+            "runledger.workspace_name",
+            "runledger.organization_name",
+        ):
+            if attrs.get(key):
+                semantic[key] += 1
+    return {
+        "resource_maps": maps,
+        "services": dict(services),
+        "hits": dict(hits),
+        "semantic": dict(semantic),
+    }
 
 
 def _unwrap_any_value(value: dict[str, Any] | None) -> Any:
@@ -138,6 +251,8 @@ async def _persist_batch(
     log_record_count: int = 0,
     status_str: str = "accepted",
     error: str | None = None,
+    resource_summary: dict[str, Any] | None = None,
+    keep_raw: bool = False,
 ) -> OtlpIngestBatch:
     batch = OtlpIngestBatch(
         workspace_id=workspace_id,
@@ -150,7 +265,9 @@ async def _persist_batch(
         log_record_count=log_record_count,
         status=status_str,
         error=error,
-        raw_payload=raw_body,
+        # The raw body holds prompts/responses: keep it only under a FULL policy.
+        raw_payload=raw_body if keep_raw else None,
+        resource_summary=resource_summary,
     )
     db.add(batch)
     await db.flush()
@@ -162,6 +279,7 @@ async def _persist_raw_spans(
     workspace_id: uuid.UUID,
     batch_id: uuid.UUID,
     trace: OtlpTrace,
+    capture_full: bool = False,
 ) -> None:
     for span in trace.spans:
         raw = OtlpSpanRaw(
@@ -174,14 +292,14 @@ async def _persist_raw_spans(
             start_time=span.started_at,
             end_time=span.ended_at,
             status_code=span.status_code,
-            resource_attributes=trace.resource_attrs,
+            resource_attributes=scrub_dict(trace.resource_attrs),
             scope_attributes={
                 "name": span.scope_name,
                 "version": span.scope_version,
             }
             if span.scope_name
             else None,
-            span_attributes=span.attrs,
+            span_attributes=_raw_span_attributes(span.attrs, capture_full),
             normalized=False,
         )
         db.add(raw)
@@ -194,7 +312,7 @@ async def _handle_traces(
 ) -> dict[str, Any]:
     """Core handler shared by both routes."""
     body, content_type, encoding = await _read_body(request)
-    payload = _parse_body(body, content_type)
+    payload = _parse_body(body, content_type, "trace")
 
     try:
         parse_result = parse_otlp_json(payload)
@@ -204,8 +322,9 @@ async def _handle_traces(
 
     trace_count = len(parse_result.traces)
     span_count = parse_result.total_spans
+    capture_full = await _capture_full(db, workspace.id)
 
-    # Persist raw batch record
+    # Persist the batch record (raw body only under a FULL capture policy)
     batch = await _persist_batch(
         db=db,
         workspace_id=workspace.id,
@@ -215,14 +334,39 @@ async def _handle_traces(
         signal_type="trace",
         trace_count=trace_count,
         span_count=span_count,
+        resource_summary=_summarize_resources(payload),
+        keep_raw=capture_full,
     )
 
-    # Persist raw spans for replay/debugging, then synthesize canonical events
+    # Traces already recorded as runs (an earlier batch had their LLM spans) keep
+    # receiving their child spans even when this batch alone would be dropped.
+    from runledger_api.models.events import AgentRun  # noqa: PLC0415
+    from runledger_api.services.otlp_parse import _make_run_id  # noqa: PLC0415
+
+    run_ids = {_make_run_id(workspace.id, t.trace_id_hex): t for t in parse_result.traces}
+    existing = set()
+    if run_ids:
+        existing = set(
+            (
+                await db.execute(
+                    select(AgentRun.id).where(
+                        AgentRun.id.in_(list(run_ids)), AgentRun.workspace_id == workspace.id
+                    )
+                )
+            ).scalars()
+        )
+
     all_events: list[dict[str, Any]] = []
-    for trace in parse_result.traces:
-        await _persist_raw_spans(db, workspace.id, batch.id, trace)
-        events = synthesize_canonical_events(workspace.id, trace)
-        all_events.extend(events)
+    kept = dropped = 0
+    for run_id, trace in run_ids.items():
+        if run_id not in existing and not trace_should_create_run(trace, settings.otlp_run_gating):
+            dropped += 1
+            continue
+        kept += 1
+        await _persist_raw_spans(db, workspace.id, batch.id, trace, capture_full)
+        all_events.extend(synthesize_canonical_events(workspace.id, trace))
+    batch.runs_created = kept
+    batch.traces_dropped = dropped
 
     await db.commit()
 
@@ -244,6 +388,8 @@ async def _handle_traces(
         workspace_id=str(workspace.id),
         traces=trace_count,
         spans=span_count,
+        runs=kept,
+        dropped=dropped,
         events=len(all_events),
     )
 
@@ -272,7 +418,7 @@ async def _handle_metrics(
     db: AsyncSession,
 ) -> dict[str, Any]:
     body, content_type, encoding = await _read_body(request)
-    payload = _parse_body(body, content_type)
+    payload = _parse_body(body, content_type, "metric")
     metric_count = _count_metrics(payload)
 
     await _persist_batch(
@@ -285,13 +431,24 @@ async def _handle_metrics(
         trace_count=0,
         span_count=0,
         metric_count=metric_count,
+        resource_summary=_summarize_resources(payload),
+        keep_raw=await _capture_full(db, workspace.id),
     )
+    # Fold data points into daily per-series rollups. A rollup failure must not lose
+    # the accepted batch, so it runs in its own savepoint.
+    series = 0
+    try:
+        async with db.begin_nested():
+            series = await record_metric_rollups(db, workspace.id, payload)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("otlp_metric_rollup_failed", workspace_id=str(workspace.id), error=str(exc))
     await db.commit()
 
     log.info(
         "otlp_metrics_accepted",
         workspace_id=str(workspace.id),
         metrics=metric_count,
+        series=series,
     )
     return {"partialSuccess": {}}
 
@@ -302,10 +459,10 @@ async def _handle_logs(
     db: AsyncSession,
 ) -> dict[str, Any]:
     body, content_type, encoding = await _read_body(request)
-    payload = _parse_body(body, content_type)
+    payload = _parse_body(body, content_type, "log")
     log_record_count = _count_log_records(payload)
 
-    await _persist_batch(
+    batch = await _persist_batch(
         db=db,
         workspace_id=workspace.id,
         content_type=content_type,
@@ -315,16 +472,19 @@ async def _handle_logs(
         trace_count=0,
         span_count=0,
         log_record_count=log_record_count,
+        resource_summary=_summarize_resources(payload),
+        keep_raw=await _capture_full(db, workspace.id),
     )
-    await db.commit()
 
     # Claude Code reports model usage as log events; turn them into runs.
     events: list[dict[str, Any]] = []
     try:
         events = synthesize_claude_code_events(workspace.id, payload)
     except Exception as exc:
-        # Non-fatal — the raw batch is persisted and can be re-synthesized.
+        # Non-fatal — the batch is persisted.
         log.warning("otlp_logs_synthesis_failed", error=str(exc), workspace_id=str(workspace.id))
+    batch.runs_created = len({e["run_id"] for e in events if e.get("event_type") == "run_start"})
+    await db.commit()
     if events:
         try:
             from runledger_api.routers.ingest import attribute_to_sending_key  # noqa: PLC0415
@@ -531,6 +691,8 @@ async def list_traces_batches(
                 "span_count": b.span_count,
                 "metric_count": b.metric_count,
                 "log_record_count": b.log_record_count,
+                "runs_created": b.runs_created,
+                "traces_dropped": b.traces_dropped,
                 "status": b.status,
                 "error": b.error,
                 "content_type": b.content_type,
@@ -585,6 +747,8 @@ async def get_trace_batch_detail(
         "span_count": batch.span_count,
         "metric_count": batch.metric_count,
         "log_record_count": batch.log_record_count,
+        "runs_created": batch.runs_created,
+        "traces_dropped": batch.traces_dropped,
         "status": batch.status,
         "error": batch.error,
         "content_type": batch.content_type,
@@ -643,6 +807,8 @@ async def get_traces_insights(
     attribute_hits: Counter[str] = Counter()
     semantic_dimensions: Counter[str] = Counter()
     resource_maps_seen = 0
+    runs_created_total = 0
+    traces_dropped_total = 0
 
     for batch in batches:
         signal_totals[batch.signal_type]["batches"] += 1
@@ -662,42 +828,14 @@ async def get_traces_insights(
                 bucket["metrics"] += int(batch.metric_count or 0)
                 bucket["logs"] += int(batch.log_record_count or 0)
 
-        if not batch.raw_payload:
-            continue
-        try:
-            payload = json.loads(batch.raw_payload)
-        except Exception:
-            continue
-
-        resource_maps = _iter_resource_attribute_maps(payload)
-        for attrs in resource_maps:
-            resource_maps_seen += 1
-            if attrs.get("service.name"):
-                service_counter[str(attrs["service.name"])] += 1
-                attribute_hits["service_name"] += 1
-            if attrs.get("runledger.session_id") or attrs.get("session.id"):
-                attribute_hits["session_id"] += 1
-            if attrs.get("runledger.end_user_id") or attrs.get("user.id"):
-                attribute_hits["end_user_id"] += 1
-            if attrs.get("runledger.feature_tag") or attrs.get("feature_tag"):
-                attribute_hits["feature_tag"] += 1
-            if attrs.get("runledger.deployment_version") or attrs.get("service.version"):
-                attribute_hits["deployment_version"] += 1
-            if attrs.get("runledger.workspace_name"):
-                attribute_hits["workspace_name"] += 1
-            if attrs.get("runledger.organization_name"):
-                attribute_hits["organization_name"] += 1
-
-            for semantic_key in (
-                "service.name",
-                "service.version",
-                "deployment.environment",
-                "runledger.feature_tag",
-                "runledger.workspace_name",
-                "runledger.organization_name",
-            ):
-                if attrs.get(semantic_key):
-                    semantic_dimensions[semantic_key] += 1
+        runs_created_total += int(batch.runs_created or 0)
+        traces_dropped_total += int(batch.traces_dropped or 0)
+        # Resource attributes were summarized at ingest; never re-parse raw payloads.
+        summary = batch.resource_summary or {}
+        resource_maps_seen += int(summary.get("resource_maps") or 0)
+        service_counter.update(summary.get("services") or {})
+        attribute_hits.update(summary.get("hits") or {})
+        semantic_dimensions.update(summary.get("semantic") or {})
 
     def _pct(hit_key: str) -> float:
         if resource_maps_seen <= 0:
@@ -709,6 +847,17 @@ async def get_traces_insights(
             "resource_maps_seen": resource_maps_seen,
             "workspace_attribution_mode": "workspace_api_key",
             "workspace_name_hint": workspace.name,
+        },
+        # Ingest health (7 days): traces recorded as runs vs dropped by LLM-span gating.
+        "ingest_health": {
+            "gating": settings.otlp_run_gating,
+            "runs_created": runs_created_total,
+            "traces_dropped": traces_dropped_total,
+            "keep_ratio_pct": round(
+                runs_created_total / (runs_created_total + traces_dropped_total) * 100, 1
+            )
+            if (runs_created_total + traces_dropped_total)
+            else None,
         },
         "timeseries_24h": list(hourly_buckets.values()),
         "signal_breakdown": [
@@ -736,4 +885,148 @@ async def get_traces_insights(
             {"status": status_key, "count": count}
             for status_key, count in status_breakdown.most_common()
         ],
+    }
+
+
+@router.get(
+    "/v1/metrics/series",
+    summary="OTLP metric series with totals over a window",
+)
+async def list_metric_series(
+    auth: OrgAdminDep,
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(7, ge=1, le=90),
+    name: str | None = Query(None, max_length=255, description="Substring match on metric name"),
+    limit: int = Query(100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Each metric series (name + service + attributes) summed over the last ``days``.
+
+    ``total`` is the summed increase for counters and histograms (sum of values), and
+    null for gauges, which report ``last``/``min``/``max`` instead.
+    """
+    workspace = auth[0]
+    since = (datetime.now(UTC) - timedelta(days=days - 1)).date()
+    stmt = (
+        select(
+            OtlpMetricRollup.series_key,
+            func.max(OtlpMetricRollup.name).label("name"),
+            func.max(OtlpMetricRollup.unit).label("unit"),
+            func.max(OtlpMetricRollup.kind).label("kind"),
+            func.max(OtlpMetricRollup.temporality).label("temporality"),
+            func.max(OtlpMetricRollup.service_name).label("service_name"),
+            func.sum(OtlpMetricRollup.points).label("points"),
+            func.sum(OtlpMetricRollup.total).label("total"),
+            func.sum(OtlpMetricRollup.observations).label("observations"),
+            func.min(OtlpMetricRollup.min_value).label("min_value"),
+            func.max(OtlpMetricRollup.max_value).label("max_value"),
+            func.max(OtlpMetricRollup.last_seen).label("last_seen"),
+        )
+        .where(OtlpMetricRollup.workspace_id == workspace.id, OtlpMetricRollup.day >= since)
+        .group_by(OtlpMetricRollup.series_key)
+    )
+    if name:
+        stmt = stmt.where(OtlpMetricRollup.name.ilike(f"%{name}%"))
+    total_series = (
+        await db.execute(select(func.count()).select_from(stmt.subquery()))
+    ).scalar_one()
+    rows = (
+        await db.execute(stmt.order_by(func.sum(OtlpMetricRollup.points).desc()).limit(limit))
+    ).all()
+    keys = [r.series_key for r in rows]
+    latest: dict[str, tuple[dict[str, Any], float | None]] = {}
+    if keys:
+        latest_rows = await db.execute(
+            select(
+                OtlpMetricRollup.series_key,
+                OtlpMetricRollup.attributes,
+                OtlpMetricRollup.last_value,
+            )
+            .where(
+                OtlpMetricRollup.workspace_id == workspace.id,
+                OtlpMetricRollup.series_key.in_(keys),
+            )
+            .distinct(OtlpMetricRollup.series_key)
+            .order_by(OtlpMetricRollup.series_key, OtlpMetricRollup.day.desc())
+        )
+        latest = {r.series_key: (r.attributes or {}, r.last_value) for r in latest_rows}
+    items = []
+    for r in rows:
+        attrs, last_value = latest.get(r.series_key, ({}, None))
+        items.append(
+            {
+                "series_key": r.series_key,
+                "name": r.name,
+                "unit": r.unit,
+                "kind": r.kind,
+                "temporality": r.temporality,
+                "service_name": r.service_name,
+                "attributes": attrs,
+                "points": int(r.points or 0),
+                "total": float(r.total) if r.total is not None and r.kind != "gauge" else None,
+                "observations": int(r.observations) if r.observations is not None else None,
+                "min": r.min_value,
+                "max": r.max_value,
+                "last": last_value,
+                "last_seen": r.last_seen.isoformat() if r.last_seen else None,
+            }
+        )
+    return {"days": days, "total": int(total_series), "items": items}
+
+
+@router.get(
+    "/v1/metrics/usage",
+    summary="GenAI usage reported by OTLP metrics vs usage RunLedger recorded",
+)
+async def get_metric_usage(
+    auth: OrgAdminDep,
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(7, ge=1, le=90),
+) -> dict[str, Any]:
+    """Compare token / cost totals from GenAI metrics with recorded provider calls.
+
+    Reported: ``gen_ai.client.token.usage``, ``claude_code.token.usage`` and
+    ``claude_code.cost.usage``. Recorded: every provider call in the workspace for the
+    same days (gateway, SDK, ingest, OTLP traces and logs). A large gap means a client
+    exports metrics but its calls are not reaching RunLedger as traces, logs or events.
+    """
+    from runledger_api.models.events import ProviderCall  # noqa: PLC0415
+
+    workspace = auth[0]
+    since = (datetime.now(UTC) - timedelta(days=days - 1)).date()
+    reported = await metric_usage_summary(db, workspace.id, since)
+    since_dt = datetime(since.year, since.month, since.day, tzinfo=UTC)
+    rec = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(ProviderCall.input_tokens), 0),
+                func.coalesce(func.sum(ProviderCall.output_tokens), 0),
+                func.coalesce(func.sum(ProviderCall.cached_input_tokens), 0),
+                func.coalesce(func.sum(ProviderCall.cost_usd), 0),
+                func.count(),
+            ).where(
+                ProviderCall.workspace_id == workspace.id,
+                ProviderCall.created_at >= since_dt,
+            )
+        )
+    ).one()
+    recorded = {
+        "input_tokens": int(rec[0]),
+        "output_tokens": int(rec[1]),
+        "cached_input_tokens": int(rec[2]),
+        "cost_usd": round(float(rec[3]), 6),
+        "calls": int(rec[4]),
+    }
+
+    def _coverage(rep: float, recd: float) -> float | None:
+        return round(min(recd / rep, 1.0) * 100, 1) if rep else None
+
+    return {
+        "days": days,
+        "reported": reported,
+        "recorded": recorded,
+        "token_coverage_pct": _coverage(
+            reported["input_tokens"] + reported["output_tokens"],
+            recorded["input_tokens"] + recorded["output_tokens"],
+        ),
+        "cost_coverage_pct": _coverage(reported["cost_usd"], recorded["cost_usd"]),
     }

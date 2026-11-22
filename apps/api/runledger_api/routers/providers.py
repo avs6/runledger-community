@@ -13,12 +13,12 @@ Business rules:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import case, func, or_, select, update
@@ -37,6 +37,8 @@ from runledger_api.schemas.providers import (
     ProviderPricingList,
     ProviderPricingResponse,
     ProviderPricingUpdate,
+    UnpricedModel,
+    UnpricedUsage,
 )
 from runledger_api.services.pricing_import import import_pricing_yaml
 
@@ -51,6 +53,94 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 OrgAdminDep = Annotated[tuple[Workspace, User, TenantUser | None], Depends(require_org_admin)]
 # The global pricing catalog prices every tenant's spend: platform admins only.
 PlatformAdminDep = Annotated[tuple[Workspace, User], Depends(require_platform_admin)]
+
+
+async def _retry_unpriced_calls(
+    db: AsyncSession, workspace_id: uuid.UUID | None, model: str | None
+) -> None:
+    """Clear the enrichment "could not price" flag so new pricing applies right away.
+
+    ``workspace_id``/``model`` None widens the reset (global catalog import).
+    """
+    from sqlalchemy import update  # noqa: PLC0415
+
+    from runledger_api.models.events import ProviderCall  # noqa: PLC0415
+
+    stmt = update(ProviderCall).where(
+        ProviderCall.cost_usd.is_(None), ProviderCall.cost_checked_at.is_not(None)
+    )
+    if workspace_id is not None:
+        stmt = stmt.where(ProviderCall.workspace_id == workspace_id)
+    if model is not None:
+        stmt = stmt.where(ProviderCall.model == model)
+    await db.execute(stmt.values(cost_checked_at=None))
+
+
+@router.get("/pricing/unpriced", response_model=UnpricedUsage)
+async def list_unpriced_usage(
+    auth: OrgAdminDep,
+    db: DbDep,
+    days: int = Query(30, ge=1, le=365),
+) -> UnpricedUsage:
+    """Model calls enrichment could not price, grouped by provider and model.
+
+    These calls carry tokens but no cost, so spend, budgets and chargeback undercount
+    them. Adding pricing for the model (workspace or global) prices them on the next
+    enrichment sweep.
+    """
+    workspace = auth[0]
+    since = datetime.now(UTC) - timedelta(days=days)
+    unpriced = (
+        ProviderCall.workspace_id == workspace.id,
+        ProviderCall.created_at >= since,
+        ProviderCall.cost_usd.is_(None),
+        ProviderCall.cost_checked_at.is_not(None),
+    )
+    rows = (
+        await db.execute(
+            select(
+                ProviderCall.provider,
+                ProviderCall.model,
+                func.count().label("calls"),
+                func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("input_tokens"),
+                func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("output_tokens"),
+                func.min(ProviderCall.created_at).label("first_seen"),
+                func.max(ProviderCall.created_at).label("last_seen"),
+            )
+            .where(*unpriced)
+            .group_by(ProviderCall.provider, ProviderCall.model)
+            .order_by(func.count().desc())
+            .limit(200)
+        )
+    ).all()
+    total_calls = (
+        await db.execute(
+            select(func.count()).where(
+                ProviderCall.workspace_id == workspace.id, ProviderCall.created_at >= since
+            )
+        )
+    ).scalar_one()
+    items = [
+        UnpricedModel(
+            provider=r.provider,
+            model=r.model,
+            calls=int(r.calls),
+            input_tokens=int(r.input_tokens),
+            output_tokens=int(r.output_tokens),
+            first_seen=r.first_seen,
+            last_seen=r.last_seen,
+        )
+        for r in rows
+    ]
+    unpriced_calls = sum(i.calls for i in items)
+    return UnpricedUsage(
+        days=days,
+        unpriced_calls=unpriced_calls,
+        unpriced_tokens=sum(i.input_tokens + i.output_tokens for i in items),
+        total_calls=int(total_calls),
+        unpriced_pct=round(unpriced_calls / total_calls * 100, 1) if total_calls else 0.0,
+        items=items,
+    )
 
 
 @router.get("/pricing", response_model=ProviderPricingList)
@@ -133,6 +223,8 @@ async def import_pricing(
     except UnicodeDecodeError:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "file must be UTF-8 text") from None
     result = await import_pricing_yaml(db, text)
+    await _retry_unpriced_calls(db, None, None)
+    await db.commit()
     log.info(
         "provider_pricing_imported",
         workspace_id=str(workspace.id),
@@ -183,6 +275,7 @@ async def create_pricing(
     )
     db.add(pricing)
     await db.flush()
+    await _retry_unpriced_calls(db, workspace.id, body.model)
     await db.commit()
     await db.refresh(pricing)
     log.info("provider_pricing_created", pricing_id=str(pricing.id), workspace_id=str(workspace.id))
@@ -212,6 +305,7 @@ async def update_pricing(
         pricing.tags = body.tags
     if body.display_name is not None:
         pricing.display_name = body.display_name
+    await _retry_unpriced_calls(db, workspace.id, pricing.model)
     await db.commit()
     await db.refresh(pricing)
     return ProviderPricingResponse.model_validate(pricing)

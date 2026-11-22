@@ -137,6 +137,9 @@ async def send_slack_message(
 
     Raises httpx.HTTPError on non-2xx responses.
     """
+    from runledger_api.services.egress import check_url  # noqa: PLC0415
+
+    check_url(webhook_url)  # re-checked at send time (DNS may have changed)
     payload = {"text": fallback_text, "blocks": blocks}
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(webhook_url, json=payload)

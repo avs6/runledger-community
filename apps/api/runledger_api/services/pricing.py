@@ -6,9 +6,11 @@ given point in time, applies the cached-input discount, and returns the total
 cost in USD as a ``Decimal``.
 
 Lookup priority:
-  1. Workspace-specific override (workspace_id matches)
-  2. Global row (workspace_id IS NULL)
-  3. None → returns None (no pricing data available)
+  1. Workspace-specific override (workspace_id matches) effective at the call time
+  2. Global row (workspace_id IS NULL) effective at the call time
+  3. If the model had no price yet at that time: its first published price
+     (workspace, then global), so newly added pricing covers earlier calls
+  4. None → returns None (no pricing data available)
 
 Cached input discount:
   If ``cached_input_cost_per_1m`` is set on the pricing row, it is used
@@ -151,4 +153,30 @@ async def _get_pricing(
         .limit(1)
     )
     result = await session.execute(global_stmt)
-    return result.scalar_one_or_none()
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return row
+
+    # No price was in effect when the call was made: the model had no pricing yet.
+    # Use the first price published for it (workspace override first), so adding
+    # pricing for a model also prices the calls recorded before it existed. Calls
+    # that had a price at the time keep that historical price.
+    first_conditions = [
+        ProviderPricing.provider == provider,
+        ProviderPricing.model == model,
+        ProviderPricing.effective_from > effective_at,
+    ]
+    scopes = [ProviderPricing.workspace_id.is_(None)]
+    if workspace_id is not None:
+        scopes.insert(0, ProviderPricing.workspace_id == workspace_id)
+    for scope in scopes:
+        first = await session.execute(
+            select(ProviderPricing)
+            .where(and_(*first_conditions, scope))
+            .order_by(ProviderPricing.effective_from.asc())
+            .limit(1)
+        )
+        row = first.scalar_one_or_none()
+        if row is not None:
+            return row
+    return None

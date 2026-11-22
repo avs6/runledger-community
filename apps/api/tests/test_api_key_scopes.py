@@ -200,3 +200,19 @@ async def test_mcp_mount_requires_mcp_scope() -> None:
     with patch.object(mcp_guard, "verify_api_key", AsyncMock(return_value=_key(["read", "mcp"]))):
         await guard(scope, AsyncMock(), send)
     inner.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_bare_mcp_path_is_not_redirected() -> None:
+    from runledger_api.core.mcp_guard import McpPathNormalizer
+
+    seen: list[str] = []
+
+    async def inner(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        seen.append(scope["path"])
+
+    app = McpPathNormalizer(inner)
+    await app({"type": "http", "path": "/mcp", "raw_path": b"/mcp"}, None, None)
+    await app({"type": "http", "path": "/mcp/", "raw_path": b"/mcp/"}, None, None)
+    await app({"type": "http", "path": "/runs", "raw_path": b"/runs"}, None, None)
+    assert seen == ["/mcp/", "/mcp/", "/runs"]

@@ -137,3 +137,44 @@ def test_sync_transport_local_mode() -> None:
     assert len(captured) == 1
     assert captured[0][0]["run_id"] == "sync-1"
     transport.shutdown()
+
+
+# ── Retry policy and chunking (review I-25) ───────────────────────────────────
+
+
+def _status_error(code: int) -> Exception:
+    import httpx
+
+    request = httpx.Request("POST", "http://test/ingest/v1/batch")
+    return httpx.HTTPStatusError(
+        f"HTTP {code}", request=request, response=httpx.Response(code, request=request)
+    )
+
+
+async def test_client_errors_are_not_retried() -> None:
+    transport = Transport(api_key="rl_test_x", base_url="http://test")
+    send = AsyncMock(side_effect=_status_error(403))
+    with patch.object(transport, "_send", send), patch("asyncio.sleep", AsyncMock()):
+        await transport._send_with_retry([{"event_type": "run_start"}])
+    assert send.await_count == 1  # 403 (e.g. key scope) will not succeed on retry
+
+
+async def test_server_errors_and_429_are_retried() -> None:
+    transport = Transport(api_key="rl_test_x", base_url="http://test")
+    for code in (429, 503):
+        send = AsyncMock(side_effect=[_status_error(code), None])
+        with patch.object(transport, "_send", send), patch("asyncio.sleep", AsyncMock()):
+            await transport._send_with_retry([{"event_type": "run_start"}])
+        assert send.await_count == 2, code
+
+
+async def test_large_queue_is_sent_in_chunks() -> None:
+    from runledger_sdk import transport as module
+
+    transport = Transport(api_key="rl_test_x", base_url="http://test")
+    transport._queue = [{"event_type": "e", "i": i} for i in range(module._MAX_BATCH + 10)]
+    send = AsyncMock()
+    with patch.object(transport, "_send", send):
+        await transport._flush_all()
+    sizes = [len(call.args[0]) for call in send.await_args_list]
+    assert sizes == [module._MAX_BATCH, 10]

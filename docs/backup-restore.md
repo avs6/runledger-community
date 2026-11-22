@@ -59,10 +59,11 @@ That metadata is recorded into backup history when the RunLedger backup service 
 
 ## Local Docker Compose backup profile
 
-RunLedger now includes a local `backup` profile with MinIO:
+The compose stack includes MinIO (`runledger-minio`) as a local backup target; it starts with
+`docker compose up -d`. To start only MinIO:
 
 ```bash
-docker compose --profile backup up -d runledger-minio
+docker compose up -d runledger-minio
 ```
 
 Default local ports:

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -513,6 +514,7 @@ async def test_metering_enrichment_counts_priced_call_against_budgets() -> None:
         end_user_id=None,
         provider="openai",
         model="gpt-4o",
+        created_at=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
     )
     run = SimpleNamespace(
         api_key_id=key_id, end_user_id="u9", feature_tag="support", application_id=None
@@ -547,6 +549,8 @@ async def test_metering_enrichment_counts_priced_call_against_budgets() -> None:
     assert kwargs["end_user_id"] == "u9"
     assert kwargs["feature_tag"] == "support"
     assert kwargs["model"] == "gpt-4o"
+    # Spend lands in the period of the call, not of the enrichment run (B-07).
+    assert kwargs["occurred_at"] == pc.created_at
 
 
 @pytest.mark.asyncio

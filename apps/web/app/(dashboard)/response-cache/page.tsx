@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
 export default function ResponseCachePage() {
-  redirect('/gateway')
+  redirect('/gateway?tab=cache')
 }

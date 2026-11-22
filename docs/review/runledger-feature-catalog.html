@@ -59,6 +59,7 @@ th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)} th{b
 tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 .themebtn{position:fixed;top:14px;right:16px;z-index:5;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer}
 @media (max-width:1000px){.layout{grid-template-columns:1fr} nav.toc{display:none} main{padding:22px 16px 60px} .g4{grid-template-columns:repeat(2,minmax(0,1fr))} .sub ul{grid-template-columns:1fr} h1{font-size:25px}}
+.fx{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}.fx.ok{color:var(--low);background:var(--low-soft)}.fx.part{color:var(--med);background:var(--med-soft)}
 </style>
 </head>
 <body>
@@ -139,7 +140,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Spans table with parent linkage</li>
 <li><span class="b ok">OK</span>Evaluate this run (metric, value, label)</li>
 <li><span class="b pt">Partial</span>Identity / governance / FinOps context links</li>
-<li><span class="b br">Broken</span>Links to /telemetry and /cache-config (404)</li>
+<li><span class="b br">Broken</span>Links to /telemetry and /cache-config (404) <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: both repointed and redirected</span></li>
 <li><span class="b na">Missing</span>Prompt &amp; response panel (exists only in Explorer)</li>
 <li><span class="b na">Missing</span>Replay this run / add to dataset</li>
 </ul></div>
@@ -151,7 +152,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Page-based pagination (302 sessions)</li>
 <li><span class="b ok">OK</span>Session detail with turns</li>
 <li><span class="b ok">OK</span>Avg score per session</li>
-<li><span class="b br">Broken</span>/telemetry link (404)</li>
+<li><span class="b br">Broken</span>/telemetry link (404) <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: repointed</span></li>
 </ul></div>
 
 <div class="sub"><div class="sh"><strong>1.5 Request Flow</strong><span class="b ok">Working</span><span class="rt">/request-flow · /focus · /live</span></div><ul>
@@ -409,7 +410,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Import YAML + example</li>
 <li><span class="b ok">OK</span>Pull internet pricing</li>
 <li><span class="b ok">OK</span>Reprice historical calls</li>
-<li><span class="b na">Missing</span>"Unpriced models in traffic" alert</li>
+<li><span class="b na">Missing</span>"Unpriced models in traffic" alert <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: unpriced calls on Telemetry and the pricing page</span></li>
 </ul></div>
 
 <div class="sub"><div class="sh"><strong>3.8 Guardrails</strong><span class="b pt">Rich UI, unsafe core</span><span class="rt">/guardrails?tab=…</span></div><ul>
@@ -564,7 +565,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Budget CRUD</li>
 <li><span class="b pt">Partial</span>Live spend (Redis, skips gateway traffic)</li>
 <li><span class="b ok">OK</span>Scope: workspace, end user, feature tag</li>
-<li><span class="b st">Stub</span>Scope: app / access group / API key / provider profile (never accrue)</li>
+<li><span class="b st">Stub</span>Scope: app / access group / API key / provider profile (never accrue) <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: accrue and enforced in gateway</span></li>
 <li><span class="b ok">OK</span>Periods: daily / monthly / total</li>
 <li><span class="b ok">OK</span>Actions: block / notify / downgrade (advisory)</li>
 <li><span class="b st">Stub</span>Actions: throttle / fallback</li>
@@ -573,7 +574,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Breach history</li>
 <li><span class="b pt">Partial</span>Budget spend sync (wrong scopes)</li>
 <li><span class="b st">Stub</span>Runaway protection</li>
-<li><span class="b br">Broken</span>/billing-periods, /telemetry links</li>
+<li><span class="b br">Broken</span>/billing-periods, /telemetry links <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: both repointed and redirected</span></li>
 </ul></div>
 
 <div class="sub"><div class="sh"><strong>5.3 Billing</strong><span class="b ok">Working</span><span class="rt">/billing · /billing/[period_id]</span></div><ul>
@@ -658,7 +659,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Rotate with grace hours</li>
 <li><span class="b ok">OK</span>Observe key usage</li>
 <li><span class="b ok">OK</span>Key detail: budget, spend, billing</li>
-<li><span class="b st">Stub</span>Scopes (stored, never enforced)</li>
+<li><span class="b st">Stub</span>Scopes (stored, never enforced) <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: enforced; picker in UI</span></li>
 <li><span class="b na">Missing</span>Expiry field, last used, pagination</li>
 </ul></div>
 
@@ -676,7 +677,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Gateway-routed client guides</li>
 <li><span class="b ok">OK</span>Telemetry / framework hook guides</li>
 <li><span class="b br">Risk</span>Seed demo data (cleanup first, no confirm)</li>
-<li><span class="b br">Risk</span>Reset demo data (shown to all roles)</li>
+<li><span class="b br">Risk</span>Reset demo data (shown to all roles) <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: platform admins only</span></li>
 </ul></div>
 
 <!-- ================= 7 ================= -->
@@ -696,7 +697,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>OTel GenAI conventions</li>
 <li><span class="b br">Bug</span>Every trace becomes a run (no LLM gating)</li>
 <li><span class="b ok">OK</span>Stale-trace finalization</li>
-<li><span class="b pt">Partial</span>Claude Code log ingestion (WIP branch)</li>
+<li><span class="b pt">Partial</span>Claude Code log ingestion (WIP branch) <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: requests, errors and tool events</span></li>
 </ul></div>
 
 <div class="sub"><div class="sh"><strong>7.3 Agent &amp; Proxy Integrations</strong><span class="b ok">Working</span><span class="rt">docs · examples</span></div><ul>
@@ -753,7 +754,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <li><span class="b ok">OK</span>Light / dark theme</li>
 <li><span class="b ok">OK</span>Role-aware sidebar sections</li>
 <li><span class="b hd">Hidden</span>Design system page (internal)</li>
-<li><span class="b br">Risk</span>Browser session holds workspace API key (30 days)</li>
+<li><span class="b br">Risk</span>Browser session holds workspace API key (30 days) <span class="fx part" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Partly resolved: user-bound, 7-day, revocable</span></li>
 </ul></div>
 
 <section id="rollup">

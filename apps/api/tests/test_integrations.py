@@ -16,6 +16,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -56,6 +57,46 @@ def _make_usage_daily_row(
 # ── POST /integrations/slack/test ─────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _no_dns_egress_check(request: pytest.FixtureRequest) -> Any:
+    """Integration tests must not depend on real DNS; egress checks are tested apart."""
+    if "egress" in request.node.name:
+        yield
+        return
+    with (
+        patch("runledger_api.routers.integrations.check_url"),
+        patch("runledger_api.routers.integrations.check_bootstrap_servers"),
+        patch("runledger_api.services.egress.check_url"),
+    ):
+        yield
+
+
+@pytest.mark.asyncio
+async def test_slack_test_egress_blocks_internal_addresses(authed_client: AsyncClient) -> None:
+    for url in (
+        "http://169.254.169.254/latest/meta-data",
+        "http://127.0.0.1:6379/",
+        "http://10.0.0.5/hook",
+        "ftp://hooks.slack.com/x",
+    ):
+        resp = await authed_client.post("/integrations/slack/test", json={"webhook_url": url})
+        assert resp.status_code == 422, url
+
+
+def test_egress_check_allowlist_and_bootstrap(monkeypatch: pytest.MonkeyPatch) -> None:
+    from runledger_api.core.config import settings
+    from runledger_api.services.egress import EgressBlocked, check_bootstrap_servers, check_host
+
+    with pytest.raises(EgressBlocked):
+        check_host("127.0.0.1")
+    with pytest.raises(EgressBlocked):
+        check_bootstrap_servers("10.1.2.3:9092")
+    monkeypatch.setattr(settings, "egress_private_allowlist", "runledger-redpanda,10.1.2.3")
+    check_bootstrap_servers("runledger-redpanda:9092,10.1.2.3:9092")  # allowlisted
+    monkeypatch.setattr(settings, "egress_allow_private", True)
+    check_host("192.168.1.10")
+
+
 @pytest.mark.asyncio
 async def test_slack_test_ok(authed_client: AsyncClient) -> None:
     """POST /integrations/slack/test with a mocked successful send returns ok=true."""
@@ -89,7 +130,8 @@ async def test_slack_test_error(authed_client: AsyncClient) -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data["ok"] is False
-    assert "Connection refused" in data["error"]
+    # Delivery detail is logged, not returned (it can reveal internal network info).
+    assert data["error"] == "Slack did not accept the test message"
 
 
 @pytest.mark.asyncio

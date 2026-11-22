@@ -7,7 +7,9 @@ inactivity timeout. Handles:
   - Spans that were started but never ended within an otherwise-closed run
   - Out-of-order batches that left runs open beyond the inactivity window
 
-Default inactivity timeout: 5 minutes (OTLP_INACTIVITY_TIMEOUT_MINUTES).
+A run is stale only when it has had no span activity (no span started or ended)
+for OTLP_INACTIVITY_TIMEOUT_MINUTES (default 15); a long but active run is never
+cancelled just for its age.
 Beat schedule: every 3 minutes — tighter than the timeout so close-out
 happens promptly without a long tail of open runs in the analytics views.
 
@@ -23,7 +25,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import exists, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -33,9 +35,8 @@ from runledger_api.models.events import AgentRun, RunStatusEnum, Span, SpanStatu
 
 log = structlog.get_logger()
 
-# Runs still open after this many minutes are considered stale.
-# Configurable via settings in the future; 5 minutes matches the plan spec.
-_INACTIVITY_MINUTES = 5
+# Runs with no span activity for this many minutes are considered stale.
+_INACTIVITY_MINUTES = settings.otlp_inactivity_timeout_minutes
 
 
 @celery_app.task(name="otlp.finalize_stale_traces")  # type: ignore[untyped-decorator]
@@ -65,13 +66,18 @@ async def _close_stale_runs(session: AsyncSession) -> int:
     """
     cutoff = datetime.now(UTC) - timedelta(minutes=_INACTIVITY_MINUTES)
 
-    # SELECT id FROM agent_runs WHERE source_type='otlp'
-    #   AND status='running' AND started_at < cutoff
+    # Running OTLP runs that started before the cutoff AND have no span that
+    # started or ended after it (inactivity, not age).
+    recent_activity = exists().where(
+        Span.run_id == AgentRun.id,
+        or_(Span.started_at >= cutoff, Span.ended_at >= cutoff),
+    )
     result = await session.execute(
         select(AgentRun.id).where(
             AgentRun.source_type == "otlp",
             AgentRun.status == RunStatusEnum.running,
             AgentRun.started_at < cutoff,
+            ~recent_activity,
         )
     )
     run_ids = [row[0] for row in result.all()]

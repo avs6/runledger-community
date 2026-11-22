@@ -1,0 +1,92 @@
+---
+title: "Ingest API"
+description: "Send runs, spans, model calls, tool calls and outcomes; limits, idempotency, dead letters and signed webhooks."
+---
+
+The ingest API records agent activity sent by the SDKs, the MCP tools, or your own code.
+OpenTelemetry senders use [OTLP](/otlp) instead. Use an API key with the `ingest` scope.
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/ingest/v1/events` | One event |
+| `POST` | `/ingest/v1/batch` | Up to `INGEST_MAX_BATCH_EVENTS` events (default 1,000) |
+| `POST` | `/ingest/v1/signed` | HMAC-signed batch for tools that cannot send a bearer key |
+| `GET` | `/ingest/v1/dead-letters` | Events the pipeline could not apply (workspace admin) |
+| `GET` | `/ingest/v1/dead-letters/{id}` | One dead letter |
+| `POST` | `/ingest/v1/dead-letters/{id}/replay` | Re-queue one event |
+| `POST` | `/ingest/v1/dead-letters/replay` | Re-queue all pending (oldest first, up to 500) |
+| `DELETE` | `/ingest/v1/dead-letters/{id}` | Discard (kept as `discarded` until retention) |
+| `GET` | `/ingest/v1/signing-secret` | This workspace's signed-ingest secret (workspace admin) |
+| `POST` | `/ingest/v1/signing-secret/rotate` | Rotate it; the old secret stops working at once |
+
+## Attribution and isolation
+
+- Run and model-call events are attributed to the API key that sent them, always from
+  the credential, never from the payload.
+- An event after `run_start` is applied only if its `run_id` belongs to your workspace.
+- Provider-call status uses `success` / `error`; `succeeded`, `failed` and similar values
+  are normalized.
+
+## Limits
+
+| Limit | Default | Setting |
+|---|---|---|
+| Request body | 10 MB | `INGEST_MAX_BODY_BYTES` (413 above it) |
+| Events per batch | 1,000 | `INGEST_MAX_BATCH_EVENTS` |
+| `metadata` / `labels` per event | 256 KB | — |
+| String fields | column sizes (e.g. 255 for names, 128 for model) | — |
+
+## Reliability
+
+- **Idempotent.** Runs, spans and provider calls use deterministic ids. Tool calls and
+  outcomes accept an optional `tool_call_id` / `event_id`; without one the id is derived
+  from the event, so a retried batch is applied once.
+- **One bad event never drops a batch.** Each event is applied in its own savepoint. An
+  event that fails (constraint, missing parent, bad value) is stored as a **dead letter**
+  with the error. Replay it from **Monitoring → Telemetry → Dead letters** or the API
+  once the cause is fixed.
+- **Infrastructure outages retry.** If the database or broker is unreachable the batch is
+  retried with exponential backoff (up to 5 times, max 5 minutes apart) and then
+  dead-lettered.
+- **Separate worker.** Ingest runs on its own `ingest` Celery queue
+  (`runledger-worker-ingest`), so enrichment, backups or rollups never delay it.
+
+## Signed webhooks
+
+`POST /ingest/v1/signed` takes the same body as a batch plus `workspace_id`. Each workspace
+has its own secret (`GET /ingest/v1/signing-secret`). Send:
+
+| Header | Value |
+|---|---|
+| `X-RunLedger-Timestamp` | ISO-8601 time, within `INGEST_SIGNATURE_TOLERANCE_SECONDS` (300) |
+| `X-RunLedger-Nonce` | Unique per request; a nonce is accepted once (replays get 409) |
+| `X-RunLedger-Signature` | `hex(HMAC_SHA256(secret, "<workspace_id>.<timestamp>.<nonce>." + raw_body))` |
+
+```python
+import hashlib, hmac, json, uuid, datetime, httpx
+
+body = json.dumps({"workspace_id": WS, "events": events}).encode()
+ts = datetime.datetime.now(datetime.UTC).isoformat()
+nonce = uuid.uuid4().hex
+sig = hmac.new(SECRET.encode(), f"{WS}.{ts}.{nonce}.".encode() + body, hashlib.sha256).hexdigest()
+httpx.post(f"{API}/ingest/v1/signed", content=body, headers={
+    "Content-Type": "application/json",
+    "X-RunLedger-Timestamp": ts, "X-RunLedger-Nonce": nonce, "X-RunLedger-Signature": sig,
+})
+```
+
+Signed events are never attributed to an API key. The per-workspace secrets derive from
+`INGEST_SIGNING_SECRET` (or `SECRET_KEY`), never from `ADMIN_SECRET`.
+
+<Warning>
+The signature format changed (per-workspace secret and nonce). Senders using the old
+global-secret format get 401 until updated.
+</Warning>
+
+## Verify end to end
+
+```powershell
+python scripts/run_demo.py verify-ingestion
+```

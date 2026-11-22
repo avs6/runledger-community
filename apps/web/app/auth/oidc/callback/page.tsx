@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { takeRememberedCallback } from '@/lib/callback-url'
 
 function OIDCCallbackPageInner() {
   const router = useRouter()
@@ -36,7 +37,7 @@ function OIDCCallbackPageInner() {
       if (result?.error) {
         setError('Authentication failed. Please try again.')
       } else {
-        router.push('/dashboard')
+        router.push(takeRememberedCallback())
       }
     })
   }, [searchParams, router])

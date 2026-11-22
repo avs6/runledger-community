@@ -16,6 +16,10 @@ import {
 } from 'recharts'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
+import DeadLettersPanel from '@/components/monitoring/DeadLettersPanel'
+import SigningSecretPanel from '@/components/monitoring/SigningSecretPanel'
+import MetricsPanel from '@/components/monitoring/MetricsPanel'
+import UnpricedUsagePanel from '@/components/monitoring/UnpricedUsagePanel'
 import { Building2, Network, RefreshCw, Shield } from 'lucide-react'
 import { getOtlpBatchDetail, getOtlpInsights, getOtlpStats, getTelemetryOpsPosture, listOtlpBatches } from '@/lib/api'
 import type {
@@ -310,19 +314,44 @@ export default function TelemetryPage() {
         </div>
       </div>
 
+      {/* Ingest health */}
+      {otlpInsights?.ingest_health && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {[
+            ['Runs recorded (7d)', otlpInsights.ingest_health.runs_created.toLocaleString()],
+            ['Traces dropped (7d)', otlpInsights.ingest_health.traces_dropped.toLocaleString()],
+            ['Keep ratio', otlpInsights.ingest_health.keep_ratio_pct == null ? '—' : `${otlpInsights.ingest_health.keep_ratio_pct}%`],
+            ['Gating', otlpInsights.ingest_health.gating === 'all' ? 'All traces' : 'LLM / agent / tool spans'],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400">{label}</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{value}</p>
+            </div>
+          ))}
+          {apiKey && <UnpricedUsagePanel apiKey={apiKey} days={7} compact />}
+        </div>
+      )}
+
       {/* Quick start */}
       <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/50">
         <p className="mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">Quick start</p>
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-2.5 text-[11px] font-mono text-green-400">{`# Install OTel SDK + RunLedger-compatible exporter
+        <p className="mb-1.5 text-[10px] text-slate-500">
+          RunLedger accepts OTLP/HTTP as protobuf (the exporter default) or JSON, optionally gzip-compressed.
+          Use a key with the <span className="font-mono">ingest</span> scope. Only traces with an LLM, agent or tool span become runs.
+        </p>
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-2.5 text-[11px] font-mono text-green-400">{`# Install the OpenTelemetry SDK and the OTLP/HTTP exporter
 pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
-# Option A: localhost collector
+# Option A: through the bundled OpenTelemetry Collector
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"
 
-# Option B: direct to RunLedger
-export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://YOUR_API/v1/traces
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"`}</pre>
+# Option B: straight to the RunLedger API
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://localhost:8201/v1/traces
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"
+
+# Tag the workflow these traces belong to
+export OTEL_RESOURCE_ATTRIBUTES="runledger.feature_tag=support-triage"`}</pre>
       </div>
 
       {/* Batch table — full width */}
@@ -344,7 +373,7 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"`}</pre>
             <table className="w-full text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  {['Time', 'Signal', 'Traces', 'Spans', 'Metrics', 'Logs', 'Status', ''].map(h => (
+                  {['Time', 'Signal', 'Traces', 'Runs', 'Dropped', 'Spans', 'Metrics', 'Logs', 'Status', ''].map(h => (
                     <th key={h} className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400">{h}</th>
                   ))}
                 </tr>
@@ -355,6 +384,8 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"`}</pre>
                     <td className="whitespace-nowrap px-3 py-1.5 font-mono text-slate-500">{formatBatchTime(batch.created_at)}</td>
                     <td className="px-3 py-1.5 font-medium uppercase text-slate-700 dark:text-slate-300">{batch.signal_type}</td>
                     <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.trace_count}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.runs_created ?? '—'}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-500 dark:text-slate-400">{batch.traces_dropped ?? '—'}</td>
                     <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.span_count}</td>
                     <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.metric_count}</td>
                     <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-300">{batch.log_record_count}</td>
@@ -386,6 +417,17 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_API_KEY"`}</pre>
           </div>
         )}
       </div>
+
+      {/* OTLP metrics and GenAI usage reconciliation */}
+      {apiKey && <MetricsPanel apiKey={apiKey} />}
+
+      {/* Failed events and signed-webhook secret */}
+      {apiKey && (
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="lg:col-span-2"><DeadLettersPanel apiKey={apiKey} /></div>
+          <SigningSecretPanel apiKey={apiKey} />
+        </div>
+      )}
 
       {/* Drill-in — full width below table */}
       {selectedBatch && (

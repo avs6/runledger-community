@@ -554,7 +554,7 @@ async def get_model_governance(
         select(func.count(Approval.id)).where(
             Approval.workspace_id == ws.id,
             Approval.request_type == "model_access",
-            Approval.target_id == str(m.id),
+            Approval.request["model_id"].astext == str(m.id),
         )
     )
     approval_count = int(approval_count_result.scalar() or 0)
@@ -564,7 +564,7 @@ async def get_model_governance(
         .where(
             Approval.workspace_id == ws.id,
             Approval.request_type == "model_access",
-            Approval.target_id == str(m.id),
+            Approval.request["model_id"].astext == str(m.id),
         )
         .order_by(Approval.created_at.desc())
         .limit(5)
