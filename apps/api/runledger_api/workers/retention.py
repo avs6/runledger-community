@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -112,5 +113,87 @@ async def _purge_session_keys() -> int:
             purged = int(result.rowcount or 0)
             log.info("session_keys_purged", count=purged)
             return purged
+    finally:
+        await engine.dispose()
+
+
+# ── Raw ingest telemetry cleanup (review I-12 / I-26) ─────────────────────────
+
+_PURGE_CHUNK = 5000
+
+
+@celery_app.task(name="ingest.purge_raw_telemetry")  # type: ignore[untyped-decorator]
+def purge_raw_telemetry() -> dict[str, int]:
+    """Delete raw OTLP batches/spans, finished Kafka deliveries and resolved dead
+    letters older than OTLP_RAW_RETENTION_DAYS, and OTLP metric rollups older than
+    OTLP_METRIC_RETENTION_DAYS (0 disables either)."""
+    return asyncio.run(_purge_raw_telemetry())
+
+
+async def _purge_chunked(session: AsyncSession, model: Any, *where: Any) -> int:
+    from sqlalchemy import delete  # noqa: PLC0415
+
+    total = 0
+    while True:
+        ids = list(
+            (await session.execute(select(model.id).where(*where).limit(_PURGE_CHUNK))).scalars()
+        )
+        if not ids:
+            return total
+        await session.execute(delete(model).where(model.id.in_(ids)))
+        await session.commit()
+        total += len(ids)
+
+
+async def _purge_raw_telemetry() -> dict[str, int]:
+    from datetime import timedelta  # noqa: PLC0415
+
+    from runledger_api.models.ingest_dead_letters import IngestDeadLetter  # noqa: PLC0415
+    from runledger_api.models.kafka import KafkaExportDelivery  # noqa: PLC0415
+    from runledger_api.models.otlp import OtlpIngestBatch, OtlpMetricRollup  # noqa: PLC0415
+
+    days = settings.otlp_raw_retention_days
+    metric_days = settings.otlp_metric_retention_days
+    if days <= 0 and metric_days <= 0:
+        return {}
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            counts: dict[str, int] = {}
+            if metric_days > 0:
+                metric_cutoff = (datetime.now(UTC) - timedelta(days=metric_days)).date()
+                counts["metric_rollups"] = await _purge_chunked(
+                    session, OtlpMetricRollup, OtlpMetricRollup.day < metric_cutoff
+                )
+            if days <= 0:
+                log.info("raw_telemetry_purged", metric_retention_days=metric_days, **counts)
+                return counts
+            counts |= {
+                # otlp_spans_raw rows cascade with their batch.
+                "otlp_batches": await _purge_chunked(
+                    session, OtlpIngestBatch, OtlpIngestBatch.received_at < cutoff
+                ),
+                "kafka_deliveries": await _purge_chunked(
+                    session,
+                    KafkaExportDelivery,
+                    KafkaExportDelivery.created_at < cutoff,
+                    KafkaExportDelivery.status.in_(["success", "failed"]),
+                ),
+                "dead_letters": await _purge_chunked(
+                    session,
+                    IngestDeadLetter,
+                    IngestDeadLetter.created_at < cutoff,
+                    IngestDeadLetter.status.in_(["replayed", "discarded"]),
+                ),
+            }
+            log.info(
+                "raw_telemetry_purged",
+                retention_days=days,
+                metric_retention_days=metric_days,
+                **counts,
+            )
+            return counts
     finally:
         await engine.dispose()

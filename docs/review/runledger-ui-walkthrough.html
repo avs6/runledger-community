@@ -115,7 +115,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
   <div class="card stat"><div class="n">3</div><div class="l">screens with hard-coded model lists (Playground, Simulator, Run filters)</div></div>
   <div class="card stat"><div class="n">4</div><div class="l">"posture unavailable" error states rendered on Organization and Budget detail</div></div>
 </div>
-<div class="callout warn"><strong>Biggest UX themes.</strong> (1) The app links to routes that don't exist: <code>/telemetry</code>, <code>/governance</code>, <code>/audit-log</code>, <code>/workspaces</code>, <code>/admin/*</code>, <code>/analytics/*</code> and more. (2) Backends with full CRUD are exposed read-only: Workflows have no create, edit or delete; Agents have no edit or delete; OAuth2/LDAP aren't on the Security page. (3) Pagination is inconsistent: four styles, and none on Routes, API Keys, Alert Rules, Scores or Approvals. (4) The UI offers actions the role or backend can't perform: per-key quota tiers, per-model quotas, Throttle/Fallback budget actions, partner guardrails, demo reset for non-platform admins, and the Ledger link. <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: demo controls shown to platform admins only</span></div>
+<div class="callout warn"><strong>Biggest UX themes.</strong> (1) The app links to routes that don't exist: <code>/telemetry</code>, <code>/governance</code>, <code>/audit-log</code>, <code>/workspaces</code>, <code>/admin/*</code>, <code>/analytics/*</code> and more. (2) Backends with full CRUD are exposed read-only: Workflows have no create, edit or delete; Agents have no edit or delete; OAuth2/LDAP aren't on the Security page. (3) Pagination is inconsistent: four styles, and none on Routes, API Keys, Alert Rules, Scores or Approvals. (4) The UI offers actions the role or backend can't perform: per-key quota tiers, per-model quotas, Throttle/Fallback budget actions, partner guardrails, demo reset for non-platform admins, and the Ledger link. <span class="fx ok" title="Org &amp; Access remediation, merged 2026-11-21 (PR #63)">Resolved: demo controls shown to platform admins only</span> <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: all 22 dead links repointed, old paths redirect</span></div>
 </section>
 
 <section id="nav">
@@ -251,7 +251,7 @@ tr:last-child td{border-bottom:none} .tw{overflow-x:auto;margin:12px 0}
 <div class="page" id="p-mon"><div class="ph"><h3>Monitoring · Telemetry</h3><span class="b ok">Good</span><span class="route">/monitoring · /monitoring/telemetry</span></div>
 <ul>
 <li>Monitoring tabs: Security (100), Alerts (8), Gateway; type filter, search, 1d/7d/30d; Prev/Next pagination. Telemetry: ingest batches table with Prev/Next and 2 charts.</li>
-<li>Telemetry shows OTLP batches but has no accept/drop ratio or LLM-vs-noise breakdown. That would have surfaced the 92% noise-run problem.</li>
+<li>Telemetry shows OTLP batches but has no accept/drop ratio or LLM-vs-noise breakdown. That would have surfaced the 92% noise-run problem. <span class="fx ok" title="Ingestion &amp; Integrations remediation (fix/ingestion-integrations)">Resolved: Ingest health strip and per-batch runs/dropped columns</span></li>
 </ul></div>
 
 <div class="page" id="p-outcomes"><div class="ph"><h3>Outcomes &amp; ROI</h3><span class="b part">Empty</span><span class="route">/outcomes</span></div>

@@ -120,7 +120,7 @@ export default async function ApiKeyDetailPage({
             Audit log
           </Link>
           <Link
-            href={`/governance?api_key_id=${encodeURIComponent(params.key_id)}`}
+            href={`/governance-pack`}
             className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             Governance

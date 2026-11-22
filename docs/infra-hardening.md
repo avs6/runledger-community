@@ -122,12 +122,8 @@ Mode is controlled through `INFRA_POLICY_ENFORCEMENT_MODE` and defaults to
 
 ## Local TLS demo story
 
-For realistic customer demos, RunLedger now ships a `tls-demo` profile using
-Caddy with internal certificates.
-
-```bash
-docker compose --profile tls-demo up -d runledger-caddy
-```
+For realistic customer demos, the stack includes `runledger-caddy`, using
+Caddy with internal certificates. It starts with `docker compose up -d`.
 
 Endpoints:
 
@@ -140,20 +136,10 @@ This is for local HTTPS demos, not production certificate management.
 
 ## Deployment profiles
 
-RunLedger now has a clearer local profile split:
-
-- `core`: plain `docker compose up -d`
-- `aux`: optimization and agentic sidecars
-- `observability`: OTEL collector
-- `backup`: MinIO
-- `tls-demo`: local HTTPS proxy
-- `full-demo`: all optional services together
-
-Examples:
+`docker compose up -d` starts every service. The only optional profile is `streaming`
+(Redpanda and its console, for Kafka export to the bundled broker):
 
 ```bash
 docker compose up -d
-docker compose --profile aux up -d
-docker compose --profile full-demo up -d
-docker compose --profile full-demo --profile tls-demo up -d
+docker compose --profile streaming up -d
 ```

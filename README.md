@@ -384,26 +384,20 @@ flowchart TB
 
 ### Compose profiles
 
-RunLedger uses Docker Compose profiles to scale from a minimal local setup to a full production stack:
+`docker compose up -d` starts the full stack: API, dashboard, gateway, workers, Postgres, Redis,
+Qdrant, MinIO, Letta, the optimization and agentic services, the OpenTelemetry Collector and the
+local TLS proxy. One profile is optional:
 
-| Profile | What it includes | Use case |
+| Profile | What it adds | Use case |
 |---|---|---|
-| *(default)* | API, dashboard, gateway, Postgres, Redis, workers | Development and evaluation |
-| `infra` | + Qdrant, MinIO, Redpanda, Letta | Semantic search, backups, streaming export |
-| `aux` | + All optimization and agentic services | Full optimization pipeline |
-| `observability` | + OpenTelemetry Collector | OTLP ingestion from external sources |
-| `full-demo` | Everything above combined | End-to-end demonstrations |
+| `streaming` | Redpanda broker + console | Kafka export to the bundled broker |
 
 ```bash
-# Minimal (core services only)
-docker compose up -d
-
-# With optimization services
-docker compose --profile aux up -d
-
-# Full stack
-docker compose --profile full-demo up -d
+docker compose up -d                       # full stack
+docker compose --profile streaming up -d   # plus the bundled Kafka broker
 ```
+
+Set `COMPOSE_PROFILES=streaming` in `.env` to include it in every compose command.
 
 | | |
 |---|---|

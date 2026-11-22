@@ -177,6 +177,11 @@ class ProviderCall(Base):
         sa.ForeignKey("api_keys.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Last time cost enrichment tried and failed to price this call (no pricing row).
+    # Lets enrichment skip unpriceable calls instead of re-selecting them forever.
+    cost_checked_at: Mapped[datetime | None] = mapped_column(
+        sa.TIMESTAMP(timezone=True), nullable=True
+    )
     end_user_id: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     provider: Mapped[str] = mapped_column(sa.String(64), nullable=False)
     model: Mapped[str] = mapped_column(sa.String(128), nullable=False)

@@ -15,7 +15,8 @@ combine them.
 ## Prerequisites
 
 ```bash
-pip install litellm runledger-sdk
+pip install litellm
+pip install "runledger-sdk @ git+https://github.com/avs6/runledger-community#subdirectory=packages/sdk"  # not yet on PyPI
 ```
 
 ---

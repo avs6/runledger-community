@@ -81,7 +81,7 @@ details{margin:10px 0} summary{cursor:pointer;font-weight:600;color:var(--accent
 <a href="#org">6 · Organization &amp; Access</a>
 <a href="#ing">7 · Ingestion &amp; Integrations</a>
 <a href="#plat">8 · Platform &amp; Developer Experience</a>
-<div class="grp">Plan</div><a href="#remediation-org">Remediation status · Org &amp; Access</a><a href="#roadmap">Remediation roadmap</a><a href="#method">Method &amp; verification</a></nav><main>
+<div class="grp">Plan</div><a href="#remediation-org">Remediation status · Org &amp; Access</a><a href="#remediation-ing">Remediation status · Ingestion</a><a href="#roadmap">Remediation roadmap</a><a href="#method">Method &amp; verification</a></nav><main>
 <div class="eyebrow">Technical due diligence · Pass 4 · Parallel feature audit</div>
 <h1>Eight features, audited in parallel: backend, frontend and cohesion</h1>
 <p class="lede">Eight independent code-review agents each took one major feature from the <a href="runledger-feature-catalog.html">feature catalog</a> and audited its backend (endpoints, authorization, validation, correctness, efficiency), its frontend (components, API calls, filters, pagination, states) and its real connections to the other features. They produced <b>213 findings</b> with file:line evidence. I spot-checked 18 of the most severe claims directly against the source; all 18 held. This pass is additive to passes 1–3: agents were told the earlier findings and focused on new ones.</p>
@@ -97,7 +97,7 @@ details{margin:10px 0} summary{cursor:pointer;font-weight:600;color:var(--accent
 <li>Anyone who knows a workspace UUID can inject runs (I-01), and pipeline events can modify other tenants' runs (I-02).</li>
 <li>Every default Compose install ships a known platform-admin password (P-01).</li>
 </ul>
-Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltration), the platform should not be offered as multi-tenant until these are closed. <b>Update (2026-11-21):</b> A-01/A-02, P-02/I-03, I-01 and I-02 are resolved on <code>fix/org-access</code>; P-01 remains open — see <a href="#remediation-org">Remediation status</a>. Feature-wise, the pattern from passes 1–3 is confirmed at depth: wide CRUD, decorative enforcement, silent UI failures, and parallel systems for the same concept.</div></section>
+Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltration), the platform should not be offered as multi-tenant until these are closed. <b>Update (2026-11-21):</b> A-01/A-02, P-02/I-03, I-01 and I-02 are resolved on <code>fix/org-access</code>; P-01 remains open — see <a href="#remediation-org">Remediation status</a>. <b>Update (Ingestion & Integrations):</b> 27 of 27 ingestion findings resolved on <code>fix/ingestion-integrations</code>; one new item (I-28, SDKs not published) is open — see <a href="#remediation-ing">Remediation status · Ingestion</a>. Feature-wise, the pattern from passes 1–3 is confirmed at depth: wide CRUD, decorative enforcement, silent UI failures, and parallel systems for the same concept.</div></section>
 <section id="scores"><h2>Scores &amp; finding counts</h2><div class="tw"><table><thead><tr><th>#</th><th>Major feature</th><th class="m">Backend</th><th class="m">Frontend</th><th class="m">Cohesion</th><th class="m">Critical</th><th class="m">High</th><th class="m">Medium</th><th class="m">Low/Info</th><th class="m">Total</th></tr></thead><tbody>
 <tr><td>1</td><td><a href="#obs">Observability &amp; Investigation</a></td><td class="m">5/10</td><td class="m">4/10</td><td class="m">3/10</td><td class="m">—</td><td class="m">8</td><td class="m">11</td><td class="m">7</td><td class="m"><b>26</b></td></tr>
 <tr><td>2</td><td><a href="#build">Build &amp; Improve</a></td><td class="m">4/10</td><td class="m">4/10</td><td class="m">2/10</td><td class="m">2</td><td class="m">9</td><td class="m">11</td><td class="m">5</td><td class="m"><b>27</b></td></tr>
@@ -338,7 +338,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>F-01</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Chargeback rules never applied; no cost-center API</td><td class="ev">services/billing.py:915-947</td><td>Apply in report or remove UI</td></tr>
 <tr><td><b>F-02</b></td><td><span class="b high">High</span></td><td>Chargeback self-approval; weights unchecked</td><td class="ev">routers/billing.py:784-866</td><td>Approvals; block status writes</td></tr>
 <tr><td><b>F-03</b></td><td><span class="b high">High</span></td><td>Platform secret signs tenant webhooks/snapshots/exports</td><td class="ev">services/budgets.py:626; billing.py:607,906</td><td>Per-destination / per-workspace keys</td></tr>
-<tr><td><b>F-04</b></td><td><span class="b high">High</span></td><td>SSRF via budget webhook / Slack URL</td><td class="ev">schemas/budgets.py:132; routers/budgets.py:972-1028</td><td>https + IP blocklist + generic errors</td></tr>
+<tr><td><b>F-04</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>SSRF via budget webhook / Slack URL</td><td class="ev">schemas/budgets.py:132; routers/budgets.py:972-1028</td><td>https + IP blocklist + generic errors</td></tr>
 <tr><td><b>F-05</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>notify budgets never notify; others fire per call</td><td class="ev">workers/metering.py:177; budgets.py:488</td><td>Dedupe per (budget, period)</td></tr>
 <tr><td><b>F-06</b></td><td><span class="b high">High</span></td><td>Cost enrichment can stall permanently</td><td class="ev">workers/metering.py:111-128</td><td>Mark unpriced; page past</td></tr>
 <tr><td><b>F-07</b> <span class='b v'>✓</span></td><td><span class="b high">High</span></td><td>Three analytics endpoints always 500</td><td class="ev">analytics.py:5467,8642,13635</td><td>Join via Budget; status</td></tr>
@@ -399,7 +399,7 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>A-22</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Unbounded lists; demo ValueError gives 500</td><td class="ev">org.py:1557; demo_mode.py:134</td><td>Paginate; 400</td></tr>
 <tr><td><b>A-23</b> <span class="b mute">Won't do</span></td><td><span class="b low">Low</span></td><td>No postman/</td><td class="ev">repo root</td><td>Generate</td></tr>
 </tbody></table></div></details></section>
-<section id="ing"><h2>7 · Ingestion &amp; Integrations</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 3/10</span><span>27 findings</span></div><ul>
+<section id="ing"><h2>7 · Ingestion &amp; Integrations</h2><div class="score"><span>Backend 3/10</span><span>Frontend 4/10</span><span>Cohesion 3/10</span><span>27 findings</span></div><div class="callout"><strong>Remediation status (2026-11-21).</strong> All 27 original findings resolved on branch <code>fix/ingestion-integrations</code>. One item added during remediation is open: I-28 (SDKs not published). Scores below are the original pass-4 assessment. Details in <a href="#remediation-ing">Remediation status · Ingestion</a>.</div><ul>
 <li><b>Tenant isolation holes</b> (verified): <code>POST /ingest/v1/webhook</code> has no auth, so a workspace UUID is enough. Pipeline handlers after <code>run_start</code> key on <code>run_id</code> only, so cross-tenant run edits are possible.</li>
 <li><b>Fragile pipeline:</b> one transaction per batch with no savepoints. One bad row (an FK race or a long span name) drops the batch. No real retry, and no replay despite comments.</li>
 <li><b>Attribution missing:</b> <code>api_key_id</code> is never taken from the authenticated key, <code>end_user_id</code> is never written to provider calls, and MCP uses status <code>succeeded</code> (analytics filters on <code>success</code>).</li>
@@ -415,29 +415,30 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <tr><td><b>I-02</b> <span class='b v'>✓</span> <span class="b ok">Resolved</span></td><td><span class="b crit">Critical</span></td><td>Pipeline writes to runs without workspace check</td><td class="ev">workers/pipeline.py:173-399</td><td>Ownership check per event</td></tr>
 <tr><td><b>I-03</b> <span class="b ok">Resolved</span></td><td><span class="b crit">Critical</span></td><td>Any org admin can dump the whole multi-tenant DB to their S3</td><td class="ev">services/backup_ops.py:71-87; settings.py:908</td><td>Platform-only global backups</td></tr>
 <tr><td><b>I-04</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Backup secret stored/returned in plaintext</td><td class="ev">models/backup_ops.py:78</td><td>Encrypt; write-only</td></tr>
-<tr><td><b>I-05</b></td><td><span class="b high">High</span></td><td>One bad event aborts the batch; no retry/replay</td><td class="ev">pipeline.py:43-60</td><td>Savepoints; autoretry; DLQ; replay</td></tr>
-<tr><td><b>I-06</b></td><td><span class="b high">High</span></td><td>Enrichment starves behind 500 unpriceable rows</td><td class="ev">workers/metering.py:108-125</td><td>Mark unpriced; cursor paging</td></tr>
-<tr><td><b>I-07</b> <span class="b part">Partly resolved</span></td><td><span class="b high">High</span></td><td>Ingest spend never tied to API key or end user</td><td class="ev">deps.py:56-74; pipeline.py:296-324</td><td>Bind server-side; denormalize</td></tr>
-<tr><td><b>I-08</b></td><td><span class="b high">High</span></td><td>feature_tag budgets synced to workspace spend</td><td class="ev">workers/budgets.py:244</td><td>Join agent_runs</td></tr>
-<tr><td><b>I-09</b></td><td><span class="b high">High</span></td><td>Child-first OTLP batches set wrong run context</td><td class="ev">otlp_parse.py:640-679,816-834; pipeline.py:149</td><td>True-root only; LEAST upsert</td></tr>
-<tr><td><b>I-10</b></td><td><span class="b high">High</span></td><td>MCP status succeeded hides calls from analytics</td><td class="ev">mcp_server.py:333; analytics.py:353</td><td>Normalize enum</td></tr>
-<tr><td><b>I-11</b></td><td><span class="b high">High</span></td><td>Telemetry quick-start can&#x27;t work (protobuf vs JSON)</td><td class="ev">TelemetryPage.tsx:316-325; otlp.py:75-79</td><td>Support protobuf or document http/json</td></tr>
-<tr><td><b>I-12</b></td><td><span class="b high">High</span></td><td>Raw payloads bypass capture policy, kept forever</td><td class="ev">otlp.py:138-183,552-570</td><td>Scrub before persist; retention</td></tr>
-<tr><td><b>I-13</b></td><td><span class="b med">Medium</span></td><td>Unbounded gzip decompression</td><td class="ev">otlp.py:57-69</td><td>Capped streaming inflate</td></tr>
-<tr><td><b>I-14</b></td><td><span class="b med">Medium</span></td><td>No field-length/batch limits</td><td class="ev">schemas/events.py:13-104</td><td>max_length; caps</td></tr>
-<tr><td><b>I-15</b></td><td><span class="b med">Medium</span></td><td>Signed ingest: global secret, replayable</td><td class="ev">ingest.py:46-70</td><td>Per-workspace secret + nonce</td></tr>
-<tr><td><b>I-16</b></td><td><span class="b med">Medium</span></td><td>Finalizer cancels live long runs</td><td class="ev">workers/otlp_finalize.py:68-74</td><td>Inactivity timeout</td></tr>
-<tr><td><b>I-17</b></td><td><span class="b med">Medium</span></td><td>Kafka delivers before commit; producer per event</td><td class="ev">kafka_export.py:201-405</td><td>True outbox</td></tr>
-<tr><td><b>I-18</b></td><td><span class="b med">Medium</span></td><td>Claude Code logs ignore api_error/tool events; no feature_tag</td><td class="ev">services/claude_code_logs.py:109-198</td><td>Map events; reuse context extraction</td></tr>
-<tr><td><b>I-19</b></td><td><span class="b med">Medium</span></td><td>Cached tokens not passed to pricing</td><td class="ev">otlp_parse.py:188-193,720-744</td><td>Set cached_input_tokens</td></tr>
-<tr><td><b>I-20</b></td><td><span class="b med">Medium</span></td><td>Tool calls/outcomes not idempotent</td><td class="ev">pipeline.py:352-399</td><td>uuid5 + on_conflict</td></tr>
-<tr><td><b>I-21</b></td><td><span class="b med">Medium</span></td><td>SSRF via Slack/Kafka test</td><td class="ev">integrations.py:59-77</td><td>Allowlist; generic errors</td></tr>
-<tr><td><b>I-22</b></td><td><span class="b med">Medium</span></td><td>Onboarding/MCP snippets wrong</td><td class="ev">onboarding/page.tsx:133-185; McpSetupPanel.tsx:74-182</td><td>Generate from real endpoints</td></tr>
-<tr><td><b>I-23</b></td><td><span class="b med">Medium</span></td><td>Collector docs contradict config; filter orphans spans</td><td class="ev">docs/otlp.md:53-60; otel-collector-config.yaml</td><td>Fix docs/filter</td></tr>
-<tr><td><b>I-24</b></td><td><span class="b low">Low</span></td><td>Insights parses 7 days of raw payloads</td><td class="ev">otlp.py:604-692</td><td>Columns at ingest</td></tr>
-<tr><td><b>I-25</b></td><td><span class="b low">Low</span></td><td>SDK transport issues (4xx retries, atexit, TS queue)</td><td class="ev">transport.py:109-140; transport.ts:62-104</td><td>Fix</td></tr>
-<tr><td><b>I-26</b></td><td><span class="b low">Low</span></td><td>Metrics unused; no retention for batches/deliveries</td><td class="ev">otlp.py:262-289</td><td>Retention</td></tr>
-<tr><td><b>I-27</b></td><td><span class="b low">Low</span></td><td>Single solo worker for everything</td><td class="ev">docker-compose.yml:328</td><td>Separate queues</td></tr>
+<tr><td><b>I-05</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>One bad event aborts the batch; no retry/replay</td><td class="ev">pipeline.py:43-60</td><td>Savepoints; autoretry; DLQ; replay</td></tr>
+<tr><td><b>I-06</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Enrichment starves behind 500 unpriceable rows</td><td class="ev">workers/metering.py:108-125</td><td>Mark unpriced; cursor paging</td></tr>
+<tr><td><b>I-07</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Ingest spend never tied to API key or end user</td><td class="ev">deps.py:56-74; pipeline.py:296-324</td><td>Bind server-side; denormalize</td></tr>
+<tr><td><b>I-08</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>feature_tag budgets synced to workspace spend</td><td class="ev">workers/budgets.py:244</td><td>Join agent_runs</td></tr>
+<tr><td><b>I-09</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Child-first OTLP batches set wrong run context</td><td class="ev">otlp_parse.py:640-679,816-834; pipeline.py:149</td><td>True-root only; LEAST upsert</td></tr>
+<tr><td><b>I-10</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>MCP status succeeded hides calls from analytics</td><td class="ev">mcp_server.py:333; analytics.py:353</td><td>Normalize enum</td></tr>
+<tr><td><b>I-11</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Telemetry quick-start can&#x27;t work (protobuf vs JSON)</td><td class="ev">TelemetryPage.tsx:316-325; otlp.py:75-79</td><td>Support protobuf or document http/json</td></tr>
+<tr><td><b>I-12</b> <span class="b ok">Resolved</span></td><td><span class="b high">High</span></td><td>Raw payloads bypass capture policy, kept forever</td><td class="ev">otlp.py:138-183,552-570</td><td>Scrub before persist; retention</td></tr>
+<tr><td><b>I-13</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Unbounded gzip decompression</td><td class="ev">otlp.py:57-69</td><td>Capped streaming inflate</td></tr>
+<tr><td><b>I-14</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>No field-length/batch limits</td><td class="ev">schemas/events.py:13-104</td><td>max_length; caps</td></tr>
+<tr><td><b>I-15</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Signed ingest: global secret, replayable</td><td class="ev">ingest.py:46-70</td><td>Per-workspace secret + nonce</td></tr>
+<tr><td><b>I-16</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Finalizer cancels live long runs</td><td class="ev">workers/otlp_finalize.py:68-74</td><td>Inactivity timeout</td></tr>
+<tr><td><b>I-17</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Kafka delivers before commit; producer per event</td><td class="ev">kafka_export.py:201-405</td><td>True outbox</td></tr>
+<tr><td><b>I-18</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Claude Code logs ignore api_error/tool events; no feature_tag</td><td class="ev">services/claude_code_logs.py:109-198</td><td>Map events; reuse context extraction</td></tr>
+<tr><td><b>I-19</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Cached tokens not passed to pricing</td><td class="ev">otlp_parse.py:188-193,720-744</td><td>Set cached_input_tokens</td></tr>
+<tr><td><b>I-20</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Tool calls/outcomes not idempotent</td><td class="ev">pipeline.py:352-399</td><td>uuid5 + on_conflict</td></tr>
+<tr><td><b>I-21</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>SSRF via Slack/Kafka test</td><td class="ev">integrations.py:59-77</td><td>Allowlist; generic errors</td></tr>
+<tr><td><b>I-22</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Onboarding/MCP snippets wrong</td><td class="ev">onboarding/page.tsx:133-185; McpSetupPanel.tsx:74-182</td><td>Generate from real endpoints</td></tr>
+<tr><td><b>I-23</b> <span class="b ok">Resolved</span></td><td><span class="b med">Medium</span></td><td>Collector docs contradict config; filter orphans spans</td><td class="ev">docs/otlp.md:53-60; otel-collector-config.yaml</td><td>Fix docs/filter</td></tr>
+<tr><td><b>I-24</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Insights parses 7 days of raw payloads</td><td class="ev">otlp.py:604-692</td><td>Columns at ingest</td></tr>
+<tr><td><b>I-25</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>SDK transport issues (4xx retries, atexit, TS queue)</td><td class="ev">transport.py:109-140; transport.ts:62-104</td><td>Fix</td></tr>
+<tr><td><b>I-26</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Metrics unused; no retention for batches/deliveries</td><td class="ev">otlp.py:262-289</td><td>Retention</td></tr>
+<tr><td><b>I-27</b> <span class="b ok">Resolved</span></td><td><span class="b low">Low</span></td><td>Single solo worker for everything</td><td class="ev">docker-compose.yml:328</td><td>Separate queues</td></tr>
+<tr><td><b>I-28</b> <span class="b high">Open</span></td><td><span class="b med">Medium</span></td><td>Python and TypeScript SDKs are not published: <code>pip install runledger-sdk</code> and <code>npm install @runledger/sdk</code> return 404, so integrators must install from the repository (added 2026-11-21)</td><td class="ev">packages/sdk · packages/ts-sdk</td><td>Publish to PyPI / npm (needs registry accounts)</td></tr>
 </tbody></table></div></details></section>
 <section id="plat"><h2>8 · Platform &amp; Developer Experience</h2><div class="score"><span>Backend 4/10</span><span>Frontend 5/10</span><span>Cohesion 4/10</span><span>30 findings</span></div><ul>
 <li><b>Default credentials</b> (verified): every Compose API start seeds platform admin <code>admin@runledger.local / runledger</code> (verified email), with no environment gate. Helm never sets <code>ENVIRONMENT</code>, so production checks are always skipped.</li>
@@ -519,11 +520,11 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 
 <h3>Access-related findings from other features</h3>
 <div class="tw"><table><thead><tr><th>ID</th><th>Status</th><th>What changed</th></tr></thead><tbody>
-<tr><td><b>I-01</b></td><td><span class="b ok">Resolved</span></td><td>Unsigned <code>POST /ingest/v1/webhook</code> removed; only HMAC-signed ingest is accepted without a bearer key.</td></tr>
-<tr><td><b>I-02</b></td><td><span class="b ok">Resolved</span></td><td>Each ingest event after <code>run_start</code> is applied only if its run belongs to the sending workspace; <code>span_end</code> also matches the run. Verified live: a cross-org <code>run_end</code> is dropped.</td></tr>
+<tr><td><b>I-01</b> <span class="b ok">Resolved</span></td><td><span class="b ok">Resolved</span></td><td>Unsigned <code>POST /ingest/v1/webhook</code> removed; only HMAC-signed ingest is accepted without a bearer key.</td></tr>
+<tr><td><b>I-02</b> <span class="b ok">Resolved</span></td><td><span class="b ok">Resolved</span></td><td>Each ingest event after <code>run_start</code> is applied only if its run belongs to the sending workspace; <code>span_end</code> also matches the run. Verified live: a cross-org <code>run_end</code> is dropped.</td></tr>
 <tr><td><b>I-03 / P-02</b></td><td><span class="b ok">Resolved</span></td><td>All backup endpoints are platform-admin only.</td></tr>
 <tr><td><b>I-04 / P-03</b></td><td><span class="b ok">Resolved</span></td><td>Backup S3 secret encrypted at rest, write-only (never returned; blank keeps it), password input in the UI.</td></tr>
-<tr><td><b>I-07</b></td><td><span class="b part">Partly resolved</span></td><td>Ingest and OTLP events are attributed to the sending API key (server-side, never from the payload); end user is used for budgets, but not yet denormalized onto provider calls.</td></tr>
+<tr><td><b>I-07</b> <span class="b ok">Resolved</span></td><td><span class="b part">Partly resolved</span></td><td>Ingest and OTLP events are attributed to the sending API key (server-side, never from the payload); end user is used for budgets, but not yet denormalized onto provider calls.</td></tr>
 <tr><td><b>O-04</b></td><td><span class="b part">Partly resolved</span></td><td>Outcomes may only reference runs of their workspace; ROI cost joins are workspace-scoped. Double counting with several outcomes per run remains.</td></tr>
 <tr><td><b>O-09 · B-22 · S-05</b></td><td><span class="b ok">Resolved</span></td><td><code>require_workspace_writer</code>: viewers and read-only org roles get 403 on run cancel, all Build routers and tool registry writes; a route-inventory test fails any endpoint shipped without auth or a role check.</td></tr>
 <tr><td><b>G-03</b></td><td><span class="b part">Partly resolved</span></td><td>Flywheel apply and settings need a workspace admin; audit and rollback not yet added.</td></tr>
@@ -553,6 +554,60 @@ Combined with pass 2 (guardrail <code>exec()</code> RCE, route secret exfiltrati
 <li><b>Secrets handling</b> — S-03 (SSO/LDAP secrets plaintext), S-04, G-05, B-09, F-15, F-03.</li>
 <li><b>O-05</b> — captured prompts visible to any reader of a run (role policy to decide).</li>
 <li><b>S-16 · G-10</b> — audit actor/tamper evidence and gateway audit; <b>I-05</b> — batch savepoints and retries.</li>
+</ul>
+</section>
+
+<section id="remediation-ing"><h2>Remediation status · Ingestion &amp; Integrations</h2>
+<p class="meta">Updated 2026-11-21 · branch <code>fix/ingestion-integrations</code> · verified on a local full stack (RTX4090 laptop). Not yet deployed.</p>
+<div class="grid g4">
+<div class="card stat"><div class="n" style="color:var(--low)">27 / 27</div><div class="l">original ingestion findings resolved</div></div>
+<div class="card stat"><div class="n" style="color:var(--high)">1</div><div class="l">open: I-28, SDKs not published (added during remediation)</div></div>
+<div class="card stat"><div class="n" style="color:var(--low)">+6</div><div class="l">related items from other reports resolved (M-01, B-07, B-08, F-04, /mcp redirect, /telemetry links)</div></div>
+<div class="card stat"><div class="n">774</div><div class="l">API tests passing; SDK suites 128 (Python) and 48 (TypeScript)</div></div></div>
+<div class="tw"><table><thead><tr><th>ID</th><th>Status</th><th>What changed</th></tr></thead><tbody>
+<tr><td><b>I-01</b></td><td><span class="b ok">Resolved</span></td><td>Unsigned webhook removed (Org &amp; Access pass).</td></tr>
+<tr><td><b>I-02</b></td><td><span class="b ok">Resolved</span></td><td>Every event after <code>run_start</code> must reference a run of the sending workspace (Org &amp; Access pass).</td></tr>
+<tr><td><b>I-03 / I-04</b></td><td><span class="b ok">Resolved</span></td><td>Backups platform-admin only; backup secret encrypted and write-only (Org &amp; Access pass).</td></tr>
+<tr><td><b>I-05</b></td><td><span class="b ok">Resolved</span></td><td>Each event applied in its own savepoint; failures stored in <code>ingest_dead_letters</code> with list / view / replay / replay-all / discard (API + Telemetry page); infrastructure errors retry with exponential backoff, then dead-letter the batch.</td></tr>
+<tr><td><b>I-06</b></td><td><span class="b ok">Resolved</span></td><td>Unpriceable calls are marked (<code>cost_checked_at</code>) and skipped for an hour; adding or changing pricing clears the mark. New partial index on unpriced calls.</td></tr>
+<tr><td><b>I-07</b></td><td><span class="b ok">Resolved</span></td><td>Sending API key bound server-side; run end user written onto provider calls.</td></tr>
+<tr><td><b>I-08</b></td><td><span class="b ok">Resolved</span></td><td>Nightly sync computes each scope's real spend (workflow/app via runs, access group via members, provider profile via model); unknown scopes are left alone.</td></tr>
+<tr><td><b>I-09</b></td><td><span class="b ok">Resolved</span></td><td>Run ends only from the true root span; <code>run_start</code> upsert keeps the earliest start and fills missing context, same workspace only.</td></tr>
+<tr><td><b>I-10</b></td><td><span class="b ok">Resolved</span></td><td>Provider-call status normalized (<code>succeeded</code> → <code>success</code>, <code>failed</code> → <code>error</code>); MCP tools send <code>success</code>.</td></tr>
+<tr><td><b>I-11</b></td><td><span class="b ok">Resolved</span></td><td>OTLP/protobuf supported for traces, metrics and logs; quick-start corrected.</td></tr>
+<tr><td><b>I-12</b></td><td><span class="b ok">Resolved</span></td><td>Raw payloads kept only under a FULL capture policy; raw spans scrubbed and stripped of prompt/response attributes otherwise; deleted after <code>OTLP_RAW_RETENTION_DAYS</code> (14).</td></tr>
+<tr><td><b>I-13</b></td><td><span class="b ok">Resolved</span></td><td>gzip inflated with a hard cap (<code>OTLP_MAX_DECOMPRESSED_BYTES</code>, 413 above).</td></tr>
+<tr><td><b>I-14</b></td><td><span class="b ok">Resolved</span></td><td>Schema max lengths matching the columns, 256 KB metadata cap, 1,000-event batch cap, 10 MB body limit (413) before the body is read; defensive truncation for OTLP-generated events.</td></tr>
+<tr><td><b>I-15</b></td><td><span class="b ok">Resolved</span></td><td>Per-workspace secret (rotatable, never derived from ADMIN_SECRET) and single-use nonce in the signature; replays get 409.</td></tr>
+<tr><td><b>I-16</b></td><td><span class="b ok">Resolved</span></td><td>Finalizer closes runs only after <code>OTLP_INACTIVITY_TIMEOUT_MINUTES</code> (15) without span activity.</td></tr>
+<tr><td><b>I-17</b></td><td><span class="b ok">Resolved</span></td><td>True outbox: <code>pending</code> rows commit with the change; worker delivers every 10 s with SKIP LOCKED and one producer per config per sweep.</td></tr>
+<tr><td><b>I-18</b></td><td><span class="b ok">Resolved</span></td><td>Claude Code <code>api_error</code>, <code>tool_result</code> and rejected <code>tool_decision</code> events mapped; workflow tag / user from <code>runledger.*</code> resource attributes.</td></tr>
+<tr><td><b>I-19</b></td><td><span class="b ok">Resolved</span></td><td>Cached prompt tokens mapped from OpenInference and GenAI attributes, so the cached rate applies.</td></tr>
+<tr><td><b>I-20</b></td><td><span class="b ok">Resolved</span></td><td>Tool calls and outcomes use client ids or a content-derived uuid5 with ON CONFLICT DO NOTHING.</td></tr>
+<tr><td><b>I-21 · F-04</b></td><td><span class="b ok">Resolved</span></td><td>Shared egress check: http(s) only, private/loopback/link-local/metadata addresses refused (allowlist for the bundled broker), re-checked at send time; generic errors. Covers Slack, Kafka and budget webhooks.</td></tr>
+<tr><td><b>I-22</b></td><td><span class="b ok">Resolved</span></td><td>Onboarding and MCP snippets generated from this deployment's real endpoints; MCP configs send the Authorization header; non-existent packages and hosts removed.</td></tr>
+<tr><td><b>I-23</b></td><td><span class="b ok">Resolved</span></td><td>Collector span filter removed (it orphaned children); docs fixed (auth required, no compose profile, trace-level gating).</td></tr>
+<tr><td><b>I-24</b></td><td><span class="b ok">Resolved</span></td><td>Resource summary computed at ingest; insights never parse raw payloads.</td></tr>
+<tr><td><b>I-25</b></td><td><span class="b ok">Resolved</span></td><td>Python: no retries on 4xx (except 408/429), chunked sends, atexit flush. TypeScript: bounded queue, full drain on flush/shutdown, Node beforeExit flush.</td></tr>
+<tr><td><b>I-26</b></td><td><span class="b ok">Resolved</span></td><td>Daily purge of raw OTLP batches/spans, finished Kafka deliveries and resolved dead letters. OTLP metrics are rolled up per series per day (delta and cumulative counters, histograms, gauges; bounded attributes), listed on Telemetry, and GenAI token/cost metrics are reconciled against recorded usage. Rollups kept <code>OTLP_METRIC_RETENTION_DAYS</code> (395).</td></tr>
+<tr><td><b>I-27</b></td><td><span class="b ok">Resolved</span></td><td>Ingest has its own Celery queue and <code>runledger-worker-ingest</code> service.</td></tr>
+<tr><td><b>I-28</b></td><td><span class="b high">Open</span></td><td>SDKs not published to PyPI / npm. Docs install from the repository until then. Needs the owner's registry accounts.</td></tr>
+</tbody></table></div>
+<h3>Also resolved (other reports)</h3>
+<ul>
+<li><b>OTLP noise runs</b> (technical review #6, deep dive M-01) — LLM-span gating (<code>OTLP_RUN_GATING</code>); dropped traces counted per batch and shown as <b>Ingest health</b> on the Telemetry page.</li>
+<li><b>Budget counters keyed by enrichment time</b> (deep dive B-07) — spend lands in the period of the call; <b>enrichment stall</b> (B-08) fixed with I-06.</li>
+<li><b>MCP <code>POST /mcp</code> 307</b> — served without redirect. <b>Kafka configs unpaginated</b> — paginated. <b>Broken <code>/telemetry</code> links</b> — repointed, plus a permanent redirect.</li>
+<li><b>SDK install docs</b> — <code>runledger-sdk</code> and <code>@runledger/sdk</code> are not published; docs now install from the repository (publishing tracked as I-28).</li>
+<li><b>Unpriced usage</b> (deep dive pricing coverage, feature catalog "Unpriced models in traffic") — <code>GET /providers/pricing/unpriced</code>; count on Telemetry, per-model list on the provider pricing page. Adding pricing now prices calls made before the model had any price (first published price is used when none was in effect).</li>
+<li><b>Redpanda always running</b> (technical review, sidecar sprawl) — moved to the <code>streaming</code> compose profile (<code>COMPOSE_PROFILES=streaming</code> keeps it on). Stale compose-profile docs (<code>aux</code>, <code>observability</code>, <code>full-demo</code>, <code>tls-demo</code>, <code>backup</code>) corrected.</li>
+<li><b>Broken routes</b> (UI walkthrough, feature catalog) — all 22 dead internal links (<code>/governance</code>, <code>/audit-log</code>, <code>/workspaces</code>, <code>/admin/*</code>, <code>/analytics/*</code>, <code>/cache-config</code>, <code>/billing-periods</code>, …) repointed, with permanent redirects for old bookmarks.</li>
+<li><b>Sign-in return page</b> — password, LDAP and SSO sign-in return to the page that required it (same-origin paths only).</li>
+</ul>
+<h3>Still open</h3>
+<ul>
+<li><b>I-28</b> — publishing the SDKs to PyPI / npm.</li>
+<li>Found during verification, outside this area: five Gateway page posture endpoints return 500 (<code>analytics.py</code> references fields that don't exist: <code>TenantUser.workspace_id</code>, <code>BudgetOverride.workspace_id</code>, <code>AuditEvent.resource_type</code>, <code>GatewayPassThroughEndpoint.rpm_limit</code>, and a missing <code>HotPathMigrationPosture</code> field).</li>
 </ul>
 </section>
 <section id="roadmap"><h2>Remediation roadmap</h2>

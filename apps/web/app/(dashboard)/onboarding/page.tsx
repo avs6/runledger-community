@@ -19,6 +19,7 @@ import {
 } from '@/lib/api'
 import type { DemoModeStatus, OnboardingStatus } from '@/types/api'
 import { useRole } from '@/components/rbac/useRole'
+import { GATEWAY_OPENAI_BASE_URL, MCP_URL, OTLP_TRACES_URL, PUBLIC_API_URL, SDK_INSTALL } from '@/lib/endpoints'
 
 /* ------------------------------------------------------------------ */
 /*  Steps                                                              */
@@ -49,7 +50,7 @@ const GATEWAY_STEPS: Step[] = [
 
 const SAFETY_STEPS: Step[] = [
   { key: 'has_mcp_server', label: 'Register MCP Server', description: 'Add an MCP server to the workspace registry', href: '/mcp' },
-  { key: 'has_search_tool', label: 'Add Search Tool', description: 'Register a search tool for agent retrieval workflows', href: '/tools' },
+  { key: 'has_search_tool', label: 'Add Search Tool', description: 'Register a search tool for agent retrieval workflows', href: '/tool-registry' },
   { key: 'has_tool_policy', label: 'Create Tool Policy', description: 'Define allow/deny rules for tool usage', href: '/tool-policies' },
   { key: 'has_approval_config', label: 'Set Up Approvals', description: 'Create an approval workflow for sensitive actions', href: '/approvals' },
   { key: 'has_data_capture', label: 'Configure Data Capture', description: 'Set the privacy mode and sampling for payload capture', href: '/data-capture' },
@@ -131,60 +132,65 @@ const INTEGRATION_GROUPS: Array<{
   { id: 'telemetry_frameworks', title: 'Telemetry & Framework Hooks', description: 'App code, callback hooks, and orchestration frameworks.' },
 ]
 
+// Snippets use this deployment's real endpoints (lib/endpoints). Keys need the
+// matching scope: mcp (+ read, ingest) for MCP clients, gateway for gateway clients.
+const MCP_JSON = (key: string) =>
+  `{\n  "mcpServers": {\n    "runledger": {\n      "${key}": "${MCP_URL}",\n      "headers": { "Authorization": "Bearer rl_YOUR_API_KEY" }\n    }\n  }\n}`
+
 const INTEGRATIONS: Integration[] = [
   {
     id: 'claude-code', name: 'Claude Code', subtitle: 'Anthropic CLI agent', category: 'desktop_agents', icon: Bot,
-    steps: ['Add the RunLedger MCP server to your Claude Code configuration.', 'Restart Claude Code to pick up the new MCP server.', 'All Claude Code sessions will now report usage to RunLedger.'],
-    configTitle: 'MCP Configuration (~/.claude.json)',
-    configSnippet: `{\n  "mcpServers": {\n    "runledger": {\n      "command": "npx",\n      "args": ["-y", "runledger-mcp"],\n      "env": {\n        "RUNLEDGER_API_KEY": "rl_YOUR_API_KEY"\n      }\n    }\n  }\n}`,
+    steps: ['Create an API key with the MCP client preset (read, ingest, mcp).', 'Register the RunLedger MCP server over HTTP with your key.', 'Restart Claude Code; budget checks and usage recording tools are now available.'],
+    configTitle: 'Terminal',
+    configSnippet: `claude mcp add --transport http runledger ${MCP_URL} \\\n  --header "Authorization: Bearer rl_YOUR_API_KEY"`,
   },
   {
     id: 'codex', name: 'Codex', subtitle: 'OpenAI CLI agent', category: 'desktop_agents', icon: Terminal,
-    steps: ['Set your API base URL to the RunLedger gateway.', 'Use your RunLedger API key in place of the OpenAI key.', 'Run Codex as usual - requests are proxied and tracked.'],
+    steps: ['Create an API key with the gateway scope.', 'Point the OpenAI base URL at the RunLedger gateway and use a route alias as the model.', 'Run Codex as usual - requests are routed, governed and recorded.'],
     configTitle: 'Environment Variables',
-    configSnippet: `export OPENAI_BASE_URL="https://gateway.runledger.app/v1"\nexport OPENAI_API_KEY="rl_YOUR_API_KEY"`,
+    configSnippet: `export OPENAI_BASE_URL="${GATEWAY_OPENAI_BASE_URL}"\nexport OPENAI_API_KEY="rl_YOUR_API_KEY"\n# model = one of your gateway route aliases`,
   },
   {
     id: 'cursor', name: 'Cursor', subtitle: 'AI-powered IDE', category: 'desktop_agents', icon: MousePointer,
-    steps: ['Create or edit the MCP config file in your project.', 'Add the RunLedger MCP server entry.', 'Restart Cursor to enable the integration.'],
+    steps: ['Create an API key with the MCP client preset.', 'Add the RunLedger MCP server to .cursor/mcp.json.', 'Restart Cursor to enable the integration.'],
     configTitle: '.cursor/mcp.json',
-    configSnippet: `{\n  "mcpServers": {\n    "runledger": {\n      "command": "npx",\n      "args": ["-y", "runledger-mcp"],\n      "env": {\n        "RUNLEDGER_API_KEY": "rl_YOUR_API_KEY"\n      }\n    }\n  }\n}`,
+    configSnippet: MCP_JSON('url'),
   },
   {
     id: 'windsurf', name: 'Windsurf', subtitle: 'AI-powered IDE', category: 'desktop_agents', icon: Wind,
-    steps: ['Open Windsurf settings and navigate to the AI provider section.', 'Set the API base URL to your RunLedger gateway endpoint.', 'Enter your RunLedger API key and select your preferred model.'],
-    configTitle: 'Windsurf Settings (settings.json)',
-    configSnippet: `{\n  "ai.provider": {\n    "baseUrl": "https://gateway.runledger.app/v1",\n    "apiKey": "rl_YOUR_API_KEY",\n    "model": "gpt-4o"\n  }\n}`,
+    steps: ['Create an API key with the MCP client preset.', 'Add the RunLedger MCP server to Windsurf\'s MCP config.', 'Refresh MCP servers in Windsurf settings.'],
+    configTitle: '~/.codeium/windsurf/mcp_config.json',
+    configSnippet: MCP_JSON('serverUrl'),
   },
   {
     id: 'devin', name: 'Devin', subtitle: 'Autonomous coding agent', category: 'desktop_agents', icon: Cpu,
-    steps: ['In the Devin dashboard, go to Settings > API Configuration.', 'Set the LLM proxy URL to your RunLedger gateway.', 'Save and re-launch your Devin session to apply.'],
+    steps: ['Expose the gateway on a URL Devin can reach (it runs in the cloud).', 'In Devin, set the OpenAI-compatible proxy URL and key.', 'Use a gateway route alias as the model.'],
     configTitle: 'Devin API Configuration',
-    configSnippet: `LLM Proxy URL: https://gateway.runledger.app/v1\nAPI Key:       rl_YOUR_API_KEY\nWorkspace:     default`,
+    configSnippet: `OpenAI-compatible base URL: ${GATEWAY_OPENAI_BASE_URL}\nAPI Key: rl_YOUR_API_KEY   (gateway scope)\nModel:   <gateway route alias>`,
   },
   {
     id: 'litellm', name: 'LiteLLM', subtitle: 'LLM proxy gateway', category: 'gateway_clients', icon: Network,
-    steps: ['Install the RunLedger callback package: pip install runledger-litellm', 'Add the RunLedger callback to your LiteLLM proxy config file.', 'Restart the LiteLLM proxy and verify the connection on the Gateway page.'],
-    configTitle: 'litellm_settings (config.yaml)',
-    configSnippet: `litellm_settings:\n  success_callback: ["runledger"]\n  runledger_api_key: "rl_YOUR_API_KEY"\n  runledger_api_base: "https://api.runledger.app"`,
+    steps: ['Create an API key with the ingest scope.', 'Enable LiteLLM\'s OpenTelemetry callback and point it at RunLedger.', 'Restart the proxy; each call appears as a run on the Runs page.'],
+    configTitle: 'config.yaml + environment',
+    configSnippet: `litellm_settings:\n  callbacks: ["otel"]\n\n# environment\nOTEL_EXPORTER="otlp_http"\nOTEL_ENDPOINT="${OTLP_TRACES_URL}"\nOTEL_HEADERS="Authorization=Bearer rl_YOUR_API_KEY"`,
   },
   {
     id: 'openwebui', name: 'Open WebUI', subtitle: 'Chat interface', category: 'gateway_clients', icon: Globe,
-    steps: ['Navigate to Admin > Settings > Connections in Open WebUI.', 'Set the OpenAI-compatible API base URL to your RunLedger gateway endpoint.', 'Enter your RunLedger API key and save.'],
+    steps: ['Navigate to Admin > Settings > Connections in Open WebUI.', 'Add an OpenAI-compatible connection to the RunLedger gateway.', 'Enter an API key with the gateway scope and save.'],
     configTitle: 'Open WebUI Connection Settings',
-    configSnippet: `API Base URL: https://gateway.runledger.app/v1\nAPI Key:      rl_YOUR_API_KEY\nModel Filter: (leave empty to proxy all models)`,
+    configSnippet: `API Base URL: ${GATEWAY_OPENAI_BASE_URL}\nAPI Key:      rl_YOUR_API_KEY\nModels:       your gateway route aliases`,
   },
   {
     id: 'openhands', name: 'OpenHands', subtitle: 'AI coding agent', category: 'gateway_clients', icon: Code,
-    steps: ['Set the LLM base URL environment variable to your RunLedger gateway.', 'Export your RunLedger API key as the provider key.', 'Launch the OpenHands agent - all calls are now routed through RunLedger.'],
+    steps: ['Create an API key with the gateway scope.', 'Point OpenHands at the gateway with an OpenAI-compatible model name.', 'Launch the agent - all calls are now routed through RunLedger.'],
     configTitle: 'Environment Variables',
-    configSnippet: `export LLM_BASE_URL="https://gateway.runledger.app/v1"\nexport LLM_API_KEY="rl_YOUR_API_KEY"\nexport LLM_MODEL="gpt-4o"`,
+    configSnippet: `export LLM_BASE_URL="${GATEWAY_OPENAI_BASE_URL}"\nexport LLM_API_KEY="rl_YOUR_API_KEY"\nexport LLM_MODEL="openai/<gateway route alias>"`,
   },
   {
     id: 'langgraph', name: 'LangGraph', subtitle: 'Agent orchestration', category: 'telemetry_frameworks', icon: GitBranch,
-    steps: ['Install the RunLedger LangChain integration: pip install runledger-langchain', 'Add the RunLedger callback handler to your LangGraph agent.', 'Run your graph - each node invocation is tracked automatically.'],
+    steps: ['Install the RunLedger Python SDK with the LangGraph extra.', 'Create a callback handler from the RunLedger client.', 'Pass it to your graph - each node and model call is recorded.'],
     configTitle: 'Python Agent Code',
-    configSnippet: `from runledger_langchain import RunLedgerCallbackHandler\n\nhandler = RunLedgerCallbackHandler(\n    api_key="rl_YOUR_API_KEY",\n)\n\n# Pass to your LangGraph agent\napp.invoke(input, config={"callbacks": [handler]})`,
+    configSnippet: `# ${SDK_INSTALL}\nfrom runledger_sdk import RunLedger\n\nrl = RunLedger(api_key="rl_YOUR_API_KEY", base_url="${PUBLIC_API_URL}")\nhandler = rl.callback_handler()\n\napp.invoke(input, config={"callbacks": [handler]})`,
   },
 ]
 

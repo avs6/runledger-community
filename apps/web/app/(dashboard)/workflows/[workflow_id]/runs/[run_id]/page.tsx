@@ -261,7 +261,7 @@ export default async function WorkflowRunDetailPage({
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
             <Link href="/budgets" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Budget Detail</Link>
             <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
-            <Link href="/audit-log" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Audit Log</Link>
+            <Link href="/audit" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Audit Log</Link>
           </div>
         </div>
       )}

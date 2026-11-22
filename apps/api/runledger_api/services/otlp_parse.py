@@ -622,6 +622,41 @@ def parse_otlp_json(payload: dict[str, Any]) -> OtlpParseResult:
     return result
 
 
+# Span types that make a trace an AI workload worth recording as a run.
+_RUN_WORTHY_SPAN_TYPES = {"llm", "embedding", "agent", "tool"}
+
+
+def trace_should_create_run(trace: OtlpTrace, gating: str = "llm") -> bool:
+    """LLM-span gating (review M-01 / finding #6).
+
+    ``gating="all"`` records every trace. Otherwise a trace becomes a run only if it
+    contains an LLM, embedding, agent or tool span, carries ``gen_ai.*`` attributes,
+    or its resource sets ``runledger.capture=all``. Plain application spans (file
+    system, HTTP plumbing, …) are counted as dropped instead of creating noise runs.
+    """
+    if gating == "all":
+        return True
+    if str(trace.resource_attrs.get("runledger.capture", "")).lower() == "all":
+        return True
+    for span in trace.spans:
+        if span.span_type in _RUN_WORTHY_SPAN_TYPES:
+            return True
+        if any(str(k).startswith("gen_ai.") for k in span.attrs):
+            return True
+    return False
+
+
+def _cached_input_tokens(attrs: dict[str, Any], details: dict[str, Any] | None) -> int | None:
+    """Cached prompt tokens, so pricing can apply the cached-input rate (I-19)."""
+    if details and details.get("cached_tokens") is not None:
+        return _int_or_none(details.get("cached_tokens"))
+    return _int_or_none(
+        attrs.get("gen_ai.usage.cache_read_input_tokens")
+        or attrs.get("gen_ai.usage.cached_tokens")
+        or attrs.get("llm.token_count.prompt_details.cache_read")
+    )
+
+
 def synthesize_canonical_events(
     workspace_id: uuid.UUID,
     trace: OtlpTrace,
@@ -668,6 +703,8 @@ def synthesize_canonical_events(
         "event_type": "run_start",
         "run_id": str(run_id),
         "workspace_id": str(workspace_id),
+        # For a batch without the trace's true root (children first), this is only
+        # the earliest span seen so far; the pipeline keeps the earliest start.
         "started_at": run_started.isoformat(),
         # Top-level source fields — pipeline reads these into ORM columns
         "source_type": "otlp",
@@ -741,6 +778,9 @@ def synthesize_canonical_events(
                 pc_event["input_tokens_details"] = llm["input_tokens_details"]
             if llm["output_tokens_details"] is not None:
                 pc_event["output_tokens_details"] = llm["output_tokens_details"]
+            cached = _cached_input_tokens(span.attrs, llm["input_tokens_details"])
+            if cached is not None:
+                pc_event["cached_input_tokens"] = cached
             events.append(pc_event)
 
         # tool_call for TOOL spans
@@ -799,7 +839,9 @@ def synthesize_canonical_events(
             events.append(span_end_event)
 
     # ── run_end ───────────────────────────────────────────────────────────────
-    if run_ended:
+    # Only the trace's true root decides when and how the run ended. A batch that
+    # holds only child spans must not end the run (or mark it failed) early.
+    if run_ended and root.is_root:
         rl_run_status = "failed" if root.status_code == "ERROR" else "succeeded"
         events.append(
             {

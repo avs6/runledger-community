@@ -156,7 +156,7 @@ export default function PipelineStudioPage() {
             <Link href="/gateway" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Model Gateway</Link>
             <Link href="/analytics" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Analytics</Link>
             <Link href="/guardrails" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Guardrails</Link>
-            <Link href="/governance" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Governance</Link>
+            <Link href="/governance-pack" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Governance</Link>
             <Link href="/budgets" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Budgets</Link>
             <Link href="/workflows" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Workflows</Link>
             <Link href="/agents" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">Agents</Link>

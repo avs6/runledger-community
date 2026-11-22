@@ -300,9 +300,9 @@ def runledger_record_tool_call(
     tool_type: Literal["read", "write", "privileged"] = "read",
     risk_score: int | None = None,
     duration_ms: int | None = None,
-    status: str = "succeeded",
+    status: str = "success",
 ) -> dict[str, Any]:
-    """Record a tool call made by an agent."""
+    """Record a tool call made by an agent (status: success, error, blocked, ...)."""
     _post(
         "/ingest/v1/events",
         {
@@ -330,10 +330,13 @@ def runledger_record_model_call(
     cached_input_tokens: int | None = None,
     latency_ms: int | None = None,
     cost_usd: float | None = None,
-    status: str = "succeeded",
+    status: Literal["success", "error"] = "success",
     error_type: str | None = None,
 ) -> dict[str, Any]:
-    """Record an LLM/provider call, including token and cost details."""
+    """Record an LLM/provider call, including token and cost details.
+
+    status is "success" or "error" (the vocabulary analytics counts).
+    """
     _post(
         "/ingest/v1/events",
         {

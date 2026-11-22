@@ -31,6 +31,7 @@ from runledger_api.schemas.kafka import (
 )
 from runledger_api.services import kafka_export
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.egress import EgressBlocked, check_bootstrap_servers, check_url
 from runledger_api.services.notifications import build_test_blocks, send_slack_message
 
 router = APIRouter(
@@ -61,8 +62,16 @@ async def test_slack_webhook(
     body: SlackTestRequest,
     auth: OrgAdminDep,
 ) -> SlackTestResponse:
-    """Send a test Block Kit message to the given Slack webhook URL."""
+    """Send a test Block Kit message to the given Slack webhook URL.
+
+    The URL must resolve to a public address (SSRF protection). Delivery errors are
+    reported generically; the detail is logged, not returned.
+    """
     workspace = auth[0]
+    try:
+        check_url(body.webhook_url)
+    except EgressBlocked as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     blocks = build_test_blocks()
     try:
         await send_slack_message(body.webhook_url, blocks, "RunLedger test alert")
@@ -74,7 +83,7 @@ async def test_slack_webhook(
             workspace_id=str(workspace.id),
             error=str(exc),
         )
-        return SlackTestResponse(ok=False, error=str(exc))
+        return SlackTestResponse(ok=False, error="Slack did not accept the test message")
 
 
 def _response(config: KafkaExportConfig) -> KafkaExportConfigResponse:
@@ -91,7 +100,12 @@ async def _get_config(
 
 
 @router.get("/kafka/configs", response_model=KafkaExportConfigList)
-async def list_kafka_export_configs(auth: OrgAdminDep, db: DbDep) -> KafkaExportConfigList:
+async def list_kafka_export_configs(
+    auth: OrgAdminDep,
+    db: DbDep,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> KafkaExportConfigList:
     workspace = auth[0]
     rows = (
         (
@@ -99,6 +113,8 @@ async def list_kafka_export_configs(auth: OrgAdminDep, db: DbDep) -> KafkaExport
                 select(KafkaExportConfig)
                 .where(KafkaExportConfig.workspace_id == workspace.id)
                 .order_by(KafkaExportConfig.created_at.desc())
+                .limit(limit)
+                .offset(offset)
             )
         )
         .scalars()
@@ -114,6 +130,10 @@ async def create_kafka_export_config(
     db: DbDep,
 ) -> KafkaExportConfigResponse:
     workspace = auth[0]
+    try:
+        check_bootstrap_servers(body.bootstrap_servers)
+    except EgressBlocked as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     config = KafkaExportConfig(
         workspace_id=workspace.id,
         label=body.label,
@@ -168,6 +188,11 @@ async def update_kafka_export_config(
         "redaction_mode": getattr(config, "redaction_mode", "none"),
     }
     data = body.model_dump(exclude_unset=True)
+    if data.get("bootstrap_servers"):
+        try:
+            check_bootstrap_servers(data["bootstrap_servers"])
+        except EgressBlocked as exc:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if "sasl_password" in data:
         sasl_password = data.pop("sasl_password")
         config.sasl_password_secret = (
@@ -230,7 +255,15 @@ async def test_kafka_export_config(
 ) -> KafkaTestResult:
     workspace = auth[0]
     config = await _get_config(db, workspace.id, config_id)
-    ok, error, topic = await kafka_export.test_config(db, config)
+    try:
+        check_bootstrap_servers(config.bootstrap_servers)
+    except EgressBlocked as exc:
+        return KafkaTestResult(ok=False, error=str(exc), topic=None)
+    ok, detail, topic = await kafka_export.test_config(db, config)
+    # Broker errors can leak internal network detail: log it, return a generic message.
+    error = None if ok else "Could not deliver a test message to the Kafka brokers"
+    if detail:
+        log.warning("integrations.kafka.test.failed", config_id=str(config.id), error=detail)
     await emit_audit_event(
         db,
         workspace.id,

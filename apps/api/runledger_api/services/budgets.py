@@ -69,9 +69,10 @@ async def incr_budget_spend(
     budget_id: uuid.UUID,
     period_type: str,
     cost_usd: Decimal,
+    at: datetime | None = None,
 ) -> None:
-    """INCRBYFLOAT on the spend key for the current period."""
-    pk = _period_key(period_type, datetime.now(UTC))
+    """INCRBYFLOAT on the spend key for the period containing ``at`` (default now)."""
+    pk = _period_key(period_type, at or datetime.now(UTC))
     key = _spend_key(budget_id, pk)
     await redis.incrbyfloat(key, float(cost_usd))
     # For daily / monthly keys, set expiry so stale counters are cleaned up.
@@ -85,9 +86,10 @@ async def get_budget_spend(
     redis: Redis,
     budget_id: uuid.UUID,
     period_type: str,
+    at: datetime | None = None,
 ) -> Decimal:
-    """GET spend counter from Redis. Returns 0 if key missing."""
-    pk = _period_key(period_type, datetime.now(UTC))
+    """GET the spend counter for the period containing ``at`` (default now); 0 if missing."""
+    pk = _period_key(period_type, at or datetime.now(UTC))
     key = _spend_key(budget_id, pk)
     value = await redis.get(key)
     if value is None:
@@ -614,8 +616,12 @@ async def record_budget_spend(
     provider: str | None = None,
     model: str | None = None,
     principal_user_id: uuid.UUID | None = None,
+    occurred_at: datetime | None = None,
 ) -> int:
     """Add one priced model call to every budget it counts against.
+
+    Spend lands in the budget period of ``occurred_at`` (the call's own time), so a
+    call priced late by enrichment is not counted in a later period.
 
     This is the single write path for budget spend counters. It is called wherever
     a provider call gets its cost: gateway finalize, ingest (SDK/OTLP calls that
@@ -654,10 +660,10 @@ async def record_budget_spend(
         for b in matched:
             budget_id = uuid.UUID(b["id"])
             period_type = b["period_type"]
-            await incr_budget_spend(redis, budget_id, period_type, cost_usd)
-            spend = await get_budget_spend(redis, budget_id, period_type)
+            await incr_budget_spend(redis, budget_id, period_type, cost_usd, occurred_at)
+            spend = await get_budget_spend(redis, budget_id, period_type, occurred_at)
             limit = Decimal(b["limit_usd"])
-            pk = _period_key(period_type, datetime.now(UTC))
+            pk = _period_key(period_type, occurred_at or datetime.now(UTC))
             if limit <= 0:
                 continue
             if limit * Decimal("0.80") <= spend < limit and await redis.set(
@@ -939,6 +945,9 @@ async def send_notification(
             "event_type": str(payload.get("event", "budget.breach")),
         }
 
+    from runledger_api.services.egress import check_url  # noqa: PLC0415
+
+    check_url(notification.destination_url)  # SSRF: re-checked at send time
     body = json.dumps(payload, sort_keys=True).encode()
     sig = hmac.new(
         settings.secret_key.encode(),

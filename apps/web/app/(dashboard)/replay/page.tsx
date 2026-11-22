@@ -253,9 +253,9 @@ export default function ReplayLabPage() {
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-violet-200 dark:border-violet-800">
             <Link href="/gateway" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Model Gateway</Link>
-            <Link href="/routes" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Routes</Link>
+            <Link href="/gateway?tab=routes" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Routes</Link>
             <Link href="/guardrails" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
-            <Link href="/response-cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
+            <Link href="/gateway?tab=cache" className="text-xs text-violet-600 hover:underline dark:text-violet-400">Response Cache</Link>
           </div>
         </div>
       )}
@@ -372,7 +372,7 @@ export default function ReplayLabPage() {
           {[
             { label: 'Model Gateway', href: '/gateway' },
             { label: 'Provider Profiles', href: '/provider-profiles' },
-            { label: 'Routes', href: '/routes' },
+            { label: 'Routes', href: '/gateway?tab=routes' },
           ].map(({ label, href }) => (
             <Link key={label} href={href} className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-200 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50 transition-colors">
               {label}

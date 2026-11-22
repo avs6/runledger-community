@@ -3,11 +3,22 @@ Celery pipeline worker for processing ingest events.
 
 Uses asyncio.run() + NullPool so each task creates a fresh DB connection —
 safe with Celery's --pool=solo and avoids event-loop reuse across tasks.
+
+Reliability:
+- Each event is applied in its own savepoint. An event that fails (bad data, FK
+  race, constraint) is stored in ``ingest_dead_letters`` instead of aborting the
+  batch; workspace admins replay or discard it via ``/ingest/v1/dead-letters``.
+- Infrastructure failures (database or broker unreachable) retry the whole task
+  with exponential backoff; when retries run out the batch is dead-lettered.
+- Inserts are idempotent (deterministic ids + ON CONFLICT DO NOTHING), so retries
+  and replays never duplicate runs, spans, provider calls, tool calls or outcomes.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import random
 import uuid
 from datetime import datetime
@@ -17,6 +28,7 @@ from typing import Any
 import structlog
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -33,6 +45,7 @@ from runledger_api.models.events import (
     ToolCall,
     ToolTypeEnum,
 )
+from runledger_api.models.ingest_dead_letters import IngestDeadLetter
 from runledger_api.models.ledger import CapturePolicy
 from runledger_api.services import kafka_export
 from runledger_api.services.scrubbing import scrub_dict
@@ -40,10 +53,44 @@ from runledger_api.services.scrubbing import scrub_dict
 log = structlog.get_logger()
 
 
-@celery_app.task(name="pipeline.process_events", max_retries=3, default_retry_delay=5)  # type: ignore[untyped-decorator]
-def process_events_task(workspace_id: str, events: list[dict[str, Any]]) -> None:
-    """Persist a batch of ingest events to PostgreSQL."""
-    asyncio.run(_process_events(workspace_id, events))
+_INFRA_ERRORS = (OperationalError, DBAPIError, ConnectionError, OSError, TimeoutError)
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    bind=True,
+    name="pipeline.process_events",
+    max_retries=5,
+    acks_late=True,
+)
+def process_events_task(self: Any, workspace_id: str, events: list[dict[str, Any]]) -> None:
+    """Persist a batch of ingest events to PostgreSQL.
+
+    Retries with exponential backoff (5s, 10s, … max 5 min) when the database or
+    broker is unreachable; dead-letters the batch once retries are exhausted.
+    """
+    try:
+        asyncio.run(_process_events(workspace_id, events))
+    except _INFRA_ERRORS as exc:
+        if self.request.retries >= self.max_retries:
+            log.error("pipeline_batch_retries_exhausted", workspace_id=workspace_id, error=str(exc))
+            try:
+                asyncio.run(_dead_letter_batch(workspace_id, events, f"retries exhausted: {exc}"))
+            except Exception:
+                log.exception("pipeline_dead_letter_batch_failed", workspace_id=workspace_id)
+            raise
+        raise self.retry(exc=exc, countdown=min(300, 5 * 2**self.request.retries)) from exc
+
+
+async def _dead_letter_batch(workspace_id: str, events: list[dict[str, Any]], error: str) -> None:
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with session_factory() as session:
+            for raw in events:
+                await _dead_letter(session, workspace_id, raw, error)
+            await session.commit()
+    finally:
+        await engine.dispose()
 
 
 async def _process_events(workspace_id: str, events: list[dict[str, Any]]) -> None:
@@ -55,25 +102,148 @@ async def _process_events(workspace_id: str, events: list[dict[str, Any]]) -> No
             priced_calls: list[dict[str, Any]] = []
             owned_runs: dict[str, bool] = {}
             for raw in events:
+                dead_letter_id = raw.pop("_dead_letter_id", None)
+                event = _normalize_event(raw)
                 try:
-                    if not await _event_run_in_workspace(session, workspace_id, raw, owned_runs):
+                    if not await _event_run_in_workspace(session, workspace_id, event, owned_runs):
                         log.warning(
                             "event_run_not_in_workspace",
-                            event_type=raw.get("event_type"),
-                            run_id=raw.get("run_id"),
+                            event_type=event.get("event_type"),
+                            run_id=event.get("run_id"),
                             workspace_id=workspace_id,
                         )
                         continue
-                    await _dispatch(
-                        session, workspace_id, raw, privacy_mode, sampled_rate, priced_calls
+                    batch_priced: list[dict[str, Any]] = []
+                    async with session.begin_nested():
+                        await _dispatch(
+                            session, workspace_id, event, privacy_mode, sampled_rate, batch_priced
+                        )
+                    priced_calls.extend(batch_priced)
+                    if dead_letter_id:
+                        await _mark_dead_letter(session, dead_letter_id, "replayed")
+                    if event.get("event_type") == "run_start":
+                        # A new run now exists in this workspace (or already did).
+                        owned_runs.pop(str(event.get("run_id")), None)
+                except Exception as exc:
+                    log.warning(
+                        "event_dispatch_error",
+                        event_type=event.get("event_type"),
+                        run_id=event.get("run_id"),
+                        error=str(exc),
                     )
-                except Exception:
-                    log.exception("event_dispatch_error", event_type=raw.get("event_type"))
+                    await _dead_letter(session, workspace_id, event, repr(exc), dead_letter_id)
             if priced_calls:
                 await _record_budget_spend(session, workspace_id, priced_calls)
             await session.commit()
     finally:
         await engine.dispose()
+
+
+async def _dead_letter(
+    session: AsyncSession,
+    workspace_id: str,
+    event: dict[str, Any],
+    error: str,
+    existing_id: str | None = None,
+) -> None:
+    """Store a failed event for replay (or bump the attempt count on a replay)."""
+    from datetime import UTC  # noqa: PLC0415
+
+    now = datetime.now(UTC)
+    try:
+        if existing_id:
+            await session.execute(
+                update(IngestDeadLetter)
+                .where(IngestDeadLetter.id == uuid.UUID(str(existing_id)))
+                .values(
+                    attempts=IngestDeadLetter.attempts + 1,
+                    error=error[:4000],
+                    status="pending",
+                    last_attempt_at=now,
+                )
+            )
+            return
+        session.add(
+            IngestDeadLetter(
+                workspace_id=uuid.UUID(workspace_id),
+                event_type=str(event.get("event_type") or "")[:64] or None,
+                run_id=str(event.get("run_id") or "")[:64] or None,
+                event=json.loads(json.dumps(event, default=str)),
+                error=error[:4000],
+            )
+        )
+        await session.flush()
+    except Exception:
+        log.exception("dead_letter_store_failed", event_type=event.get("event_type"))
+
+
+async def _mark_dead_letter(session: AsyncSession, dead_letter_id: str, status: str) -> None:
+    from datetime import UTC  # noqa: PLC0415
+
+    await session.execute(
+        update(IngestDeadLetter)
+        .where(IngestDeadLetter.id == uuid.UUID(str(dead_letter_id)))
+        .values(status=status, last_attempt_at=datetime.now(UTC))
+    )
+
+
+# Column limits of the tables events land in; longer values are truncated so one
+# oversized field (e.g. an OTLP span name) cannot fail an event.
+_FIELD_LIMITS = {
+    "name": 255,
+    "tool_name": 255,
+    "end_user_id": 255,
+    "session_id": 255,
+    "feature_tag": 255,
+    "deployment_version": 255,
+    "intent": 64,
+    "provider": 64,
+    "model": 128,
+    "error_type": 128,
+    "savings_category": 64,
+    "optimization_applied": 64,
+    "outcome_type": 128,
+}
+# Provider-call status vocabulary used by analytics: success | error | <other>.
+_CALL_STATUS_ALIASES = {
+    "succeeded": "success",
+    "successful": "success",
+    "ok": "success",
+    "completed": "success",
+    "complete": "success",
+    "failed": "error",
+    "failure": "error",
+    "errored": "error",
+}
+
+
+def _normalize_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Truncate oversized fields and normalize the provider-call status vocabulary."""
+    for field, limit in _FIELD_LIMITS.items():
+        value = event.get(field)
+        if isinstance(value, str) and len(value) > limit:
+            event[field] = value[:limit]
+    if event.get("event_type") in {"provider_call", "tool_call"}:
+        status = str(event.get("status") or "").strip().lower()
+        event["status"] = _CALL_STATUS_ALIASES.get(status, status)[:32] or "success"
+    return event
+
+
+def _stable_id(kind: str, event: dict[str, Any]) -> uuid.UUID:
+    """Deterministic id for events without one, so retries and replays dedupe."""
+    explicit = event.get("event_id") or event.get(f"{kind}_id")
+    if explicit:
+        try:
+            return uuid.UUID(str(explicit))
+        except ValueError:
+            pass
+    canonical = json.dumps(
+        {k: v for k, v in event.items() if k not in {"api_key_id"}},
+        sort_keys=True,
+        default=str,
+    )
+    digest = hashlib.sha256(canonical.encode()).hexdigest()
+    return uuid.uuid5(uuid.NAMESPACE_URL, f"{kind}:{digest}")
 
 
 async def _event_run_in_workspace(
@@ -210,26 +380,41 @@ def _uuid(value: str | None) -> uuid.UUID | None:
 
 
 async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:
-    stmt = (
-        insert(AgentRun)
-        .values(
-            id=uuid.UUID(e["run_id"]),
-            workspace_id=uuid.UUID(workspace_id),
-            application_id=_uuid(e.get("application_id")),
-            api_key_id=_uuid(e.get("api_key_id")),
-            end_user_id=e.get("end_user_id"),
-            session_id=e.get("session_id"),
-            feature_tag=e.get("feature_tag"),
-            deployment_version=e.get("deployment_version"),
-            status=RunStatusEnum.running,
-            started_at=_dt(e["started_at"]),
-            run_metadata=scrub_dict(e.get("metadata")),
-            intent=e.get("intent"),
-            # OTLP source-provenance (populated only for OTLP-ingested runs)
-            source_type=e.get("source_type"),
-            external_trace_id=e.get("external_trace_id"),
-        )
-        .on_conflict_do_nothing(index_elements=["id"])
+    stmt = insert(AgentRun).values(
+        id=uuid.UUID(e["run_id"]),
+        workspace_id=uuid.UUID(workspace_id),
+        application_id=_uuid(e.get("application_id")),
+        api_key_id=_uuid(e.get("api_key_id")),
+        end_user_id=e.get("end_user_id"),
+        session_id=e.get("session_id"),
+        feature_tag=e.get("feature_tag"),
+        deployment_version=e.get("deployment_version"),
+        status=RunStatusEnum.running,
+        started_at=_dt(e["started_at"]),
+        run_metadata=scrub_dict(e.get("metadata")),
+        intent=e.get("intent"),
+        # OTLP source-provenance (populated only for OTLP-ingested runs)
+        source_type=e.get("source_type"),
+        external_trace_id=e.get("external_trace_id"),
+    )
+    # A trace can arrive in several batches, children first. Keep the earliest start
+    # and fill context the first batch lacked; never touch another workspace's run.
+    excluded = stmt.excluded
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["id"],
+        set_={
+            "started_at": func.least(AgentRun.started_at, excluded.started_at),
+            "feature_tag": func.coalesce(AgentRun.feature_tag, excluded.feature_tag),
+            "end_user_id": func.coalesce(AgentRun.end_user_id, excluded.end_user_id),
+            "session_id": func.coalesce(AgentRun.session_id, excluded.session_id),
+            "deployment_version": func.coalesce(
+                AgentRun.deployment_version, excluded.deployment_version
+            ),
+            "intent": func.coalesce(AgentRun.intent, excluded.intent),
+            "api_key_id": func.coalesce(AgentRun.api_key_id, excluded.api_key_id),
+            "application_id": func.coalesce(AgentRun.application_id, excluded.application_id),
+        },
+        where=AgentRun.workspace_id == excluded.workspace_id,
     )
     await session.execute(stmt)
     try:
@@ -379,6 +564,14 @@ async def _handle_provider_call(
 ) -> None:
     span_id = e.get("span_id")
     pc_id = _provider_call_id(e["run_id"], span_id)
+    end_user_id = e.get("end_user_id")
+    if end_user_id is None:
+        # Denormalize the run's end user so per-user analytics and budgets see it.
+        end_user_id = (
+            await session.execute(
+                select(AgentRun.end_user_id).where(AgentRun.id == uuid.UUID(e["run_id"]))
+            )
+        ).scalar_one_or_none()
     stmt = (
         insert(ProviderCall)
         .values(
@@ -387,6 +580,7 @@ async def _handle_provider_call(
             span_id=_uuid(span_id),
             workspace_id=uuid.UUID(workspace_id),
             api_key_id=_uuid(e.get("api_key_id")),
+            end_user_id=end_user_id,
             provider=e["provider"],
             model=e["model"],
             input_tokens=e.get("input_tokens"),
@@ -421,7 +615,7 @@ async def _handle_provider_call(
                 "run_id": uuid.UUID(e["run_id"]),
                 "cost_usd": cost,
                 "api_key_id": _uuid(e.get("api_key_id")),
-                "end_user_id": e.get("end_user_id"),
+                "end_user_id": end_user_id,
                 "provider": e.get("provider"),
                 "model": e.get("model"),
             }
@@ -451,8 +645,10 @@ async def _handle_provider_call(
 
 
 async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:
-    session.add(
-        ToolCall(
+    await session.execute(
+        insert(ToolCall)
+        .values(
+            id=_stable_id("tool_call", e),
             run_id=uuid.UUID(e["run_id"]),
             span_id=_uuid(e.get("span_id")),
             workspace_id=uuid.UUID(workspace_id),
@@ -462,6 +658,7 @@ async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[st
             duration_ms=e.get("duration_ms"),
             status=e["status"],
         )
+        .on_conflict_do_nothing(index_elements=["id"])
     )
     event_type = (
         "mcp.tool.blocked"
@@ -490,11 +687,14 @@ async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[st
 
 
 async def _handle_outcome(session: AsyncSession, e: dict[str, Any]) -> None:
-    session.add(
-        OutcomeEvent(
+    await session.execute(
+        insert(OutcomeEvent)
+        .values(
+            id=_stable_id("outcome", e),
             run_id=uuid.UUID(e["run_id"]),
             event_type=e["outcome_type"],
             success=e["success"],
             labels=e.get("labels"),
         )
+        .on_conflict_do_nothing(index_elements=["id"])
     )

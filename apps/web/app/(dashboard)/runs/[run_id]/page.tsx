@@ -269,7 +269,7 @@ function GatewayRuntimePanel({ gateway }: { gateway: InvestigationGatewayRuntime
           <Link href="/provider-profiles" className="hover:underline">Provider Profiles</Link>
           <Link href="/gateway" className="hover:underline">Gateway Routes</Link>
           <Link href="/guardrails" className="hover:underline">Guardrails</Link>
-          <Link href="/cache-config" className="hover:underline">Response Cache</Link>
+          <Link href="/gateway?tab=cache" className="hover:underline">Response Cache</Link>
           <Link href="/rate-limits" className="hover:underline">Rate Limits</Link>
         </div>
       </div>
@@ -366,7 +366,7 @@ export default async function RunDetailPage({
             <Link href="/organization" className="hover:underline">Org</Link>
             <Link href="/users" className="hover:underline">Users</Link>
             <Link href="/api-keys" className="hover:underline">Keys</Link>
-            <Link href="/telemetry" className="hover:underline">Telemetry</Link>
+            <Link href="/monitoring/telemetry" className="hover:underline">Telemetry</Link>
             <Link href="/mcp-registry" className="hover:underline">MCP</Link>
           </div>
         </div>

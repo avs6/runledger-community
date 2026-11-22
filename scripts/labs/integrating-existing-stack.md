@@ -43,7 +43,7 @@ Mirror every call the hub proxies into RunLedger. Lowest risk, whole-stack cover
 **A — Give the collector a key.** Mint a workspace key in the dashboard, then:
 
 ```bash
-RUNLEDGER_API_KEY=rl_... docker compose --profile observability up -d runledger-otel-collector
+RUNLEDGER_API_KEY=rl_... docker compose up -d runledger-otel-collector
 ```
 
 **B — Turn on OTEL export in the hub.** In `config/litellm/config.yaml`:

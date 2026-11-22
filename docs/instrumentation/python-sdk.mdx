@@ -19,8 +19,12 @@ asynchronously, so there is **no added inference latency**.
 ## Install
 
 ```bash
-pip install runledger-sdk
+# Not yet on PyPI: install from the repository
+pip install "runledger-sdk[all] @ git+https://github.com/avs6/runledger-community#subdirectory=packages/sdk"
 ```
+
+Extras: `openai`, `anthropic`, `langchain`, `langgraph`, `all`. Use an API key with the
+`read` and `ingest` scopes (the SDK sends telemetry and runs budget checks).
 
 ## How it works
 

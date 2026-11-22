@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useTheme } from 'next-themes'
 import { BarChart3, CheckCircle2, Gauge, LockKeyhole, Moon, Route, Shield, Sun } from 'lucide-react'
+import { callbackFromLocation, rememberCallback } from '@/lib/callback-url'
 import RunLedgerLogo, { RunLedgerMark } from '@/components/brand/RunLedgerLogo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +63,7 @@ export default function LoginPage() {
       }
       const data = await res.json()
       sessionStorage.setItem(isOauth2 ? 'oauth2_provider_id' : 'oidc_provider_id', provider.id)
+      rememberCallback()
       window.location.href = data.authorization_url
     } catch {
       setError('Failed to start SSO login.')
@@ -87,7 +89,7 @@ export default function LoginPage() {
     if (result?.error) {
       setError(result.error === 'CredentialsSignin' ? 'LDAP authentication failed.' : result.error)
     } else {
-      router.push('/dashboard')
+      router.push(callbackFromLocation())
     }
   }
 
@@ -107,7 +109,7 @@ export default function LoginPage() {
     if (result?.error) {
       setError(result.error === 'CredentialsSignin' ? 'Invalid email or password.' : result.error)
     } else {
-      router.push('/dashboard')
+      router.push(callbackFromLocation())
     }
   }
 

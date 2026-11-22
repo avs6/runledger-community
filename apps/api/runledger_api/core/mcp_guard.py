@@ -51,3 +51,19 @@ class McpScopeGuard:
                 await response(scope, receive, send)
                 return
         await self.app(scope, receive, send)
+
+
+class McpPathNormalizer:
+    """Serve ``/mcp`` and ``/mcp/`` alike.
+
+    The MCP app is mounted at ``/mcp``, so a bare ``POST /mcp`` would get a 307 to
+    ``/mcp/`` — and some MCP clients do not follow redirects for POST.
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if scope.get("type") == "http" and scope.get("path") == "/mcp":
+            scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
+        await self.app(scope, receive, send)

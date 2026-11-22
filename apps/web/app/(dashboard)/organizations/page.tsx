@@ -346,9 +346,9 @@ export default function OrganizationsPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
-              <Link href="/audit-log" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
+              <Link href="/audit" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
               <Link href="/tool-policies" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tool Policies</Link>
-              <Link href="/alerts" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
+              <Link href="/alert-rules" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
             </div>
           </div>
         </div>
@@ -372,7 +372,7 @@ export default function OrganizationsPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
-            <Link href="/workspaces" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Workspaces</Link>
+            <Link href="/workspace" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Workspaces</Link>
             <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
             <Link href="/users" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Users</Link>
             <Link href="/onboarding" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Onboarding</Link>
@@ -408,8 +408,8 @@ export default function OrganizationsPage() {
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-cyan-200 dark:border-cyan-800">
               <Link href="/monitoring" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Monitoring →</Link>
-              <Link href="/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
-              <Link href="/alerts" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules →</Link>
+              <Link href="/monitoring/telemetry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Telemetry →</Link>
+              <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules →</Link>
             </div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
@@ -446,7 +446,7 @@ export default function OrganizationsPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
-              <Link href="/governance" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
+              <Link href="/governance-pack" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Governance →</Link>
               <Link href="/evaluation" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Evaluation Studio →</Link>
               <Link href="/agents" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Agents →</Link>
               <Link href="/settings" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Platform Settings →</Link>

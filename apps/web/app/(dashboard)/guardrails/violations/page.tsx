@@ -218,7 +218,7 @@ export default function GuardrailViolationsPage() {
           { label: 'Guardrails', href: '/guardrails' },
           { label: 'Gateway', href: '/gateway' },
           { label: 'Security', href: '/security' },
-          { label: 'Audit Log', href: '/audit-log' },
+          { label: 'Audit Log', href: '/audit' },
           { label: 'Monitoring', href: '/monitoring' },
         ].map(({ label, href }) => (
           <Link key={label} href={href} className="rounded-full bg-rose-100 dark:bg-rose-900/30 px-2.5 py-1 text-[10px] font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-800/40 transition-colors">{label}</Link>

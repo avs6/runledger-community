@@ -310,7 +310,7 @@ def main() -> None:
     print("Done. Check http://localhost:3201/runs to see the ingested traces.")
     print()
     print("OTel Collector (optional):")
-    print("  docker compose --profile otel -f infra/docker-compose.yml up otel-collector")
+    print("  docker compose up -d runledger-otel-collector")
     print("  Then point your OTel SDK exporter at localhost:4318 (HTTP) or localhost:4317 (gRPC).")
 
 

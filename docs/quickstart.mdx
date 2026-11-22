@@ -31,24 +31,21 @@ python -c "import secrets; print(secrets.token_hex(32))"
 docker compose up -d
 ```
 
-That command now launches the **core** profile. For the full local demo footprint:
-
-```bash
-docker compose --profile full-demo up -d
-```
+That command starts the full stack. Add `--profile streaming` only if you want the bundled
+Kafka broker for [Kafka export](/integrations/kafka-export).
 
 | Service | Port | Description |
 |---------|------|-------------|
 | Dashboard | 3201 | Next.js UI |
 | API + Swagger | 8201 | FastAPI |
 | API Reference | 8201/reference | Scalar UI |
-| Qdrant | 8202 | Vector store (semantic cache, `aux` / `full-demo`) |
-| Embedding svc | 8204 | fastembed (CPU, `aux` / `full-demo`) |
-| Semantic cache | 8205 | Near-duplicate cache (`aux` / `full-demo`) |
-| MCP gateway | 8206 | Claude Desktop / Code (`aux` / `full-demo`) |
+| Qdrant | 8202 | Vector store (semantic cache) |
+| Embedding svc | 8204 | fastembed (CPU) |
+| Semantic cache | 8205 | Near-duplicate cache |
+| MCP gateway | 8206 | Claude Desktop / Code |
 | PostgreSQL | 5432 | — |
 | Redis | 6379 | — |
-| OTel Collector | 4317 / 4318 | OTLP/gRPC + HTTP (`observability` / `full-demo`) |
+| OTel Collector | 4317 / 4318 | OTLP/gRPC + HTTP |
 
 ## 3. Bootstrap the platform admin
 
@@ -500,9 +497,9 @@ curl -X POST "$BASE/alerts/rules" -H "Authorization: Bearer $KEY" \
     docker compose restart runledger-otel-collector
     docker compose logs runledger-otel-collector
     ```
-    If you start the collector from scratch, prefer the dedicated profile:
+    To start only the collector:
     ```bash
-    docker compose --profile observability up -d runledger-otel-collector
+    docker compose up -d runledger-otel-collector
     ```
   </Accordion>
 </AccordionGroup>

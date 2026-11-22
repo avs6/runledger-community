@@ -8,13 +8,17 @@ thread that owns its own event loop).
 Design:
 - In-memory queue (max 500 events)
 - Flush every 2 s or when queue hits 100 events (whichever comes first)
-- 3 retries with exponential backoff (1 s, 2 s, 4 s), then drop + warn
+- 3 retries with exponential backoff (1 s, 2 s, 4 s) for network errors, 408, 429
+  and 5xx; other 4xx responses (bad payload, auth, scope) are not retried
+- Batches larger than the server limit are sent in chunks
+- The sync transport flushes automatically at interpreter exit (atexit)
 - Local mode: pretty-print events to console instead of sending to API
 """
 
 from __future__ import annotations
 
 import asyncio
+import atexit
 import contextlib
 import json
 import threading
@@ -30,6 +34,16 @@ _FLUSH_THRESHOLD = 100  # flush early when queue reaches this size
 _MAX_QUEUE_SIZE = 500  # drop oldest events when exceeded
 _MAX_RETRIES = 3
 _RETRY_BASE = 1.0  # seconds; doubles on each retry
+_MAX_BATCH = 500  # events per request (server accepts up to 1000)
+_RETRYABLE_STATUS = {408, 429}
+
+
+def _retryable(exc: Exception) -> bool:
+    """Network errors, timeouts, 408, 429 and 5xx are worth retrying; other 4xx are not."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        return code in _RETRYABLE_STATUS or code >= 500
+    return True
 
 
 class Transport:
@@ -105,7 +119,8 @@ class Transport:
             _log_local(batch)
             return
 
-        await self._send_with_retry(batch)
+        for start in range(0, len(batch), _MAX_BATCH):
+            await self._send_with_retry(batch[start : start + _MAX_BATCH])
 
     async def _send_with_retry(self, batch: list[dict[str, Any]]) -> None:
         delay = _RETRY_BASE
@@ -114,6 +129,14 @@ class Transport:
                 await self._send(batch)
                 return
             except Exception as exc:
+                if not _retryable(exc):
+                    log.warning(
+                        "transport_batch_rejected",
+                        events=len(batch),
+                        status=getattr(getattr(exc, "response", None), "status_code", None),
+                        error=str(exc),
+                    )
+                    return
                 if attempt == _MAX_RETRIES:
                     log.warning(
                         "transport_batch_dropped",
@@ -180,6 +203,7 @@ class SyncTransport:
         self._thread: threading.Thread | None = None
         self._ready = threading.Event()
         self._lock = threading.Lock()
+        self._atexit_registered = False
 
     def _ensure_started(self) -> None:
         with self._lock:
@@ -190,7 +214,18 @@ class SyncTransport:
                 target=self._run_loop, daemon=True, name="rl-transport"
             )
             self._thread.start()
+            if not self._atexit_registered:
+                # Daemon threads die at exit: flush buffered events first.
+                atexit.register(self._shutdown_quietly)
+                self._atexit_registered = True
         self._ready.wait(timeout=5.0)
+
+    def _shutdown_quietly(self) -> None:
+        loop = self._loop
+        if loop is None or loop.is_closed() or not loop.is_running():
+            return
+        with contextlib.suppress(Exception):
+            self.shutdown()
 
     def _run_loop(self) -> None:
         self._loop = asyncio.new_event_loop()

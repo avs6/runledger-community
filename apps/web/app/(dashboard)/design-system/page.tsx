@@ -248,7 +248,7 @@ export default function DesignSystemPage() {
             <Link href="/gateway" className="text-xs text-pink-600 hover:underline dark:text-pink-400">Model Gateway</Link>
             <Link href="/api-docs" className="text-xs text-pink-600 hover:underline dark:text-pink-400">API Explorer</Link>
             <Link href="/analytics" className="text-xs text-pink-600 hover:underline dark:text-pink-400">Analytics</Link>
-            <Link href="/admin/settings" className="text-xs text-pink-600 hover:underline dark:text-pink-400">Platform Settings</Link>
+            <Link href="/settings" className="text-xs text-pink-600 hover:underline dark:text-pink-400">Platform Settings</Link>
           </div>
         </>
       )}

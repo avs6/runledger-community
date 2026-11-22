@@ -17,6 +17,17 @@ This page is the reference for the ones you'll actually touch.
 | `CORS_ORIGINS` | `http://localhost:3201` | Dashboard origin(s). |
 | `INTERNAL_SERVICE_TOKEN` | `ADMIN_SECRET` | Shared token every optimization microservice requires on non-health requests; the API, workers, MCP gateway and context compiler send it. |
 | `RUNLEDGER_INTERNAL_BIND` | `127.0.0.1` | Host address for internal ports (databases, queues, Letta, optimization microservices). Only the API, gateway, web, Caddy, MCP gateway and OTLP ports listen on all interfaces. |
+| `INGEST_MAX_BATCH_EVENTS` | `1000` | Max events per `/ingest/v1/batch` request. |
+| `INGEST_MAX_BODY_BYTES` | `10485760` | Max request body for ingest and OTLP routes (413 above). |
+| `OTLP_MAX_DECOMPRESSED_BYTES` | `52428800` | Max size a gzip OTLP body may inflate to. |
+| `OTLP_RUN_GATING` | `llm` | `llm`: only traces with an LLM/agent/tool span become runs. `all`: every trace. |
+| `OTLP_RAW_RETENTION_DAYS` | `14` | Days to keep raw OTLP batches/spans, finished Kafka deliveries and resolved dead letters. `0` keeps them. |
+| `OTLP_METRIC_RETENTION_DAYS` | `395` | Days to keep daily OTLP metric rollups. `0` keeps them. |
+| `COMPOSE_PROFILES` | empty | Docker Compose only: `streaming` also starts the bundled Redpanda broker and console for Kafka export. |
+| `OTLP_INACTIVITY_TIMEOUT_MINUTES` | `15` | OTLP runs with no span activity this long are closed as cancelled. |
+| `INGEST_SIGNATURE_TOLERANCE_SECONDS` | `300` | Signed ingest: max clock skew; nonces are remembered twice as long. |
+| `EGRESS_PRIVATE_ALLOWLIST` | `runledger-redpanda` | Hosts that webhooks, Slack and Kafka may reach even on private addresses. |
+| `EGRESS_ALLOW_PRIVATE` | `false` | Allow tenant destinations on private/internal addresses (trusted networks only). |
 | `BUDGET_THROTTLE_RPM` | `10` | Requests per minute the gateway still admits for a `throttle` budget past its limit. |
 
 Payload capture is **off by default** and is controlled by the SDK's `privacy_mode` argument (not a

@@ -423,7 +423,7 @@ export default function AgentsPage() {
                 <Network className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                 <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Providers</span>
               </div>
-              <Link href="/providers" className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-400">Providers</Link>
+              <Link href="/provider-profiles" className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-400">Providers</Link>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {[

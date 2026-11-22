@@ -585,16 +585,53 @@ async def test_receive_traces_requires_auth(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_receive_traces_protobuf_rejected(
+async def test_receive_traces_protobuf_accepted(
     authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
 ) -> None:
-    """POST /v1/traces with protobuf content-type → 415."""
+    """POST /v1/traces with OTLP/protobuf (default HTTP exporter format) → 200."""
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+        ExportTraceServiceRequest,
+    )
+
+    mock_db_session.flush = AsyncMock()
+    req = ExportTraceServiceRequest()
+    rs = req.resource_spans.add()
+    kv = rs.resource.attributes.add()
+    kv.key = "service.name"
+    kv.value.string_value = "proto-svc"
+    span = rs.scope_spans.add().spans.add()
+    span.trace_id = bytes.fromhex("0af7651916cd43dd8448eb211c80319c")
+    span.span_id = bytes.fromhex("b7ad6b7169203331")
+    span.name = "chat gpt-4o"
+    span.start_time_unix_nano = 1_700_000_000_000_000_000
+    span.end_time_unix_nano = 1_700_000_001_000_000_000
+    attr = span.attributes.add()
+    attr.key = "gen_ai.request.model"
+    attr.value.string_value = "gpt-4o"
+
+    with patch("runledger_api.workers.pipeline.process_events_task") as mock_task:
+        mock_task.delay = MagicMock()
+        resp = await authed_client.post(
+            "/v1/traces",
+            content=req.SerializeToString(),
+            headers={"Content-Type": "application/x-protobuf"},
+        )
+    assert resp.status_code == 200
+    events = mock_task.delay.call_args.args[1]
+    run_start = next(e for e in events if e["event_type"] == "run_start")
+    assert run_start["external_trace_id"] == "0af7651916cd43dd8448eb211c80319c"
+    assert any(e["event_type"] == "provider_call" and e["model"] == "gpt-4o" for e in events)
+
+
+@pytest.mark.asyncio
+async def test_receive_traces_invalid_protobuf(authed_client: AsyncClient) -> None:
     resp = await authed_client.post(
         "/v1/traces",
-        content=b"\x00\x01\x02",
+        content=bytes([255, 255, 255]),
         headers={"Content-Type": "application/x-protobuf"},
     )
-    assert resp.status_code == 415
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -967,6 +1004,8 @@ async def test_get_traces_batches(
         signal_type="traces",
         metric_count=0,
         log_record_count=0,
+        runs_created=2,
+        traces_dropped=1,
         status="accepted",
         error=None,
         content_type="application/json",

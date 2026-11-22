@@ -16,6 +16,7 @@ Single entry point for the entire demo lifecycle:
   ── Verification ──────────────────────────────────────────────
     python scripts/run_demo.py verify-org-access  # assert org/invite/session/lockout controls
     python scripts/run_demo.py verify-budgets     # assert scoped budget counting + enforcement
+    python scripts/run_demo.py verify-ingestion   # assert ingest limits, dead letters, OTLP, signing, SSRF
 
   ── Traffic & Agents ──────────────────────────────────────────
     python scripts/run_demo.py traffic            # generate agent traffic (batch mode)
@@ -108,6 +109,10 @@ def cmd_verify_org_access(args: argparse.Namespace) -> int:
 
 def cmd_verify_budgets(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_budgets.py", getattr(args, "args", []))
+
+
+def cmd_verify_ingestion(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_ingestion.py", getattr(args, "args", []))
 
 
 def cmd_all(args: argparse.Namespace) -> int:
@@ -338,6 +343,12 @@ def main() -> int:
     )
     p.add_argument("args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser(
+        "verify-ingestion",
+        help="End-to-end check of ingest limits, dead letters, OTLP, signed ingest and SSRF.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("mcp-validate", help="Validate MCP endpoint connectivity and tools.")
     p.add_argument("--endpoint", default=None)
     p.add_argument("--api-key", default=None)
@@ -355,7 +366,7 @@ def main() -> int:
 
     # Pass-through subcommands forward their flags (e.g. --gateway-url) verbatim to the
     # underlying script; argparse.REMAINDER alone rejects a leading option.
-    passthrough = {"verify-org-access", "verify-budgets"}
+    passthrough = {"verify-org-access", "verify-budgets", "verify-ingestion"}
     if len(sys.argv) > 1 and sys.argv[1] in passthrough:
         args = argparse.Namespace(command=sys.argv[1], args=sys.argv[2:])
     else:
@@ -369,6 +380,7 @@ def main() -> int:
         "full-simulate": cmd_full_simulate,
         "verify-org-access": cmd_verify_org_access,
         "verify-budgets": cmd_verify_budgets,
+        "verify-ingestion": cmd_verify_ingestion,
         "all": cmd_all,
         "traffic": cmd_traffic,
         "otlp-traffic": cmd_otlp_traffic,

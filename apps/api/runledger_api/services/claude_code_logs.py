@@ -8,7 +8,15 @@ only stored as raw OTLP batches and never show up as runs or spend.
 
 Mapping:
   * one run per Claude Code prompt (``prompt.id``), so a user turn is one run;
-  * one LLM span plus one ``provider_call`` per ``api_request`` event.
+  * one LLM span plus one ``provider_call`` per ``api_request`` event;
+  * ``api_error`` → a failed LLM span and an ``error`` provider call (error type,
+    HTTP status), so failed requests are visible and count toward error rates;
+  * ``tool_result`` → a ``tool_call`` (success/error, duration);
+  * ``tool_decision`` with ``decision=reject`` → a ``denied`` tool call.
+
+Run context (workflow ``feature_tag``, end user, session, deployment version) is
+read the same way as for OTLP traces: ``runledger.*`` resource attributes (e.g.
+``OTEL_RESOURCE_ATTRIBUTES=runledger.feature_tag=code-review``) win.
 
 IDs are derived deterministically from the workspace, session, prompt and
 request, so a collector retrying a batch cannot create duplicate rows.
@@ -20,9 +28,17 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from runledger_api.services.otlp_parse import _flatten_attrs, _int_or_none, _ns_to_dt
+from runledger_api.services.otlp_parse import (
+    _extract_run_context,
+    _flatten_attrs,
+    _int_or_none,
+    _ns_to_dt,
+)
 
 API_REQUEST_EVENT = "api_request"
+API_ERROR_EVENT = "api_error"
+TOOL_RESULT_EVENT = "tool_result"
+TOOL_DECISION_EVENT = "tool_decision"
 _EVENT_BODY_PREFIX = "claude_code."
 _SPAN_NAME = "claude_code.api_request"
 
@@ -115,14 +131,9 @@ def _api_request_events(
         "external_trace_id": prompt_id,
         "metadata": run_metadata,
     }
+    run_start.update(_extract_run_context(resource, attrs))
     if session_id:
         run_start["session_id"] = session_id
-    end_user = attrs.get("user.id") or resource.get("user.id")
-    if end_user:
-        run_start["end_user_id"] = str(end_user)
-    version = resource.get("service.version")
-    if version:
-        run_start["deployment_version"] = str(version)
 
     provider_call: dict[str, Any] = {
         "event_type": "provider_call",
@@ -181,10 +192,129 @@ def _api_request_events(
     ]
 
 
+def _prompt_context(
+    workspace_id: uuid.UUID,
+    resource: dict[str, Any],
+    scope_name: str | None,
+    record: dict[str, Any],
+    attrs: dict[str, Any],
+) -> tuple[uuid.UUID, dict[str, Any], datetime, datetime, str]:
+    """(run_id, run_start event, started_at, ended_at, record key) for any prompt event."""
+    ended_at = _ns_to_dt(record.get("timeUnixNano") or record.get("observedTimeUnixNano"))
+    if ended_at is None:
+        ended_at = datetime.now(UTC)
+    duration_ms = _int_or_none(attrs.get("duration_ms"))
+    started_at = ended_at - timedelta(milliseconds=duration_ms or 0)
+    session_id = str(attrs.get("session.id") or resource.get("session.id") or "")
+    record_key = str(
+        attrs.get("request_id")
+        or attrs.get("client_request_id")
+        or f"{session_id}:{attrs.get('event.sequence')}:{record.get('timeUnixNano')}"
+    )
+    prompt_id = str(attrs.get("prompt.id") or record_key)
+    run_id = _run_id(workspace_id, session_id, prompt_id)
+    run_start: dict[str, Any] = {
+        "event_type": "run_start",
+        "run_id": str(run_id),
+        "workspace_id": str(workspace_id),
+        "started_at": started_at.isoformat(),
+        "source_type": "otlp",
+        "external_trace_id": prompt_id,
+        "metadata": {
+            "service_name": resource.get("service.name") or "claude-code",
+            "source": "claude-code-logs",
+            "prompt_id": prompt_id,
+        },
+    }
+    run_start.update(_extract_run_context(resource, attrs))
+    if session_id:
+        run_start["session_id"] = session_id
+    return run_id, run_start, started_at, ended_at, record_key
+
+
+def _api_error_events(
+    workspace_id: uuid.UUID,
+    resource: dict[str, Any],
+    scope_name: str | None,
+    record: dict[str, Any],
+    attrs: dict[str, Any],
+) -> list[dict[str, Any]]:
+    run_id, run_start, started_at, ended_at, key = _prompt_context(
+        workspace_id, resource, scope_name, record, attrs
+    )
+    span_id = _span_id(run_id, f"error:{key}:{attrs.get('attempt') or ''}")
+    error_type = str(attrs.get("status_code") or attrs.get("error") or "api_error")[:128]
+    return [
+        run_start,
+        {
+            "event_type": "span_start",
+            "run_id": str(run_id),
+            "span_id": str(span_id),
+            "span_type": "llm",
+            "name": "claude_code.api_error",
+            "started_at": started_at.isoformat(),
+        },
+        {
+            "event_type": "provider_call",
+            "run_id": str(run_id),
+            "span_id": str(span_id),
+            "provider": "anthropic",
+            "model": str(attrs.get("model") or "unknown"),
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "latency_ms": _int_or_none(attrs.get("duration_ms")),
+            "status": "error",
+            "error_type": error_type,
+        },
+        {
+            "event_type": "span_end",
+            "run_id": str(run_id),
+            "span_id": str(span_id),
+            "ended_at": ended_at.isoformat(),
+            "status": "failed",
+        },
+    ]
+
+
+def _tool_events(
+    workspace_id: uuid.UUID,
+    resource: dict[str, Any],
+    scope_name: str | None,
+    record: dict[str, Any],
+    attrs: dict[str, Any],
+    *,
+    denied: bool = False,
+) -> list[dict[str, Any]]:
+    run_id, run_start, started_at, ended_at, key = _prompt_context(
+        workspace_id, resource, scope_name, record, attrs
+    )
+    tool_name = str(attrs.get("tool_name") or "unknown")
+    if denied:
+        status = "denied"
+    else:
+        ok = str(attrs.get("success", "true")).lower() in {"true", "1", "yes"}
+        status = "success" if ok else "error"
+    tool_call_id = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"claude-code-tool:{run_id}:{tool_name}:{key}:{status}"
+    )
+    return [
+        run_start,
+        {
+            "event_type": "tool_call",
+            "run_id": str(run_id),
+            "tool_call_id": str(tool_call_id),
+            "tool_name": tool_name,
+            "tool_type": "read",
+            "duration_ms": _int_or_none(attrs.get("duration_ms")),
+            "status": status,
+        },
+    ]
+
+
 def synthesize_claude_code_events(
     workspace_id: uuid.UUID, payload: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Convert Claude Code ``api_request`` log records in an OTLP logs payload."""
+    """Convert Claude Code log records (requests, errors, tool use) in an OTLP logs payload."""
     events: list[dict[str, Any]] = []
     for resource_logs in payload.get("resourceLogs") or []:
         resource = _flatten_attrs((resource_logs.get("resource") or {}).get("attributes") or [])
@@ -195,16 +325,29 @@ def synthesize_claude_code_events(
                 continue
             for record in scope_logs.get("logRecords") or []:
                 attrs = _flatten_attrs(record.get("attributes") or [])
-                if _event_name(record, attrs) != API_REQUEST_EVENT:
-                    continue
-                events.extend(
-                    _api_request_events(
-                        workspace_id,
-                        resource,
-                        scope_name,
-                        scope.get("version"),
-                        record,
-                        attrs,
+                name = _event_name(record, attrs)
+                if name == API_REQUEST_EVENT:
+                    events.extend(
+                        _api_request_events(
+                            workspace_id,
+                            resource,
+                            scope_name,
+                            scope.get("version"),
+                            record,
+                            attrs,
+                        )
                     )
-                )
+                elif name == API_ERROR_EVENT:
+                    events.extend(
+                        _api_error_events(workspace_id, resource, scope_name, record, attrs)
+                    )
+                elif name == TOOL_RESULT_EVENT:
+                    events.extend(_tool_events(workspace_id, resource, scope_name, record, attrs))
+                elif (
+                    name == TOOL_DECISION_EVENT
+                    and str(attrs.get("decision", "")).lower() == "reject"
+                ):
+                    events.extend(
+                        _tool_events(workspace_id, resource, scope_name, record, attrs, denied=True)
+                    )
     return events

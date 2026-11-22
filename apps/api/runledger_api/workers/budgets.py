@@ -204,6 +204,61 @@ def budget_spend_sync() -> dict[str, int]:
     return asyncio.run(_run_budget_spend_sync())
 
 
+async def _scope_filters(session: AsyncSession, budget: Budget) -> list[Any] | None:
+    """SQL filters selecting the provider calls a budget's scope covers (I-08).
+
+    Mirrors the live spend path (services.budgets.record_budget_spend): run context
+    comes from agent_runs, access groups through their members' keys and identities,
+    provider profiles through the priced model. Returns None for scopes it cannot
+    evaluate, so the caller keeps the live counter instead of overwriting it.
+    """
+    from sqlalchemy import String, cast, or_  # noqa: PLC0415
+
+    from runledger_api.models.access_groups import AccessGroupMember  # noqa: PLC0415
+    from runledger_api.models.metering import ProviderPricing  # noqa: PLC0415
+    from runledger_api.models.tenant import ApiKey, User  # noqa: PLC0415
+
+    scope, sid = budget.scope_type, budget.scope_id
+    if scope == "workspace":
+        return []
+    if not sid:
+        return None
+    try:
+        if scope == "end_user":
+            return [or_(ProviderCall.end_user_id == sid, AgentRun.end_user_id == sid)]
+        if scope == "feature_tag":
+            return [AgentRun.feature_tag == sid]
+        if scope == "app":
+            return [AgentRun.application_id == uuid.UUID(sid)]
+        if scope == "api_key":
+            key_id = uuid.UUID(sid)
+            return [or_(ProviderCall.api_key_id == key_id, AgentRun.api_key_id == key_id)]
+        if scope == "access_group":
+            members = select(AccessGroupMember.user_id).where(
+                AccessGroupMember.group_id == uuid.UUID(sid)
+            )
+            member_keys = select(ApiKey.id).where(ApiKey.user_id.in_(members))
+            member_ids = select(cast(AccessGroupMember.user_id, String)).where(
+                AccessGroupMember.group_id == uuid.UUID(sid)
+            )
+            member_emails = select(User.email).where(User.id.in_(members))
+            return [
+                or_(
+                    ProviderCall.api_key_id.in_(member_keys),
+                    ProviderCall.end_user_id.in_(member_ids),
+                    ProviderCall.end_user_id.in_(member_emails),
+                )
+            ]
+        if scope == "provider_profile":
+            pricing = await session.get(ProviderPricing, uuid.UUID(sid))
+            if pricing is None:
+                return None
+            return [ProviderCall.model == pricing.model, ProviderCall.provider == pricing.provider]
+    except ValueError:
+        return None
+    return None
+
+
 async def _run_budget_spend_sync() -> dict[str, int]:
     factory = _make_session_factory()
     redis = _make_redis()
@@ -235,22 +290,23 @@ async def _run_budget_spend_sync() -> dict[str, int]:
                     period_start = datetime.min.replace(tzinfo=UTC)
                     period_end = now + timedelta(days=1)
 
-                # Build scope filter
-                scope_filter = [ProviderCall.workspace_id == budget.workspace_id]
-                if budget.scope_type == "end_user" and budget.scope_id:
-                    scope_filter.append(ProviderCall.end_user_id == budget.scope_id)
-                if budget.scope_type == "api_key" and budget.scope_id:
-                    scope_filter.append(ProviderCall.api_key_id == uuid.UUID(budget.scope_id))
-                # feature_tag is on agent_runs, not provider_calls — skip for now
-                # (workspace and total scope are handled by workspace_id filter)
+                scope_filter = await _scope_filters(session, budget)
+                if scope_filter is None:
+                    # Unknown or malformed scope: leave the live counter alone rather
+                    # than overwrite it with an unrelated total.
+                    continue
 
-                spend_stmt = select(
-                    func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))
-                ).where(
-                    *scope_filter,
-                    ProviderCall.created_at >= period_start,
-                    ProviderCall.created_at < period_end,
-                    ProviderCall.cost_usd.is_not(None),
+                spend_stmt = (
+                    select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)))
+                    .select_from(ProviderCall)
+                    .outerjoin(AgentRun, AgentRun.id == ProviderCall.run_id)
+                    .where(
+                        ProviderCall.workspace_id == budget.workspace_id,
+                        *scope_filter,
+                        ProviderCall.created_at >= period_start,
+                        ProviderCall.created_at < period_end,
+                        ProviderCall.cost_usd.is_not(None),
+                    )
                 )
                 spend_result = await session.execute(spend_stmt)
                 spend = spend_result.scalar_one() or Decimal(0)

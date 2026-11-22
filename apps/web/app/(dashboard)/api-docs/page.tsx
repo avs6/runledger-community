@@ -188,9 +188,9 @@ export default function ApiDocsPage() {
             <Link href="/gateway" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Model Gateway</Link>
             <Link href="/pipeline-studio" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Pipeline Studio</Link>
             <Link href="/analytics" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Analytics</Link>
-            <Link href="/governance" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Governance</Link>
+            <Link href="/governance-pack" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Governance</Link>
             <Link href="/help" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Help Hub</Link>
-            <Link href="/admin/settings" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Platform Settings</Link>
+            <Link href="/settings" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Platform Settings</Link>
           </div>
         </>
       )}

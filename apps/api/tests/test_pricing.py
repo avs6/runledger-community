@@ -235,3 +235,47 @@ async def test_calculate_cost_anthropic_large_values() -> None:
     # output:  2_000 / 1_000_000 * 75.0 = 0.15
     # total = 0.30
     assert cost == Decimal("0.30000000")
+
+
+def _result(row: SimpleNamespace | None) -> MagicMock:
+    res = MagicMock()
+    res.scalar_one_or_none = MagicMock(return_value=row)
+    return res
+
+
+@pytest.mark.asyncio
+async def test_calculate_cost_uses_first_price_when_none_was_in_effect() -> None:
+    """A call made before the model had any pricing uses its first published price,
+    so adding pricing later also prices earlier calls."""
+    first = _make_pricing_row(input_cost="1.00", output_cost="2.00")
+    session = AsyncMock()
+    # workspace @time, global @time, workspace first-published → row
+    session.execute = AsyncMock(side_effect=[_result(None), _result(None), _result(first)])
+    cost = await calculate_cost(
+        session,
+        provider="openai",
+        model="new-model",
+        input_tokens=1000,
+        output_tokens=500,
+        at_time=datetime(2024, 6, 1, tzinfo=UTC),
+        workspace_id=uuid.uuid4(),
+    )
+    assert cost == Decimal("0.00200000")
+    assert session.execute.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_calculate_cost_no_pricing_at_all_returns_none() -> None:
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=_result(None))
+    cost = await calculate_cost(
+        session,
+        provider="openai",
+        model="unknown",
+        input_tokens=10,
+        output_tokens=10,
+        workspace_id=uuid.uuid4(),
+    )
+    assert cost is None
+    # workspace @time, global @time, workspace first, global first
+    assert session.execute.call_count == 4

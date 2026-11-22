@@ -111,6 +111,33 @@ class Settings(BaseSettings):
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""
     ingest_rate_limit_per_minute: int = 10000
+
+    # ── Ingestion ─────────────────────────────────────────────────────────────
+    # Max events in one /ingest/v1/batch request, and max request body for ingest
+    # and OTLP routes (compressed size as sent).
+    ingest_max_batch_events: int = 1000
+    ingest_max_body_bytes: int = 10 * 1024 * 1024
+    # Max size an OTLP gzip body may inflate to (protects against gzip bombs).
+    otlp_max_decompressed_bytes: int = 50 * 1024 * 1024
+    # "llm": only traces with an LLM / agent / tool span become runs (others are
+    # counted as dropped). "all": every trace becomes a run. A resource attribute
+    # runledger.capture=all forces capture for one source.
+    otlp_run_gating: str = "llm"
+    # Days to keep raw OTLP data (batch payloads, raw spans, metrics/log batches)
+    # and Kafka delivery rows. 0 keeps them forever.
+    otlp_raw_retention_days: int = 14
+    # Daily OTLP metric rollups are small; keep ~13 months for year-over-year views.
+    otlp_metric_retention_days: int = 395
+    # OTLP runs with no span activity for this long are closed as cancelled.
+    otlp_inactivity_timeout_minutes: int = 15
+
+    # ── Outbound destinations (webhooks, Slack, Kafka) ────────────────────────
+    # Tenant-configured destinations may not resolve to private/internal addresses
+    # unless the host is listed here (comma-separated) or private egress is allowed.
+    egress_private_allowlist: str = "runledger-redpanda"
+    egress_allow_private: bool = False
+    # Signed ingest: max clock skew, and how long a nonce is remembered.
+    ingest_signature_tolerance_seconds: int = 300
     analytics_rate_limit_per_minute: int = 0
     management_rate_limit_per_minute: int = 0
     system_rate_limit_per_minute: int = 600

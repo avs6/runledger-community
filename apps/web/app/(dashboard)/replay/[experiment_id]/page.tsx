@@ -217,7 +217,7 @@ export default function ExperimentResultsPage() {
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200 dark:border-amber-800">
             <Link href="/guardrails" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Guardrails</Link>
-            <Link href="/response-cache" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Response Cache</Link>
+            <Link href="/gateway?tab=cache" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Response Cache</Link>
             <Link href="/runs" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Runs</Link>
             <Link href="/analytics?tab=economics" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Cost &amp; Savings</Link>
             <Link href="/optimization-simulator" className="text-xs text-amber-600 hover:underline dark:text-amber-400">Optimization Simulator</Link>

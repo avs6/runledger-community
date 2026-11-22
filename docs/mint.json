@@ -67,6 +67,7 @@
       "pages": [
         "instrumentation/python-sdk",
         "instrumentation/typescript-sdk",
+        "ingest-api",
         "otlp",
         "openinference",
         "collector",

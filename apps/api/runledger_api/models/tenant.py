@@ -111,6 +111,10 @@ class Workspace(Base):
     guardrail_bypass: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
+    # Version of the per-workspace signed-ingest secret; bumping it rotates the secret.
+    ingest_signing_version: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default="1", default=1
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()")
     )

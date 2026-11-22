@@ -756,7 +756,7 @@ function ReplayTab({
         <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
         <p className="text-xs text-violet-800 dark:text-violet-200">Experiments replay traffic through gateway routes and model configs.</p>
         <div className="ml-auto flex gap-1.5">
-          {[{ label: 'Gateway', href: '/gateway' }, { label: 'Providers', href: '/provider-profiles' }, { label: 'Routes', href: '/routes' }].map(({ label, href }) => (
+          {[{ label: 'Gateway', href: '/gateway' }, { label: 'Providers', href: '/provider-profiles' }, { label: 'Routes', href: '/gateway?tab=routes' }].map(({ label, href }) => (
             <Link key={label} href={href} className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50">{label}</Link>
           ))}
         </div>
