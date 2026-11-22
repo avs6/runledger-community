@@ -23,7 +23,36 @@ import sys
 
 import httpx
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # Never exercised here: side effects, streaming, or separate auth.
+# List endpoints on the pagination standard (core/pagination.py).
+PAGED = [
+    "/settings/email/log",
+    "/settings/email/history",
+    "/settings/api-keys",
+    "/tools/security-events",
+    "/users",
+    "/users/all",
+    "/org/members",
+    "/prompts",
+    "/gateway/routes",
+    "/billing/chargeback-report",
+    "/analytics/annotations",
+    "/analytics/regressions",
+    "/alerts/rules",
+    "/budgets",
+    "/budgets/notifications",
+    "/billing/periods",
+    "/replay/datasets",
+    "/replay/experiments",
+    "/evaluations/evaluators",
+    "/mcp-registry",
+    "/mcp-registry/tools",
+    "/hub/models",
+]
+
 SKIP_PREFIXES = ("/admin/backup", "/mcp", "/gateway/", "/v1/chat", "/ingest/v1/signed")
 
 
@@ -56,6 +85,34 @@ def run(args: argparse.Namespace) -> int:
             failures.append(f"{path} → {type(exc).__name__}: {exc}")
 
     print(f"{checked - len(failures)} of {checked} read endpoints returned without a server error")
+
+    # Pagination standard: list endpoints honour ?limit and report X-Total-Count.
+    paged_ok = 0
+    for path in PAGED:
+        try:
+            resp = httpx.get(
+                base + path, headers=headers, params={"limit": 1}, timeout=args.timeout
+            )
+        except httpx.HTTPError as exc:
+            failures.append(f"{path} paging → {exc}")
+            continue
+        body = resp.json() if resp.status_code == 200 else None
+        items = body if isinstance(body, list) else (body or {}).get("items")
+        if path == "/billing/chargeback-report" and isinstance(items, list) and items:
+            items = items[0].get("breakdown", [])
+        ok = (
+            resp.status_code == 200
+            and "x-total-count" in resp.headers
+            and isinstance(items, list)
+            and len(items) <= 1
+        )
+        if ok:
+            paged_ok += 1
+        else:
+            failures.append(
+                f"{path} paging → status {resp.status_code}, headers/limit not honoured"
+            )
+    print(f"{paged_ok} of {len(PAGED)} list endpoints honour ?limit and report X-Total-Count")
     for line in failures:
         print(f"  FAILED: {line}")
     return 1 if failures else 0

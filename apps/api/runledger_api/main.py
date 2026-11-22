@@ -87,7 +87,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Workspace-ID"],
+    # List endpoints report their full size here (core/pagination.py).
+    expose_headers=["X-Total-Count", "X-Has-More"],
 )
+
+from runledger_api.core.security_headers import SecurityHeadersMiddleware  # noqa: E402
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 from runledger_api.core.ratelimit_middleware import RateLimitHeaderMiddleware  # noqa: E402
 

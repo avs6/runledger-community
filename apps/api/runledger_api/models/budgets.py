@@ -124,6 +124,10 @@ class BudgetNotification(Base):
     email_enabled: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )
+    # Version of this destination's webhook signing secret; bumping rotates it.
+    signing_version: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, server_default="1", default=1
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

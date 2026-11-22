@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +38,7 @@ from runledger_api.core.deps import (
     require_workspace_admin,
     require_workspace_writer,
 )
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.eval_experiments import PromptGithubConfig
 from runledger_api.models.events import AgentRun
@@ -133,12 +134,18 @@ async def create_prompt(
 async def list_prompts(
     workspace: WorkspaceDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
 ) -> PromptList:
-    """List all prompts for the workspace."""
-    result = await db.execute(
-        select(Prompt).where(Prompt.workspace_id == workspace.id).order_by(Prompt.created_at.desc())
+    """List prompts for the workspace (paged; total in X-Total-Count)."""
+    items = await paginate(
+        db,
+        select(Prompt)
+        .where(Prompt.workspace_id == workspace.id)
+        .order_by(Prompt.created_at.desc(), Prompt.id),
+        page,
+        response,
     )
-    items = result.scalars().all()
     return PromptList(items=[PromptResponse.model_validate(p) for p in items])
 
 

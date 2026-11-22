@@ -383,6 +383,9 @@ export interface BillingPeriod {
   exchange_rate_to_usd: string
   snapshot_hash: string | null
   closed_at: string | null
+  closed_by?: string | null
+  reopened_at?: string | null
+  reopen_reason?: string | null
   created_at: string
 }
 
@@ -390,13 +393,7 @@ export interface BillingPeriodList {
   items: BillingPeriod[]
 }
 
-export interface ChargebackRule {
-  id: string
-  allocation_type: 'cost_center' | 'env'
-  dimension: string
-  weight: string
-  created_at: string
-}
+export type ChargebackRule = ChargebackRuleResponse
 
 export interface ReconciliationResult {
   period_id: string
@@ -430,6 +427,8 @@ export interface PeriodBreakdown {
   total_cost_usd: string
   by_application: BreakdownApp[]
   adjustments: BillingAdjustment[]
+  /** True when served from the closed period's frozen snapshot. */
+  frozen?: boolean
 }
 
 export interface UsageSnapshot {
@@ -654,15 +653,22 @@ export interface PlatformWebhookDefaults { generic_webhook_configured: boolean; 
 export interface PlatformWebhookDefaultsTestResult { ok: boolean; message: string; results: PlatformWebhookDefaultStatus[] }
 
 // ── Chargeback rule types ──────────────────────────────────────────────────────
+export type ChargebackRuleDimension =
+  | 'feature_tag' | 'end_user' | 'application' | 'api_key' | 'access_group' | 'model' | 'provider' | 'intent'
+
+/** Maps one dimension value to a cost center with a weight. */
 export interface ChargebackRuleResponse {
   id: string
-  allocation_type: string
-  dimension: string
+  allocation_type: 'direct' | 'shared_weight'
+  dimension: ChargebackRuleDimension
+  dimension_value: string | null
   weight: string
   cost_center_id: string | null
   status: 'active' | 'inactive' | 'pending_approval' | 'denied'
   approval_id: string | null
+  created_by?: string | null
   created_at: string
+  updated_at?: string | null
 }
 export interface ChargebackRuleList { items: ChargebackRuleResponse[] }
 
@@ -2245,6 +2251,8 @@ export interface IpAclRuleResponse {
   workspace_id: string | null
   api_key_id: string | null
   scope_type: string
+  access_group_id: string | null
+  /** Set only on legacy team rules that couldn't be mapped to an access group; they never match. */
   team_name: string | null
   cidr: string
   action: 'allow' | 'deny' | string
@@ -2748,6 +2756,8 @@ export interface ChargebackReport {
 
 export interface ChargebackBreakdownItem {
   dimension: string
+  /** Raw value a chargeback rule matches (id for applications/keys/groups). */
+  dimension_key?: string | null
   dimension_value: string
   cost_usd: string
   pct_of_total: string
@@ -2756,7 +2766,7 @@ export interface ChargebackBreakdownItem {
   call_count: number
   run_count: number
   allocation_status: 'allocated' | 'unallocated'
-  coverage_status: 'budgeted' | 'unbudgeted'
+  coverage_status: 'budgeted' | 'unbudgeted' | 'budgeted_other_period'
 }
 
 export interface ChargebackReportList {
@@ -2974,6 +2984,8 @@ export interface GuardrailEventResponse {
 export interface GuardrailEventList {
   items: GuardrailEventResponse[]
   total: number
+  /** Per-decision counts across every matching event (not just this page). */
+  decision_counts?: Record<string, number>
 }
 
 export interface GuardrailStats {
@@ -7071,3 +7083,65 @@ export interface UnpricedUsage {
   unpriced_pct: number
   items: UnpricedModel[]
 }
+
+// ── Cost centers, cost-center chargeback, applied shared costs, signing ──────
+
+export interface CostCenter {
+  id: string
+  workspace_id: string
+  name: string
+  code: string | null
+  parent_id: string | null
+  description: string | null
+  created_at: string
+}
+
+export interface CostCenterList {
+  items: CostCenter[]
+  total: number
+}
+
+export interface CostCenterReportRow {
+  cost_center_id: string
+  name: string
+  code: string | null
+  direct_usd: string
+  shared_usd: string
+  total_usd: string
+}
+
+export interface CostCenterReport {
+  period: string
+  rule_dimension: string | null
+  total_billable_usd: string
+  assigned_usd: string
+  unassigned_usd: string
+  shared_usd: string
+  unassigned_shared_usd: string
+  rows: CostCenterReportRow[]
+}
+
+export interface CostAllocation {
+  id: string
+  period: string
+  policy_id: string
+  cost_center_id: string | null
+  label: string
+  pool_usd: string
+  amount_usd: string
+  created_by: string | null
+  created_at: string
+}
+
+export interface CostAllocationList {
+  items: CostAllocation[]
+  total_usd: string
+}
+
+export interface BillingSigningKey {
+  workspace_id: string
+  signing_key_id: string
+  key: string
+  algorithm: string
+}
+

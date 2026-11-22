@@ -104,12 +104,26 @@ from runledger_api.services.guardrails import (
     evaluate_guardrails,
     execute_custom_logic,
     get_templates,
+    validate_custom_logic,
 )
 
 router = APIRouter(prefix="/guardrails", tags=["guardrails"])
 log = structlog.get_logger()
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
+
+
+def _check_logic(logic: str | None) -> None:
+    """Reject custom logic outside the guardrail language before it is saved."""
+    if logic:
+        error = validate_custom_logic(logic)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid guardrail logic: {error}",
+            )
+
+
 WorkspaceAdminDep = Annotated[
     tuple[Workspace, object, object | None], Depends(require_workspace_admin)
 ]
@@ -131,6 +145,7 @@ async def create_guardrail(
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> GuardrailRuleResponse:
+    _check_logic(body.logic)
     rule = GuardrailRule(
         workspace_id=workspace.id,
         name=body.name,
@@ -494,14 +509,21 @@ async def list_events(
     if false_positive is not None:
         stmt = stmt.where(GuardrailEvent.is_false_positive.is_(false_positive))
 
-    count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
-    total = int(count_result.scalar() or 0)
+    filtered = stmt.subquery()
+    counts = await db.execute(
+        select(filtered.c.decision, func.count()).group_by(filtered.c.decision)
+    )
+    rows = counts.all()
+    decision_counts = {str(d): int(n) for d, n in rows if d is not None}
+    total = sum(int(n) for _, n in rows)
 
     stmt = stmt.order_by(GuardrailEvent.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     items = result.scalars().all()
     return GuardrailEventList(
-        items=[GuardrailEventResponse.model_validate(e) for e in items], total=total
+        items=[GuardrailEventResponse.model_validate(e) for e in items],
+        total=total,
+        decision_counts=decision_counts,
     )
 
 
@@ -1181,6 +1203,8 @@ async def update_guardrail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardrail not found")
 
     update_data = body.model_dump(exclude_unset=True)
+    if "logic" in update_data:
+        _check_logic(update_data["logic"])
     for field, value in update_data.items():
         setattr(rule, field, value)
     rule.updated_at = datetime.now(UTC)

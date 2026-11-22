@@ -295,6 +295,45 @@ async def update_pricing(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")
     if pricing.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot modify global or foreign pricing")
+    if pricing.effective_to is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This price version is retired")
+    now = datetime.now(UTC)
+    price_changed = any(
+        value is not None and value != current
+        for value, current in (
+            (body.input_cost_per_1m, pricing.input_cost_per_1m),
+            (body.output_cost_per_1m, pricing.output_cost_per_1m),
+            (body.cached_input_cost_per_1m, pricing.cached_input_cost_per_1m),
+        )
+    )
+    if price_changed and pricing.effective_from <= now:
+        # Version the price (review G-21): calls made before now keep the rate they were
+        # made at, the new rate applies from now, and budgets follow the new version.
+        pricing.effective_to = now
+        successor = ProviderPricing(
+            provider=pricing.provider,
+            model=pricing.model,
+            input_cost_per_1m=pricing.input_cost_per_1m,
+            output_cost_per_1m=pricing.output_cost_per_1m,
+            cached_input_cost_per_1m=pricing.cached_input_cost_per_1m,
+            tags=pricing.tags,
+            display_name=pricing.display_name,
+            effective_from=now,
+            workspace_id=pricing.workspace_id,
+            source=pricing.source,
+        )
+        db.add(successor)
+        await db.flush()
+        await db.execute(
+            update(Budget)
+            .where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "provider_profile",
+                Budget.scope_id == str(pricing.id),
+            )
+            .values(scope_id=str(successor.id))
+        )
+        pricing = successor
     if body.input_cost_per_1m is not None:
         pricing.input_cost_per_1m = body.input_cost_per_1m
     if body.output_cost_per_1m is not None:
@@ -319,9 +358,25 @@ async def delete_pricing(pricing_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) ->
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pricing not found")
     if pricing.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot delete global or foreign pricing")
-    await db.delete(pricing)
+    in_use = (
+        await db.execute(
+            select(func.count(Budget.id)).where(
+                Budget.workspace_id == workspace.id,
+                Budget.scope_type == "provider_profile",
+                Budget.scope_id == str(pricing.id),
+            )
+        )
+    ).scalar_one()
+    if in_use:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{in_use} budget(s) use this price; move or delete them first",
+        )
+    # Retire rather than delete (review G-21): calls made while it applied keep their
+    # cost on re-pricing, and the price history stays auditable.
+    pricing.effective_to = datetime.now(UTC)
     await db.commit()
-    log.info("provider_pricing_deleted", pricing_id=str(pricing_id))
+    log.info("provider_pricing_retired", pricing_id=str(pricing_id))
 
 
 class RepriceRequest(BaseModel):

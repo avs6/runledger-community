@@ -23,12 +23,13 @@ from datetime import datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_workspace_writer
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment
 from runledger_api.models.tenant import Workspace
@@ -105,15 +106,16 @@ async def create_dataset(
 async def list_datasets(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    page: PageDep,
+    response: Response,
 ) -> DatasetList:
-    """List all datasets for the workspace."""
+    """List datasets for the workspace (paged; total in X-Total-Count)."""
     stmt = (
         select(ReplayDataset)
         .where(ReplayDataset.workspace_id == workspace.id)
-        .order_by(ReplayDataset.created_at.desc())
+        .order_by(ReplayDataset.created_at.desc(), ReplayDataset.id)
     )
-    result = await db.execute(stmt)
-    datasets = result.scalars().all()
+    datasets = await paginate(db, stmt, page, response)
     return DatasetList(items=[_dataset_response(d) for d in datasets])
 
 
@@ -193,6 +195,8 @@ async def create_experiment(
 async def list_experiments(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    page: PageDep,
+    response: Response,
     access_group_id: str | None = Query(None),
     api_key_id: str | None = Query(None),
 ) -> ExperimentList:
@@ -216,9 +220,8 @@ async def list_experiments(
             ReplayDataset.workspace_id == workspace.id,
         )
         stmt = stmt.where(ReplayExperiment.dataset_id.in_(dataset_sub))
-    stmt = stmt.order_by(ReplayExperiment.created_at.desc())
-    result = await db.execute(stmt)
-    experiments = result.scalars().all()
+    stmt = stmt.order_by(ReplayExperiment.created_at.desc(), ReplayExperiment.id)
+    experiments = await paginate(db, stmt, page, response)
     return ExperimentList(items=[_experiment_response(e) for e in experiments])
 
 

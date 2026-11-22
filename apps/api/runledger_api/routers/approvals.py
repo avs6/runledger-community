@@ -602,9 +602,22 @@ async def approve_approval(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Cannot approve an approval in '{approval.status}' status",
         )
+    decider = _requester_label(api_key)
+    # Separation of duties for money movement: whoever requested a chargeback rule
+    # can't approve it (review F-02).
+    if (
+        approval.request_type == "chargeback_rule"
+        and approval.requested_by
+        and decider
+        and approval.requested_by.lower() == decider.lower()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A chargeback rule must be approved by someone other than its requester",
+        )
 
     approval.status = "approved"
-    approval.decided_by = _requester_label(api_key)
+    approval.decided_by = decider
     approval.decided_at = datetime.now(UTC)
     approval.decision_note = body.note
 
@@ -791,7 +804,11 @@ async def cancel_approval(
 
 
 async def _activate_chargeback_rule(db: AsyncSession, approval: Approval) -> None:
-    """Set chargeback rule status → 'active' when its approval is approved."""
+    """Activate the chargeback rule an approval refers to.
+
+    The rule's weights are checked again at activation — other rules may have been
+    activated while it waited — and only the rule version this approval covers is
+    activated (an edited rule gets a new approval)."""
     rule_id_str = approval.request.get("rule_id") if approval.request else None
     if not rule_id_str:
         return
@@ -799,18 +816,39 @@ async def _activate_chargeback_rule(db: AsyncSession, approval: Approval) -> Non
         rule_id = uuid.UUID(rule_id_str)
     except ValueError:
         return
-    from sqlalchemy import update as sa_update  # noqa: PLC0415
-
     from runledger_api.models.billing import ChargebackRule  # noqa: PLC0415
+    from runledger_api.services.billing import BillingConflict, validate_rule  # noqa: PLC0415
 
-    await db.execute(
-        sa_update(ChargebackRule)
-        .where(
-            ChargebackRule.id == rule_id,
-            ChargebackRule.workspace_id == approval.workspace_id,
+    rule = (
+        await db.execute(
+            select(ChargebackRule)
+            .where(
+                ChargebackRule.id == rule_id,
+                ChargebackRule.workspace_id == approval.workspace_id,
+            )
+            .with_for_update()
         )
-        .values(status="active")
-    )
+    ).scalar_one_or_none()
+    if rule is None or rule.approval_id != approval.id or rule.status != "pending_approval":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The chargeback rule changed or was removed after this approval was requested",
+        )
+    try:
+        await validate_rule(
+            db,
+            approval.workspace_id,
+            dimension=rule.dimension,
+            dimension_value=rule.dimension_value or "",
+            cost_center_id=rule.cost_center_id,  # type: ignore[arg-type]
+            weight=rule.weight,
+            allocation_type=rule.allocation_type,
+            exclude_rule_id=rule.id,
+            activating=True,
+        )
+    except (BillingConflict, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    rule.status = "active"
     log.info("chargeback_rule_activated", rule_id=rule_id_str, approval_id=str(approval.id))
 
 

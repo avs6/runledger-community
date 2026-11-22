@@ -18,12 +18,13 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.tenant import Workspace
@@ -80,15 +81,16 @@ async def create_alert_rule(
 async def list_alert_rules(
     auth: OrgAdminDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
     include_inactive: bool = Query(False),
 ) -> AlertRuleList:
     workspace: Workspace = auth[0]
     stmt = select(AlertRule).where(AlertRule.workspace_id == workspace.id)
     if not include_inactive:
         stmt = stmt.where(AlertRule.is_active.is_(True))
-    stmt = stmt.order_by(AlertRule.created_at.desc())
-    result = await db.execute(stmt)
-    rules = list(result.scalars().all())
+    stmt = stmt.order_by(AlertRule.created_at.desc(), AlertRule.id)
+    rules = await paginate(db, stmt, page, response)
     return AlertRuleList(items=[AlertRuleResponse.model_validate(r) for r in rules])
 
 

@@ -8,8 +8,18 @@ a runaway agent is throttled or blocked before it ever reaches (and bills) the p
 
 ## Cost caps
 
-Set a daily and/or monthly USD ceiling per route. When the route's spend crosses the cap, further requests
-are rejected until the window resets.
+Set a daily and/or monthly USD ceiling per route (values must be 0 or more). When the route's spend crosses
+the cap, the gateway tries the next eligible route; if no route is left, the request is rejected with
+**429**, an `X-Cost-Cap-Reason` header (`daily_limit_exceeded`, `monthly_limit_exceeded`,
+`budget_tier_exceeded` or `budget_exceeded`) and a `Retry-After` (seconds until the window resets), so
+clients can tell a spend stop from an outage.
+
+Spend is priced from the route's provider and model using the same provider pricing as the ledger (this
+workspace's override first, then the global price). Self-hosted providers (`ollama`, `vllm`, `local`,
+`lmstudio`, `llamacpp`) cost nothing unless you add a price for them. A hosted model is never given a
+guessed price: saving a cap on a route whose model has no price returns **422** — add the price under
+**Provider Profiles** first. If a price is removed later, the cap is skipped and
+`gateway_cost_cap_unpriced_model` is logged.
 
 ```json
 {
@@ -21,7 +31,13 @@ are rejected until the window resets.
 ## Per-user rate limits
 
 Limit requests-per-minute per end user on a route. Pass the user via the
-`X-RunLedger-End-User-Id` header; the limit is enforced in Redis on the hot path.
+`X-RunLedger-End-User-Id` header; without it the limit applies per API key, so leaving the header out
+doesn't bypass it. The limit is a true sliding 60-second window, checked atomically in Redis on the hot
+path (concurrent requests can't overshoot it, and refused requests don't use a slot). Only the route
+expected to serve the request takes a slot; fallback routes are checked but count only when they become
+the first runnable route. Cache hits count too. A breach that leaves no other eligible route returns
+**429** with `Retry-After` (seconds until a slot frees). If Redis is unavailable the limit fails open and
+logs `gateway_per_user_rpm_redis_error`.
 
 ```json
 { "per_user_rpm_limit": 60 }
@@ -29,12 +45,57 @@ Limit requests-per-minute per end user on a route. Pass the user via the
 
 ## PII redaction
 
-When enabled on a route, message content is scrubbed of common PII patterns **before** it is forwarded to
-the provider — useful for third-party models.
+When enabled on a route, message content is scrubbed of common PII patterns (emails, phone numbers, SSNs,
+card numbers) right after pre-call guardrails and **before** the exact and semantic caches, the Context
+Compiler, the intelligent-routing classifier and the provider see it. It applies to streamed and
+non-streamed requests alike, and to every fallback route that has it enabled.
 
 ```json
 { "pii_redaction_enabled": true }
 ```
+
+## Post-call blocks
+
+A `post_call` guardrail that blocks a response returns **451** to the client, but the provider call
+already happened, so RunLedger still records it: a failed run with its tokens and cost, a gateway request
+with `status: blocked` and a `guardrail_blocked: <reason>` decision, and the spend against every
+matching budget. Blocked responses are never cached. Post-call rules see the response text and the arguments of any
+tool calls the model returned (`texts`, `tool_calls`).
+
+## Custom guardrail logic
+
+Guardrail rules of type `custom` (and the built-in templates) are written in a small
+Python-like language. RunLedger parses the logic and runs it in its own interpreter —
+it never calls `exec` or `eval` — so a rule can only use what the language allows:
+
+- inputs: `texts`, `images`, `tools`, `tool_calls`, `structured_messages`, `model`,
+  `user_id`, `end_user_id`, `metadata`;
+- statements: assignment, `if`/`elif`/`else`, `for`, `break`/`continue`, comprehensions,
+  f-strings; `import re` is accepted (`re` is always available);
+- functions: `allow()`, `block(reason)`, `modify(texts=…, images=…, tool_calls=…)` and
+  `len str int float bool list dict set tuple range enumerate zip any all min max sum
+  abs sorted reversed isinstance round`;
+- methods: common `str` methods, `list.append/extend/index/count`,
+  `dict.get/items/keys/values`, `re.search/match/fullmatch/findall/sub/split` and
+  match-object `group/groups/start/end/span`.
+
+Set `result` to the decision:
+
+```python
+combined = " ".join(texts).lower()
+if re.search(r"(api[_-]?key|password)", combined):
+    result = block("Credential material detected")
+else:
+    result = allow()
+```
+
+Anything else — other attributes, dunder names, function or class definitions,
+`lambda`, `while`, `try`, other imports — is rejected when the rule is saved (422,
+"Invalid guardrail logic: …"). At run time each rule has a step budget, its timeout,
+a 10,000-iteration loop limit and size caps (1 MB strings, 100,000-item collections).
+A rule that errors or exceeds a limit lets the request through and records the reason,
+so a broken rule can't take the gateway down. Creating or editing rules needs a
+workspace admin.
 
 ## Health auto-disable
 

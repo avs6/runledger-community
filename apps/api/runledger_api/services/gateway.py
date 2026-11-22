@@ -107,9 +107,19 @@ def _matching_group_ids(
     return matching
 
 
-def make_cache_key(target_model: str, messages: list[dict[str, Any]]) -> str:
-    """Return a 64-char hex SHA-256 of the canonical request body."""
-    payload = json.dumps({"model": target_model, "messages": messages}, sort_keys=True)
+def make_cache_key(
+    target_model: str,
+    messages: list[dict[str, Any]],
+    params: dict[str, Any] | None = None,
+) -> str:
+    """64-char hex SHA-256 of the model, messages and every output-affecting parameter
+    (tools, tool_choice, response_format, temperature, seed, max_tokens, …; review G-07).
+    """
+    payload = json.dumps(
+        {"model": target_model, "messages": messages, "params": params or {}},
+        sort_keys=True,
+        default=str,
+    )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
@@ -123,29 +133,6 @@ def _route_timeout_ms(route: GatewayRoute, *, stream: bool) -> int | None:
         except (TypeError, ValueError):
             return route.timeout_ms
     return route.timeout_ms
-
-
-def _apply_timeout_override(
-    route: GatewayRoute, *, stream: bool, timeout_ms: int | None
-) -> tuple[int | None, dict[str, Any] | None]:
-    original_timeout = route.timeout_ms
-    original_config = dict(route.config) if isinstance(route.config, dict) else None
-    if timeout_ms is None:
-        return original_timeout, original_config
-    cfg = dict(route.config or {})
-    cfg["stream_timeout_ms" if stream else "completion_timeout_ms"] = timeout_ms
-    route.config = cfg
-    route.timeout_ms = timeout_ms if not stream else route.timeout_ms
-    return original_timeout, original_config
-
-
-def _restore_timeout_override(
-    route: GatewayRoute,
-    original_timeout: int | None,
-    original_config: dict[str, Any] | None,
-) -> None:
-    route.timeout_ms = original_timeout
-    route.config = original_config
 
 
 def _classify_fallback_triggers(exc: Exception) -> set[str]:
@@ -481,6 +468,19 @@ async def choose_route_for_alias(
         )
         if any(route.id == policy_route.id for route in filtered):
             return policy_route, decision_reason
+        if policy_route.alias != alias:
+            # budget_aware / complexity_based switch to another alias on purpose; accept
+            # the route if it passes the same tag/region/active checks under its own
+            # alias instead of discarding the decision (review G-02).
+            switched = await select_routes(
+                db,
+                workspace_id,
+                policy_route.alias,
+                request_tags=request_tags,
+                preferred_region=preferred_region,
+            )
+            if any(route.id == policy_route.id for route in switched):
+                return policy_route, decision_reason
     except Exception:  # noqa: BLE001
         log.exception("gateway_policy_selection_failed alias=%s", alias)
 
@@ -547,32 +547,40 @@ async def forward_request(
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str | dict[str, Any] | None = None,
     reasoning_effort: str | None = None,
+    timeout_override_ms: int | None = None,
 ) -> dict[str, Any]:
     """
     Forward the completion request to the provider (non-streaming).
+
+    ``timeout_override_ms`` replaces the route's completion timeout for this call only
+    (never written onto the route; review G-20).
 
     Returns the raw provider JSON response dict.
     Raises httpx.HTTPStatusError on 4xx/5xx from the provider.
     Dispatches to the appropriate provider adapter based on route.provider.
     """
-    from runledger_api.services.gateway_providers import get_adapter  # noqa: PLC0415
+    from runledger_api.services.gateway_providers import (
+        get_adapter,  # noqa: PLC0415
+        timeout_override,  # noqa: PLC0415
+    )
 
     adapter = get_adapter(route.provider)
-    return await adapter.forward(
-        route,
-        messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        top_p=top_p,
-        frequency_penalty=frequency_penalty,
-        presence_penalty=presence_penalty,
-        seed=seed,
-        stop=stop,
-        response_format=response_format,
-        tools=tools,
-        tool_choice=tool_choice,
-        reasoning_effort=reasoning_effort,
-    )
+    with timeout_override(stream=False, timeout_ms=timeout_override_ms):
+        return await adapter.forward(
+            route,
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            top_p=top_p,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            seed=seed,
+            stop=stop,
+            response_format=response_format,
+            tools=tools,
+            tool_choice=tool_choice,
+            reasoning_effort=reasoning_effort,
+        )
 
 
 async def stream_request(
@@ -598,15 +606,13 @@ async def stream_request(
     directly to the client as a Server-Sent Events response.
     Dispatches to the appropriate provider adapter based on route.provider.
     """
-    from runledger_api.services.gateway_providers import get_adapter  # noqa: PLC0415
+    from runledger_api.services.gateway_providers import (
+        get_adapter,  # noqa: PLC0415
+        timeout_override,  # noqa: PLC0415
+    )
 
     adapter = get_adapter(route.provider)
-    original_timeout, original_config = _apply_timeout_override(
-        route,
-        stream=True,
-        timeout_ms=timeout_override_ms,
-    )
-    try:
+    with timeout_override(stream=True, timeout_ms=timeout_override_ms):
         async for chunk in adapter.stream(
             route,
             messages,
@@ -623,8 +629,6 @@ async def stream_request(
             reasoning_effort=reasoning_effort,
         ):
             yield chunk
-    finally:
-        _restore_timeout_override(route, original_timeout, original_config)
 
 
 async def record_gateway_request(
@@ -837,11 +841,6 @@ async def route_and_forward(
             for attempt in range(1, max_attempts + 1):
                 t0 = time.monotonic()
                 try:
-                    original_timeout, original_config = _apply_timeout_override(
-                        route,
-                        stream=False,
-                        timeout_ms=completion_timeout_override,
-                    )
                     response = await forward_request(
                         route=route,
                         messages=step_messages,
@@ -856,8 +855,8 @@ async def route_and_forward(
                         tools=step_tools,
                         tool_choice=step_tool_choice,
                         reasoning_effort=step_reasoning_effort,
+                        timeout_override_ms=completion_timeout_override,
                     )
-                    _restore_timeout_override(route, original_timeout, original_config)
                     latency_ms = int((time.monotonic() - t0) * 1000)
                     route.last_health_check_at = datetime.now(UTC)
                     route.consecutive_health_failures = 0
@@ -961,7 +960,6 @@ async def route_and_forward(
                         )
                     return response, route, latency_ms, decision_reason
                 except httpx.HTTPStatusError as exc:
-                    _restore_timeout_override(route, original_timeout, original_config)
                     last_error = exc
                     status_code = exc.response.status_code
                     transient = status_code in (429, 500, 502, 503, 504)
@@ -1008,7 +1006,6 @@ async def route_and_forward(
                         await asyncio.sleep(backoff)
                         continue
                 except Exception as exc:  # noqa: BLE001
-                    _restore_timeout_override(route, original_timeout, original_config)
                     last_error = exc
                     matched_triggers = _classify_fallback_triggers(exc)
                     for fallback_rule in fallback_rules:

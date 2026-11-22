@@ -93,12 +93,16 @@ async def _run_evaluation() -> dict[str, int]:
                 continue
 
             # Deduplication: skip if already fired in the current window
-            dedup_stmt = select(AlertFiring).where(
-                AlertFiring.rule_id == rule.id,
-                AlertFiring.fired_at >= window_start,
+            # (LIMIT 1: several firings in the window used to raise MultipleResultsFound.)
+            dedup_stmt = (
+                select(AlertFiring.id)
+                .where(
+                    AlertFiring.rule_id == rule.id,
+                    AlertFiring.fired_at >= window_start,
+                )
+                .limit(1)
             )
-            dedup_result = await session.execute(dedup_stmt)
-            if dedup_result.scalar_one_or_none() is not None:
+            if (await session.execute(dedup_stmt)).first() is not None:
                 continue
 
             # Create firing record
@@ -109,6 +113,9 @@ async def _run_evaluation() -> dict[str, int]:
             )
             session.add(firing)
             await session.flush()
+            # Commit the firing before notifying (review S-17): if a later rule fails,
+            # this firing is kept, so the next run dedupes instead of notifying again.
+            await session.commit()
             firings_created += 1
             log.info(
                 "alerts.rule_fired",
@@ -143,19 +150,21 @@ async def _run_evaluation() -> dict[str, int]:
             except Exception:
                 log.exception("kafka_export.alert_fired_failed", rule_id=str(rule.id))
 
-            # Send Slack notification if channel configured
-            if rule.channel_id is not None:
-                await _send_alert_notification(session, rule, metric_value, now)
-
-            # Send email notifications if enabled
-            if rule.email_enabled:
-                # Check workspace email preferences
-                ws_id = rule.workspace_id
-                if ws_id not in prefs_cache:
-                    prefs_cache[ws_id] = await get_email_preference(session, ws_id)
-                prefs = prefs_cache[ws_id]
-                if prefs is None or prefs.alerts_enabled:
-                    await _send_alert_emails(session, rule, metric_value)
+            # Notifications are best-effort and isolated per rule.
+            try:
+                if rule.channel_id is not None:
+                    await _send_alert_notification(session, rule, metric_value, now)
+                if rule.email_enabled:
+                    ws_id = rule.workspace_id
+                    if ws_id not in prefs_cache:
+                        prefs_cache[ws_id] = await get_email_preference(session, ws_id)
+                    prefs = prefs_cache[ws_id]
+                    if prefs is None or prefs.alerts_enabled:
+                        await _send_alert_emails(session, rule, metric_value)
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                log.exception("alerts.notify_failed", rule_id=str(rule.id))
 
         await session.commit()
 

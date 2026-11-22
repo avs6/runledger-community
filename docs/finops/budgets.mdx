@@ -86,6 +86,18 @@ Platform users can also view their own financial exposure at `/users/{id}`, whic
 - **Inline (gateway)** — enforced before the provider call, as described above.
 - **Out-of-band (SDK)** — an advisory pre-check (`GET /budgets/check`) you can choose to block on. Spend from SDK traffic still counts toward the budget.
 
+## Breach notifications
+
+Webhook and Slack destinations receive `budget.breach` and `runaway.detected` events
+(`/budgets/notifications`, workspace admin). Destination URLs must be public — private,
+loopback and metadata addresses are refused.
+
+Webhook deliveries are signed with **that destination's own secret**:
+`X-RunLedger-Signature: sha256=<hex HMAC-SHA256 of the raw body>`. Fetch it with
+`GET /budgets/notifications/{id}/signing-secret` and rotate it with
+`POST /budgets/notifications/{id}/signing-secret/rotate` (the old secret stops working).
+One destination's secret can't verify or forge another's deliveries.
+
 ## Access-group budget scoping
 
 Access groups are first-class budget scopes. When you set `scope_type: access_group` and point `scope_id` at an access-group UUID, every call made by a member of that group is counted against the budget and enforced in the gateway.

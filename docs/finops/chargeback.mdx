@@ -1,76 +1,88 @@
 ---
 title: "Chargeback & Showback Reports"
-description: "Workspace-scoped finance-ready allocation reports across workflow tags, access groups, applications, end users, providers, models, and intent with CSV/JSON export and budget variance."
+description: "Monthly allocation reports by workflow tag, application, user, key, group, model or provider; chargeback rules that map values to cost centers; shared costs; CSV/JSON export with budget variance."
 ---
 
-Chargeback turns raw AI spend into finance-ready monthly allocation reports that stay aligned to RunLedger's real operating primitives: workspaces, access groups, workflow tags, applications, end users, providers, models, and intent. Export as CSV or JSON, review unallocated buckets, and compare actual spend against budgets where budget scope already aligns.
+Chargeback turns AI spend into monthly finance reports in two views:
 
-## Key features
+- **By dimension (showback)** — billable cost per workflow tag, application, API key, access group, end user, model, provider, intent or workspace, with budget variance.
+- **By cost center (chargeback)** — chargeback rules map dimension values to your cost centers, and applied shared-cost pools are added on top. What no rule covers is shown as unassigned.
 
-- **Monthly reports** - generate reports for any past month.
-- **Modern attribution dimensions** - workspace, access group, workflow tag, application, end user, provider, model, and intent.
-- **Rule CRUD** - create, list, edit, and delete chargeback rules directly from the product.
-- **Variance vs budget** - line items show actual spend, budgeted amount, and variance when the current budget scope supports it.
-- **Unallocated visibility** - unmatched or incomplete attribution stays visible instead of silently disappearing.
-- **Export** - CSV and JSON outputs for downstream finance review and evidence packaging.
+All totals use one definition of **billable cost**: a provider call counts when it has a priced cost and `is_billable` is true, whatever its status (a provider can charge for a failed call). Billing periods, budgets and the analytics spend totals use the same definition. Calls with no price are listed as [unpriced usage](/finops/pricing), not counted as zero.
 
-## Report contents
+## Cost centers
 
-| Field | Description |
-|---|---|
-| Dimension label | The entity being charged (access group, workflow tag, application, user, provider, model, intent, or workspace) |
-| Total cost | Actual spend for the period |
-| Call count | Number of provider calls attributed to the line |
-| Run count | Number of runs contributing to the line |
-| Budget | Budgeted amount, when a matching budget scope exists |
-| Variance | Difference between actual and budget |
-| Allocation status | Whether the spend is allocated or still unallocated |
-| Coverage status | Whether the line is budgeted or unbudgeted |
+Cost centers are where cost is charged back to (Support, Platform, a client…). They can be nested.
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/billing/cost-centers` | `name`, optional `code`, `parent_id`, `description` |
+| `GET` | `/billing/cost-centers` | `?q=` search, `limit`/`offset` |
+| `GET` | `/billing/cost-centers/tree` | Nested tree |
+| `GET` / `PUT` / `DELETE` | `/billing/cost-centers/{id}` | A parent that would create a cycle → 422; deleting one used by an active rule, a shared-cost policy or a child → 409 |
+
+## Chargeback rules
+
+A rule maps **one dimension value** to **one cost center** with a weight:
+
+```json
+{
+  "dimension": "feature_tag",
+  "dimension_value": "support-triage",
+  "cost_center_id": "…",
+  "allocation_type": "shared_weight",
+  "weight": "0.6"
+}
+```
+
+- `allocation_type`: `direct` (the whole cost, weight must be 1) or `shared_weight`.
+- Dimensions: `feature_tag`, `application`, `api_key`, `access_group`, `end_user`, `model`, `provider`, `intent`. For applications, keys and groups the value is the id; the report's `dimension_key` gives it.
+- Active weights for one value add up to **at most 1** (409 otherwise); the remainder is unassigned.
+- All active rules use **one dimension**, so a call can't be charged twice through two dimensions (409 when mixing).
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/billing/chargeback-rules` | `require_approval: true` sends the rule to Approvals |
+| `GET` | `/billing/chargeback-rules` | `?status=active\|inactive\|pending_approval\|denied` |
+| `GET` / `PUT` / `DELETE` | `/billing/chargeback-rules/{id}` | `PUT status` only toggles `active` / `inactive` |
+
+### Approval and separation of duties
+
+With `require_approval`, the rule is created as `pending_approval` with a linked approval (`request_type: chargeback_rule`). It becomes active only when a workspace admin **other than the requester** approves it (the requester gets 403). It can't be activated with `PUT` (409), weights are re-checked at approval time, and changing an approved rule's mapping sends it back for approval.
+
+## Reports
+
+| Method | Path | Returns |
+|---|---|---|
+| `GET` | `/billing/chargeback-report?period=YYYY-MM&dimension=…` | Billable cost per value, `dimension_key`, share of total, calls, runs, budget and variance. Filters: `access_group_id`, `api_key_id`, `end_user_id` |
+| `GET` | `/billing/chargeback-report/export?format=csv\|json` | Same report as a file (same filters) |
+| `GET` | `/billing/chargeback-report/cost-centers?period=YYYY-MM` | Per cost center: `direct_usd` (rules), `shared_usd` (applied shared costs), `total_usd`; plus `assigned_usd`, `unassigned_usd` |
+
+- **Budget variance** compares like with like: monthly budgets as-is, daily × days in the month, weekly prorated; budgets with no monthly equivalent (e.g. `total`) show the budget with `coverage_status: budgeted_other_period` and no variance.
+- **Access groups**: each user is attributed to one group (their earliest membership), so users in two groups aren't counted twice.
+- **CSV safety**: text cells starting with `=`, `+`, `-`, `@`, tab or CR are prefixed with `'` so spreadsheets don't evaluate them.
+
+## Shared costs
+
+Shared-cost policies split a pool — a platform team, a reserved-capacity contract — across cost centers (`equal_split`, `fixed_weight` with weights summing to 1, or `proportional`). See [Billing → Shared costs](/finops/billing#shared-costs). `POST /billing/shared-cost-policies/{id}/apply` saves a split for a month; it appears in the cost-center report as `shared_usd`.
 
 ## Operator workflow
 
-1. Open `/chargeback`.
-2. Create or edit one or more chargeback rules.
-3. Choose a period and attribution dimension.
-4. Review summary cards for total cost, budget-covered cost, and unallocated cost.
-5. Inspect the allocations table for access-group, workflow-tag, application, user, model, or provider rows.
-6. Export CSV or JSON for finance review.
+1. Open `/chargeback` → **Rules**. Add cost centers, then rules mapping workflow tags (or another dimension) to them. Value suggestions come from this month's usage.
+2. Optionally require approval; another admin approves in **Approvals**.
+3. **Cost centers** tab: review direct, shared and unassigned cost for the month.
+4. **Overview** / **Allocations**: showback by any dimension with budget variance.
+5. **Exports**: CSV or JSON for finance.
 
-## Cohesion notes
-
-- Chargeback is intentionally **workspace-scoped** today, but one supported report dimension is now **access_group**.
-- Access-group attribution is derived from access-group membership joined to provider-call `end_user_id`, so caller identity quality still matters.
-- **API-key-native** allocation is still a later FinOps deepening pass, not a reason to reopen legacy team or project concepts.
-
-## Chargeback × Cross-Feature Posture Bridge
-
-The chargeback cross-feature posture endpoint surfaces org, gateway, safety, and platform context alongside allocation data so operators can see the full scope of infrastructure and access that drives chargeback attribution.
-
-```
-GET /analytics/chargeback-cross-feature-posture
-```
-
-Returns org context (users, access groups, API keys, telemetry batches, hub models), gateway context (routes, providers, cache configs), safety context (MCP servers, tool registry, audit events, tags), platform context (organizations, chargeback rules), and 30-day spend.
-
-This endpoint powers the emerald **Chargeback × Cross-Feature Context** card on the Chargeback page with drill-through links to Organization, Access Groups, API Keys, Telemetry, AI Hub, Gateway, MCP Servers, Tool Registry, Audit Log, Tags, and Platform Settings.
-
-## Chargeback Attribution Posture Bridge
-
-```
-GET /analytics/chargeback-attribution-posture
-```
-
-Returns identity context (workspace users, API keys, access groups), runtime context (cache configs, cache savings, chargeback rules), monitoring context (alert rules, audit events, tags), optimization context (chargeback rules, cache savings), and 30-day spend.
-
-This endpoint powers the emerald **Chargeback Attribution Context** card on the Chargeback page with drill-through links to Users, API Keys, Access Groups, Gateway, Monitoring, Audit Log, Tags, and Optimization.
+Every rule and cost-center change is written to the audit log.
 
 ## Related
 
 <CardGroup cols={2}>
   <Card title="Budgets" icon="wallet" href="/finops/budgets">
-    Set the budgets that feed chargeback variance calculations.
+    Budgets that feed variance.
   </Card>
   <Card title="Billing" icon="receipt" href="/finops/billing">
-    Prepare billing periods, reconciliation, and shared-cost policies upstream of chargeback review.
+    Periods, close and reopen, signed exports, shared costs.
   </Card>
 </CardGroup>

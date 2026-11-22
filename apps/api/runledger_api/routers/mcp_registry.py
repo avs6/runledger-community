@@ -26,12 +26,13 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.pagination import PageDep, paginate, paginate_list
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.mcp_registry import McpPermission, McpServer, McpToolCall
 from runledger_api.models.tenant import Workspace
@@ -116,20 +117,24 @@ async def register_server(body: McpServerCreate, ws: WorkspaceDep, db: DbDep) ->
 async def list_servers(
     ws: WorkspaceDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
     include_inactive: bool = False,
 ) -> McpServerList:
     q = select(McpServer).where(McpServer.workspace_id == ws.id)
     if not include_inactive:
         q = q.where(McpServer.is_active.is_(True))
-    q = q.order_by(McpServer.name)
-    rows = (await db.execute(q)).scalars().all()
+    q = q.order_by(McpServer.name, McpServer.id)
+    rows = await paginate(db, q, page, response)
     return McpServerList(items=[_server_to_response(s) for s in rows])
 
 
 @router.get(
     "/tools", response_model=McpToolListResponse, dependencies=[Depends(analytics_rate_limit)]
 )
-async def list_tools(ws: WorkspaceDep, db: DbDep) -> McpToolListResponse:
+async def list_tools(
+    ws: WorkspaceDep, db: DbDep, page: PageDep, response: Response
+) -> McpToolListResponse:
     rows = (
         (
             await db.execute(
@@ -152,7 +157,7 @@ async def list_tools(ws: WorkspaceDep, db: DbDep) -> McpToolListResponse:
                     description=t.get("description"),
                 )
             )
-    return McpToolListResponse(items=items)
+    return McpToolListResponse(items=paginate_list(items, page, response))
 
 
 @router.get(

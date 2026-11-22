@@ -178,6 +178,9 @@ services:
     ports:
       - "${API_PORT:-8201}:8000"
     environment:
+      # Proxies (Caddy on the compose network) whose X-Forwarded-For is the client IP
+      # for IP ACLs and login rate limits. Others' header is ignored (review G-18).
+      TRUSTED_PROXIES: ${API_TRUSTED_PROXIES:-172.16.0.0/12}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
       REDIS_URL: redis://runledger-redis:6379/0
@@ -199,7 +202,7 @@ services:
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
-      ROUTER_SVC_URL: http://runledger-gateway-rs:8210
+      # Intelligent routing classifies in-process; set ROUTER_SVC_URL only for an external classifier.
       GATEWAY_RS_URL: http://runledger-gateway-rs:8210
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
@@ -296,6 +299,9 @@ services:
       - "${GATEWAY_RUNTIME_PORT:-8210}:8210"
     environment:
       RUNLEDGER_GATEWAY_BIND: 0.0.0.0:8210
+      # CIDRs of reverse proxies whose X-Forwarded-For the gateway believes for IP ACLs
+      # (e.g. 172.16.0.0/12 when a proxy container fronts it). Empty: use the peer address.
+      RUNLEDGER_GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-}
       RUNLEDGER_CONTROL_PLANE_URL: http://runledger-api:8000
       RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET: ${INGEST_SIGNING_SECRET:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
@@ -345,7 +351,7 @@ services:
       EMBEDDING_SVC_URL: http://runledger-embedding-svc:8100
       SEMANTIC_CACHE_SVC_URL: http://runledger-semantic-cache-svc:8101
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
-      ROUTER_SVC_URL: http://runledger-gateway-rs:8210
+      # Intelligent routing classifies in-process; set ROUTER_SVC_URL only for an external classifier.
       GATEWAY_RS_URL: http://runledger-gateway-rs:8210
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
@@ -562,7 +568,7 @@ services:
       RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       MCP_REQUIRE_AUTH: ${MCP_REQUIRE_AUTH:-true}
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
-      ROUTER_SVC_URL: http://runledger-gateway-rs:8210
+      # Intelligent routing classifies in-process; set ROUTER_SVC_URL only for an external classifier.
       GATEWAY_RS_URL: http://runledger-gateway-rs:8210
       MEMORY_SVC_URL: http://runledger-memory-svc:8107
       KG_SVC_URL: http://runledger-kg-svc:8106
@@ -705,10 +711,9 @@ services:
       start_period: 60s
 
   # ── DEPRECATED: runledger-router sidecar ──────────────────────────────────
-  # Intelligent routing classification is now absorbed into runledger-gateway-rs.
-  # This standalone sidecar is retained only for backwards-compatible deployments
-  # that still set ROUTER_SVC_URL to the old address.  New deployments should
-  # point ROUTER_SVC_URL at runledger-gateway-rs:8210 (the default).
+  # Intelligent routing now classifies inside the API (services/intelligent_router.py).
+  # This standalone sidecar is kept only for deployments that set ROUTER_SVC_URL
+  # to an external classifier; new deployments don't need it.
   runledger-router:
     image: abijith13/runledger-router:${RUNLEDGER_TAG:-v1beta1}
     build:

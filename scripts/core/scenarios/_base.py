@@ -1010,24 +1010,6 @@ class Workspace:
             expect=(200, 201, 404, 422),
         )
 
-    def create_route_recommendation(
-        self,
-        experiment_id: str,
-        config_index: int,
-        reason: str,
-    ) -> dict[str, Any]:
-        return self.sim.post(
-            "/gateway/route-recommendations",
-            {
-                "experiment_id": experiment_id,
-                "config_index": config_index,
-                "reason": reason,
-            },
-            key=self.admin_key or self.key,
-            label=f"route recommendation",
-            expect=(200, 201, 401, 403, 404, 422),
-        )
-
     def get_governance_audit_pack(self) -> dict[str, Any]:
         return self.sim.get(
             "/governance/audit-pack",

@@ -21,13 +21,16 @@ echo "" | tee -a "$LOG"
 
 echo "→ Seeding database (idempotent — safe on every start)..." | tee -a "$LOG"
 SEED_OUTPUT=$(python /app/scripts/seed.py 2>&1)
-printf '%s\n' "$SEED_OUTPUT" | tee -a "$LOG"
+# Full output (including a newly created API key) goes to the console only; the
+# bind-mounted log gets the key redacted (review P-23).
+printf '%s\n' "$SEED_OUTPUT"
+printf '%s\n' "$SEED_OUTPUT" | sed -E 's/^(API Key: *rl_[A-Za-z0-9]{0,8})[A-Za-z0-9_-]*/\1...(redacted)/' >> "$LOG"
 echo "" | tee -a "$LOG"
 
 # Extract the API key — only present on first run when the key is created
 API_KEY=$(printf '%s\n' "$SEED_OUTPUT" | grep "^API Key:" | awk '{print $NF}' || true)
 if [ -z "$API_KEY" ]; then
-  API_KEY="(already created — check logs/startup.log from first run)"
+  API_KEY="(already created; create a new key in Settings > API Keys if lost)"
 fi
 
 # ── Ready banner ──────────────────────────────────────────────────────────────
@@ -42,7 +45,7 @@ echo "  API docs    →  http://localhost:8201/docs"
 echo "  Health      →  http://localhost:8201/health"
 echo ""
 echo "  Login       →  admin@runledger.local  /  runledger"
-echo "  API Key     →  $API_KEY"
+echo "  API Key     →  ${API_KEY:0:11}... (full key shown once above, on first start)"
 echo ""
 echo "  Logs        →  docker compose logs -f runledger-api"
 echo "  Log file    →  logs/startup.log  (at repo root)"

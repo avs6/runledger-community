@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
@@ -36,6 +36,7 @@ import {
   getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig,
   listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey,
   listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget,
+  apiErrorMessage,
 } from '@/lib/api'
 import { num } from '@/lib/utils'
 import type {
@@ -73,6 +74,11 @@ interface RouteEditState {
   monthlyCostLimitUsd: string
   perUserRpmLimit: string
   fallbackAliases: string
+  contextWindowFallback: string
+  contentPolicyFallback: string
+  existingFallbackConfig: Record<string, unknown> | null
+  mirrorAlias: string
+  mirrorSamplePct: string
   routeConfigStr: string
   routingConfigStr: string
   piiRedactionEnabled: boolean
@@ -186,6 +192,10 @@ export default function GatewayPage() {
   const [newRouteRoutingError, setNewRouteRoutingError] = useState('')
   const [newRoutePerUserRpm, setNewRoutePerUserRpm] = useState('')
   const [newRouteFallbackAliases, setNewRouteFallbackAliases] = useState('')
+  const [newRouteContextFallback, setNewRouteContextFallback] = useState('')
+  const [newRoutePolicyFallback, setNewRoutePolicyFallback] = useState('')
+  const [newRouteMirrorAlias, setNewRouteMirrorAlias] = useState('')
+  const [newRouteMirrorPct, setNewRouteMirrorPct] = useState('')
   const [creatingRoute, setCreatingRoute] = useState(false)
   const [showRouteForm, setShowRouteForm] = useState(false)
   const [routeEditState, setRouteEditState] = useState<RouteEditState | null>(null)
@@ -369,6 +379,61 @@ export default function GatewayPage() {
     return aliases.filter((alias): alias is string => typeof alias === 'string' && alias.trim().length > 0)
   }
 
+  // Error-triggered fallbacks: fallback_config.fallbacks = [{ alias, on: [trigger] }].
+  // Plain fallbacks only absorb transient failures; a 400/413 for a too-long prompt or a
+  // content-policy refusal only falls through to a rule whose trigger matches.
+  function fallbackRules(config: Record<string, unknown> | null | undefined): Record<string, unknown>[] {
+    const rules = config?.fallbacks
+    return Array.isArray(rules) ? rules.filter((r): r is Record<string, unknown> => !!r && typeof r === 'object') : []
+  }
+
+  function isSingleTrigger(rule: Record<string, unknown>, trigger: string): boolean {
+    return Array.isArray(rule.on) && rule.on.length === 1 && rule.on[0] === trigger
+  }
+
+  function getTriggerFallback(config: Record<string, unknown> | null | undefined, trigger: string): string {
+    const rule = fallbackRules(config).find((r) => isSingleTrigger(r, trigger))
+    return typeof rule?.alias === 'string' ? rule.alias : ''
+  }
+
+  // Mirror (shadow) traffic: mirror_config = { alias, sample_pct (0–1) }. The UI takes a
+  // percentage; the gateway samples and sends the shadow call in the background.
+  function getMirror(config: Record<string, unknown> | null | undefined): { alias: string; pct: string } {
+    const alias = typeof config?.alias === 'string' ? config.alias : ''
+    const pct = typeof config?.sample_pct === 'number' ? String(Math.round(config.sample_pct * 1000) / 10) : ''
+    return { alias, pct }
+  }
+
+  function buildMirrorConfig(alias: string, pct: string): Record<string, unknown> | null {
+    const value = Number(pct)
+    if (!alias.trim() || !Number.isFinite(value) || value <= 0) return null
+    return { alias: alias.trim(), sample_pct: Math.min(value, 100) / 100 }
+  }
+
+  function buildFallbackConfig(
+    aliasesCsv: string,
+    contextAlias: string,
+    policyAlias: string,
+    existing: Record<string, unknown> | null,
+  ): Record<string, unknown> | null {
+    const aliases = parseCsvTags(aliasesCsv)
+    // Keep any other rules (other triggers, per-step overrides) set through the API.
+    const kept = fallbackRules(existing).filter(
+      (r) => !isSingleTrigger(r, 'context_window') && !isSingleTrigger(r, 'content_policy'),
+    )
+    const fallbacks = [
+      ...kept,
+      ...(contextAlias.trim() ? [{ alias: contextAlias.trim(), on: ['context_window'] }] : []),
+      ...(policyAlias.trim() ? [{ alias: policyAlias.trim(), on: ['content_policy'] }] : []),
+    ]
+    const config: Record<string, unknown> = { ...(existing ?? {}) }
+    delete config.aliases
+    delete config.fallbacks
+    if (aliases.length > 0) config.aliases = aliases
+    if (fallbacks.length > 0) config.fallbacks = fallbacks
+    return Object.keys(config).length > 0 ? config : null
+  }
+
   function beginCacheEdit(config: ResponseCacheConfigResponse) {
     setRouteEditState(null)
     setGroupEditState(null)
@@ -407,6 +472,11 @@ export default function GatewayPage() {
       monthlyCostLimitUsd: route.monthly_cost_limit_usd ?? '',
       perUserRpmLimit: route.per_user_rpm_limit != null ? String(route.per_user_rpm_limit) : '',
       fallbackAliases: getRouteFallbackAliases(route).join(', '),
+      contextWindowFallback: getTriggerFallback(route.fallback_config, 'context_window'),
+      contentPolicyFallback: getTriggerFallback(route.fallback_config, 'content_policy'),
+      existingFallbackConfig: route.fallback_config,
+      mirrorAlias: getMirror(route.mirror_config).alias,
+      mirrorSamplePct: getMirror(route.mirror_config).pct,
       routeConfigStr: route.config ? JSON.stringify(route.config, null, 2) : '{}',
       routingConfigStr: route.routing_config ? JSON.stringify(route.routing_config, null, 2) : '{}',
       piiRedactionEnabled: route.pii_redaction_enabled,
@@ -563,8 +633,14 @@ export default function GatewayPage() {
         context_compiler_enabled: routeEditState.contextCompilerEnabled,
         intelligent_routing_enabled: routeEditState.intelligentRoutingEnabled,
         routing_config: routeEditState.intelligentRoutingEnabled ? routingConfig : null,
+        mirror_config: buildMirrorConfig(routeEditState.mirrorAlias, routeEditState.mirrorSamplePct),
         per_user_rpm_limit: routeEditState.perUserRpmLimit ? parseInt(routeEditState.perUserRpmLimit, 10) : null,
-        fallback_config: parseCsvTags(routeEditState.fallbackAliases).length > 0 ? { aliases: parseCsvTags(routeEditState.fallbackAliases) } : null,
+        fallback_config: buildFallbackConfig(
+          routeEditState.fallbackAliases,
+          routeEditState.contextWindowFallback,
+          routeEditState.contentPolicyFallback,
+          routeEditState.existingFallbackConfig,
+        ),
         required_tags: parseCsvTags(routeEditState.requiredTags),
         excluded_tags: parseCsvTags(routeEditState.excludedTags),
         region: routeEditState.region.trim() || null,
@@ -573,8 +649,8 @@ export default function GatewayPage() {
       setRouteEditState(null)
       toast.success('Gateway route updated')
       await load()
-    } catch {
-      toast.error('Failed to update route')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to update route'))
     } finally {
       setSavingRouteEdit(false)
     }
@@ -703,10 +779,6 @@ export default function GatewayPage() {
         return
       }
     }
-    const fallbackAliases = newRouteFallbackAliases
-      .split(',')
-      .map((alias) => alias.trim())
-      .filter(Boolean)
     setCreatingRoute(true)
     try {
       const route = await createGatewayRoute(apiKey, {
@@ -743,8 +815,9 @@ export default function GatewayPage() {
           : null,
         intelligent_routing_enabled: newRouteIntelligent,
         routing_config: routingConfig,
+        mirror_config: buildMirrorConfig(newRouteMirrorAlias, newRouteMirrorPct),
         per_user_rpm_limit: newRoutePerUserRpm ? parseInt(newRoutePerUserRpm, 10) : null,
-        fallback_config: fallbackAliases.length > 0 ? { aliases: fallbackAliases } : null,
+        fallback_config: buildFallbackConfig(newRouteFallbackAliases, newRouteContextFallback, newRoutePolicyFallback, null),
         required_tags: parseCsvTags(newRouteRequiredTags),
         excluded_tags: parseCsvTags(newRouteExcludedTags),
         region: newRouteRegion.trim() || null,
@@ -781,11 +854,15 @@ export default function GatewayPage() {
       setNewRouteRoutingError('')
       setNewRoutePerUserRpm('')
       setNewRouteFallbackAliases('')
+      setNewRouteContextFallback('')
+      setNewRoutePolicyFallback('')
+      setNewRouteMirrorAlias('')
+      setNewRouteMirrorPct('')
       setShowRouteForm(false)
       await load()
       toast.success('Gateway route created')
-    } catch {
-      toast.error('Failed to create gateway route')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to create gateway route'))
     } finally {
       setCreatingRoute(false)
     }
@@ -2975,7 +3052,56 @@ export default function GatewayPage() {
                       className={inputCls}
                     />
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      Comma-separated route aliases to try if this endpoint is unhealthy or fails.
+                      Comma-separated route aliases to try if this endpoint is unhealthy or fails (timeouts, 429, 5xx).
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400">On context-length error</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. long-context alias"
+                      value={newRouteContextFallback}
+                      onChange={(e) => setNewRouteContextFallback(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400">On content-policy error</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. alternate-provider alias"
+                      value={newRoutePolicyFallback}
+                      onChange={(e) => setNewRoutePolicyFallback(e.target.value)}
+                      className={inputCls}
+                    />
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      Other 400-class errors aren&apos;t retried or sent to fallbacks; the client gets the provider&apos;s status.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Mirror (shadow) alias</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. candidate-model alias"
+                      value={newRouteMirrorAlias}
+                      onChange={(e) => setNewRouteMirrorAlias(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 lg:col-span-3">
+                    <label className="text-xs text-slate-500 dark:text-slate-400">Mirror sample %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="e.g. 10"
+                      value={newRouteMirrorPct}
+                      onChange={(e) => setNewRouteMirrorPct(e.target.value)}
+                      className={inputCls}
+                    />
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      Sampled requests are re-sent to the mirror alias in the background and recorded as shadow spend.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 mt-4">
@@ -3208,6 +3334,24 @@ export default function GatewayPage() {
                             Fallback {fallbackAliases.length}
                           </span>
                         )}
+                        {fallbackRules(route.fallback_config).length > 0 && (
+                          <span
+                            className="rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 text-[10px] font-medium"
+                            title={`Error-triggered fallbacks: ${fallbackRules(route.fallback_config)
+                              .map((r) => `${Array.isArray(r.on) ? r.on.join('/') : '?'} → ${String(r.alias)}`)
+                              .join(', ')}`}
+                          >
+                            On error {fallbackRules(route.fallback_config).length}
+                          </span>
+                        )}
+                        {getMirror(route.mirror_config).alias && (
+                          <span
+                            className="rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-1.5 py-0.5 text-[10px] font-medium"
+                            title={`Shadow traffic to ${getMirror(route.mirror_config).alias}`}
+                          >
+                            Mirror {getMirror(route.mirror_config).pct || 0}%
+                          </span>
+                        )}
                         {route.pii_redaction_enabled && (
                           <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-medium">PII</span>
                         )}
@@ -3291,7 +3435,11 @@ export default function GatewayPage() {
                           <input value={routeEditState.dailyCostLimitUsd} onChange={(e) => setRouteEditState({ ...routeEditState, dailyCostLimitUsd: e.target.value })} className={inputCls} placeholder="Daily cap USD" />
                           <input value={routeEditState.monthlyCostLimitUsd} onChange={(e) => setRouteEditState({ ...routeEditState, monthlyCostLimitUsd: e.target.value })} className={inputCls} placeholder="Monthly cap USD" />
                           <input value={routeEditState.perUserRpmLimit} onChange={(e) => setRouteEditState({ ...routeEditState, perUserRpmLimit: e.target.value })} className={inputCls} placeholder="Per-user RPM" />
-                          <input value={routeEditState.fallbackAliases} onChange={(e) => setRouteEditState({ ...routeEditState, fallbackAliases: e.target.value })} className={`${inputCls} sm:col-span-2 lg:col-span-3`} placeholder="Fallback aliases (csv)" />
+                          <input value={routeEditState.fallbackAliases} onChange={(e) => setRouteEditState({ ...routeEditState, fallbackAliases: e.target.value })} className={inputCls} placeholder="Fallback aliases (csv)" />
+                          <input value={routeEditState.contextWindowFallback} onChange={(e) => setRouteEditState({ ...routeEditState, contextWindowFallback: e.target.value })} className={inputCls} placeholder="On context-length error → alias" />
+                          <input value={routeEditState.contentPolicyFallback} onChange={(e) => setRouteEditState({ ...routeEditState, contentPolicyFallback: e.target.value })} className={inputCls} placeholder="On content-policy error → alias" />
+                          <input value={routeEditState.mirrorAlias} onChange={(e) => setRouteEditState({ ...routeEditState, mirrorAlias: e.target.value })} className={inputCls} placeholder="Mirror (shadow) alias" />
+                          <input type="number" min="0" max="100" step="0.1" value={routeEditState.mirrorSamplePct} onChange={(e) => setRouteEditState({ ...routeEditState, mirrorSamplePct: e.target.value })} className={inputCls} placeholder="Mirror sample %" />
                           <textarea value={routeEditState.routeConfigStr} onChange={(e) => { setRouteEditState({ ...routeEditState, routeConfigStr: e.target.value }); setRouteEditError('') }} className={`${inputCls} min-h-[96px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder="Provider config JSON" />
                           <textarea value={routeEditState.routingConfigStr} onChange={(e) => { setRouteEditState({ ...routeEditState, routingConfigStr: e.target.value }); setRouteEditError('') }} className={`${inputCls} min-h-[120px] font-mono text-xs sm:col-span-2 lg:col-span-3`} placeholder="Routing config JSON" />
                           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
@@ -3575,6 +3723,7 @@ export default function GatewayPage() {
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                         req.status === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
                         req.status === 'cache_hit' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                        req.status === 'blocked' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' :
                         'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                       }`}>
                         {req.status}
@@ -4069,6 +4218,16 @@ function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canManage: boo
     is_default: false,
   }
   const [tiers, setTiers] = useState<BudgetTier[]>([])
+  const [tierQuery, setTierQuery] = useState('')
+  const [tierSort, setTierSort] = useState<'name' | 'spend' | 'keys'>('name')
+  const visibleTiers = useMemo(() => {
+    const q = tierQuery.trim().toLowerCase()
+    const list = q ? tiers.filter((t) => t.name.toLowerCase().includes(q)) : [...tiers]
+    if (tierSort === 'spend') list.sort((a, b) => Number(b.max_spend_usd ?? -1) - Number(a.max_spend_usd ?? -1))
+    else if (tierSort === 'keys') list.sort((a, b) => (b.key_count ?? 0) - (a.key_count ?? 0))
+    else list.sort((a, b) => a.name.localeCompare(b.name))
+    return list
+  }, [tiers, tierQuery, tierSort])
   const [keys, setKeys] = useState<ApiKeyResponse[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState<string | null>(null)
@@ -4080,7 +4239,7 @@ function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canManage: boo
     setLoading(true)
     try {
       const [tierData, keyData] = await Promise.all([
-        listBudgetTiers(apiKey),
+        listBudgetTiers(apiKey, { limit: 500 }),
         listApiKeys(apiKey),
       ])
       setTiers(tierData.items)
@@ -4220,12 +4379,37 @@ function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canManage: boo
         </form>
       )}
 
+      {tiers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={tierQuery}
+            onChange={(e) => setTierQuery(e.target.value)}
+            placeholder="Search tiers…"
+            className="min-w-[200px] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          />
+          <select
+            value={tierSort}
+            onChange={(e) => setTierSort(e.target.value as typeof tierSort)}
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          >
+            <option value="name">Sort: name</option>
+            <option value="spend">Sort: spend cap</option>
+            <option value="keys">Sort: keys assigned</option>
+          </select>
+          <span className="text-xs text-slate-500 dark:text-slate-400">{visibleTiers.length} of {tiers.length}</span>
+        </div>
+      )}
+
       <div className="grid gap-3 lg:grid-cols-2">
         {tiers.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400 lg:col-span-2">
             No quota tiers configured yet.
           </div>
-        ) : tiers.map((tier) => (
+        ) : visibleTiers.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-6 text-center text-sm text-slate-400 lg:col-span-2">
+            No tiers match &ldquo;{tierQuery}&rdquo;.
+          </div>
+        ) : visibleTiers.map((tier) => (
           <div key={tier.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">

@@ -121,8 +121,6 @@ env a given pod doesn't read is harmless; it keeps wiring in one place.
   value: {{ printf "http://%s-context-compiler:8103" $full | quote }}
 - name: COMPRESSION_SVC_URL
   value: {{ printf "http://%s-compression:8104" $full | quote }}
-- name: ROUTER_SVC_URL
-  value: {{ printf "http://%s-gateway-rs:8210" $full | quote }}
 - name: GATEWAY_RS_URL
   value: {{ printf "http://%s-gateway-rs:8210" $full | quote }}
 - name: KG_SVC_URL
@@ -140,6 +138,9 @@ env a given pod doesn't read is harmless; it keeps wiring in one place.
   value: {{ printf "http://%s-api:%v" $full .Values.service.api.port | quote }}
 - name: RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET
   {{- include "runledger.secretRef" (list . "ADMIN_SECRET" .Values.secrets.adminSecret) | nindent 2 }}
+# gateway-rs: proxies whose X-Forwarded-For is trusted for IP ACLs (review G-18).
+- name: RUNLEDGER_GATEWAY_TRUSTED_PROXIES
+  value: {{ .Values.gatewayTrustedProxies | default "" | quote }}
 {{ include "runledger.internalServiceTokenEnv" . }}
 - name: LETTA_BASE_URL
   value: {{ include "runledger.lettaUrl" . | quote }}

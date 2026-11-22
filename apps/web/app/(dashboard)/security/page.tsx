@@ -11,6 +11,7 @@ import {
   createOidcProvider,
   deleteIpAclRule,
   deleteOidcProvider,
+  getAccessGroups,
   getSecuritySettings,
   listIpAclRules,
   listOidcProviders,
@@ -23,7 +24,7 @@ import {
   getGovernanceInternalPosture,
   getSecurityRuntimePosture,
 } from '@/lib/api'
-import type { IpAclRuleResponse, OIDCProviderResponse, WorkspaceSecuritySettings, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture, SecurityRuntimePosture } from '@/types/api'
+import type { AccessGroupResponse, IpAclRuleResponse, OIDCProviderResponse, WorkspaceSecuritySettings, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture, SecurityRuntimePosture } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-indigo-400'
@@ -70,6 +71,8 @@ export default function SecurityPage() {
   const [cidr, setCidr] = useState('')
   const [aclAction, setAclAction] = useState('allow')
   const [apiKeyId, setApiKeyId] = useState('')
+  const [accessGroupId, setAccessGroupId] = useState('')
+  const [accessGroups, setAccessGroups] = useState<AccessGroupResponse[]>([])
   const [priority, setPriority] = useState('100')
   const [description, setDescription] = useState('')
 
@@ -97,6 +100,7 @@ export default function SecurityPage() {
     setCidr('')
     setAclAction('allow')
     setApiKeyId('')
+    setAccessGroupId('')
     setPriority('100')
     setDescription('')
   }, [])
@@ -114,6 +118,9 @@ export default function SecurityPage() {
         getGovernanceInternalPosture(apiKey).catch(() => null),
         getSecurityRuntimePosture(apiKey).catch(() => null),
       ])
+      getAccessGroups(apiKey)
+        .then((groups) => setAccessGroups(groups.items))
+        .catch(() => setAccessGroups([]))
       setSettings(settingsData)
       setRequiredFields(settingsData.required_metadata_fields.join(', '))
       setRequiredMode(settingsData.required_metadata_mode)
@@ -230,6 +237,7 @@ export default function SecurityPage() {
       if (editingAclId) {
         const updated = await updateIpAclRule(apiKey, editingAclId, {
           api_key_id: apiKeyId.trim() || null,
+          ...(scopeType === 'access_group' || scopeType === 'team' ? { access_group_id: accessGroupId || null } : {}),
           cidr: cidr.trim(),
           action: aclAction,
           priority: parseInt(priority, 10) || 100,
@@ -243,6 +251,7 @@ export default function SecurityPage() {
           cidr: cidr.trim(),
           action: aclAction,
           api_key_id: apiKeyId.trim() || null,
+          access_group_id: scopeType === 'access_group' ? accessGroupId || null : null,
           priority: parseInt(priority, 10) || 100,
           description: description.trim() || null,
         })
@@ -250,14 +259,16 @@ export default function SecurityPage() {
         toast.success('IP ACL rule created')
       }
       resetAclForm()
-    } catch {
-      toast.error(editingAclId ? 'Failed to update IP ACL rule' : 'Failed to create IP ACL rule')
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : ''
+      toast.error(`${editingAclId ? 'Failed to update IP ACL rule' : 'Failed to create IP ACL rule'}${detail ? `: ${detail}` : ''}`)
     }
   }
 
   function startEditIpAclRule(rule: IpAclRuleResponse) {
     setEditingAclId(rule.id)
     setScopeType(rule.scope_type)
+    setAccessGroupId(rule.access_group_id ?? '')
     setCidr(rule.cidr)
     setAclAction(rule.action)
     setApiKeyId(rule.api_key_id ?? '')
@@ -577,7 +588,7 @@ export default function SecurityPage() {
             <div>
               <h2 className="text-base font-semibold dark:text-white">IP ACLs</h2>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Allow or deny traffic by workspace, key, or global scope, then simulate request outcomes.
+                Allow or deny gateway traffic by workspace, API key or access group, then simulate request outcomes. The first matching rule wins; with allow rules, unlisted IPs are refused.
               </p>
             </div>
             {editingAclId && (
@@ -591,7 +602,9 @@ export default function SecurityPage() {
             <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls} disabled={Boolean(editingAclId)}>
               <option value="workspace">workspace</option>
               <option value="api_key">api_key</option>
-              <option value="global">global</option>
+              <option value="access_group">access group</option>
+              {(isPlatformAdmin || scopeType === 'global') && <option value="global">global (all workspaces)</option>}
+              {scopeType === 'team' && <option value="team">legacy team</option>}
             </select>
             <select value={aclAction} onChange={(e) => setAclAction(e.target.value)} className={inputCls}>
               <option value="allow">allow</option>
@@ -599,6 +612,14 @@ export default function SecurityPage() {
             </select>
             <input value={cidr} onChange={(e) => setCidr(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="203.0.113.0/24" required />
             <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="API key ID (optional)" />
+            {(scopeType === 'access_group' || scopeType === 'team') && (
+              <select value={accessGroupId} onChange={(e) => setAccessGroupId(e.target.value)} className={`${inputCls} sm:col-span-2`} required>
+                <option value="">Select an access group…</option>
+                {accessGroups.map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            )}
             <input value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls} placeholder="100" />
             <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Description" />
             <div className="sm:col-span-2">
@@ -632,8 +653,15 @@ export default function SecurityPage() {
                   <div>
                     <p className="font-mono text-sm dark:text-slate-100">{rule.cidr}</p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {rule.action} · {rule.scope_type} · priority {rule.priority}
+                      {rule.action} · {rule.scope_type === 'access_group'
+                        ? `access group ${accessGroups.find((g) => g.id === rule.access_group_id)?.name ?? rule.access_group_id ?? ''}`
+                        : rule.scope_type} · priority {rule.priority}
                     </p>
+                    {rule.team_name && !rule.access_group_id && (
+                      <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        Legacy team rule &ldquo;{rule.team_name}&rdquo; — inactive. Edit it to assign an access group, or delete it.
+                      </p>
+                    )}
                     {rule.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{rule.description}</p>}
                   </div>
                   <div className="flex gap-2">

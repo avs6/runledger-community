@@ -8,6 +8,9 @@ RunLedger now exposes a first-class **Performance And Benchmarking** view in the
 ## What is now built in
 
 - `GET /gateway/benchmarks/compare` returns per-alias request volume, throughput, gateway overhead, provider latency, and end-to-end latency.
+  The gateway times each request from arrival to response (`total_wall_ms`); overhead is that minus the provider's
+  time (`provider_latency_ms`). For streams, provider time runs until the last chunk, so overhead stays the
+  gateway's own work (auth, preflight, routing and control-plane hops), not the stream's length.
 - The Gateway dashboard renders p50, p95, and p99 overhead plus direct-provider comparison metrics.
 - Pass-through endpoints expose:
   - per-request cost attribution for non-LLM APIs

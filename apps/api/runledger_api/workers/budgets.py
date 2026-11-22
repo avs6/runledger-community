@@ -34,6 +34,7 @@ from runledger_api.core.config import settings
 from runledger_api.models.budgets import Budget, BudgetNotification
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.tenant import Workspace
+from runledger_api.services.billable import billable_filters
 from runledger_api.services.budgets import (
     _period_key,
     _spend_key,
@@ -305,7 +306,7 @@ async def _run_budget_spend_sync() -> dict[str, int]:
                         *scope_filter,
                         ProviderCall.created_at >= period_start,
                         ProviderCall.created_at < period_end,
-                        ProviderCall.cost_usd.is_not(None),
+                        *billable_filters(),
                     )
                 )
                 spend_result = await session.execute(spend_stmt)

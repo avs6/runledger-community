@@ -132,18 +132,18 @@ This is the feature inventory from the original Python `/gateway/chat/completion
 | Preferred-region routing | Complete | Preserved in the planned execution steps. |
 | Route retries | Complete | Rust now retries per planned step using route retry counts. |
 | Configured fallback aliases | Complete | Included in the execution plan returned to Rust. |
-| Trigger-based fallback rules | Complete | Execution steps now carry required trigger metadata so Rust only activates those fallbacks on matching failures. |
+| Trigger-based fallback rules | Complete | Execution steps carry required trigger metadata. A non-transient failure skips plain fallbacks and runs the next step whose triggers match; with no match the provider's 4xx status is returned instead of 502. |
 | Cost-cap enforcement | Complete | Evaluated in Python preflight against the candidate route set. |
 | Per-user RPM enforcement | Complete | Evaluated in Python preflight before execution. |
 | Pre-call guardrails including message modification | Complete | Preserved in Python preflight before provider execution. |
-| Post-call and during-call guardrails | Complete | Preserved in Python finalize before success is recorded. |
-| PII redaction | Complete | Streaming requests preserve route-driven redaction before execution planning. |
+| Post-call and during-call guardrails | Complete | Evaluated in Python finalize. A blocked response still records the run (failed), the request (`status: blocked`) and the budget spend, since the provider was paid, and is not cached; the client gets 451. |
+| PII redaction | Complete | The control plane redacts route-enabled PII in preflight, before caches, compiler and classifier, for streamed and non-streamed requests. |
 | Provider adapter parity for OpenAI-compatible providers | Complete | Python now prepares direct request URL, headers, and body for Rust. |
 | Provider adapter parity for Azure OpenAI | Complete | Python prepares Azure-specific URL and auth header for Rust. |
 | Provider adapter parity for Vertex | Complete | Non-stream direct requests are prepared by Python; streaming falls back through the internal Python adapter bridge. |
 | Provider adapter parity for Bedrock | Complete | Executed through the internal Python adapter bridge behind the Rust ingress. |
-| Mirror / shadow compare execution | Complete | Successful non-stream requests now call back into the control plane to preserve mirror sampling, comparison, and logging. |
-| Streaming SSE response handling | Complete | Rust proxies both direct and bridged stream responses. |
+| Mirror / shadow compare execution | Complete | Rust samples each successful non-stream request against the route's `mirror_config.sample_pct` and fires the mirror call in the background (`tokio::spawn`) after replying; the control plane runs the shadow call, compares it and records it as a priced `shadow` run counted against budgets. |
+| Streaming SSE response handling | Complete | Rust proxies both direct and bridged stream responses and tees them: when the stream ends (or the client disconnects) the gateway rebuilds the completion from the events (OpenAI and Anthropic formats, up to 2 MB) and calls finalize, so streamed calls record a run, tokens and cost. OpenAI-compatible providers are asked for `stream_options.include_usage`. Post-call guardrails and the response cache don't apply to streams. |
 | Success logging and cache persistence | Complete | Python finalize stores cache entries and records gateway requests after Rust success. |
 | Route health counters and cooldown updates | Complete | Rust now reports per-attempt success and failure back to the control plane. |
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import html as _html
 import smtplib
+import ssl
 import textwrap
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -22,6 +23,30 @@ log = structlog.get_logger()
 def get_unsubscribe_url(base_url: str, token: str) -> str:
     """Build an unsubscribe URL from base URL and user token."""
     return f"{base_url}/unsubscribe?token={token}"
+
+
+_SMTP_TIMEOUT = 15.0
+
+
+def _escape_args(fn: Any) -> Any:
+    """HTML-escape every string argument of an email template except the recipient
+    (review P-10): names, reasons and workspace names come from users and are
+    interpolated into HTML. URLs are escaped too, which is correct inside href."""
+    import functools  # noqa: PLC0415
+    import html as _html  # noqa: PLC0415
+    import inspect  # noqa: PLC0415
+
+    sig = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        bound = sig.bind(*args, **kwargs)
+        for name, value in bound.arguments.items():
+            if name != "to_email" and isinstance(value, str):
+                bound.arguments[name] = _html.escape(value, quote=True)
+        return await fn(*bound.args, **bound.kwargs)
+
+    return wrapper
 
 
 def _send_smtp(to_email: str, subject: str, html: str, text: str) -> None:
@@ -39,9 +64,19 @@ def _send_smtp(to_email: str, subject: str, html: str, text: str) -> None:
     msg.attach(MIMEText(text, "plain"))
     msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as smtp:
+    # Verify the server certificate (review P-09); port 465 uses implicit TLS.
+    context = ssl.create_default_context()
+    if settings.smtp_port == 465:
+        with smtplib.SMTP_SSL(
+            settings.smtp_host, settings.smtp_port, context=context, timeout=_SMTP_TIMEOUT
+        ) as smtp:
+            smtp.login(settings.smtp_user, settings.smtp_password)
+            smtp.sendmail(settings.smtp_from, to_email, msg.as_string())
+        return
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=_SMTP_TIMEOUT) as smtp:
         smtp.ehlo()
-        smtp.starttls()
+        smtp.starttls(context=context)
+        smtp.ehlo()
         smtp.login(settings.smtp_user, settings.smtp_password)
         smtp.sendmail(settings.smtp_from, to_email, msg.as_string())
 
@@ -119,6 +154,7 @@ async def send_email(
         await log_coro
 
 
+@_escape_args
 async def send_welcome_email(
     to_email: str,
     full_name: str,
@@ -205,6 +241,7 @@ async def send_welcome_email(
     await send_email(to_email, subject, html, text, event_type="welcome")
 
 
+@_escape_args
 async def send_alert_fired_email(
     to_email: str,
     full_name: str | None,
@@ -285,6 +322,7 @@ async def send_alert_fired_email(
     await send_email(to_email, subject, html, text, event_type="alert_fired")
 
 
+@_escape_args
 async def send_approval_request_email(
     to_email: str,
     full_name: str | None,
@@ -365,6 +403,7 @@ async def send_approval_request_email(
     await send_email(to_email, subject, html, text, event_type="approval_request")
 
 
+@_escape_args
 async def send_approval_decision_email(
     to_email: str,
     request_type: str,
@@ -440,6 +479,7 @@ async def send_approval_decision_email(
     await send_email(to_email, subject, html, text, event_type="approval_decision")
 
 
+@_escape_args
 async def send_reconciliation_email(
     to_email: str,
     full_name: str | None,
@@ -523,6 +563,7 @@ async def send_reconciliation_email(
     await send_email(to_email, subject, html, text, event_type="reconciliation")
 
 
+@_escape_args
 async def send_analytics_report_email(
     to_email: str,
     full_name: str | None,
@@ -633,6 +674,7 @@ async def send_analytics_report_email(
     await send_email(to_email, subject, html, text, event_type="analytics_report")
 
 
+@_escape_args
 async def send_budget_breach_email(
     to_email: str,
     full_name: str | None,
@@ -721,6 +763,7 @@ async def send_budget_breach_email(
     await send_email(to_email, subject, html, text, event_type="budget_breach")
 
 
+@_escape_args
 async def send_billing_period_closed_email(
     to_email: str,
     full_name: str | None,
@@ -799,6 +842,7 @@ async def send_billing_period_closed_email(
     await send_email(to_email, subject, html, text, event_type="billing_closed")
 
 
+@_escape_args
 async def send_dispute_flagged_email(
     to_email: str,
     full_name: str | None,
@@ -882,6 +926,7 @@ async def send_dispute_flagged_email(
     await send_email(to_email, subject, html, text, event_type="dispute_flagged")
 
 
+@_escape_args
 async def send_score_regression_email(
     to_email: str,
     full_name: str | None,
@@ -965,6 +1010,7 @@ async def send_score_regression_email(
     await send_email(to_email, subject, html, text, event_type="score_regression")
 
 
+@_escape_args
 async def send_verification_email(to_email: str, full_name: str, verify_url: str) -> None:
     """Resend verification email (without password)."""
     name = full_name or to_email
@@ -1020,6 +1066,7 @@ def _simple_email_html(heading: str, body_html: str, button_label: str, url: str
 </html>"""
 
 
+@_escape_args
 async def send_password_reset_email(to_email: str, full_name: str | None, reset_url: str) -> None:
     name = _html.escape(full_name or to_email)
     subject = "Reset your RunLedger password"
@@ -1037,6 +1084,7 @@ async def send_password_reset_email(to_email: str, full_name: str | None, reset_
     await send_email(to_email, subject, html, text, event_type="password_reset")
 
 
+@_escape_args
 async def send_org_invitation_email(
     to_email: str, org_name: str, invited_by: str | None, accept_url: str
 ) -> None:

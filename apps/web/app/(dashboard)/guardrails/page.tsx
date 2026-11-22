@@ -50,6 +50,7 @@ import {
   updatePartnerGuardrail,
   getGuardrailsObservePosture,
   getGuardrailsFinopsPosture,
+  apiErrorMessage,
 } from '@/lib/api'
 import { num } from '@/lib/utils'
 import type {
@@ -126,6 +127,8 @@ export default function GuardrailsPage() {
   const [testCases, setTestCases] = useState<GuardrailTestCaseResponse[]>([])
   const [alerts, setAlerts] = useState<GuardrailAlertResponse[]>([])
   const [loading, setLoading] = useState(true)
+  // Sections whose data failed to load; shown in a banner instead of silently empty (G-23).
+  const [failedSections, setFailedSections] = useState<string[]>([])
   const [refreshingAlerts, setRefreshingAlerts] = useState(false)
   const [observePosture, setObservePosture] = useState<GuardrailsObservePosture | null>(null)
   const [finopsPosture, setFinopsPosture] = useState<GuardrailsFinopsPosture | null>(null)
@@ -185,28 +188,39 @@ export default function GuardrailsPage() {
       return
     }
     setLoading(true)
+    // Each section loads on its own, so one failing request (even the rule list)
+    // doesn't blank the page; failures are named in a banner with a retry (G-23).
+    const failed: string[] = []
+    const section = <T,>(name: string, request: Promise<T>): Promise<T | null> =>
+      request.catch(() => {
+        failed.push(name)
+        return null
+      })
     try {
       const [rulesRes, statsRes, eventsRes, templatesRes, partnersRes, filtersRes, testCasesRes, alertsRes] = await Promise.all([
-        listGuardrailRules(apiKey, { limit: 100 }),
-        getGuardrailStats(apiKey, 24).catch(() => null),
-        listGuardrailEvents(apiKey, { limit: 12 }).catch(() => null),
-        listGuardrailTemplates(apiKey).catch(() => []),
-        listPartnerGuardrails(apiKey).catch(() => null),
-        listContentFilters(apiKey).catch(() => null),
-        listGuardrailTestCases(apiKey).catch(() => null),
-        listGuardrailAlerts(apiKey, { limit: 12 }).catch(() => null),
+        section('rules', listGuardrailRules(apiKey, { limit: 100 })),
+        section('stats', getGuardrailStats(apiKey, 24)),
+        section('recent events', listGuardrailEvents(apiKey, { limit: 12 })),
+        section('templates', listGuardrailTemplates(apiKey)),
+        section('partner guardrails', listPartnerGuardrails(apiKey)),
+        section('content filters', listContentFilters(apiKey)),
+        section('test cases', listGuardrailTestCases(apiKey)),
+        section('alerts', listGuardrailAlerts(apiKey, { limit: 12 })),
       ])
-      setRules(rulesRes.items)
+      setFailedSections(failed)
+      if (rulesRes) setRules(rulesRes.items)
       setStats(statsRes)
       setEvents(eventsRes)
-      setTemplates(templatesRes)
+      setTemplates(templatesRes ?? [])
       setPartners(partnersRes?.items || [])
       setFilters(filtersRes?.filters || [])
       setTestCases(testCasesRes?.items || [])
       setAlerts(alertsRes?.items || [])
-      if (!testCaseRuleId && rulesRes.items.length > 0) setTestCaseRuleId(rulesRes.items[0].id)
-      if (!selectedRegressionRuleId && rulesRes.items.length > 0) setSelectedRegressionRuleId(rulesRes.items[0].id)
-      setSelectedRuleIds((c) => c.filter((id) => rulesRes.items.some((r) => r.id === id)))
+      if (rulesRes) {
+        if (!testCaseRuleId && rulesRes.items.length > 0) setTestCaseRuleId(rulesRes.items[0].id)
+        if (!selectedRegressionRuleId && rulesRes.items.length > 0) setSelectedRegressionRuleId(rulesRes.items[0].id)
+        setSelectedRuleIds((c) => c.filter((id) => rulesRes.items.some((r) => r.id === id)))
+      }
     } catch { toast.error('Failed to load guardrails') } finally { setLoading(false) }
   }
 
@@ -238,7 +252,7 @@ export default function GuardrailsPage() {
         toast.success('Guardrail rule created')
       }
       setShowRuleModal(false); resetRuleForm(); await loadData()
-    } catch { toast.error('Failed to save guardrail rule') } finally { setSavingRule(false) }
+    } catch (err) { toast.error(apiErrorMessage(err, 'Failed to save guardrail rule')) } finally { setSavingRule(false) }
   }
 
   async function handleDeleteRule(rule: GuardrailRuleResponse) { if (!apiKey || !confirm(`Delete "${rule.name}"?`)) return; try { await deleteGuardrailRule(apiKey, rule.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed to delete') } }
@@ -301,6 +315,14 @@ export default function GuardrailsPage() {
 
   return (
     <div className="space-y-3">
+      {failedSections.length > 0 && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
+          <span>Couldn&apos;t load: {failedSections.join(', ')}. What&apos;s shown for those sections may be incomplete.</span>
+          <button onClick={() => void loadData()} className="shrink-0 rounded-md border border-rose-300 px-2 py-0.5 font-medium hover:bg-rose-100 dark:border-rose-800 dark:hover:bg-rose-900/40">
+            Retry
+          </button>
+        </div>
+      )}
       {/* ── Header ───────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -854,7 +876,10 @@ export default function GuardrailsPage() {
                   <option value="strict">strict</option>
                 </select>
               </div>
-              <textarea value={ruleLogic} onChange={(e) => setRuleLogic(e.target.value)} className={`${inputCls} min-h-28 font-mono`} placeholder="Logic (e.g. result = block('Detected secret'))" />
+              <textarea value={ruleLogic} onChange={(e) => setRuleLogic(e.target.value)} className={`${inputCls} min-h-28 font-mono`} placeholder="Logic (e.g. result = block('Detected secret'))" aria-label="Guardrail logic" />
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                Guardrail language: a safe Python subset (assignments, if/for, comprehensions, f-strings, common str/list/dict methods, re.search/sub/findall). Inputs: texts, tool_calls, model, metadata… Set <code>result</code> to allow(), block(reason) or modify(texts=…). Other constructs are rejected on save.
+              </p>
               <textarea value={ruleConfigText} onChange={(e) => setRuleConfigText(e.target.value)} className={`${inputCls} min-h-16 font-mono`} placeholder='Config JSON (e.g. {"threshold": 0.8})' />
               <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                 <input type="checkbox" checked={ruleSkipSystemMessages} onChange={(e) => setRuleSkipSystemMessages(e.target.checked)} />

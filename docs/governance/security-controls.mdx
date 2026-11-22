@@ -9,7 +9,7 @@ The Security console is the governance home for enterprise auth posture and requ
 
 - **Security posture** - required metadata fields, enforcement mode, callback defaults, branding, and residency constraints
 - **OIDC providers** - create, edit, activate, deactivate, and delete issuer configurations for gateway auth
-- **IP ACL rules** - create, edit, simulate, and delete allow or deny rules for workspace, API-key, or global scope
+- **IP ACL rules** - create, edit, simulate, and delete allow or deny rules for workspace, API-key or access-group scope (global rules, which apply to every workspace, are platform-admin only)
 
 ## Operator workflow
 
@@ -17,6 +17,26 @@ The Security console is the governance home for enterprise auth posture and requ
 2. Register or update OIDC providers used by your tenant.
 3. Add IP ACL rules for sensitive traffic paths.
 4. Run the simulator before saving broader deny rules.
+
+## How IP ACLs are enforced
+
+The gateway applies IP ACLs to every request, including cache hits and OIDC-authenticated callers.
+
+- **Which rules apply**: global rules, this workspace's rules, rules for the calling API key, and rules
+  for access groups the caller belongs to. The caller is the API key's owner, or the user named in
+  `X-RunLedger-End-User-Id` (user id or email) when the key has no owner.
+- **Decision**: the first matching rule by priority (lowest number first) decides. If no rule matches,
+  the request is refused only when an allow rule applies (allow-list mode); a set of deny rules blocks
+  just those ranges.
+- **Client address**: the gateway uses the connection's peer address. It believes `X-Forwarded-For` only
+  when the peer is a trusted proxy listed in `RUNLEDGER_GATEWAY_TRUSTED_PROXIES` (comma-separated CIDRs;
+  `GATEWAY_TRUSTED_PROXIES` in `.env`, `gatewayTrustedProxies` in Helm), and then takes the right-most
+  address that isn't a trusted proxy, so a client can't claim an allow-listed IP.
+- **Validation**: CIDRs are checked when a rule is saved (422 if invalid), and API-key and access-group
+  rules must name a key or group in this workspace.
+- **Legacy team rules**: the old team scope was replaced by access groups. Migration 095 mapped team
+  rules to the access group with the same name; any that couldn't be mapped never match and are flagged
+  on the Security page for reassignment or deletion.
 
 ## Runtime scope and evidence
 
@@ -28,5 +48,5 @@ The Security page includes a Runtime Scope & Evidence posture card (cyan theme) 
 
 ## Notes
 
-- The current product direction avoids expanding legacy team-based controls. IP ACL management should stay workspace, API-key, or global scoped.
+- The legacy team scope is gone; use access groups to scope IP ACLs to a set of users.
 - Security is a managed admin surface, so completion is based on full lifecycle controls rather than read-only observability.

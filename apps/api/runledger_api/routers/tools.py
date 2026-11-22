@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_workspace_writer
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.redis import get_redis
 from runledger_api.models.ledger import SecurityEvent, ToolRegistry
 from runledger_api.models.tenant import Workspace
@@ -316,12 +317,15 @@ async def delete_tool_registry(
 async def list_security_events(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    page: PageDep,
+    response: Response,
 ) -> SecurityEventList:
-    result = await db.execute(
+    events = await paginate(
+        db,
         select(SecurityEvent)
         .where(SecurityEvent.workspace_id == workspace.id)
-        .order_by(SecurityEvent.detected_at.desc())
-        .limit(100)
+        .order_by(SecurityEvent.detected_at.desc(), SecurityEvent.id),
+        page,
+        response,
     )
-    events = result.scalars().all()
     return SecurityEventList(items=[_event_to_response(e) for e in events])

@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +34,7 @@ from runledger_api.core.deps import (
     require_org_admin,
     require_workspace_admin,
 )
+from runledger_api.core.pagination import PageDep, paginate, paginate_list
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.approvals import Approval
 from runledger_api.models.audit import AuditEvent
@@ -112,6 +113,8 @@ async def add_model(body: HubModelCreate, ws: WorkspaceDep, db: DbDep) -> HubMod
 async def list_models(
     ws: WorkspaceDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
     featured_only: bool = False,
     provider: str | None = None,
     tag: str | None = None,
@@ -121,12 +124,14 @@ async def list_models(
         q = q.where(HubModel.is_featured.is_(True))
     if provider:
         q = q.where(HubModel.provider == provider)
-    q = q.order_by(HubModel.is_featured.desc(), HubModel.name)
-    rows = (await db.execute(q)).scalars().all()
-    items = [_to_response(m) for m in rows]
+    q = q.order_by(HubModel.is_featured.desc(), HubModel.name, HubModel.id)
     if tag:
-        items = [i for i in items if tag in (i.tags or [])]
-    return HubModelList(items=items)
+        # tags live in JSON; filter in Python, then page the filtered list
+        rows = (await db.execute(q)).scalars().all()
+        items = [i for i in (_to_response(m) for m in rows) if tag in (i.tags or [])]
+        return HubModelList(items=paginate_list(items, page, response))
+    rows = await paginate(db, q, page, response)
+    return HubModelList(items=[_to_response(m) for m in rows])
 
 
 @router.get(

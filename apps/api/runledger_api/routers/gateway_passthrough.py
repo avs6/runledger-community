@@ -9,6 +9,22 @@ from .gateway_shared import *
 router = APIRouter()
 
 
+# Slugs that would collide with the management routes under /gateway/passthrough/.
+_RESERVED_SLUGS = frozenset({"stats", "test", "new", "list"})
+
+
+def _check_slug(slug: str) -> None:
+    """Refuse slugs that /passthrough/{slug} would confuse with a management route:
+    reserved words and UUID-shaped slugs (taken by /passthrough/{endpoint_id}) (G-24)."""
+    if slug in _RESERVED_SLUGS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Slug {slug!r} is reserved")
+    try:
+        uuid.UUID(slug)
+    except ValueError:
+        return
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Slug can't be a UUID")
+
+
 @router.post(
     "/passthrough",
     response_model=GatewayPassThroughEndpointResponse,
@@ -20,6 +36,15 @@ async def create_gateway_passthrough_endpoint(
     db: DbDep,
 ) -> GatewayPassThroughEndpointResponse:
     workspace = auth[0]
+    _check_slug(body.slug)
+    existing = await db.execute(
+        select(GatewayPassThroughEndpoint.id).where(
+            GatewayPassThroughEndpoint.workspace_id == workspace.id,
+            GatewayPassThroughEndpoint.slug == body.slug,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Slug {body.slug!r} is already in use")
     endpoint = GatewayPassThroughEndpoint(
         workspace_id=workspace.id,
         slug=body.slug,
@@ -59,7 +84,22 @@ async def list_gateway_passthrough_endpoints(
     )
 
 
-@router.put("/passthrough/{endpoint_id}", response_model=GatewayPassThroughEndpointResponse)
+# {endpoint_id:uuid} only matches UUIDs, so /passthrough/{slug} requests fall through to
+# the executor below instead of hitting these management routes (review G-24).
+@router.get("/passthrough/{endpoint_id:uuid}", response_model=GatewayPassThroughEndpointResponse)
+async def get_gateway_passthrough_endpoint(
+    endpoint_id: uuid.UUID,
+    auth: OrgAdminDep,
+    db: DbDep,
+) -> GatewayPassThroughEndpointResponse:
+    workspace = auth[0]
+    endpoint = await db.get(GatewayPassThroughEndpoint, endpoint_id)
+    if endpoint is None or endpoint.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
+    return GatewayPassThroughEndpointResponse.model_validate(endpoint)
+
+
+@router.put("/passthrough/{endpoint_id:uuid}", response_model=GatewayPassThroughEndpointResponse)
 async def update_gateway_passthrough_endpoint(
     endpoint_id: uuid.UUID,
     body: GatewayPassThroughEndpointUpdate,
@@ -79,7 +119,7 @@ async def update_gateway_passthrough_endpoint(
     return GatewayPassThroughEndpointResponse.model_validate(endpoint)
 
 
-@router.delete("/passthrough/{endpoint_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/passthrough/{endpoint_id:uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_gateway_passthrough_endpoint(
     endpoint_id: uuid.UUID,
     auth: OrgAdminDep,
@@ -93,7 +133,7 @@ async def delete_gateway_passthrough_endpoint(
     await db.commit()
 
 
-@router.post("/passthrough/{endpoint_id}/test", response_model=GatewayPassThroughTestResponse)
+@router.post("/passthrough/{endpoint_id:uuid}/test", response_model=GatewayPassThroughTestResponse)
 async def test_gateway_passthrough_endpoint(
     endpoint_id: uuid.UUID,
     body: GatewayPassThroughTestRequest,
@@ -300,7 +340,6 @@ async def execute_gateway_passthrough_endpoint(
         db,
         workspace_id=workspace.id,
         api_key_id=api_key.id if api_key is not None else None,
-        team_name=None,
         client_ip=get_client_ip(
             request.headers.get("x-forwarded-for"),
             request.client.host if request.client else None,

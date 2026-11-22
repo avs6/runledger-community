@@ -4,24 +4,24 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProviderPricingCreate(BaseModel):
     provider: str
     model: str
-    input_cost_per_1m: Decimal
-    output_cost_per_1m: Decimal
-    cached_input_cost_per_1m: Decimal | None = None
+    input_cost_per_1m: Decimal = Field(..., ge=0)
+    output_cost_per_1m: Decimal = Field(..., ge=0)
+    cached_input_cost_per_1m: Decimal | None = Field(None, ge=0)
     tags: list[str] = []
     display_name: str | None = None
     effective_from: datetime | None = None  # defaults to NOW() if omitted
 
 
 class ProviderPricingUpdate(BaseModel):
-    input_cost_per_1m: Decimal | None = None
-    output_cost_per_1m: Decimal | None = None
-    cached_input_cost_per_1m: Decimal | None = None
+    input_cost_per_1m: Decimal | None = Field(None, ge=0)
+    output_cost_per_1m: Decimal | None = Field(None, ge=0)
+    cached_input_cost_per_1m: Decimal | None = Field(None, ge=0)
     tags: list[str] | None = None
     display_name: str | None = None
 

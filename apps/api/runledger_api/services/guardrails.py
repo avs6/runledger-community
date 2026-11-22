@@ -61,71 +61,20 @@ def modify(
     )
 
 
-# ── Sandboxed execution (RestrictedPython-style) ─────────────────────────────
+# ── Custom logic (safe interpreter, no exec) ─────────────────────────────────
 
 
-_SANDBOX_GLOBALS: dict[str, Any] = {
-    "__builtins__": {
-        "len": len,
-        "str": str,
-        "int": int,
-        "float": float,
-        "bool": bool,
-        "list": list,
-        "dict": dict,
-        "set": set,
-        "tuple": tuple,
-        "range": range,
-        "enumerate": enumerate,
-        "zip": zip,
-        "any": any,
-        "all": all,
-        "min": min,
-        "max": max,
-        "sum": sum,
-        "abs": abs,
-        "sorted": sorted,
-        "reversed": reversed,
-        "isinstance": isinstance,
-        "True": True,
-        "False": False,
-        "None": None,
-    },
-    "allow": allow,
-    "block": block,
-    "modify": modify,
-    "re": re,
-}
-
-_BLOCKED_PATTERNS = [
-    r"\bimport\b",
-    r"\b__import__\b",
-    r"\bexec\b",
-    r"\beval\b",
-    r"\bcompile\b",
-    r"\bopen\b",
-    r"\bgetattr\b",
-    r"\bsetattr\b",
-    r"\bdelattr\b",
-    r"\bglobals\b",
-    r"\blocals\b",
-    r"\bvars\b",
-    r"\bdir\b",
-    r"\b__class__\b",
-    r"\b__subclasses__\b",
-    r"\b__bases__\b",
-    r"\b__mro__\b",
-    r"\bbreakpoint\b",
-    r"\bos\.\b",
-    r"\bsys\.\b",
-    r"\bsubprocess\b",
-]
+_LOGIC_HELPERS: dict[str, Any] = {"allow": allow, "block": block, "modify": modify}
 
 
-def _validate_logic(logic: str) -> str | None:
-    for pattern in _BLOCKED_PATTERNS:
-        if re.search(pattern, logic):
-            return f"Blocked pattern detected: {pattern}"
+def validate_custom_logic(logic: str) -> str | None:
+    """Error message if ``logic`` uses anything the guardrail language doesn't allow."""
+    from runledger_api.services.guardrail_logic import LogicError, validate_logic  # noqa: PLC0415
+
+    try:
+        validate_logic(logic)
+    except LogicError as exc:
+        return str(exc)
     return None
 
 
@@ -143,34 +92,37 @@ def execute_custom_logic(
     metadata: dict[str, Any],
     timeout_ms: float = 500,
 ) -> GuardrailResult:
-    """Execute custom guardrail logic in a restricted sandbox."""
-    validation_err = _validate_logic(logic)
-    if validation_err:
-        return GuardrailResult("allow", reason=f"Logic validation failed: {validation_err}")
+    """Run custom guardrail logic with the safe interpreter (``guardrail_logic``).
 
-    sandbox_locals: dict[str, Any] = {
-        "texts": texts,
-        "images": images,
-        "tools": tools,
-        "tool_calls": tool_calls,
-        "structured_messages": structured_messages,
+    The logic never reaches ``exec``/``eval``; only the guardrail language runs, under
+    a step budget and the rule's timeout. Invalid logic or an exceeded limit allows
+    the request and records the reason, so a broken rule can't take the gateway down.
+    """
+    from runledger_api.services.guardrail_logic import LogicError, run_logic  # noqa: PLC0415
+
+    inputs = {
+        "texts": list(texts),
+        "images": list(images),
+        "tools": list(tools),
+        "tool_calls": list(tool_calls),
+        "structured_messages": list(structured_messages),
         "model": model,
         "user_id": user_id,
         "team_id": team_id,
         "end_user_id": end_user_id,
-        "metadata": metadata,
+        "metadata": dict(metadata or {}),
     }
-
     try:
-        compiled = compile(logic, "<guardrail>", "exec")
-        exec(compiled, dict(_SANDBOX_GLOBALS), sandbox_locals)  # noqa: S102
-        result = sandbox_locals.get("result")
-        if isinstance(result, GuardrailResult):
-            return result
-        return GuardrailResult("allow", reason="No result returned from guardrail logic")
-    except Exception as exc:
+        result = run_logic(logic, inputs, _LOGIC_HELPERS, timeout_ms)
+    except LogicError as exc:
+        log.warning("guardrail_logic_rejected", error=str(exc))
+        return GuardrailResult("allow", reason=f"Logic error: {exc}")
+    except Exception as exc:  # noqa: BLE001 - user logic errors (KeyError, TypeError…)
         log.warning("guardrail_execution_error", error=str(exc))
         return GuardrailResult("allow", reason=f"Execution error: {exc}")
+    if isinstance(result, GuardrailResult):
+        return result
+    return GuardrailResult("allow", reason="No result returned from guardrail logic")
 
 
 # ── Built-in content filters ─────────────────────────────────────────────────

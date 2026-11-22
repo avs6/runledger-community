@@ -22,12 +22,13 @@ import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_workspace_writer
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.evaluators import Evaluator
 from runledger_api.models.scores import ScoreEvent
@@ -194,15 +195,16 @@ async def create_evaluator(
 async def list_evaluators(
     workspace: WorkspaceDep,
     db: DbDep,
+    page: PageDep,
+    response: Response,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
 ) -> EvaluatorList:
     """List evaluators for the workspace."""
     stmt = select(Evaluator).where(Evaluator.workspace_id == workspace.id)
     if status_filter:
         stmt = stmt.where(Evaluator.status == status_filter)
-    stmt = stmt.order_by(Evaluator.created_at.desc())
-    result = await db.execute(stmt)
-    items = result.scalars().all()
+    stmt = stmt.order_by(Evaluator.created_at.desc(), Evaluator.id)
+    items = await paginate(db, stmt, page, response)
     return EvaluatorList(items=[EvaluatorResponse.model_validate(e) for e in items])
 
 

@@ -23,9 +23,9 @@ from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from redis.asyncio import Redis
-from sqlalchemy import select, update
+from sqlalchemy import and_, literal_column, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -35,6 +35,7 @@ from runledger_api.core.deps import (
     get_current_workspace,
     require_workspace_admin,
 )
+from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
 from runledger_api.models.access_groups import AccessGroup
@@ -525,6 +526,8 @@ async def list_budgets(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
+    page: PageDep,
+    response: Response,
     include_inactive: Annotated[bool, Query()] = False,
     scope_type: Annotated[str | None, Query()] = None,
     scope_id: Annotated[str | None, Query()] = None,
@@ -538,10 +541,8 @@ async def list_budgets(
         stmt = stmt.where(Budget.scope_type == scope_type)
     if scope_id:
         stmt = stmt.where(Budget.scope_id == scope_id)
-    stmt = stmt.order_by(Budget.created_at.desc())
-
-    result = await db.execute(stmt)
-    budgets: list[Budget] = list(result.scalars())
+    stmt = stmt.order_by(Budget.created_at.desc(), Budget.id)
+    budgets: list[Budget] = await paginate(db, stmt, page, response)
 
     items = []
     for b in budgets:
@@ -563,6 +564,38 @@ async def list_budgets(
     return BudgetList(items=items)
 
 
+async def _monthly_billing_rows(
+    db: AsyncSession, workspace_id: uuid.UUID, months: int
+) -> list[Any]:
+    """Per month: priced cost, billable cost, all calls, billable calls (from provider
+    calls, using the shared billable-cost definition)."""
+    from sqlalchemy import case as sa_case  # noqa: PLC0415
+    from sqlalchemy import func as sa_func  # noqa: PLC0415
+
+    from runledger_api.models.events import ProviderCall  # noqa: PLC0415
+    from runledger_api.services.billable import billable_cost_sum, billable_filters  # noqa: PLC0415
+
+    month = sa_func.to_char(ProviderCall.created_at, literal_column("'YYYY-MM'")).label("period")
+    result = await db.execute(
+        select(
+            month,
+            sa_func.coalesce(sa_func.sum(ProviderCall.cost_usd), 0).label("total_cost"),
+            billable_cost_sum().label("billable_cost"),
+            sa_func.count(ProviderCall.id).label("total_calls"),
+            sa_func.count(sa_case((and_(*billable_filters()), ProviderCall.id))).label(
+                "billable_calls"
+            ),
+        )
+        .where(
+            ProviderCall.workspace_id == workspace_id,
+            ProviderCall.created_at >= sa_func.current_date() - months * 31,
+        )
+        .group_by(month)
+        .order_by(month)
+    )
+    return list(result.all())
+
+
 # ── GET /budgets/billing-summary ──────────────────────────────────────────────
 
 
@@ -572,27 +605,10 @@ async def billing_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     months: Annotated[int, Query(ge=1, le=12)] = 3,
 ) -> BillingSummaryResponse:
-    """Billing summary with billable vs non-billable cost per period."""
-    from sqlalchemy import func as sa_func  # noqa: PLC0415
-
-    from runledger_api.models.metering import UsageDaily  # noqa: PLC0415
-
-    result = await db.execute(
-        select(
-            sa_func.to_char(UsageDaily.day, "YYYY-MM").label("period"),
-            sa_func.coalesce(sa_func.sum(UsageDaily.cost_usd), 0).label("total_cost"),
-            sa_func.coalesce(sa_func.sum(UsageDaily.billable_cost_usd), 0).label("billable_cost"),
-            sa_func.coalesce(sa_func.sum(UsageDaily.call_count), 0).label("total_calls"),
-        )
-        .where(
-            UsageDaily.workspace_id == workspace.id,
-            UsageDaily.day >= sa_func.current_date() - months * 31,
-        )
-        .group_by("period")
-        .order_by("period")
-    )
+    """Billing summary with billable vs non-billable cost per month (shared
+    billable-cost definition: priced calls with ``is_billable`` true)."""
     periods = []
-    for row in result.all():
+    for row in await _monthly_billing_rows(db, workspace.id, months):
         total = Decimal(str(row.total_cost))
         billable = Decimal(str(row.billable_cost))
         periods.append(
@@ -602,7 +618,7 @@ async def billing_summary(
                 billable_cost_usd=billable,
                 non_billable_cost_usd=total - billable,
                 total_calls=int(row.total_calls),
-                billable_calls=int(row.total_calls),
+                billable_calls=int(row.billable_calls),
             )
         )
     return BillingSummaryResponse(
@@ -627,31 +643,20 @@ async def billing_export(
     from fastapi.responses import Response  # noqa: PLC0415
     from sqlalchemy import func as sa_func  # noqa: PLC0415
 
-    from runledger_api.models.metering import UsageDaily  # noqa: PLC0415
-
-    result = await db.execute(
-        select(
-            sa_func.to_char(UsageDaily.day, "YYYY-MM").label("period"),
-            sa_func.coalesce(sa_func.sum(UsageDaily.cost_usd), 0).label("total_cost"),
-            sa_func.coalesce(sa_func.sum(UsageDaily.billable_cost_usd), 0).label("billable_cost"),
-            sa_func.coalesce(sa_func.sum(UsageDaily.call_count), 0).label("total_calls"),
-        )
-        .where(
-            UsageDaily.workspace_id == workspace.id,
-            UsageDaily.day >= sa_func.current_date() - months * 31,
-        )
-        .group_by("period")
-        .order_by("period")
-    )
-    rows = result.all()
+    rows = await _monthly_billing_rows(db, workspace.id, months)
+    _ = sa_func
 
     if fmt == "csv":
         buf = StringIO()
-        buf.write("period,total_cost_usd,billable_cost_usd,non_billable_cost_usd,total_calls\n")
+        buf.write(
+            "period,total_cost_usd,billable_cost_usd,non_billable_cost_usd,total_calls,billable_calls\n"
+        )
         for r in rows:
             total = Decimal(str(r.total_cost))
             billable = Decimal(str(r.billable_cost))
-            buf.write(f"{r.period},{total},{billable},{total - billable},{r.total_calls}\n")
+            buf.write(
+                f"{r.period},{total},{billable},{total - billable},{r.total_calls},{r.billable_calls}\n"
+            )
         return Response(
             content=buf.getvalue(),
             media_type="text/csv",
@@ -671,6 +676,7 @@ async def billing_export(
                 "billable_cost_usd": billable,
                 "non_billable_cost_usd": round(total - billable, 8),
                 "total_calls": int(r.total_calls),
+                "billable_calls": int(r.billable_calls),
             }
         )
     return Response(
@@ -853,14 +859,18 @@ async def budget_check(
 async def list_notifications(
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    page: PageDep,
+    response: Response,
 ) -> NotificationList:
     """List notification channels for this workspace."""
-    result = await db.execute(
+    notifications: list[BudgetNotification] = await paginate(
+        db,
         select(BudgetNotification)
         .where(BudgetNotification.workspace_id == workspace.id)
-        .order_by(BudgetNotification.created_at.desc())
+        .order_by(BudgetNotification.created_at.desc(), BudgetNotification.id),
+        page,
+        response,
     )
-    notifications: list[BudgetNotification] = list(result.scalars())
 
     return NotificationList(items=[_notification_response(n) for n in notifications])
 
@@ -980,6 +990,53 @@ async def delete_notification(
         before=before,
     )
     await db.commit()
+
+
+@router.get("/notifications/{notification_id}/signing-secret")
+async def get_notification_signing_secret(
+    notification_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    """This destination's webhook signing secret. Deliveries carry
+    ``X-RunLedger-Signature: sha256=<hex HMAC-SHA256 of the raw body>``."""
+    from runledger_api.services.billing_signing import webhook_secret  # noqa: PLC0415
+
+    notification = await _get_notification(db, auth[0].id, notification_id)
+    version = int(notification.signing_version or 1)
+    return {
+        "notification_id": str(notification.id),
+        "signing_version": version,
+        "secret": webhook_secret(notification.id, version),
+    }
+
+
+@router.post("/notifications/{notification_id}/signing-secret/rotate")
+async def rotate_notification_signing_secret(
+    notification_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    """Rotate this destination's signing secret; the old one stops verifying."""
+    from runledger_api.services.billing_signing import webhook_secret  # noqa: PLC0415
+
+    workspace: Workspace = auth[0]
+    notification = await _get_notification(db, workspace.id, notification_id)
+    notification.signing_version = int(notification.signing_version or 1) + 1
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "notification.signing_secret_rotated",
+        target_type="webhook_destination",
+        target_id=str(notification.id),
+        after={"signing_version": notification.signing_version},
+    )
+    await db.commit()
+    return {
+        "notification_id": str(notification.id),
+        "signing_version": notification.signing_version,
+        "secret": webhook_secret(notification.id, notification.signing_version),
+    }
 
 
 @router.post("/notifications/{notification_id}/test", response_model=NotificationTestResult)

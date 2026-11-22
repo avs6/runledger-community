@@ -136,6 +136,10 @@ class Settings(BaseSettings):
     # unless the host is listed here (comma-separated) or private egress is allowed.
     egress_private_allowlist: str = "runledger-redpanda"
     egress_allow_private: bool = False
+    # Gateway routes (review S-02): environment variables a route may name as its
+    # provider key (globs), and extra hosts a route may send server-side keys to.
+    provider_key_env_allowlist: str = "*_API_KEY,*_PROXY_KEY,*_SERVICE_ACCOUNT_JSON"
+    gateway_base_url_allowlist: str = ""
     # Signed ingest: max clock skew, and how long a nonce is remembered.
     ingest_signature_tolerance_seconds: int = 300
     analytics_rate_limit_per_minute: int = 0
@@ -163,8 +167,10 @@ class Settings(BaseSettings):
 
     @property
     def effective_metrics_token(self) -> str:
-        """Returns METRICS_TOKEN if set, otherwise falls back to effective_admin_secret."""
-        return self.metrics_token or self.effective_admin_secret
+        """METRICS_TOKEN, or "" when unset. No fallback to the admin secret (review
+        P-15): a scraper credential must never double as the admin credential, so
+        /metrics is disabled until a dedicated token is configured."""
+        return self.metrics_token or ""
 
     @property
     def enabled_feature_flags(self) -> set[str]:
