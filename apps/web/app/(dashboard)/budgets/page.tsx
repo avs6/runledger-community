@@ -3,16 +3,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Shield, Wallet } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import {
-  getBudgetRollup,
-  getBudgets,
-  listBudgetNotifications,
-  listBudgetTiers,
-  getFinOpsInternalPosture,
-  getBudgetScopeGovernancePosture,
-} from '@/lib/api'
+import { getBudgetRollup, getBudgets, listBudgetNotifications, listBudgetTiers } from '@/lib/api'
 import BudgetManager from '@/components/budgets/BudgetManager'
-import type { BudgetScopeGovernancePosture, FinOpsInternalPosture } from '@/types/api'
 import { num } from '@/lib/utils'
 
 interface PageProps {
@@ -43,33 +35,15 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
       ? requestedScopeType
       : undefined
 
-  const [budgets, tiers, notifications, rollup, finopsPosture, budgetScopePosture] = await Promise.all([
+  const [budgets, tiers, notifications, rollup] = await Promise.all([
     getBudgets(session.apiKey, {
       scope_type: initialScopeType,
       scope_id: requestedScopeId,
     }),
     listBudgetTiers(session.apiKey).catch(() => ({ items: [] })),
     listBudgetNotifications(session.apiKey).catch(() => ({ items: [] })),
-    getBudgetRollup(session.apiKey).catch(() => null),
-    getFinOpsInternalPosture(session.apiKey).catch(() => null) as Promise<FinOpsInternalPosture | null>,
-    getBudgetScopeGovernancePosture(session.apiKey).catch(() => null) as Promise<BudgetScopeGovernancePosture | null>,
-  ])
+    getBudgetRollup(session.apiKey).catch(() => null)])
 
-  const postureChips: string[] = []
-  if (finopsPosture) {
-    postureChips.push(`${finopsPosture.budget_context.total_budgets} budgets`)
-    postureChips.push(`${finopsPosture.budget_context.active_budgets} active`)
-    postureChips.push(`$${num(finopsPosture.budget_context.total_limit_usd).toFixed(2)} limit`)
-    postureChips.push(`${finopsPosture.billing_context.open_periods} open periods`)
-    postureChips.push(`${finopsPosture.chargeback_context.active_rules} CB rules`)
-    postureChips.push(`${finopsPosture.override_context.active_overrides} overrides`)
-    postureChips.push(`${finopsPosture.notification_context.total_notifications} notifications`)
-  }
-  if (budgetScopePosture) {
-    postureChips.push(`${budgetScopePosture.identity_context.workspace_users} users`)
-    postureChips.push(`${budgetScopePosture.runtime_context.routes} routes`)
-    postureChips.push(`${budgetScopePosture.governance_context.alert_rules} alert rules`)
-  }
 
   return (
     <div className="space-y-5">
@@ -83,15 +57,6 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
           <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
             Manage spend policy as one control plane: budgets own the rules, overrides stay inside the rule lifecycle, and notifications turn breaches into action.
           </p>
-          {postureChips.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {postureChips.map((c) => (
-                <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  {c}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* KPI strip */}
@@ -101,8 +66,6 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
             { label: 'Total Budgets', value: String(budgets.items.length) },
             { label: 'Current Spend', value: rollup ? `$${num(Number.parseFloat(rollup.current_spend_usd)).toFixed(2)}` : '$0' },
             { label: 'Notifications', value: String(notifications.items.length) },
-            { label: 'Overrides', value: finopsPosture ? String(finopsPosture.override_context.total_overrides) : '0' },
-            { label: 'Ledger Snaps', value: finopsPosture ? String(finopsPosture.ledger_context.total_snapshots) : '0' },
           ].map((kpi) => (
             <div key={kpi.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
               <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">{kpi.label}</p>
@@ -138,53 +101,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
       </div>
 
       {/* ── Context panels ── */}
-      {finopsPosture && (
-        <div className="rounded-xl border border-blue-300 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 dark:border-blue-800/30 dark:from-blue-950/30 dark:to-indigo-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-xs font-bold text-blue-900 dark:text-blue-200">FinOps Internal Posture</h2>
-            <span className="ml-auto text-[10px] text-blue-500 dark:text-blue-400">{finopsPosture.period_days}d window</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
-            {[
-              { label: 'Budgets', value: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.total_budgets}` },
-              { label: 'Billing Periods', value: `${finopsPosture.billing_context.open_periods}/${finopsPosture.billing_context.total_periods}` },
-              { label: 'CB Rules', value: `${finopsPosture.chargeback_context.active_rules}/${finopsPosture.chargeback_context.total_rules}` },
-              { label: 'Ledger Snaps', value: String(finopsPosture.ledger_context.total_snapshots) },
-              { label: 'Overrides', value: `${finopsPosture.override_context.active_overrides}/${finopsPosture.override_context.total_overrides}` },
-              { label: '30d Spend', value: `$${num(finopsPosture.notification_context.spend_30d).toFixed(2)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">{label}</p>
-                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {budgetScopePosture && (
-        <div className="rounded-xl border border-indigo-300 bg-gradient-to-r from-indigo-50 to-violet-50 p-4 dark:border-indigo-800/30 dark:from-indigo-950/30 dark:to-violet-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <h2 className="text-xs font-bold text-indigo-900 dark:text-indigo-200">Budget Scope & Governance Context</h2>
-            <span className="ml-auto text-[10px] text-indigo-500 dark:text-indigo-400">{budgetScopePosture.period_days}d window</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              { label: 'Identity', value: `${budgetScopePosture.identity_context.workspace_users} users · ${budgetScopePosture.identity_context.api_keys} keys` },
-              { label: 'Runtime', value: `${budgetScopePosture.runtime_context.routes} routes · ${budgetScopePosture.runtime_context.active_providers_30d} providers` },
-              { label: 'Governance', value: `${budgetScopePosture.governance_context.alert_rules} alerts · ${budgetScopePosture.governance_context.tags} tags` },
-              { label: 'Spend', value: `$${num(budgetScopePosture.spend_context.total_spend_30d).toFixed(2)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">{label}</p>
-                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Budget Manager client component */}
       <BudgetManager

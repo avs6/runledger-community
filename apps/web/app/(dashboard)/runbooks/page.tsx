@@ -9,8 +9,8 @@ import {
   Cpu, DollarSign, ExternalLink, FileJson, FileText, Info,
   Network, Plus, Shield, Terminal, Wrench, X, Zap,
 } from 'lucide-react'
-import { listRunbooks, generateRunbook, exportRunbook, getRunbooksRemediationPosture } from '@/lib/api'
-import type { RunbookResponse, RunbooksRemediationPosture } from '@/types/api'
+import { listRunbooks, generateRunbook, exportRunbook } from '@/lib/api'
+import type { RunbookResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 
 const PAGE_SIZE = 20
@@ -47,11 +47,9 @@ export default function RunbooksPage() {
   const [showGenerate, setShowGenerate] = useState(false)
   const [generateRunId, setGenerateRunId] = useState('')
   const [generating, setGenerating] = useState(false)
-  const [posture, setPosture] = useState<RunbooksRemediationPosture | null>(null)
 
   useEffect(() => {
-    if (apiKey) getRunbooksRemediationPosture(apiKey).then(setPosture).catch(() => {})
-  }, [apiKey])
+    }, [apiKey])
 
   useEffect(() => {
     if (!apiKey) return
@@ -176,10 +174,6 @@ export default function RunbooksPage() {
           { label: 'Info', value: sevCounts.info, icon: Info, color: 'text-blue-600 dark:text-blue-400' },
           { label: 'Warning', value: sevCounts.warning, icon: AlertTriangle, color: 'text-amber-600 dark:text-amber-400' },
           { label: 'Critical', value: sevCounts.critical, icon: AlertCircle, color: 'text-red-600 dark:text-red-400' },
-          { label: 'Runs 30d', value: posture?.observe_context.runs_30d ?? 0, icon: Terminal, color: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Alerts 30d', value: posture?.alert_context.alert_firings_30d ?? 0, icon: Shield, color: posture && posture.alert_context.alert_firings_30d > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Cost 30d', value: posture ? `$${num(posture.cost_context.cost_30d).toFixed(2)}` : '$0', icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Experiments', value: posture?.optimization_context.eval_experiments ?? 0, icon: Wrench, color: 'text-violet-600 dark:text-violet-400' },
         ].map(kpi => (
           <div key={kpi.label} className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center gap-1">

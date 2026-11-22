@@ -11,18 +11,8 @@ import {
   PiggyBank, Play, RefreshCw, Route, ShieldCheck, Sparkles,
   TrendingDown, Zap,
 } from 'lucide-react'
-import {
-  getRunFlow, simulateOptimization,
-  getOptimizationOrgGatewayPosture, getOptimizationObservePosture,
-  getOptimizationFinOpsPosture, getBuildInternalPosture,
-  getOptOppsRationalePosture, getOptSimDecisionPosture,
-} from '@/lib/api'
-import type {
-  RunFlowRecord, SimulationResult,
-  OptimizationOrgGatewayPosture, OptimizationObservePosture,
-  OptimizationFinOpsPosture, BuildInternalPosture,
-  OptOppsRationalePosture, OptSimDecisionPosture,
-} from '@/types/api'
+import { getRunFlow, simulateOptimization } from '@/lib/api'
+import type { RunFlowRecord, SimulationResult } from '@/types/api'
 import { num } from '@/lib/utils'
 
 type ViewTab = 'opportunities' | 'simulator'
@@ -141,12 +131,6 @@ export default function OptimizationPage() {
   const [tab, setTab] = useState<ViewTab>(initialTab)
 
   // Shared postures
-  const [orgGatewayPosture, setOrgGatewayPosture] = useState<OptimizationOrgGatewayPosture | null>(null)
-  const [observePosture, setObservePosture] = useState<OptimizationObservePosture | null>(null)
-  const [finOpsPosture, setFinOpsPosture] = useState<OptimizationFinOpsPosture | null>(null)
-  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
-  const [rationalePosture, setRationalePosture] = useState<OptOppsRationalePosture | null>(null)
-  const [decisionPosture, setDecisionPosture] = useState<OptSimDecisionPosture | null>(null)
 
   // Opportunities state
   const [items, setItems] = useState<RunFlowRecord[]>([])
@@ -165,12 +149,6 @@ export default function OptimizationPage() {
 
   useEffect(() => {
     if (!apiKey) return
-    getOptimizationOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {})
-    getOptimizationObservePosture(apiKey).then(setObservePosture).catch(() => {})
-    getOptimizationFinOpsPosture(apiKey).then(setFinOpsPosture).catch(() => {})
-    getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {})
-    getOptOppsRationalePosture(apiKey).then(setRationalePosture).catch(() => {})
-    getOptSimDecisionPosture(apiKey).then(setDecisionPosture).catch(() => {})
   }, [apiKey])
 
   const loadOpps = useCallback(async () => {
@@ -257,9 +235,6 @@ export default function OptimizationPage() {
           { label: 'Measured', value: money(measuredSavings), accent: true },
           { label: 'Scope Spend', value: money(total) },
           { label: 'Requests', value: items.length.toLocaleString() },
-          { label: 'Budgets', value: finOpsPosture?.budget_context.active_budgets ?? '—' },
-          { label: 'Spend 30d', value: finOpsPosture ? `$${num(finOpsPosture.budget_context.spend_30d).toFixed(2)}` : '—' },
-          { label: 'Models', value: observePosture?.model_usage_context.distinct_models_30d ?? '—' },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -268,39 +243,7 @@ export default function OptimizationPage() {
         ))}
       </div>
 
-      {/* ── Posture chips ──────────────────────────────── */}
       <div className="grid grid-cols-3 gap-2">
-        {orgGatewayPosture && (
-          <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Org & Gateway</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.distinct_providers} providers</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.active_routes} routes</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.cache_context.cache_configs} caches</span>
-              <Link href="/gateway" className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">Gateway</Link>
-            </div>
-          </div>
-        )}
-        {finOpsPosture && (
-          <div className="rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">FinOps</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{finOpsPosture.budget_context.active_budgets} budgets</span>
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">${num(finOpsPosture.budget_context.spend_30d).toFixed(2)} spent</span>
-              <Link href="/budgets" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            </div>
-          </div>
-        )}
-        {buildPosture && (
-          <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/40 bg-rose-50/30 dark:bg-rose-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Build & Improve</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.evaluation_context.experiments} experiments</span>
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.scorecards_context.score_events_30d} scores</span>
-              <Link href="/evaluation" className="text-[10px] text-rose-600 hover:underline dark:text-rose-400">Eval Studio</Link>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Tab bar ─────────────────────────────────────── */}

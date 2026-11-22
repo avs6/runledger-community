@@ -5,8 +5,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { BookOpen, RefreshCw, Server, Code2, Shield, Eye, GitBranch, Zap } from 'lucide-react'
-import { getApiExplorerPosture } from '@/lib/api'
-import type { ApiExplorerPosture } from '@/types/api'
 
 const ownershipColors: Record<string, string> = {
   control_plane: 'border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400',
@@ -31,20 +29,12 @@ const ownershipIcons: Record<string, typeof Server> = {
 
 export default function ApiDocsPage() {
   const { data: session } = useSession()
-  const [posture, setPosture] = useState<ApiExplorerPosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
     if (!session?.apiKey) return
     setLoading(true)
-    try {
-      const data = await getApiExplorerPosture(session.apiKey)
-      setPosture(data)
-    } catch {
-      toast.error('Failed to load API explorer posture')
-    } finally {
-      setLoading(false)
-    }
+    setLoading(false)
   }, [session?.apiKey])
 
   useEffect(() => { refresh() }, [refresh])
@@ -93,107 +83,6 @@ export default function ApiDocsPage() {
         </div>
       </div>
 
-      {posture && (
-        <>
-          <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-800/40 p-5 space-y-4">
-            <h2 className="text-base font-semibold dark:text-white">OpenAPI Surface</h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">Spec Format</p>
-                <p className="mt-1 text-lg font-semibold dark:text-white">{posture.openapi_surface.spec_format}</p>
-                <p className="text-xs text-slate-400">Auto-generated</p>
-              </div>
-              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">Reference UI</p>
-                <p className="mt-1 text-lg font-semibold dark:text-white">{posture.openapi_surface.reference_ui}</p>
-                <p className="text-xs text-slate-400">Scalar API Reference</p>
-              </div>
-              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">SDK Languages</p>
-                <p className="mt-1 text-lg font-semibold dark:text-white">{posture.sdk_support.languages.length}</p>
-                <p className="text-xs text-slate-400">{posture.sdk_support.languages.join(', ')}</p>
-              </div>
-              <div className="rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900/50 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-purple-600 dark:text-purple-400">Auth Model</p>
-                <p className="mt-1 text-sm font-semibold dark:text-white">{posture.sdk_support.auth_model}</p>
-                <p className="text-xs text-slate-400">{posture.sdk_support.api_keys} keys · {posture.sdk_support.active_routes} routes</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-4">
-            <h2 className="text-base font-semibold dark:text-white">Endpoint Ownership</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {(Object.entries(posture.endpoint_ownership) as [string, { host: string; families: string[] }][]).map(([key, val]) => {
-                const Icon = ownershipIcons[key] || Server
-                return (
-                  <div key={key} className={`rounded-lg border ${ownershipColors[key] || ''} bg-white dark:bg-slate-900/50 px-4 py-3`}>
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4" />
-                      <p className="text-[11px] uppercase tracking-wide font-semibold">{ownershipLabels[key] || key}</p>
-                    </div>
-                    <p className="mt-1 text-sm font-mono dark:text-white">{val.host}</p>
-                    <p className="mt-1 text-xs text-slate-400">{val.families.length} families: {val.families.slice(0, 5).join(', ')}{val.families.length > 5 ? ` +${val.families.length - 5} more` : ''}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-900/20 p-5 space-y-4">
-            <h2 className="text-base font-semibold text-teal-900 dark:text-teal-100">Pipeline & Streaming Endpoints</h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <Link href={posture.pipeline_endpoints.live_pipeline} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3 hover:bg-teal-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400 font-semibold">Live Pipeline</p>
-                </div>
-                <p className="mt-1 text-sm font-mono dark:text-white">{posture.pipeline_endpoints.live_pipeline}</p>
-                <p className="text-xs text-slate-400">Streaming inject: {posture.pipeline_endpoints.streaming_inject ? 'Active' : 'Inactive'}</p>
-              </Link>
-              <Link href={posture.pipeline_endpoints.pipeline_designer} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3 hover:bg-teal-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400 font-semibold">Pipeline Designer</p>
-                </div>
-                <p className="mt-1 text-sm font-mono dark:text-white">{posture.pipeline_endpoints.pipeline_designer}</p>
-                <p className="text-xs text-slate-400">Trace enrichment: {posture.pipeline_endpoints.trace_enrichment ? 'Active' : 'Inactive'}</p>
-              </Link>
-              <Link href={posture.pipeline_endpoints.pipeline_studio} className="rounded-lg border border-teal-200 dark:border-teal-800 bg-white dark:bg-slate-900/50 px-4 py-3 hover:bg-teal-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <Code2 className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                  <p className="text-[11px] uppercase tracking-wide text-teal-600 dark:text-teal-400 font-semibold">Pipeline Studio</p>
-                </div>
-                <p className="mt-1 text-sm font-mono dark:text-white">{posture.pipeline_endpoints.pipeline_studio}</p>
-                <p className="text-xs text-slate-400">Architecture posture surface</p>
-              </Link>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-5 space-y-3">
-            <h2 className="text-base font-semibold dark:text-white">Observe Context (30d)</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500">Requests</p>
-                <p className="mt-1 text-lg font-semibold dark:text-white">{posture.observe_context.requests_30d}</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500">Audit Events</p>
-                <p className="mt-1 text-lg font-semibold dark:text-white">{posture.observe_context.audit_events_30d}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Link href="/gateway" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Model Gateway</Link>
-            <Link href="/pipeline-studio" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Pipeline Studio</Link>
-            <Link href="/analytics" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Analytics</Link>
-            <Link href="/governance-pack" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Governance</Link>
-            <Link href="/help" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Help Hub</Link>
-            <Link href="/settings" className="text-xs text-purple-600 hover:underline dark:text-purple-400">Platform Settings</Link>
-          </div>
-        </>
-      )}
     </div>
   )
 }

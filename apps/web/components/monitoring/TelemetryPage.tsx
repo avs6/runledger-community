@@ -21,14 +21,13 @@ import SigningSecretPanel from '@/components/monitoring/SigningSecretPanel'
 import MetricsPanel from '@/components/monitoring/MetricsPanel'
 import UnpricedUsagePanel from '@/components/monitoring/UnpricedUsagePanel'
 import { Building2, Network, RefreshCw, Shield } from 'lucide-react'
-import { getOtlpBatchDetail, getOtlpInsights, getOtlpStats, getTelemetryOpsPosture, listOtlpBatches } from '@/lib/api'
+import { getOtlpBatchDetail, getOtlpInsights, getOtlpStats, listOtlpBatches } from '@/lib/api'
 import type {
   OtlpBatchDetail,
   OtlpBatchList,
   OtlpBatchResponse,
   OtlpInsights,
   OtlpStats,
-  TelemetryOpsPosture,
 } from '@/types/api'
 
 const PAGE_SIZE = 20
@@ -51,7 +50,6 @@ export default function TelemetryPage() {
   const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(false)
   const [loadingBatchDetail, setLoadingBatchDetail] = useState(false)
-  const [opsPosture, setOpsPosture] = useState<TelemetryOpsPosture | null>(null)
 
   const load = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) {
@@ -105,7 +103,6 @@ export default function TelemetryPage() {
   useEffect(() => {
     void load()
     if (apiKey) {
-      getTelemetryOpsPosture(apiKey).then(setOpsPosture).catch(() => {})
     }
   }, [load, apiKey])
 
@@ -147,71 +144,6 @@ export default function TelemetryPage() {
         </div>
       </div>
 
-      {/* Posture chips */}
-      {opsPosture && (
-        <div className="grid gap-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-violet-200/60 bg-violet-50/30 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
-            <div className="mb-2 flex items-center gap-1.5">
-              <Network className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Gateway Context</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { l: 'Routes', v: opsPosture.gateway_context.active_routes },
-                { l: 'Models', v: opsPosture.gateway_context.distinct_models },
-                { l: 'GW Reqs 30d', v: opsPosture.gateway_context.gateway_requests_30d },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] dark:border-violet-800 dark:bg-violet-950/40">
-                  <span className="font-medium text-violet-500 dark:text-violet-400">{c.l}</span>
-                  <span className="font-bold text-violet-700 dark:text-violet-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-amber-200/60 bg-amber-50/30 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
-            <div className="mb-2 flex items-center gap-1.5">
-              <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Governance</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { l: 'Capture', v: opsPosture.governance_context.capture_policies },
-                { l: 'Security 30d', v: opsPosture.governance_context.security_events_30d },
-                { l: 'Alerts', v: `${opsPosture.governance_context.active_alert_rules}/${opsPosture.governance_context.alert_rules}` },
-                { l: 'Audit 30d', v: opsPosture.governance_context.audit_events_30d },
-                { l: 'Approvals', v: opsPosture.governance_context.approvals },
-                { l: 'Tags', v: opsPosture.governance_context.tags },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] dark:border-amber-800 dark:bg-amber-950/40">
-                  <span className="font-medium text-amber-500 dark:text-amber-400">{c.l}</span>
-                  <span className="font-bold text-amber-700 dark:text-amber-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
-            <div className="mb-2 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Investigation</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { l: 'Users', v: opsPosture.org_context.workspace_users },
-                { l: 'Batches 30d', v: opsPosture.org_context.telemetry_batches_30d },
-                { l: 'Runs 30d', v: opsPosture.investigation_context.runs_30d },
-                { l: 'Calls 30d', v: opsPosture.investigation_context.provider_calls_30d },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
-                  <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
-                  <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Stats KPI strip */}
       <div className="grid grid-cols-5 gap-2 xl:grid-cols-10">

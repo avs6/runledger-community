@@ -49,13 +49,6 @@ def main() -> None:
     for t in tools:
         print(f"  - {t['tool_name']}  policy={t['policy']}  enforced={t['runtime_enforcement']}")
 
-    posture = check(
-        client.get("/analytics/tool-registry-finops-posture"),
-        "Tool registry FinOps posture",
-    )
-    bc = posture.get("budget_context", {})
-    cc = posture.get("chargeback_context", {})
-    sc = posture.get("spend_context", {})
     print(f"\nFinOps Budget Impact (30d):")
     print(f"  Active budgets:       {bc.get('total_budgets', 0)}")
     print(f"  Tool-scoped budgets:  {bc.get('tool_scoped_budgets', 0)}")

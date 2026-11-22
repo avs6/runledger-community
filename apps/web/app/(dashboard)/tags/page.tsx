@@ -6,24 +6,8 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { BookOpen, ChevronRight, DollarSign, Pencil, Plus, Tags, Trash2, Wand2, X, Zap } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
-import {
-  createAutoTagRule,
-  createTag,
-  deleteAutoTagRule,
-  deleteTag,
-  getAutoTagRules,
-  getTagTree,
-  getTags,
-  simulateAutoTagging,
-  updateAutoTagRule,
-  updateTag,
-  getTagsFinopsBudgetPosture,
-  getDataProtectionOrgPosture,
-  getDataProtectionGatewayPosture,
-  getGovernanceInternalPosture,
-  getTagsRuntimePosture,
-} from '@/lib/api'
-import type { AutoTaggingRuleResponse, AutoTaggingSimulationResponse, TagResponse, TagTreeNode, TagsFinopsBudgetPosture, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture, TagsRuntimePosture } from '@/types/api'
+import { createAutoTagRule, createTag, deleteAutoTagRule, deleteTag, getAutoTagRules, getTagTree, getTags, simulateAutoTagging, updateAutoTagRule, updateTag } from '@/lib/api'
+import type { AutoTaggingRuleResponse, AutoTaggingSimulationResponse, TagResponse, TagTreeNode } from '@/types/api'
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500'
@@ -69,11 +53,6 @@ export default function TagsPage() {
   const [tree, setTree] = useState<TagTreeNode[]>([])
   const [rules, setRules] = useState<AutoTaggingRuleResponse[]>([])
   const [simulation, setSimulation] = useState<AutoTaggingSimulationResponse | null>(null)
-  const [finopsPosture, setFinopsPosture] = useState<TagsFinopsBudgetPosture | null>(null)
-  const [orgPosture, setOrgPosture] = useState<DataProtectionOrgPosture | null>(null)
-  const [gatewayPosture, setGatewayPosture] = useState<DataProtectionGatewayPosture | null>(null)
-  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<TagsRuntimePosture | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
@@ -130,26 +109,15 @@ export default function TagsPage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [tagList, tagTree, autoRules, simulationResult, posture, orgP, gwP, govI, rtP] = await Promise.all([
+      const [tagList, tagTree, autoRules, simulationResult] = await Promise.all([
         getTags(apiKey, { include_inactive: true }),
         getTagTree(apiKey),
         getAutoTagRules(apiKey),
-        simulateAutoTagging(apiKey, { fields: { feature: 'support-search', prompt: 'search the docs for billing exports', provider: 'openai' } }),
-        getTagsFinopsBudgetPosture(apiKey).catch(() => null),
-        getDataProtectionOrgPosture(apiKey).catch(() => null),
-        getDataProtectionGatewayPosture(apiKey).catch(() => null),
-        getGovernanceInternalPosture(apiKey).catch(() => null),
-        getTagsRuntimePosture(apiKey).catch(() => null),
-      ])
+        simulateAutoTagging(apiKey, { fields: { feature: 'support-search', prompt: 'search the docs for billing exports', provider: 'openai' } })])
       setTags(tagList.items)
       setTree(tagTree.items)
       setRules(autoRules.items)
       setSimulation(simulationResult)
-      setFinopsPosture(posture)
-      setOrgPosture(orgP)
-      setGatewayPosture(gwP)
-      setGovInternal(govI)
-      setRuntimePosture(rtP)
     } catch {
       toast.error('Failed to load tag management')
     } finally {
@@ -303,56 +271,9 @@ export default function TagsPage() {
             <p className="text-lg font-bold text-slate-900 dark:text-white">{tree.length}</p>
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Root Nodes</p>
           </div>
-          {finopsPosture && (
-            <>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">${finopsPosture.spend_context.tagged_spend_30d?.toFixed(0) ?? '0'}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Tagged Spend 30d</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.budget_context.tag_scoped_budgets ?? 0}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Tag Budgets</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.chargeback_context.tag_dimension_rules ?? 0}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Chargeback Rules</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.tag_context.distinct_tags_with_spend ?? 0}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Tags w/ Spend</p>
-              </div>
-            </>
-          )}
         </div>
 
-        {/* Posture chips */}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {govInternal && (
-            <>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.tool_registry_context.total_tools}</span> tools
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.tool_policies_context.active_policies}</span> policies
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.audit_context.audit_events_30d}</span> audit 30d
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{govInternal.alert_rules_context.alert_firings_30d}</span> alerts 30d
-              </span>
-            </>
-          )}
-          {runtimePosture && (
-            <>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{runtimePosture.observe_attribution.runs_30d}</span> runs 30d
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{runtimePosture.finops_attribution.chargeback_rules}</span> chargeback
-              </span>
-            </>
-          )}
         </div>
       </div>
 

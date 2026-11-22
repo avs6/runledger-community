@@ -51,22 +51,6 @@ and defaults off. Full details, tuning, and the vector pipeline are in
 | Default | Per-request `cache` | Off (opt-in) |
 | Isolation | Tenant + request parameters | Tenant, caller (key + end user), parameters |
 
-## FinOps budget bridge
-
-Cache savings feed into budget and billing calculations. Use the performance posture
-endpoints to see how caching affects spend:
-
-```bash
-# Per-budget cache economics
-GET /analytics/budget-performance-posture/{budget_id}
-
-# Workspace-wide cache + billing view
-GET /analytics/billing-period-performance-posture
-```
-
-The response includes `cache.cache_hit_rate_pct` and `cache.estimated_savings_pct` —
-use these to quantify how much caching reduces your FinOps spend.
-
 ## Related
 
 <CardGroup cols={2}>

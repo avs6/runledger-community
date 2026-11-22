@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAgent, getAgentMemories, getAgentMemoryStats, getAgentMemoryAudit, getAgentDetailGovernancePosture } from '@/lib/api'
+import { getAgent, getAgentMemories, getAgentMemoryStats, getAgentMemoryAudit } from '@/lib/api'
 import type { AgentMemoryResponse, AgentMemoryStats, AgentMemoryAuditResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 
@@ -44,15 +44,13 @@ export default async function AgentMemoryPage({ params }: { params: Promise<{ ag
     return <p className="p-6 text-xs text-slate-500">Sign in to view agent memory.</p>
   }
 
-  let agent, memories, stats: AgentMemoryStats | null = null, audit, governancePosture
+  let agent, memories, stats: AgentMemoryStats | null = null, audit
   try {
-    ;[agent, memories, stats, audit, governancePosture] = await Promise.all([
+    ;[agent, memories, stats, audit] = await Promise.all([
       getAgent(apiKey, agent_id),
       getAgentMemories(apiKey, agent_id, { limit: 100 }),
       getAgentMemoryStats(apiKey, agent_id),
-      getAgentMemoryAudit(apiKey, agent_id, { limit: 50 }),
-      getAgentDetailGovernancePosture(apiKey).catch(() => null),
-    ])
+      getAgentMemoryAudit(apiKey, agent_id, { limit: 50 })])
   } catch {
     return (
       <div className="p-6">
@@ -107,24 +105,6 @@ export default async function AgentMemoryPage({ params }: { params: Promise<{ ag
         </div>
       )}
 
-      {/* ── Governance posture (compact) ─────────── */}
-      {governancePosture && (
-        <div className="rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-1">Governance Context</p>
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.guardrail_context.rules} guardrails</span>
-            <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.safety_context.capture_policies} capture</span>
-            <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.safety_context.security_events_30d} sec events</span>
-            <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.eval_context.datasets} datasets</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-violet-200/60 dark:border-violet-800/40">
-            <Link href="/guardrails" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
-            <Link href="/data-capture" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Data Capture</Link>
-            <Link href="/security" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Security</Link>
-            <Link href="/evaluation" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Eval Studio</Link>
-          </div>
-        </div>
-      )}
 
       {/* ── Most Accessed ─────────────────────────── */}
       {stats && stats.most_accessed.length > 0 && (

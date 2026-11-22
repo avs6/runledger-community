@@ -21,23 +21,10 @@ import {
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
+import { getAccessGroupDashboard, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId, num } from '@/lib/utils'
-import type {
-  GatewayRequestLog,
-  InvestigationFinopsBudgetPosture,
-  InvestigationGatewayRuntimePosture,
-  InvestigationOrgIdentityPosture,
-  OutcomeResponse,
-  OverviewScopePosture,
-  ProviderCallDetail,
-  RequestRecord,
-  RunDetailResponse,
-  RunGovernanceContextResponse,
-  SpanDetail,
-  ToolCallDetail,
-} from '@/types/api'
+import type { GatewayRequestLog, OutcomeResponse, ProviderCallDetail, RequestRecord, RunDetailResponse, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
 
 interface PageProps {
   searchParams: {
@@ -454,10 +441,6 @@ function RequestDetail({
   gatewayMatch,
   accessGroupId,
   governance,
-  finops,
-  orgIdentity,
-  gatewayRuntime,
-  scopePosture,
 }: {
   run: RunDetailResponse
   graphNodeCount: number
@@ -465,10 +448,6 @@ function RequestDetail({
   gatewayMatch: GatewayRequestLog | null
   accessGroupId?: string
   governance: RunGovernanceContextResponse | null
-  finops: InvestigationFinopsBudgetPosture | null
-  orgIdentity: InvestigationOrgIdentityPosture | null
-  gatewayRuntime: InvestigationGatewayRuntimePosture | null
-  scopePosture: OverviewScopePosture | null
 }) {
   const totalTokens = (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0)
   const { routeAlias, decision } = routingEvidence(run, gatewayMatch)
@@ -541,64 +520,8 @@ function RequestDetail({
         </Card>
       )}
 
-      {finops && (
-        <Card className="p-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Budget Context</h2>
-            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-              <Link href="/budgets" className="hover:underline">Budgets</Link>
-              <Link href="/billing" className="hover:underline">Billing</Link>
-              <Link href="/chargeback" className="hover:underline">Chargeback</Link>
-            </div>
-          </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Active Budgets" value={`${finops.budget_context.active_budgets} / ${finops.budget_context.budgets}`} detail={`${finops.budget_context.breach_count} in breach`} icon={DollarSign} />
-            <LifecycleCard title="Budget Limit" value={formatCost(finops.budget_context.total_limit_usd)} detail={`${finops.budget_context.active_overrides} overrides`} icon={ShieldCheck} />
-            <LifecycleCard title="30d Spend" value={formatCost(finops.spend_context.total_spend_30d)} detail={`${finops.spend_context.total_runs_30d.toLocaleString()} runs`} icon={Activity} />
-            <LifecycleCard title="Billing" value={`${finops.billing_context.open_billing_periods} open`} detail={`${finops.billing_context.chargeback_rules} chargeback rules`} icon={Clock} />
-          </div>
-        </Card>
-      )}
 
-      {orgIdentity && (
-        <Card className="p-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Org Identity</h2>
-            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-blue-700 dark:text-blue-400">
-              <Link href="/organization" className="hover:underline">Org</Link>
-              <Link href="/users" className="hover:underline">Users</Link>
-              <Link href="/api-keys" className="hover:underline">Keys</Link>
-              <Link href="/mcp-registry" className="hover:underline">MCP</Link>
-            </div>
-          </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Users" value={String(orgIdentity.user_context.workspace_users)} detail={`${orgIdentity.user_context.distinct_end_users_30d} end users (30d)`} icon={User} />
-            <LifecycleCard title="API Keys" value={`${orgIdentity.api_key_context.active_keys} active`} detail={`${orgIdentity.api_key_context.total_keys} total`} icon={KeyRound} />
-            <LifecycleCard title="MCP Servers" value={String(orgIdentity.mcp_context.servers)} detail={`${orgIdentity.mcp_context.tool_calls_30d.toLocaleString()} calls (30d)`} icon={Network} />
-            <LifecycleCard title="Telemetry" value={`${orgIdentity.telemetry_context.batches_30d.toLocaleString()} batches`} detail={`${orgIdentity.telemetry_context.runs_30d.toLocaleString()} runs`} icon={Activity} />
-          </div>
-        </Card>
-      )}
 
-      {gatewayRuntime && (
-        <Card className="p-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold text-slate-950 dark:text-slate-100">Gateway Runtime</h2>
-            <div className="flex flex-wrap gap-1.5 text-[10px] font-semibold text-violet-700 dark:text-violet-400">
-              <Link href="/provider-profiles" className="hover:underline">Providers</Link>
-              <Link href="/gateway" className="hover:underline">Routes</Link>
-              <Link href="/guardrails" className="hover:underline">Guardrails</Link>
-              <Link href="/gateway?tab=cache" className="hover:underline">Cache</Link>
-            </div>
-          </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-            <LifecycleCard title="Providers" value={`${gatewayRuntime.provider_context.distinct_providers} providers`} detail={`${gatewayRuntime.provider_context.active_routes} routes`} icon={Network} />
-            <LifecycleCard title="Guardrails" value={`${gatewayRuntime.guardrail_context.active_rules} rules`} detail={`${gatewayRuntime.guardrail_context.blocks_30d} blocks (30d)`} icon={ShieldCheck} />
-            <LifecycleCard title="Cache" value={`${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits`} detail={`$${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved`} icon={Sparkles} />
-            <LifecycleCard title="Rate Limits" value={`${gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM-limited`} detail={`${gatewayRuntime.rate_limit_context.routes_with_cost_limits} cost-limited`} icon={Clock} />
-          </div>
-        </Card>
-      )}
 
       <PayloadPanel run={run} />
 
@@ -646,26 +569,18 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
   }
   const selectedId = searchParams.run_id ?? requestExplorer.items[0]?.run_id ?? null
 
-  const [runResult, governanceResult, graphResult, outcomesResult, gatewayResult, finopsResult, orgIdentityResult, gatewayRuntimeResult, scopePostureResult] = selectedId
+  const [runResult, governanceResult, graphResult, outcomesResult, gatewayResult] = selectedId
     ? await Promise.allSettled([
         getRun(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         getRunGovernanceContext(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         getRunGraph(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         listOutcomes(session.apiKey, { run_id: selectedId, limit: 20 }),
         listGatewayRequests(session.apiKey, { limit: 100 }),
-        getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }),
-        getInvestigationOrgIdentityPosture(session.apiKey),
-        getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }),
-        getOverviewScopePosture(session.apiKey),
       ])
     : []
 
   const selectedRun = runResult?.status === 'fulfilled' ? runResult.value : null
   const governance = governanceResult?.status === 'fulfilled' ? governanceResult.value : null
-  const finops = finopsResult?.status === 'fulfilled' ? finopsResult.value : null
-  const orgIdentity = orgIdentityResult?.status === 'fulfilled' ? orgIdentityResult.value : null
-  const gatewayRuntimePosture = gatewayRuntimeResult?.status === 'fulfilled' ? gatewayRuntimeResult.value : null
-  const scopePosture = scopePostureResult?.status === 'fulfilled' ? scopePostureResult.value : null
   const graphNodeCount = graphResult?.status === 'fulfilled' ? graphResult.value.nodes.length : 0
   const outcomes = outcomesResult?.status === 'fulfilled' ? outcomesResult.value.items : []
   const gatewayRequests = gatewayResult?.status === 'fulfilled' ? gatewayResult.value.items : []
@@ -726,7 +641,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       <div className="grid gap-3 xl:grid-cols-[280px_1fr]">
         <RunList requests={requestExplorer.items} selectedRunId={selectedRun?.id ?? selectedId} searchParams={searchParams} />
         {selectedRun ? (
-          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} governance={governance} finops={finops} orgIdentity={orgIdentity} gatewayRuntime={gatewayRuntimePosture} scopePosture={scopePosture} />
+          <RequestDetail run={selectedRun} graphNodeCount={graphNodeCount} outcomes={outcomes} gatewayMatch={gatewayMatch} accessGroupId={accessGroupId} governance={governance} />
         ) : (
           <Card className="flex items-center justify-center p-8 text-center">
             <div>

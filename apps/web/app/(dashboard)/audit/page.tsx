@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download, X, Layers, Search, Filter } from 'lucide-react'
-import { listAuditEvents, exportAuditEvents, getAuditEvent, getEvidenceAuditCrossPosture, getGovernanceInternalPosture, getAuditLogRuntimePosture } from '@/lib/api'
-import type { AuditEvent, EvidenceAuditCrossPosture, GovernanceInternalPosture, AuditLogRuntimePosture } from '@/types/api'
+import { listAuditEvents, exportAuditEvents, getAuditEvent } from '@/lib/api'
+import type { AuditEvent } from '@/types/api'
 import { toast } from 'sonner'
 
 const PAGE_SIZE = 50
@@ -36,9 +36,6 @@ export default function AuditPage() {
   const [targetTypeFilter, setTargetTypeFilter] = useState('')
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [crossPosture, setCrossPosture] = useState<EvidenceAuditCrossPosture | null>(null)
-  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<AuditLogRuntimePosture | null>(null)
 
   const fetchEvents = useCallback(async () => {
     if (!apiKey) return
@@ -63,9 +60,6 @@ export default function AuditPage() {
 
   useEffect(() => {
     if (!apiKey) return
-    getEvidenceAuditCrossPosture(apiKey).then(setCrossPosture).catch(() => {})
-    getGovernanceInternalPosture(apiKey).then(setGovInternal).catch(() => {})
-    getAuditLogRuntimePosture(apiKey).then(setRuntimePosture).catch(() => {})
   }, [apiKey])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -135,63 +129,8 @@ export default function AuditPage() {
 
         {/* KPI strip */}
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-          {crossPosture && (
-            <>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.observe_context.audit_events_30d}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Audit Events 30d</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.finops_context.active_budgets}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Active Budgets</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.org_context.workspace_users}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Workspace Users</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{crossPosture.gateway_context.total_routes}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Gateway Routes</p>
-              </div>
-            </>
-          )}
-          {runtimePosture && (
-            <>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.evidence_scope.audit_events_30d}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Evidence Events</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.observe_lineage.runs_30d}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Runs 30d</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.gateway_lineage.cache_configs}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Cache Configs</p>
-              </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{runtimePosture.finops_lineage.ledger_snapshots_30d}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Ledger Snapshots</p>
-              </div>
-            </>
-          )}
         </div>
 
-        {/* Governance chips */}
-        {govInternal && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {[
-              { label: `${govInternal.tool_registry_context.total_tools} Tools`, sub: `${govInternal.tool_registry_context.enforced_tools} enforced` },
-              { label: `${govInternal.tool_policies_context.active_policies} Policies`, sub: 'active' },
-              { label: `${govInternal.security_context.security_events_30d} Security`, sub: '30d' },
-              { label: `${govInternal.tags_context.active_tags} Tags`, sub: 'active' },
-            ].map((c) => (
-              <span key={c.label} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{c.label}</span> {c.sub}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Filters */}

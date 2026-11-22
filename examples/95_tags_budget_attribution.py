@@ -43,15 +43,7 @@ def check(resp: httpx.Response, label: str) -> dict:
 def main() -> None:
     client = httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=30)
 
-    posture = check(
-        client.get("/analytics/tags-finops-budget-posture"),
-        "Tags FinOps budget posture",
-    )
     print("=== Tags FinOps Budget Attribution Posture ===")
-    tc = posture.get("tag_context", {})
-    bc = posture.get("budget_context", {})
-    cc = posture.get("chargeback_context", {})
-    sc = posture.get("spend_context", {})
     print(f"  Total tags:              {tc.get('total_tags', 0)}")
     print(f"  Active tags:             {tc.get('active_tags', 0)}")
     print(f"  Active auto-rules:       {tc.get('active_auto_rules', 0)}")

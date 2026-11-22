@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { ArrowRight, Expand, GitBranch, Layers3, Route as RouteIcon, Search, ShieldCheck } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationGovernancePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRunFlow } from '@/lib/api'
+import { getAccessGroupDashboard, getRunFlow } from '@/lib/api'
 import RequestFlowSankey, {
   type RequestFlowDensity,
   type RequestFlowMetric,
@@ -97,13 +97,6 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
   const govParams = { access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined }
-  const [governance, finops, orgIdentity, gatewayRuntime, scopePosture] = await Promise.all([
-    getInvestigationGovernancePosture(session.apiKey, govParams).catch(() => null),
-    getInvestigationFinopsBudgetPosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
-    getInvestigationOrgIdentityPosture(session.apiKey).catch(() => null),
-    getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
-    getOverviewScopePosture(session.apiKey).catch(() => null),
-  ])
   let flow: RunFlowResponse
   try {
     flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined, api_key_id: apiKeyId, end_user_id: endUserId })
@@ -117,67 +110,6 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
   const succeeded = items.filter((run) => run.success).length
 
   const contextSections: { color: string; label: string; summary: string; links: { href: string; text: string }[] }[] = []
-  if (governance) {
-    contextSections.push({
-      color: 'cyan',
-      label: 'Governance',
-      summary: `${governance.filtered_runs.toLocaleString()} scoped runs, ${governance.security.events.toLocaleString()} security events, ${governance.audit_log.governance_events.toLocaleString()} governance audit events.${scopePosture ? ` ${scopePosture.tool_context.pending_approvals} pending approvals, ${scopePosture.tool_context.capture_policies} capture policies.` : ''}`,
-      links: [
-        { href: '/tool-registry', text: 'Tool Registry' },
-        { href: '/tool-policies', text: 'Tool Policies' },
-        { href: '/approvals', text: 'Approvals' },
-        { href: '/security', text: 'Security' },
-        { href: '/alert-rules', text: 'Alert Rules' },
-        { href: '/audit', text: 'Audit Log' },
-        { href: '/governance-pack', text: 'Governance Pack' },
-        { href: '/tags', text: 'Tags' },
-      ],
-    })
-  }
-  if (finops) {
-    contextSections.push({
-      color: 'emerald',
-      label: 'Budget',
-      summary: `${finops.budget_context.active_budgets} active budgets (${finops.budget_context.breach_count} in breach), ${money(finops.spend_context.total_spend_30d)} spent across ${finops.spend_context.total_runs_30d.toLocaleString()} runs, ${finops.billing_context.open_billing_periods} open billing periods.`,
-      links: [
-        { href: '/budgets', text: 'Budgets' },
-        { href: '/budgets?view=detail', text: 'Budget Detail' },
-        { href: '/budget-overrides', text: 'Budget Overrides' },
-        { href: '/billing', text: 'Billing Periods' },
-        { href: '/billing?view=detail', text: 'Billing Period Detail' },
-        { href: '/chargeback', text: 'Chargeback' },
-        { href: '/model-budgets', text: 'Model Budgets' },
-      ],
-    })
-  }
-  if (orgIdentity) {
-    contextSections.push({
-      color: 'blue',
-      label: 'Org Identity',
-      summary: `${orgIdentity.user_context.workspace_users} workspace users, ${orgIdentity.user_context.distinct_end_users_30d} distinct end users, ${orgIdentity.api_key_context.total_keys} API keys (${orgIdentity.api_key_context.active_keys} active), ${orgIdentity.mcp_context.servers} MCP servers.`,
-      links: [
-        { href: '/organization', text: 'Organization' },
-        { href: '/users', text: 'Users' },
-        { href: '/api-keys', text: 'API Keys' },
-        { href: '/monitoring/telemetry', text: 'Telemetry' },
-        { href: '/mcp-registry', text: 'MCP Registry' },
-      ],
-    })
-  }
-  if (gatewayRuntime) {
-    contextSections.push({
-      color: 'violet',
-      label: 'Gateway Runtime',
-      summary: `${gatewayRuntime.provider_context.distinct_providers} providers, ${gatewayRuntime.provider_context.active_routes} active routes, ${gatewayRuntime.route_context.gateway_requests_30d.toLocaleString()} gateway requests (30d). ${gatewayRuntime.guardrail_context.active_rules} guardrail rules (${gatewayRuntime.guardrail_context.blocks_30d} blocks). ${gatewayRuntime.cache_context.total_hits.toLocaleString()} cache hits, $${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)} saved.`,
-      links: [
-        { href: '/provider-profiles', text: 'Provider Profiles' },
-        { href: '/gateway', text: 'Gateway Routes' },
-        { href: '/guardrails', text: 'Guardrails' },
-        { href: '/gateway?tab=cache', text: 'Response Cache' },
-        { href: '/rate-limits', text: 'Rate Limits' },
-      ],
-    })
-  }
 
   return (
     <div className="space-y-4">

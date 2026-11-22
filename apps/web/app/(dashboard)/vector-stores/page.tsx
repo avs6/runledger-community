@@ -9,11 +9,8 @@ import {
   Database, ExternalLink, FileText, HardDrive, Layers, Plus, RefreshCw,
   Search, Server, Sparkles, Trash2, X, Zap,
 } from 'lucide-react'
-import {
-  getVectorCollections, getVectorStoresLifecyclePosture,
-  createVectorCollection, deleteVectorCollection,
-} from '@/lib/api'
-import type { VectorCollectionResponse, VectorStoresLifecyclePosture } from '@/types/api'
+import { getVectorCollections, createVectorCollection, deleteVectorCollection } from '@/lib/api'
+import type { VectorCollectionResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -78,7 +75,6 @@ export default function VectorStoresPage() {
   const [loading, setLoading] = useState(true)
   const [collections, setCollections] = useState<VectorCollectionResponse[]>([])
   const [total, setTotal] = useState(0)
-  const [lifecyclePosture, setLifecyclePosture] = useState<VectorStoresLifecyclePosture | null>(null)
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -99,13 +95,10 @@ export default function VectorStoresPage() {
     }
     setLoading(true)
     try {
-      const [data, posture] = await Promise.all([
-        getVectorCollections(apiKey),
-        getVectorStoresLifecyclePosture(apiKey).catch(() => null),
-      ])
+      const [data] = await Promise.all([
+        getVectorCollections(apiKey)])
       setCollections(data.collections)
       setTotal(data.total)
-      setLifecyclePosture(posture)
     } catch { toast.error('Failed to load vector stores') }
     finally { setLoading(false) }
   }, [apiKey])
@@ -192,8 +185,6 @@ export default function VectorStoresPage() {
           { label: 'Total Size', value: bytes(totalSize) },
           { label: 'Queries', value: totalQueries.toLocaleString() },
           { label: 'Total Cost', value: money(totalCost), accent: true },
-          { label: 'Calls 30d', value: lifecyclePosture?.observe_context.provider_calls_30d ?? '—' },
-          { label: 'Workflows', value: lifecyclePosture?.build_context.workflows ?? '—' },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -202,35 +193,6 @@ export default function VectorStoresPage() {
         ))}
       </div>
 
-      {/* ── Posture chips ──────────────────────────────── */}
-      {lifecyclePosture && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg border border-cyan-200/60 dark:border-cyan-800/40 bg-cyan-50/30 dark:bg-cyan-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 mb-1">Workspace</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-cyan-100 dark:bg-cyan-900/40 px-2 py-0.5 text-[10px] text-cyan-700 dark:text-cyan-300">{lifecyclePosture.workspace_context.workspace_name}</span>
-              <span className="rounded-full bg-cyan-100 dark:bg-cyan-900/40 px-2 py-0.5 text-[10px] text-cyan-700 dark:text-cyan-300">${Number(lifecyclePosture.cost_context.cost_30d).toFixed(2)} 30d</span>
-              <Link href="/workspace" className="text-[10px] text-cyan-600 hover:underline dark:text-cyan-400">Workspaces</Link>
-            </div>
-          </div>
-          <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Observe</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{lifecyclePosture.observe_context.provider_calls_30d} calls</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{lifecyclePosture.cost_context.chargeback_rules} chargeback rules</span>
-              <Link href="/request-explorer" className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">Explorer</Link>
-            </div>
-          </div>
-          <div className="rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-1">Build</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{lifecyclePosture.build_context.workflows} workflows</span>
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{lifecyclePosture.build_context.eval_experiments} experiments</span>
-              <Link href="/evaluation" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Eval Studio</Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Tab bar ─────────────────────────────────────── */}
       <div className="flex gap-0.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-0.5">

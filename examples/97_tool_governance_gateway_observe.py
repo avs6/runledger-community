@@ -43,17 +43,7 @@ def check(resp: httpx.Response, label: str) -> dict:
 def main() -> None:
     client = httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=30)
 
-    posture = check(
-        client.get("/analytics/tool-governance-gateway-posture"),
-        "Tool governance gateway posture",
-    )
     print("=== Tool Governance Gateway & Observe Posture ===")
-    pc = posture.get("provider_context", {})
-    gc = posture.get("guardrail_context", {})
-    cc = posture.get("cache_context", {})
-    rlc = posture.get("rate_limit_context", {})
-    rc = posture.get("run_context", {})
-    mc = posture.get("monitoring_context", {})
     print(f"  Providers:            {pc.get('total_providers', 0)}")
     print(f"  Gateway routes:       {pc.get('total_routes', 0)}")
     print(f"    Rate-limited:       {rlc.get('rate_limited_routes', 0)}")

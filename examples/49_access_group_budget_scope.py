@@ -67,10 +67,8 @@ def main() -> None:
     scoped = api("GET", f"/budgets?scope_type=access_group&scope_id={group_id}")
     print(f"Budgets scoped to group: {len(scoped['items'])}")
 
-    posture = api("GET", f"/analytics/budget-org-scope-posture/{budget_id}")
-    print(f"Org posture — workspace users: {posture['org_context']['workspace_users']}")
-    print(f"Org posture — access groups: {posture['org_context']['workspace_access_groups']}")
-    print(f"Hub posture — model catalog: {posture['hub_context']['hub_model_count']}")
+    ctx = api("GET", f"/context?entity=budget&id={budget_id}")
+    print("  Related: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
 
     api("DELETE", f"/budgets/{budget_id}")
     print(f"Deleted budget {budget_id}")

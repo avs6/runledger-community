@@ -6,20 +6,8 @@ import { toast } from 'sonner'
 import { CheckCircle2, Database, Eye, Info, Layers, Link2, Loader2, Pencil, Plus, Radio, Search, Shield, Trash2, X, Building2, Zap, Lock, Globe, Server, Activity } from 'lucide-react'
 import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
-import {
-  deleteCapturePolicyScope,
-  getCapturePolicy,
-  getRetentionPreview,
-  listCapturePolicyScopes,
-  testPiiRedaction,
-  upsertCapturePolicy,
-  upsertCapturePolicyScope,
-  getDataProtectionOrgPosture,
-  getDataProtectionGatewayPosture,
-  getGovernanceInternalPosture,
-  getDataCaptureRuntimePosture,
-} from '@/lib/api'
-import type { CapturePolicyResponse, CapturePolicyScope, GovernanceInternalPosture, DataCaptureRuntimePosture, PiiTestResult, RetentionPreview, DataProtectionOrgPosture, DataProtectionGatewayPosture } from '@/types/api'
+import { deleteCapturePolicyScope, getCapturePolicy, getRetentionPreview, listCapturePolicyScopes, testPiiRedaction, upsertCapturePolicy, upsertCapturePolicyScope } from '@/lib/api'
+import type { CapturePolicyResponse, CapturePolicyScope, PiiTestResult, RetentionPreview } from '@/types/api'
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500'
@@ -89,10 +77,6 @@ export default function DataCapturePage() {
   const [piiText, setPiiText] = useState('')
   const [piiResult, setPiiResult] = useState<PiiTestResult | null>(null)
   const [testingPii, setTestingPii] = useState(false)
-  const [orgPosture, setOrgPosture] = useState<DataProtectionOrgPosture | null>(null)
-  const [gatewayPosture, setGatewayPosture] = useState<DataProtectionGatewayPosture | null>(null)
-  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<DataCaptureRuntimePosture | null>(null)
 
   const resetScopeForm = useCallback(() => {
     setEditingScopeKey(null)
@@ -133,10 +117,6 @@ export default function DataCapturePage() {
   useEffect(() => {
     void loadPolicy()
     if (apiKey) {
-      getDataProtectionOrgPosture(apiKey).then(setOrgPosture).catch(() => null)
-      getDataProtectionGatewayPosture(apiKey).then(setGatewayPosture).catch(() => null)
-      getGovernanceInternalPosture(apiKey).then(setGovInternal).catch(() => null)
-      getDataCaptureRuntimePosture(apiKey).then(setRuntimePosture).catch(() => null)
     }
   }, [loadPolicy])
 
@@ -232,30 +212,6 @@ export default function DataCapturePage() {
   const compliance = COMPLIANCE_NOTES[privacyMode]
   const ComplianceIcon = compliance?.icon ?? Info
 
-  const postures = useMemo(() => {
-    const items: { label: string; value: string | number; sub?: string; color: string }[] = []
-    if (orgPosture) {
-      items.push(
-        { label: 'Workspace Users', value: orgPosture.user_context.total_users, color: 'text-blue-400' },
-        { label: 'Capture Policies', value: orgPosture.capture_context.active_policies, sub: `${orgPosture.capture_context.total_policies} total`, color: 'text-blue-400' },
-        { label: 'Security Events', value: orgPosture.security_context.security_events_30d, sub: '30d', color: 'text-blue-400' },
-      )
-    }
-    if (gatewayPosture) {
-      items.push(
-        { label: 'Gateway Routes', value: gatewayPosture.provider_context.total_routes, sub: `${gatewayPosture.provider_context.total_providers} providers`, color: 'text-violet-400' },
-        { label: 'Guardrails', value: gatewayPosture.guardrail_context.total_guardrails, sub: `${gatewayPosture.guardrail_context.guardrail_events_30d} events`, color: 'text-violet-400' },
-      )
-    }
-    if (runtimePosture) {
-      items.push(
-        { label: 'Provider Calls', value: runtimePosture.gateway_evidence.provider_calls_30d, sub: '30d', color: 'text-cyan-400' },
-        { label: 'Runs', value: runtimePosture.observe_evidence.runs_30d, sub: '30d', color: 'text-cyan-400' },
-        { label: 'Budgets', value: runtimePosture.budget_context.total_budgets, color: 'text-cyan-400' },
-      )
-    }
-    return items
-  }, [orgPosture, gatewayPosture, runtimePosture])
 
   if (!canManageOrgSettings) {
     return (
@@ -293,33 +249,7 @@ export default function DataCapturePage() {
         </div>
 
         {/* KPI strip */}
-        {postures.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-            {postures.map((p) => (
-              <div key={p.label} className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-lg font-bold text-slate-900 dark:text-white">{p.value}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">{p.label}</p>
-                {p.sub && <p className="text-[10px] text-slate-400 dark:text-slate-500">{p.sub}</p>}
-              </div>
-            ))}
-          </div>
-        )}
 
-        {/* Posture chips */}
-        {govInternal && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {[
-              { label: `${govInternal.tool_registry_context.total_tools} Tools`, sub: `${govInternal.tool_registry_context.enforced_tools} enforced` },
-              { label: `${govInternal.tool_policies_context.active_policies} Policies`, sub: 'active' },
-              { label: `${govInternal.approvals_context.pending_approvals} Pending`, sub: 'approvals' },
-              { label: `${govInternal.audit_context.audit_events_30d} Audit`, sub: '30d' },
-            ].map((c) => (
-              <span key={c.label} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{c.label}</span> {c.sub}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Tab bar */}

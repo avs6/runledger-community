@@ -15,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBudgetRollup, getEconomicsFinopsPosture, getEconomicsGatewayPosture, getRunFlow } from '@/lib/api'
+import { getBudgetRollup, getRunFlow } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
 import {
@@ -26,7 +26,7 @@ import {
   type HeatmapRow,
   type SavingsCategoryPoint,
 } from '@/components/dashboard/FinOpsCharts'
-import type { BudgetRollupResponse, BudgetRollupWorkspace, EconomicsFinopsPosture, RunFlowRecord } from '@/types/api'
+import type { BudgetRollupResponse, BudgetRollupWorkspace, RunFlowRecord } from '@/types/api'
 import { num } from '@/lib/utils'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
@@ -250,7 +250,7 @@ export default async function CostSavingsPage({
     : 'Workspace'
   const activeTab: TabId = TABS.some((t) => t.id === sp.tab) ? (sp.tab as TabId) : 'breakdown'
   const win = getDashboardWindow(sp.range ?? '30d')
-  const [flow, budgetRollup, finopsPosture, gatewayPosture] = await Promise.all([
+  const [flow, budgetRollup] = await Promise.all([
     getRunFlow(session.apiKey, {
       scope: selectedScope,
       mode: 'workspace-app-agent-model-cost',
@@ -259,10 +259,7 @@ export default async function CostSavingsPage({
       from: win.from,
       to: win.to,
     }),
-    getBudgetRollup(session.apiKey, selectedScope).catch(() => null as BudgetRollupResponse | null),
-    getEconomicsFinopsPosture(session.apiKey).catch(() => null as EconomicsFinopsPosture | null),
-    getEconomicsGatewayPosture(session.apiKey).catch(() => null),
-  ])
+    getBudgetRollup(session.apiKey, selectedScope).catch(() => null as BudgetRollupResponse | null)])
 
   const items = flow.items
   const requests = flow.total_runs || items.length
@@ -277,20 +274,6 @@ export default async function CostSavingsPage({
   const recommendation = nextOptimization(roiRows)
   const budgetRows = budgetRollup?.workspaces ?? []
 
-  const postureChips: string[] = []
-  if (finopsPosture) {
-    postureChips.push(`${finopsPosture.billing_context.open_billing_periods} open periods`)
-    postureChips.push(`${finopsPosture.billing_context.chargeback_rules} CB rules`)
-    postureChips.push(`${finopsPosture.budget_context.active_overrides} overrides`)
-    postureChips.push(`${finopsPosture.notification_context.active_notifications} notifications`)
-    postureChips.push(`${finopsPosture.ledger_context.ledger_snapshots} snapshots`)
-  }
-  if (gatewayPosture) {
-    postureChips.push(`${gatewayPosture.provider_context.distinct_providers} providers`)
-    postureChips.push(`${gatewayPosture.gateway_context.active_routes} routes`)
-    postureChips.push(`${gatewayPosture.gateway_context.distinct_models} models`)
-    postureChips.push(`${gatewayPosture.investigation_context.runs_30d} runs 30d`)
-  }
 
   return (
     <div className="space-y-5">
@@ -305,15 +288,6 @@ export default async function CostSavingsPage({
             <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
               Trace spend by business dimension, explain savings, identify the next optimization target, and overlay budget guardrails — all in one command center.
             </p>
-            {postureChips.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {postureChips.map((c) => (
-                  <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {c}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
           <Link
             href="/budgets"
@@ -568,49 +542,7 @@ export default async function CostSavingsPage({
       )}
 
       {/* ── Context panels ── */}
-      {finopsPosture && (
-        <div className="rounded-xl border border-cyan-300 bg-gradient-to-r from-cyan-50 to-blue-50 p-4 dark:border-cyan-800/30 dark:from-cyan-950/30 dark:to-blue-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Wallet className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-            <h2 className="text-xs font-bold text-cyan-900 dark:text-cyan-200">FinOps Detail Context</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              { label: 'Billing Periods', value: `${finopsPosture.billing_context.open_billing_periods}/${finopsPosture.billing_context.billing_periods}` },
-              { label: 'Overrides', value: `${finopsPosture.budget_context.active_overrides}/${finopsPosture.budget_context.overrides}` },
-              { label: 'Notifications', value: `${finopsPosture.notification_context.active_notifications}/${finopsPosture.notification_context.notifications}` },
-              { label: 'Ledger Snapshots', value: String(finopsPosture.ledger_context.ledger_snapshots) },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">{label}</p>
-                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {gatewayPosture && (
-        <div className="rounded-xl border border-violet-300 bg-gradient-to-r from-violet-50 to-purple-50 p-4 dark:border-violet-800/30 dark:from-violet-950/30 dark:to-purple-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-xs font-bold text-violet-900 dark:text-violet-200">Gateway & Provider Context</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              { label: 'Providers', value: String(gatewayPosture.provider_context.distinct_providers) },
-              { label: 'Routes', value: String(gatewayPosture.gateway_context.active_routes) },
-              { label: 'Runs (30d)', value: String(gatewayPosture.investigation_context.runs_30d) },
-              { label: 'Alerts (30d)', value: String(gatewayPosture.investigation_context.monitoring_alerts_30d) },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">{label}</p>
-                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Quick-nav footer ── */}
       <div className="flex flex-wrap gap-2 pt-2">

@@ -10,19 +10,9 @@ import {
   Clock, ArrowRight, Send, X, Radio, Layers,
   AlertTriangle, CheckCircle2, XCircle, Timer,
 } from 'lucide-react'
-import {
-  listGatewayRoutes, updateGatewayRoute,
-  listGatewayRequests, getGatewayStats,
-  getResponseCacheConfigs, updateResponseCacheConfig,
-  listRoutingPolicies, updateRoutingPolicy,
-  getPipelineStudioPosture,
-} from '@/lib/api'
+import { listGatewayRoutes, updateGatewayRoute, listGatewayRequests, getGatewayStats, getResponseCacheConfigs, updateResponseCacheConfig, listRoutingPolicies, updateRoutingPolicy } from '@/lib/api'
 import { num } from '@/lib/utils'
-import type {
-  GatewayRoute, GatewayRequestLog, GatewayStats,
-  ResponseCacheConfigResponse, RoutingPolicy,
-  PipelineStudioPosture,
-} from '@/types/api'
+import type { GatewayRoute, GatewayRequestLog, GatewayStats, ResponseCacheConfigResponse, RoutingPolicy } from '@/types/api'
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
@@ -648,7 +638,6 @@ export default function PipelineDesignerPage() {
   const [expandedRequest, setExpandedRequest] = useState<string | null>(null)
   const [injectOpen, setInjectOpen] = useState(false)
 
-  const [posture, setPosture] = useState<PipelineStudioPosture | null>(null)
   const [routes, setRoutes] = useState<GatewayRoute[]>([])
   const [cacheConfigs, setCacheConfigs] = useState<ResponseCacheConfigResponse[]>([])
   const [policies, setPolicies] = useState<RoutingPolicy[]>([])
@@ -661,15 +650,12 @@ export default function PipelineDesignerPage() {
   const fetchAll = useCallback(async () => {
     if (!apiKey) return
     try {
-      const [p, r, cc, pol, req, st] = await Promise.all([
-        getPipelineStudioPosture(apiKey).catch(() => null),
+      const [r, cc, pol, req, st] = await Promise.all([
         listGatewayRoutes(apiKey, true).catch(() => ({ items: [] })),
         getResponseCacheConfigs(apiKey).catch(() => ({ items: [] })),
         listRoutingPolicies(apiKey).catch(() => ({ items: [] })),
         listGatewayRequests(apiKey, { limit: 50 }).catch(() => ({ items: [] })),
-        getGatewayStats(apiKey).catch(() => null),
-      ])
-      if (p) setPosture(p)
+        getGatewayStats(apiKey).catch(() => null)])
       setRoutes((r as any).items || [])
       setCacheConfigs((cc as any).items || [])
       setPolicies((pol as any).items || [])
@@ -750,7 +736,6 @@ export default function PipelineDesignerPage() {
 
   const tabs: { id: Tab; label: string; icon: typeof Activity; count: number }[] = [
     { id: 'routes', label: 'Routes', icon: GitBranch, count: routes.length },
-    { id: 'guardrails', label: 'Guardrails', icon: Shield, count: posture?.enforcement_overlay?.guardrail_rules ?? 0 },
     { id: 'cache', label: 'Cache', icon: Database, count: cacheConfigs.length },
     { id: 'policies', label: 'Policies', icon: Zap, count: policies.length },
   ]
@@ -837,9 +822,9 @@ export default function PipelineDesignerPage() {
                   <Shield className="h-8 w-8 text-slate-600 mx-auto" />
                   <div>
                     <p className="text-sm text-slate-300">
-                      {posture?.enforcement_overlay?.guardrail_rules ?? 0} rules · {posture?.enforcement_overlay?.blocked_events_30d ?? 0} blocked (30d)
+ rules ·  blocked (30d)
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">{posture?.enforcement_overlay?.tool_policies ?? 0} tool policies</p>
+                    <p className="text-xs text-slate-500 mt-1"> tool policies</p>
                   </div>
                   <Link href="/guardrails" className="inline-flex items-center gap-1 text-sm text-indigo-400 hover:text-indigo-300 transition">
                     Manage guardrails <ArrowRight className="h-3 w-3" />
@@ -851,24 +836,6 @@ export default function PipelineDesignerPage() {
             </div>
           </div>
 
-          {posture && (
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-4">
-              <h3 className="text-xs font-semibold text-white mb-3">Runtime</h3>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {[
-                  ['Data Plane', posture.pipeline_model.execution_runtime.data_plane],
-                  ['Control Plane', posture.pipeline_model.execution_runtime.control_plane],
-                  ['Providers', posture.pipeline_model.routing_nodes.distinct_providers],
-                  ['Groups', posture.pipeline_model.routing_nodes.routing_groups],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-500">{label as string}</span>
-                    <span className="font-medium text-white">{String(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Live Feed */}

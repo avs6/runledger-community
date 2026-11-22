@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Building2, ChevronLeft, AlertTriangle, Search, DollarSign, Network } from 'lucide-react'
-import { getSpendByUser, getUserCohorts, getUserAnomalies, getUserAnalyticsOrgPosture, getModelUsageGatewayPosture, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
-import type { UserSpend, CohortSummary, AnomalyItem, UserAnalyticsOrgPosture, ModelUsageGatewayPosture, BudgetDetailObservePosture, BudgetControlObservePosture } from '@/types/api'
+import { getSpendByUser, getUserCohorts, getUserAnomalies } from '@/lib/api'
+import type { UserSpend, CohortSummary, AnomalyItem } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { num } from '@/lib/utils'
 
@@ -38,10 +38,6 @@ export default function UsersPage() {
   const [anomalies, setAnomalies] = useState<AnomalyItem[]>([])
   const [tab, setTab] = useState<Tab>('all')
   const [loading, setLoading] = useState(true)
-  const [orgPosture, setOrgPosture] = useState<UserAnalyticsOrgPosture | null>(null)
-  const [gatewayPosture, setGatewayPosture] = useState<ModelUsageGatewayPosture | null>(null)
-  const [budgetPosture, setBudgetPosture] = useState<BudgetDetailObservePosture | null>(null)
-  const [budgetControlPosture, setBudgetControlPosture] = useState<BudgetControlObservePosture | null>(null)
 
   useEffect(() => {
     if (!session?.apiKey) return
@@ -56,10 +52,6 @@ export default function UsersPage() {
       setAnomalies(anomaliesResp.items)
       setLoading(false)
     }).catch(() => setLoading(false))
-    getUserAnalyticsOrgPosture(key).then(setOrgPosture).catch(() => {})
-    getModelUsageGatewayPosture(key).then(setGatewayPosture).catch(() => {})
-    getBudgetDetailObservePosture(key).then(setBudgetPosture).catch(() => {})
-    getBudgetControlObservePosture(key).then(setBudgetControlPosture).catch(() => {})
   }, [session?.apiKey])
 
   const anomalySet = new Set(anomalies.map((a) => a.end_user_id))
@@ -107,148 +99,9 @@ export default function UsersPage() {
         </div>
       )}
 
-      {orgPosture && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 shadow-sm dark:border-blue-800 dark:bg-blue-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-base font-semibold text-blue-900 dark:text-blue-100">Org & Workspace Context</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5 mb-4">
-            {[
-              { label: 'Organization', value: orgPosture.org_context.org_name },
-              { label: 'Workspaces', value: String(orgPosture.org_context.workspace_count) },
-              { label: 'Workspace Users', value: String(orgPosture.org_context.workspace_users) },
-              { label: 'End Users', value: `${orgPosture.user_context.active_end_users_30d}/${orgPosture.user_context.total_end_users}` },
-              { label: 'API Keys', value: `${orgPosture.user_context.active_api_keys}/${orgPosture.user_context.api_keys}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl bg-white/80 dark:bg-blue-900/30 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">{label}</p>
-                <p className="mt-1 text-lg font-semibold text-blue-900 dark:text-blue-100">{value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: 'Organization', href: '/organization' },
-              { label: 'Workspaces', href: '/workspace' },
-              { label: 'Users', href: '/users' },
-              { label: 'API Keys', href: '/api-keys' },
-              { label: 'API Key Detail', href: '/api-keys' },
-              { label: 'Telemetry', href: '/monitoring/telemetry' },
-            ].map(({ label, href }) => (
-              <Link key={label} href={href} className="rounded-lg border border-blue-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-800/50">
-                {label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {gatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-5 shadow-sm dark:border-violet-800 dark:bg-violet-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Network className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-base font-semibold text-violet-900 dark:text-violet-100">Gateway & Model Context</h2>
-          </div>
-          <p className="text-sm text-violet-800/80 dark:text-violet-300/70 mb-4">
-            {gatewayPosture.gateway_context.active_routes}/{gatewayPosture.gateway_context.total_routes} active routes · {gatewayPosture.gateway_context.distinct_models} models · {gatewayPosture.gateway_context.routing_policies} routing policies · {gatewayPosture.investigation_context.gateway_requests_30d} gateway requests (30d)
-          </p>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
-            {[
-              { label: 'Active Routes', value: `${gatewayPosture.gateway_context.active_routes}/${gatewayPosture.gateway_context.total_routes}` },
-              { label: 'Models', value: String(gatewayPosture.gateway_context.distinct_models) },
-              { label: 'Tags', value: `${gatewayPosture.tag_context.active_tags}/${gatewayPosture.tag_context.tags}` },
-              { label: 'Gateway Reqs (30d)', value: String(gatewayPosture.investigation_context.gateway_requests_30d) },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl bg-white/80 dark:bg-violet-900/30 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">{label}</p>
-                <p className="mt-1 text-lg font-semibold text-violet-900 dark:text-violet-100">{value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: 'Model Gateway', href: '/gateway' },
-              { label: 'Provider Profiles', href: '/provider-profiles' },
-              { label: 'Routes', href: '/gateway?tab=routes' },
-            ].map(({ label, href }) => (
-              <Link key={label} href={href} className="rounded-lg border border-violet-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-300 dark:hover:bg-violet-800/50">
-                {label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {budgetPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-base font-semibold text-emerald-700 dark:text-emerald-300">Budget & Per-User Attribution</h2>
-          </div>
-          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Users with Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.user_budget_context.users_with_budgets}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Users (30d)</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{budgetPosture.user_budget_context.active_users_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">User Budget Total</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">${num(budgetPosture.user_budget_context.user_scoped_budget_total).toFixed(2)}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">User Spend</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">${num(budgetPosture.user_budget_context.user_scoped_spend).toFixed(2)}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-emerald-200 dark:border-emerald-800">
-            <Link href="/budgets" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            <Link href="/budgets?scope_type=end_user" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">User Budgets</Link>
-            <Link href="/billing" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Billing Periods</Link>
-            <Link href="/chargeback" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Chargeback</Link>
-            <Link href="/analytics?tab=economics" className="text-xs text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
-          </div>
-        </div>
-      )}
 
-      {budgetControlPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Budget Control — Observe Posture</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{budgetControlPosture.period_days}d window</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Active Budgets</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.active_budgets}</p>
-              <p className="text-xs text-slate-400">{budgetControlPosture.budget_policy.avg_utilization_pct}% avg util · {budgetControlPosture.budget_policy.at_risk_budgets} at-risk</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Breached</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.budget_policy.breached_budgets}</p>
-              <p className="text-xs text-slate-400">${num(budgetControlPosture.budget_policy.total_limit_usd).toFixed(2)} total limit</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Overrides</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{budgetControlPosture.override_status.total_overrides}</p>
-              <p className="text-xs text-slate-400">{budgetControlPosture.override_status.active_overrides} active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">30d Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${num(budgetControlPosture.spend_context.total_spend_30d).toFixed(2)}</p>
-              <p className="text-xs text-slate-400">{budgetControlPosture.notification_summary.total_notifications} notifications</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/budgets" className="text-emerald-700 hover:underline dark:text-emerald-400">Budgets →</Link>
-            <Link href="/budgets?tab=overrides" className="text-emerald-700 hover:underline dark:text-emerald-400">Overrides →</Link>
-            <Link href="/budgets?tab=notifications" className="text-emerald-700 hover:underline dark:text-emerald-400">Notifications →</Link>
-          </div>
-        </div>
-      )}
 
       <Card>
         <CardHeader className="pb-2">

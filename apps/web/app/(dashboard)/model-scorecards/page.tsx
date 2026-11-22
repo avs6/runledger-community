@@ -11,19 +11,9 @@ import {
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
-import {
-  getModelScorecards, getModelScoreTrends,
-  getOptimizationOrgGatewayPosture, getOptimizationObservePosture,
-  getOptimizationFinOpsPosture, getBuildInternalPosture,
-  getModelScorecardsIntelPosture,
-} from '@/lib/api'
+import { getModelScorecards, getModelScoreTrends } from '@/lib/api'
 import { getDashboardWindow } from '@/components/dashboard/DashboardScopeBar'
-import type {
-  ModelScorecard, ModelScoreTrend,
-  OptimizationOrgGatewayPosture, OptimizationObservePosture,
-  OptimizationFinOpsPosture, BuildInternalPosture,
-  ModelScorecardsIntelPosture,
-} from '@/types/api'
+import type { ModelScorecard, ModelScoreTrend } from '@/types/api'
 import { num } from '@/lib/utils'
 
 type SortKey = keyof ModelScorecard
@@ -51,11 +41,6 @@ export default function ModelScorecardsPage() {
   const [trendLoading, setTrendLoading] = useState(false)
   const [page, setPage] = useState(0)
 
-  const [orgGatewayPosture, setOrgGatewayPosture] = useState<OptimizationOrgGatewayPosture | null>(null)
-  const [observePosture, setObservePosture] = useState<OptimizationObservePosture | null>(null)
-  const [finOpsPosture, setFinOpsPosture] = useState<OptimizationFinOpsPosture | null>(null)
-  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
-  const [intelPosture, setIntelPosture] = useState<ModelScorecardsIntelPosture | null>(null)
 
   const fetchScorecards = useCallback(() => {
     if (!apiKey) {
@@ -73,11 +58,6 @@ export default function ModelScorecardsPage() {
   useEffect(() => {
     fetchScorecards()
     if (apiKey) {
-      getOptimizationOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {})
-      getOptimizationObservePosture(apiKey).then(setObservePosture).catch(() => {})
-      getOptimizationFinOpsPosture(apiKey).then(setFinOpsPosture).catch(() => {})
-      getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {})
-      getModelScorecardsIntelPosture(apiKey).then(setIntelPosture).catch(() => {})
     }
   }, [fetchScorecards, apiKey])
 
@@ -155,10 +135,6 @@ export default function ModelScorecardsPage() {
           { label: 'Total Cost', value: fmtUsd(totalCost), accent: true },
           { label: 'Total Calls', value: totalCalls.toLocaleString() },
           { label: 'Avg Error Rate', value: fmtPct(avgErrorRate) },
-          { label: 'Hub Models', value: intelPosture?.model_context.hub_models ?? '—' },
-          { label: 'Budgets', value: finOpsPosture?.budget_context.active_budgets ?? '—' },
-          { label: 'Spend 30d', value: finOpsPosture ? `$${num(finOpsPosture.budget_context.spend_30d).toFixed(2)}` : '—', accent: true },
-          { label: 'Score Events', value: intelPosture?.optimization_context.score_events_30d ?? '—' },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -167,41 +143,7 @@ export default function ModelScorecardsPage() {
         ))}
       </div>
 
-      {/* ── Posture chips ──────────────────────────────── */}
       <div className="grid grid-cols-3 gap-2">
-        {orgGatewayPosture && (
-          <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/30 dark:bg-blue-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Org & Gateway</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.distinct_providers} providers</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.active_routes} routes</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.cache_context.cache_configs} caches</span>
-              <Link href="/gateway" className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">Gateway</Link>
-            </div>
-          </div>
-        )}
-        {observePosture && (
-          <div className="rounded-lg border border-cyan-200/60 dark:border-cyan-800/40 bg-cyan-50/30 dark:bg-cyan-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 mb-1">Observe</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-cyan-100 dark:bg-cyan-900/40 px-2 py-0.5 text-[10px] text-cyan-700 dark:text-cyan-300">{observePosture.runs_context.runs_30d} runs</span>
-              <span className="rounded-full bg-cyan-100 dark:bg-cyan-900/40 px-2 py-0.5 text-[10px] text-cyan-700 dark:text-cyan-300">{observePosture.model_usage_context.distinct_models_30d} models</span>
-              <span className="rounded-full bg-cyan-100 dark:bg-cyan-900/40 px-2 py-0.5 text-[10px] text-cyan-700 dark:text-cyan-300">${num(observePosture.cost_savings_context.total_cost_30d).toFixed(2)}</span>
-              <Link href="/analytics" className="text-[10px] text-cyan-600 hover:underline dark:text-cyan-400">Analytics</Link>
-            </div>
-          </div>
-        )}
-        {buildPosture && (
-          <div className="rounded-lg border border-rose-200/60 dark:border-rose-800/40 bg-rose-50/30 dark:bg-rose-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Build & Improve</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.evaluation_context.experiments} experiments</span>
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.scorecards_context.score_events_30d} scores</span>
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.prompts_context.total_prompts} prompts</span>
-              <Link href="/evaluation" className="text-[10px] text-rose-600 hover:underline dark:text-rose-400">Eval Studio</Link>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Range + table ──────────────────────────────── */}

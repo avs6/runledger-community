@@ -41,20 +41,17 @@ def api(method: str, path: str, params: dict | None = None):
 def main():
     # ── Step 1: Investigation FinOps budget posture ──────────────────────
     print("=== Step 1: Investigation FinOps Budget Posture ===")
-    posture = api("GET", "/analytics/investigation-finops-budget-posture")
-    print(json.dumps(posture, indent=2))
+    ctx = api("GET", "/context?entity=workspace")
+    print("  Workspace context: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
 
-    bc = posture.get("budget_context", {})
     print(f"\nBudgets: {bc.get('budgets', 0)} total, {bc.get('active_budgets', 0)} active")
     print(f"Total limit: ${bc.get('total_limit_usd', 0):.2f}")
     print(f"In breach: {bc.get('breach_count', 0)}")
     print(f"Overrides: {bc.get('overrides', 0)} ({bc.get('active_overrides', 0)} active)")
 
-    blc = posture.get("billing_context", {})
     print(f"\nBilling periods: {blc.get('billing_periods', 0)} ({blc.get('open_billing_periods', 0)} open)")
     print(f"Chargeback rules: {blc.get('chargeback_rules', 0)}")
 
-    sc = posture.get("spend_context", {})
     print(f"\n30d spend: ${sc.get('total_spend_30d', 0):.4f}")
     print(f"30d runs: {sc.get('total_runs_30d', 0)}")
 

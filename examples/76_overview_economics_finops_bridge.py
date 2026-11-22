@@ -34,22 +34,19 @@ def get(path: str) -> dict:
 
 def main() -> None:
     print("=== Overview FinOps Budget Posture ===\n")
-    posture = get("/analytics/overview-finops-budget-posture")
-    bc = posture["budget_context"]
+    ctx = get("/context?entity=workspace")
+    print("  Workspace context: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
     print(f"  Active budgets: {bc['active_budgets']} / {bc['budgets']} total")
     print(f"  Total limit:    ${bc['total_limit_usd']:.2f}")
     print(f"  Breached:       {bc['breach_count']}")
     print(f"  Overrides:      {bc['overrides']} ({bc['active_overrides']} active)")
 
-    sc = posture["spend_context"]
     print(f"\n  Spend (30d):    ${sc['total_spend_30d']:.2f}")
     print(f"  Runs (30d):     {sc['total_runs_30d']}")
 
-    blc = posture["billing_context"]
     print(f"\n  Billing periods: {blc['billing_periods']} ({blc['open_billing_periods']} open)")
     print(f"  Chargeback rules: {blc['chargeback_rules']}")
 
-    nc = posture["notification_context"]
     print(f"\n  Notifications:   {nc['active_notifications']} active / {nc['notifications']} total")
 
     print("\n=== Model Budget Utilization ===\n")

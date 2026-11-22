@@ -18,15 +18,8 @@ import {
 import { useRole } from '@/components/rbac/useRole'
 import ChargebackRulesPanel from '@/components/chargeback/ChargebackRulesPanel'
 import CostCenterReportPanel from '@/components/chargeback/CostCenterReportPanel'
-import {
-  exportChargebackReport,
-  getChargebackReport,
-  listChargebackRules,
-  getFinOpsInternalPosture,
-  getChargebackCrossFeaturePosture,
-  getChargebackAttributionPosture,
-} from '@/lib/api'
-import type { ChargebackReport, ChargebackRuleResponse, ChargebackCrossFeaturePosture, ChargebackAttributionPosture, FinOpsInternalPosture } from '@/types/api'
+import { exportChargebackReport, getChargebackReport, listChargebackRules } from '@/lib/api'
+import type { ChargebackReport, ChargebackRuleResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 
 type Tab = 'overview' | 'rules' | 'cost-centers' | 'allocations' | 'exceptions' | 'exports'
@@ -101,9 +94,6 @@ export default function ChargebackPage() {
   const [report, setReport] = useState<ChargebackReport | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [exporting, setExporting] = useState<'csv' | 'json' | null>(null)
-  const [finopsPosture, setFinopsPosture] = useState<FinOpsInternalPosture | null>(null)
-  const [chargebackCrossPosture, setChargebackCrossPosture] = useState<ChargebackCrossFeaturePosture | null>(null)
-  const [attributionPosture, setAttributionPosture] = useState<ChargebackAttributionPosture | null>(null)
 
   const fetchRules = useCallback(async () => {
     if (!apiKey || !canManageOrgSettings) return
@@ -141,9 +131,6 @@ export default function ChargebackPage() {
   useEffect(() => {
     void fetchRules()
     if (apiKey) {
-      getFinOpsInternalPosture(apiKey).then(setFinopsPosture).catch(() => {})
-      getChargebackCrossFeaturePosture(apiKey).then(setChargebackCrossPosture).catch(() => {})
-      getChargebackAttributionPosture(apiKey).then(setAttributionPosture).catch(() => {})
     }
   }, [fetchRules, apiKey])
 
@@ -160,8 +147,7 @@ export default function ChargebackPage() {
 
   const refreshCounters = useCallback(() => {
     void fetchRules()
-    if (apiKey) getFinOpsInternalPosture(apiKey).then(setFinopsPosture).catch(() => {})
-  }, [fetchRules, apiKey])
+    }, [fetchRules, apiKey])
 
   async function handleExport(format: 'csv' | 'json') {
     try {
@@ -189,19 +175,6 @@ export default function ChargebackPage() {
     }
   }
 
-  const postureChips: string[] = []
-  if (finopsPosture) {
-    postureChips.push(`${finopsPosture.budget_context.total_budgets} budgets`)
-    postureChips.push(`${finopsPosture.billing_context.open_periods} open periods`)
-    postureChips.push(`$${num(finopsPosture.billing_context.total_billed_usd).toFixed(2)} billed`)
-    postureChips.push(`${finopsPosture.chargeback_context.active_rules} CB rules`)
-    postureChips.push(`${finopsPosture.ledger_context.total_snapshots} snapshots`)
-  }
-  if (chargebackCrossPosture) {
-    postureChips.push(`${chargebackCrossPosture.org_context.access_groups} groups`)
-    postureChips.push(`${chargebackCrossPosture.gateway_context.routes} routes`)
-    postureChips.push(`$${num(chargebackCrossPosture.spend_context.total_spend_30d).toFixed(2)} 30d spend`)
-  }
 
   if (!canManageOrgSettings) {
     return (
@@ -234,15 +207,6 @@ export default function ChargebackPage() {
             <p className="mt-1.5 max-w-xl text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
               Allocate AI cost across workflow tags, applications, users, providers, and other modern ownership dimensions — with rules, reports, and finance-ready exports.
             </p>
-            {postureChips.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {postureChips.map((c) => (
-                  <span key={c} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {c}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
           <button
             onClick={() => setActiveTab('rules')}
@@ -546,79 +510,8 @@ export default function ChargebackPage() {
         </div>
       )}
 
-      {/* ── Context panels ── */}
-      {finopsPosture && (
-        <div className="rounded-xl border border-rose-300 bg-gradient-to-r from-rose-50 to-orange-50 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-orange-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-xs font-bold text-rose-900 dark:text-rose-200">FinOps Internal Posture</h2>
-            <span className="ml-auto text-[10px] text-rose-500 dark:text-rose-400">{finopsPosture.period_days}d window</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
-            {[
-              { label: 'Budgets', value: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.total_budgets}` },
-              { label: 'Billing', value: `${finopsPosture.billing_context.open_periods}/${finopsPosture.billing_context.total_periods}` },
-              { label: 'CB Rules', value: `${finopsPosture.chargeback_context.active_rules}/${finopsPosture.chargeback_context.total_rules}` },
-              { label: 'Ledger', value: String(finopsPosture.ledger_context.total_snapshots) },
-              { label: 'Overrides', value: `${finopsPosture.override_context.active_overrides}/${finopsPosture.override_context.total_overrides}` },
-              { label: '30d Spend', value: `$${num(finopsPosture.notification_context.spend_30d).toFixed(2)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">{label}</p>
-                <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {chargebackCrossPosture && (
-        <div className="rounded-xl border border-orange-300 bg-gradient-to-r from-orange-50 to-rose-50 p-4 dark:border-orange-800/30 dark:from-orange-950/30 dark:to-rose-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-            <h2 className="text-xs font-bold text-orange-900 dark:text-orange-200">Cross-Feature Context</h2>
-            <span className="ml-auto text-[10px] text-orange-500 dark:text-orange-400">{chargebackCrossPosture.period_days}d window</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {[
-              { label: 'Org', value: `${chargebackCrossPosture.org_context.access_groups} groups · ${chargebackCrossPosture.org_context.workspace_users} users` },
-              { label: 'Gateway', value: `${chargebackCrossPosture.gateway_context.routes} routes · ${chargebackCrossPosture.gateway_context.active_providers_30d} providers` },
-              { label: 'Safety', value: `${chargebackCrossPosture.safety_context.mcp_servers} MCP · ${chargebackCrossPosture.safety_context.tool_registry_count} tools` },
-              { label: 'Platform', value: `${chargebackCrossPosture.platform_context.total_organizations} orgs · ${chargebackCrossPosture.platform_context.chargeback_rules} rules` },
-              { label: 'Spend', value: `$${num(chargebackCrossPosture.spend_context.total_spend_30d).toFixed(2)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-600 dark:text-orange-400">{label}</p>
-                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {attributionPosture && (
-        <div className="rounded-xl border border-rose-300 bg-gradient-to-r from-rose-50 to-pink-50 p-4 dark:border-rose-800/30 dark:from-rose-950/30 dark:to-pink-950/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-xs font-bold text-rose-900 dark:text-rose-200">Attribution Context</h2>
-            <span className="ml-auto text-[10px] text-rose-500 dark:text-rose-400">{attributionPosture.period_days}d window</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {[
-              { label: 'Identity', value: `${attributionPosture.identity_context.workspace_users} users · ${attributionPosture.identity_context.api_keys} keys` },
-              { label: 'Runtime', value: `${attributionPosture.runtime_context.chargeback_rules} rules · $${num(attributionPosture.runtime_context.cache_hit_savings_usd).toFixed(2)} savings` },
-              { label: 'Monitoring', value: `${attributionPosture.monitoring_context.alert_rules} alerts · ${attributionPosture.monitoring_context.tags} tags` },
-              { label: 'Optimization', value: `$${num(attributionPosture.optimization_context.cache_savings_usd).toFixed(2)} cache savings` },
-              { label: 'Spend', value: `$${num(attributionPosture.spend_context.total_spend_30d).toFixed(2)}` },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-lg bg-white/80 p-2.5 dark:bg-slate-800/60">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">{label}</p>
-                <p className="mt-0.5 text-xs font-bold text-slate-900 dark:text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Quick-nav footer ── */}
       <div className="flex flex-wrap gap-2 pt-2">

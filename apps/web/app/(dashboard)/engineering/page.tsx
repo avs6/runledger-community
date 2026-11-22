@@ -19,7 +19,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getEngineeringMetrics, getBudgetDetailObservePosture, getBudgetControlObservePosture } from '@/lib/api'
+import { getEngineeringMetrics } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
 import { formatCost, formatTokens, num } from '@/lib/utils'
@@ -95,9 +95,6 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
   try {
     metrics = await getEngineeringMetrics(session.apiKey, { from, to })
   } catch { /* endpoint may not be available */ }
-
-  const budgetPosture = await getBudgetDetailObservePosture(session.apiKey).catch(() => null)
-  const budgetControlPosture = await getBudgetControlObservePosture(session.apiKey).catch(() => null)
 
   return (
     <div className="space-y-3">
@@ -211,60 +208,6 @@ export default async function EngineeringPage({ searchParams }: PageProps) {
             <InteractiveAgentGraph />
           </div>
 
-          {/* Budget postures — compact chips */}
-          {(budgetPosture || budgetControlPosture) && (
-            <div className="grid gap-2 lg:grid-cols-2">
-              {budgetPosture && (
-                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Budget Signals</span>
-                    </div>
-                    <Link href="/budgets" className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">Manage</Link>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[
-                      { l: 'Active', v: `${budgetPosture.engineering_context.active_budgets}` },
-                      { l: 'Feature', v: `${budgetPosture.engineering_context.feature_scoped_budgets}` },
-                      { l: 'Limit', v: `$${num(budgetPosture.engineering_context.total_limit_usd).toFixed(2)}` },
-                      { l: 'Breached', v: `${budgetPosture.engineering_context.breach_count}` },
-                    ].map(c => (
-                      <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                        <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                        <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {budgetControlPosture && (
-                <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Budget Control</span>
-                    </div>
-                    <Link href="/budgets" className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">Manage</Link>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {[
-                      { l: 'Active', v: `${budgetControlPosture.budget_policy.active_budgets}` },
-                      { l: 'Breached', v: `${budgetControlPosture.budget_policy.breached_budgets}` },
-                      { l: 'At Risk', v: `${budgetControlPosture.budget_policy.at_risk_budgets}` },
-                      { l: 'Utilization', v: `${num(budgetControlPosture.budget_policy.avg_utilization_pct).toFixed(1)}%` },
-                    ].map(c => (
-                      <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                        <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                        <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </>
       )}
     </div>

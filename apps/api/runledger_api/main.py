@@ -31,6 +31,7 @@ from runledger_api.routers import (
 from runledger_api.routers import approvals as approvals_router
 from runledger_api.routers import audit as audit_router
 from runledger_api.routers import budget_tiers as budget_tiers_router
+from runledger_api.routers import context as context_router
 from runledger_api.routers import eval_experiments as eval_experiments_router
 from runledger_api.routers import evaluations as evaluations_router
 from runledger_api.routers import flywheel as flywheel_router
@@ -155,6 +156,7 @@ app.include_router(workspace_controls_router.response_cache_router)
 app.include_router(mcp_registry_router.router)
 app.include_router(plugins_router.router)
 app.include_router(hub_router.router)
+app.include_router(context_router.router)
 
 # ── MCP server — mounted at /mcp (streamable-HTTP transport) ─────────────────
 # Connect Claude Desktop / Claude Code:

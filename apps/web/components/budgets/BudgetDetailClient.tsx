@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
-import { createBudgetOverride, revokeBudgetOverride, updateBudget, getBudgetPerformancePosture, getBudgetOrgScopePosture, getBudgetOverrideGovernancePosture, getFinOpsInternalPosture, getBudgetDetailDrillbackPosture, getBudgetOverrideExceptionPosture } from '@/lib/api'
-import type { Breach, Budget, BudgetOverride, BudgetPerformancePosture, BudgetOrgScopePosture, BudgetOverrideGovernancePosture, FinOpsInternalPosture, BudgetDetailDrillbackPosture, BudgetOverrideExceptionPosture } from '@/types/api'
-import BreachHistoryTable from './BreachHistoryTable'
+import { createBudgetOverride, revokeBudgetOverride, updateBudget } from '@/lib/api'
+import type { Breach, Budget, BudgetOverride } from '@/types/api'
+import BreachHistoryTable from './BreachHistoryTable'
+import { RelatedPanel } from '@/components/context/RelatedPanel'
 
 interface Props {
   apiKey: string
@@ -64,49 +65,7 @@ export default function BudgetDetailClient({
     reason: '',
     require_approval: false,
   })
-  const [perfPosture, setPerfPosture] = useState<BudgetPerformancePosture | null>(null)
-  const [perfLoading, setPerfLoading] = useState(false)
-  const [orgPosture, setOrgPosture] = useState<BudgetOrgScopePosture | null>(null)
-  const [orgLoading, setOrgLoading] = useState(false)
-  const [govPosture, setGovPosture] = useState<BudgetOverrideGovernancePosture | null>(null)
-  const [govLoading, setGovLoading] = useState(false)
-  const [finopsPosture, setFinopsPosture] = useState<FinOpsInternalPosture | null>(null)
-  const [drillbackPosture, setDrillbackPosture] = useState<BudgetDetailDrillbackPosture | null>(null)
-  const [exceptionPosture, setExceptionPosture] = useState<BudgetOverrideExceptionPosture | null>(null)
 
-  useEffect(() => {
-    if (apiKey && initialBudget.id) {
-      setPerfLoading(true)
-      getBudgetPerformancePosture(apiKey, initialBudget.id)
-        .then(setPerfPosture)
-        .catch(() => {})
-        .finally(() => setPerfLoading(false))
-
-      setOrgLoading(true)
-      getBudgetOrgScopePosture(apiKey, initialBudget.id)
-        .then(setOrgPosture)
-        .catch(() => {})
-        .finally(() => setOrgLoading(false))
-
-      setGovLoading(true)
-      getBudgetOverrideGovernancePosture(apiKey)
-        .then(setGovPosture)
-        .catch(() => {})
-        .finally(() => setGovLoading(false))
-
-      getFinOpsInternalPosture(apiKey)
-        .then(setFinopsPosture)
-        .catch(() => {})
-
-      getBudgetDetailDrillbackPosture(apiKey)
-        .then(setDrillbackPosture)
-        .catch(() => {})
-
-      getBudgetOverrideExceptionPosture(apiKey)
-        .then(setExceptionPosture)
-        .catch(() => {})
-    }
-  }, [apiKey, initialBudget.id])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -202,6 +161,7 @@ export default function BudgetDetailClient({
             <h1 className="text-2xl font-semibold text-slate-950 dark:text-slate-100">
               Budget Detail
             </h1>
+              <div className="mt-2"><RelatedPanel entity="budget" id={budget.id} /></div>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Budget {budget.id}</p>
             {budget.scope_display_name && (
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -229,103 +189,6 @@ export default function BudgetDetailClient({
         </div>
       </div>
 
-      {orgPosture && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-6 shadow-sm dark:border-blue-900 dark:bg-blue-950/30">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Org & Access Scope Context</p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Workspace Users</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.workspace_users}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Access Groups</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.workspace_access_groups}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">API Keys</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.workspace_api_keys}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Active Budgets</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{orgPosture.org_context.total_active_budgets}</p>
-            </div>
-          </div>
-
-          {orgPosture.scope_entity && Object.keys(orgPosture.scope_entity).length > 0 && (
-            <div className="mt-4 rounded-xl border border-blue-200 bg-white p-4 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                {orgPosture.scope_type === 'access_group' ? 'Access Group' : 'API Key'} Detail
-              </p>
-              <div className="mt-2 grid gap-2 text-sm md:grid-cols-2">
-                {orgPosture.scope_type === 'access_group' && (
-                  <>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Name: </span>
-                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.name ?? '—')}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Members: </span>
-                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.member_count ?? 0)}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Guardrail profile: </span>
-                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.guardrail_profile ?? 'None')}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Status: </span>
-                      <span className={`font-medium ${orgPosture.scope_entity.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {orgPosture.scope_entity.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                  </>
-                )}
-                {orgPosture.scope_type === 'api_key' && (
-                  <>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Name: </span>
-                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.name ?? '—')}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Key prefix: </span>
-                      <span className="font-mono font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.key_prefix ?? '—')}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400">Ownership: </span>
-                      <span className="font-medium text-slate-900 dark:text-white">{String(orgPosture.scope_entity.ownership_type ?? '—')}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">30d Workspace Spend</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(orgPosture.org_context.total_spend_30d_usd)}</p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white p-3 dark:border-blue-800 dark:bg-slate-900">
-              <p className="text-xs text-slate-500 dark:text-slate-400">AI Hub Models</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
-                {orgPosture.hub_context.hub_model_count} catalog
-                <span className="ml-2 text-sm font-normal text-slate-500">({orgPosture.hub_context.distinct_models_30d} used 30d)</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 pt-3 mt-3 border-t border-blue-200 dark:border-blue-800">
-            <Link href="/organization" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Organization</Link>
-            <Link href="/access-groups" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Access Groups</Link>
-            <Link href="/api-keys" className="text-xs text-blue-600 hover:underline dark:text-blue-400">API Keys</Link>
-            <Link href="/ai-hub" className="text-xs text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
-            <Link href="/monitoring/telemetry" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Telemetry</Link>
-            <Link href="/users" className="text-xs text-blue-600 hover:underline dark:text-blue-400">Users</Link>
-          </div>
-        </div>
-      )}
-      {orgLoading && (
-        <p className="text-sm text-slate-400">Loading org & access scope context…</p>
-      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <form
@@ -638,229 +501,10 @@ export default function BudgetDetailClient({
         )}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Performance Economics</p>
-        {perfLoading ? (
-          <p className="mt-4 text-sm text-slate-400">Loading performance posture…</p>
-        ) : perfPosture ? (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Cache Hit Rate (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.cache.cache_hit_rate_pct}%</p>
-                <p className="text-xs text-slate-400">{perfPosture.cache.cache_hits_30d.toLocaleString()} / {perfPosture.cache.total_requests_30d.toLocaleString()} requests</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Est. Cache Savings</p>
-                <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">~{perfPosture.cache.estimated_savings_pct}%</p>
-                <p className="text-xs text-slate-400">avoided cost from cache hits</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Rate-Limited Routes</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.rate_limits.rate_limited_routes} / {perfPosture.rate_limits.total_active_routes}</p>
-                <p className="text-xs text-slate-400">{perfPosture.rate_limits.containment_coverage_pct}% containment</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Billing Periods</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{perfPosture.billing.billing_period_count}</p>
-                <p className="text-xs text-slate-400">{perfPosture.chargeback.chargeback_rule_count} chargeback rules</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
-              <Link href="/gateway" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Gateway</Link>
-              <Link href="/gateway#cache" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Response Cache</Link>
-              <Link href="/gateway#rate-limits" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Rate Limits</Link>
-              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Periods</Link>
-              <Link href="/billing" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Billing Detail</Link>
-              <Link href="/chargeback" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Chargeback</Link>
-              <Link href="/tool-registry" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tool Registry</Link>
-              <Link href="/approvals?status=pending" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Approvals</Link>
-              <Link href="/alert-rules" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Alert Rules</Link>
-              <Link href="/tags" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Tags</Link>
-              <Link href="/cost-savings" className="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Cost & Savings</Link>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-slate-400">Performance posture unavailable.</p>
-        )}
-      </div>
 
-      <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-6 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
-        <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-400">Safety &amp; Governance Context</p>
-        {govLoading ? (
-          <p className="mt-4 text-sm text-slate-400">Loading governance posture…</p>
-        ) : govPosture ? (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Pending Approvals</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.approval_context.pending_approvals}</p>
-                <p className="text-xs text-slate-400">{govPosture.approval_context.approved_30d} approved / {govPosture.approval_context.denied_30d} denied (30d)</p>
-              </div>
-              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Alert Rules</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.alert_context.budget_alert_rules}</p>
-                <p className="text-xs text-slate-400">{govPosture.alert_context.active_budget_alerts} active</p>
-              </div>
-              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Audit Events (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.audit_context.override_audit_events_30d}</p>
-                <p className="text-xs text-slate-400">{govPosture.audit_context.total_overrides} overrides total</p>
-              </div>
-              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Approval Coverage</p>
-                <p className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">{govPosture.governance_context.approval_coverage_pct}%</p>
-                <p className="text-xs text-slate-400">{govPosture.approval_context.overrides_with_approval} of {govPosture.audit_context.total_overrides} overrides</p>
-              </div>
-              <div className="rounded-xl border border-amber-200 p-3 dark:border-amber-800">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Tags</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{govPosture.tag_context.budget_tags + govPosture.tag_context.override_tags}</p>
-                <p className="text-xs text-slate-400">{govPosture.tag_context.budget_tags} budget / {govPosture.tag_context.override_tags} override</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3 pt-2 border-t border-amber-200 dark:border-amber-800">
-              <Link href="/approvals?status=pending" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Approvals</Link>
-              <Link href="/alert-rules" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Alert Rules</Link>
-              <Link href="/audit" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Audit Log</Link>
-              <Link href="/tags" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Tags</Link>
-              <Link href="/governance-pack" className="text-xs text-amber-700 hover:underline dark:text-amber-400">Governance Pack</Link>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-slate-400">Governance posture unavailable.</p>
-        )}
-      </div>
 
-      {finopsPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/40">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">FinOps Internal Posture</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{finopsPosture.period_days}d window</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Billing Periods</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.billing_context.total_periods}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.billing_context.open_periods} open · ${finopsPosture.billing_context.total_billed_usd.toFixed(2)} billed</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Chargeback Rules</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.chargeback_context.total_rules}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.chargeback_context.active_rules} active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Ledger Snapshots</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.ledger_context.total_snapshots}</p>
-              <p className="text-xs text-slate-400">latest: {finopsPosture.ledger_context.latest_snapshot_date}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Overrides</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.override_context.total_overrides}</p>
-              <p className="text-xs text-slate-400">{finopsPosture.override_context.active_overrides} active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 p-3 dark:bg-slate-900/60">
-              <p className="text-xs text-slate-500">Notifications</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{finopsPosture.notification_context.total_notifications}</p>
-              <p className="text-xs text-slate-400">${finopsPosture.notification_context.spend_30d.toFixed(2)} 30d spend</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/billing" className="text-emerald-700 hover:underline dark:text-emerald-400">Billing →</Link>
-            <Link href="/chargeback" className="text-emerald-700 hover:underline dark:text-emerald-400">Chargeback →</Link>
-            <Link href="/settings?tab=compliance" className="text-emerald-700 hover:underline dark:text-emerald-400">Ledger →</Link>
-            <Link href="/budgets" className="text-emerald-700 hover:underline dark:text-emerald-400">Budgets →</Link>
-          </div>
-        </div>
-      )}
 
-      {drillbackPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Budget Detail Drillback Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{drillbackPosture.period_days}d window</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Scope Owners</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.scope_context.workspace_users} users</p>
-              <p className="text-xs text-slate-400">{drillbackPosture.scope_context.access_groups} groups · {drillbackPosture.scope_context.api_keys} keys</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Runtime</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.runtime_context.cache_configs} caches</p>
-              <p className="text-xs text-slate-400">{drillbackPosture.runtime_context.rate_limited_routes} rate-limited routes</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Evidence</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.evidence_context.runs_30d} runs</p>
-              <p className="text-xs text-slate-400">{drillbackPosture.evidence_context.requests_30d.toLocaleString()} requests · {drillbackPosture.evidence_context.audit_events_30d} audit</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Workflows</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{drillbackPosture.workflow_context.workflows} definitions</p>
-              <p className="text-xs text-slate-400">{drillbackPosture.workflow_context.workflow_runs_30d} runs 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Spend</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${drillbackPosture.spend_context.total_spend_30d.toFixed(2)}</p>
-              <p className="text-xs text-slate-400">{drillbackPosture.spend_context.distinct_models_30d} models</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/analytics/users" className="text-emerald-600 hover:underline dark:text-emerald-400">Users →</Link>
-            <Link href="/access-groups" className="text-emerald-600 hover:underline dark:text-emerald-400">Access Groups →</Link>
-            <Link href="/api-keys" className="text-emerald-600 hover:underline dark:text-emerald-400">API Keys →</Link>
-            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
-            <Link href="/runs" className="text-emerald-600 hover:underline dark:text-emerald-400">Runs →</Link>
-            <Link href="/request-flow" className="text-emerald-600 hover:underline dark:text-emerald-400">Request Flow →</Link>
-            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
-            <Link href="/workflows" className="text-emerald-600 hover:underline dark:text-emerald-400">Workflows →</Link>
-          </div>
-        </div>
-      )}
 
-      {exceptionPosture && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Override Exception Context</h2>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400">{exceptionPosture.period_days}d window</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Overrides</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.override_context.total_overrides}</p>
-              <p className="text-xs text-slate-400">{exceptionPosture.override_context.active_overrides} active · {exceptionPosture.override_context.expired_overrides} expired</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Approvals</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.approval_context.pending_approvals} pending</p>
-              <p className="text-xs text-slate-400">{exceptionPosture.approval_context.approved_30d} approved · {exceptionPosture.approval_context.denied_30d} denied</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Runtime</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.runtime_context.active_routes} routes</p>
-              <p className="text-xs text-slate-400">{exceptionPosture.runtime_context.rate_limited_routes} rate-limited</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Monitoring</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">{exceptionPosture.monitoring_context.alert_rules} alert rules</p>
-              <p className="text-xs text-slate-400">{exceptionPosture.monitoring_context.audit_events_30d} audit events</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-emerald-900/30 p-3">
-              <p className="text-xs text-slate-500">Override Limit</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-white">${exceptionPosture.override_context.active_override_limit_usd.toFixed(2)}</p>
-              <p className="text-xs text-slate-400">${exceptionPosture.spend_context.total_spend_30d.toFixed(2)} spend 30d</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link href="/approvals" className="text-emerald-600 hover:underline dark:text-emerald-400">Approvals →</Link>
-            <Link href="/alert-rules" className="text-emerald-600 hover:underline dark:text-emerald-400">Alert Rules →</Link>
-            <Link href="/gateway" className="text-emerald-600 hover:underline dark:text-emerald-400">Gateway →</Link>
-            <Link href="/audit" className="text-emerald-600 hover:underline dark:text-emerald-400">Audit Log →</Link>
-            <Link href="/governance-pack" className="text-emerald-600 hover:underline dark:text-emerald-400">Governance →</Link>
-          </div>
-        </div>
-      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <p className="text-xs uppercase tracking-wide text-slate-500">Breach History</p>

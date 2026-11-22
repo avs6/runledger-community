@@ -48,8 +48,6 @@ import {
   testGuardrailRule,
   updateGuardrailRule,
   updatePartnerGuardrail,
-  getGuardrailsObservePosture,
-  getGuardrailsFinopsPosture,
   apiErrorMessage,
 } from '@/lib/api'
 import { num } from '@/lib/utils'
@@ -64,8 +62,6 @@ import type {
   GuardrailTestCaseResponse,
   GuardrailTestResponse,
   PartnerGuardrailResponse,
-  GuardrailsObservePosture,
-  GuardrailsFinopsPosture,
 } from '@/types/api'
 
 const inputCls =
@@ -130,8 +126,6 @@ export default function GuardrailsPage() {
   // Sections whose data failed to load; shown in a banner instead of silently empty (G-23).
   const [failedSections, setFailedSections] = useState<string[]>([])
   const [refreshingAlerts, setRefreshingAlerts] = useState(false)
-  const [observePosture, setObservePosture] = useState<GuardrailsObservePosture | null>(null)
-  const [finopsPosture, setFinopsPosture] = useState<GuardrailsFinopsPosture | null>(null)
   const [savingFilters, setSavingFilters] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -227,8 +221,6 @@ export default function GuardrailsPage() {
   useEffect(() => {
     loadData()
     if (apiKey) {
-      getGuardrailsObservePosture(apiKey).then(setObservePosture).catch(() => {})
-      getGuardrailsFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
     }
   }, [apiKey])
 
@@ -383,49 +375,7 @@ export default function GuardrailsPage() {
       {/* ── OVERVIEW TAB ─────────────────────────────── */}
       {activeTab === 'overview' && (
         <div className="space-y-3">
-          {/* Posture chips */}
-          {observePosture && (
-            <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
-              <h3 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Observe Posture ({observePosture.period_days}d)</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  `${observePosture.evaluations.total.toLocaleString()} evaluations`,
-                  `${observePosture.evaluations.blocks.toLocaleString()} blocks`,
-                  `${(num(observePosture.evaluations.block_rate) * 100).toFixed(1)}% block rate`,
-                  `${observePosture.evaluations.modifications.toLocaleString()} modifications`,
-                  `${observePosture.evaluations.distinct_rules_fired} rules fired`,
-                  `${observePosture.evaluations.distinct_models} models`,
-                  observePosture.performance.avg_latency_ms != null ? `${num(observePosture.performance.avg_latency_ms).toFixed(0)}ms avg` : null,
-                  observePosture.performance.max_latency_ms != null ? `${num(observePosture.performance.max_latency_ms).toFixed(0)}ms max` : null,
-                  `${observePosture.rules.active_rules}/${observePosture.rules.total_rules} active rules`,
-                  `${observePosture.mode_breakdown.pre_call} pre · ${observePosture.mode_breakdown.post_call} post`,
-                  `${observePosture.feedback.false_positive_count} false positives`,
-                ].filter(Boolean).map((chip) => (
-                  <span key={chip} className="rounded-full bg-sky-100 dark:bg-sky-900/30 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">{chip}</span>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {finopsPosture && (
-            <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
-              <h3 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">FinOps Posture ({finopsPosture.period_days}d)</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  `${finopsPosture.guardrail_context.evaluations_30d.toLocaleString()} evaluations`,
-                  `${finopsPosture.guardrail_context.blocks_30d.toLocaleString()} blocks`,
-                  `${finopsPosture.guardrail_context.active_rules} active rules`,
-                  `${finopsPosture.guardrail_context.active_routes} active routes`,
-                  `${finopsPosture.finops_context.budgets} budgets`,
-                  `${finopsPosture.finops_context.budget_notifications} notifications`,
-                  `${finopsPosture.finops_context.billing_periods} billing periods`,
-                  `${finopsPosture.finops_context.chargeback_rules} chargeback rules`,
-                ].map((chip) => (
-                  <span key={chip} className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{chip}</span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Templates */}
           {templates.length > 0 && (

@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getInvestigationFinopsBudgetPosture, getInvestigationGatewayRuntimePosture, getInvestigationGovernancePosture, getInvestigationOrgIdentityPosture, getOverviewScopePosture, getRuns, listSessions } from '@/lib/api'
+import { getAccessGroupDashboard, getRuns, listSessions } from '@/lib/api'
 import RunFilters from '@/components/runs/RunFilters'
 import RunsExportButton from '@/components/runs/RunsExportButton'
 import RunsTabs from './RunsTabs'
@@ -129,115 +129,6 @@ function HeroChart({ items, total }: { items: RunListItem[]; total: number }) {
   )
 }
 
-function PostureCards({
-  governance,
-  finops,
-  orgIdentity,
-  gatewayRuntime,
-  scopePosture,
-}: {
-  governance: Awaited<ReturnType<typeof getInvestigationGovernancePosture>> | null
-  finops: Awaited<ReturnType<typeof getInvestigationFinopsBudgetPosture>> | null
-  orgIdentity: Awaited<ReturnType<typeof getInvestigationOrgIdentityPosture>> | null
-  gatewayRuntime: Awaited<ReturnType<typeof getInvestigationGatewayRuntimePosture>> | null
-  scopePosture: Awaited<ReturnType<typeof getOverviewScopePosture>> | null
-}) {
-  return (
-    <div className="space-y-3">
-      {governance && (
-        <div className="grid gap-2 md:grid-cols-3">
-          {[
-            { label: 'Governance Runs', value: governance.filtered_runs.toLocaleString(), sub: `${governance.security.runs_with_events} with security evidence` },
-            { label: 'Tool Policies', value: governance.tool_governance.active_tool_policies.toLocaleString(), sub: `${governance.tool_governance.filtered_tool_calls} filtered tool calls` },
-            { label: 'Security Events', value: governance.security.events.toLocaleString(), sub: `${governance.alert_rules.recent_firings} recent alert firings` },
-          ].map((item) => (
-            <div key={item.label} className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-50">{item.value}</p>
-              </div>
-              <p className="mt-0.5 text-[10px] text-slate-500">{item.sub}</p>
-            </div>
-          ))}
-          <div className="md:col-span-3 flex flex-wrap gap-3 rounded-xl border border-cyan-200 bg-cyan-50/70 px-3 py-2 text-xs font-semibold text-cyan-800 dark:border-cyan-900/40 dark:bg-cyan-950/20 dark:text-cyan-100">
-            <Link href="/tool-registry" className="hover:underline">Tool Registry</Link>
-            <Link href="/tool-policies" className="hover:underline">Tool Policies</Link>
-            <Link href="/security" className="hover:underline">Security</Link>
-            <Link href="/alert-rules" className="hover:underline">Alert Rules</Link>
-            <Link href="/audit" className="hover:underline">Audit Log</Link>
-            <Link href="/governance-pack" className="hover:underline">Governance Pack</Link>
-          </div>
-        </div>
-      )}
-      {finops && (
-        <div className="grid gap-2 md:grid-cols-4">
-          {[
-            { label: 'Active Budgets', value: `${finops.budget_context.active_budgets} / ${finops.budget_context.budgets}`, sub: `${finops.budget_context.breach_count} in breach` },
-            { label: 'Budget Limit', value: money(finops.budget_context.total_limit_usd), sub: `${finops.budget_context.active_overrides} overrides` },
-            { label: 'Spend (30d)', value: money(finops.spend_context.total_spend_30d), sub: `${finops.spend_context.total_runs_30d.toLocaleString()} runs` },
-            { label: 'Billing', value: `${finops.billing_context.open_billing_periods} open`, sub: `${finops.billing_context.chargeback_rules} chargeback rules` },
-          ].map((item) => (
-            <div key={item.label} className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-50">{item.value}</p>
-              </div>
-              <p className="mt-0.5 text-[10px] text-slate-500">{item.sub}</p>
-            </div>
-          ))}
-          <div className="md:col-span-4 flex flex-wrap gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs font-semibold text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-100">
-            <Link href="/budgets" className="hover:underline">Budgets</Link>
-            <Link href="/billing" className="hover:underline">Billing</Link>
-            <Link href="/chargeback" className="hover:underline">Chargeback</Link>
-          </div>
-        </div>
-      )}
-      {orgIdentity && (
-        <div className="grid gap-2 md:grid-cols-5">
-          {[
-            { label: 'Users', value: orgIdentity.user_context.workspace_users.toLocaleString(), sub: `${orgIdentity.user_context.distinct_end_users_30d} end users (30d)` },
-            { label: 'API Keys', value: `${orgIdentity.api_key_context.active_keys} / ${orgIdentity.api_key_context.total_keys}`, sub: `${orgIdentity.api_key_context.keys_with_traffic_30d} with traffic` },
-            { label: 'Groups', value: scopePosture ? `${scopePosture.access_group_context.active_access_groups}/${scopePosture.access_group_context.access_groups}` : '—', sub: scopePosture ? `${scopePosture.access_group_context.total_members} members` : '' },
-            { label: 'MCP Servers', value: orgIdentity.mcp_context.servers.toLocaleString(), sub: `${orgIdentity.mcp_context.tool_calls_30d.toLocaleString()} calls` },
-            { label: 'Telemetry', value: orgIdentity.telemetry_context.batches_30d.toLocaleString(), sub: `${orgIdentity.user_context.runs_30d.toLocaleString()} runs` },
-          ].map((item) => (
-            <div key={item.label} className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-50">{item.value}</p>
-              </div>
-              <p className="mt-0.5 text-[10px] text-slate-500">{item.sub}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      {gatewayRuntime && (
-        <div className="grid gap-2 md:grid-cols-4">
-          {[
-            { label: 'Providers', value: `${gatewayRuntime.provider_context.distinct_providers}`, sub: `${gatewayRuntime.provider_context.active_routes} routes` },
-            { label: 'Gateway (30d)', value: gatewayRuntime.route_context.gateway_requests_30d.toLocaleString(), sub: `${gatewayRuntime.route_context.cache_hits_30d.toLocaleString()} cache hits` },
-            { label: 'Guardrails', value: `${gatewayRuntime.guardrail_context.active_rules} rules`, sub: `${gatewayRuntime.guardrail_context.blocks_30d} blocks` },
-            { label: 'Cache Savings', value: `$${num(gatewayRuntime.cache_context.savings_usd).toFixed(2)}`, sub: `${gatewayRuntime.cache_context.total_hits.toLocaleString()} hits` },
-          ].map((item) => (
-            <div key={item.label} className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
-                <p className="text-lg font-semibold tracking-tight text-slate-950 dark:text-slate-50">{item.value}</p>
-              </div>
-              <p className="mt-0.5 text-[10px] text-slate-500">{item.sub}</p>
-            </div>
-          ))}
-          <div className="md:col-span-4 flex flex-wrap gap-3 rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2 text-xs font-semibold text-violet-800 dark:border-violet-900/40 dark:bg-violet-950/20 dark:text-violet-100">
-            <Link href="/provider-profiles" className="hover:underline">Providers</Link>
-            <Link href="/gateway" className="hover:underline">Gateway</Link>
-            <Link href="/guardrails" className="hover:underline">Guardrails</Link>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 async function RunsContent({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions)
   if (!session) return null
@@ -269,22 +160,6 @@ async function RunsContent({ searchParams }: PageProps) {
   })
   const sessionsData = await listSessions(session.apiKey, { page: 1, page_size: 50 }).catch(() => ({ items: [], total: 0, page: 1, page_size: 50 }))
 
-  const [governance, finops, orgIdentity, gatewayRuntime, scopePosture] = await Promise.all([
-    getInvestigationGovernancePosture(session.apiKey, {
-      from: searchParams.from ?? sevenDaysAgo,
-      to: searchParams.to,
-      access_group_id: accessGroupId,
-      tag: searchParams.tag,
-      tool_name: searchParams.tool_name,
-      security_event_only: searchParams.security_event_only === 'true',
-    }).catch(() => null),
-    getInvestigationFinopsBudgetPosture(session.apiKey, {
-      access_group_id: accessGroupId,
-    }).catch(() => null),
-    getInvestigationOrgIdentityPosture(session.apiKey).catch(() => null),
-    getInvestigationGatewayRuntimePosture(session.apiKey, { access_group_id: accessGroupId }).catch(() => null),
-    getOverviewScopePosture(session.apiKey).catch(() => null),
-  ])
 
   const nextHref = data.next_cursor
     ? `/runs?${new URLSearchParams({
@@ -306,13 +181,6 @@ async function RunsContent({ searchParams }: PageProps) {
         overview={
           <div className="space-y-4">
             <HeroChart items={data.items} total={data.total} />
-            <PostureCards
-              governance={governance}
-              finops={finops}
-              orgIdentity={orgIdentity}
-              gatewayRuntime={gatewayRuntime}
-              scopePosture={scopePosture}
-            />
           </div>
         }
         runs={

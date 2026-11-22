@@ -10,6 +10,7 @@ import {
   getBillingPeriods,
   getChargebackReport,
 } from '@/lib/api'
+import { RelatedPanel } from '@/components/context/RelatedPanel'
 
 function money(value: string | null | undefined) {
   if (!value) return '$0.00'
@@ -77,6 +78,7 @@ export default async function ApiKeyDetailPage({
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
             {apiKeyDetail.name ?? apiKeyDetail.key_prefix}
           </h1>
+            <div className="mt-2"><RelatedPanel entity="api_key" id={params.key_id} /></div>
           <p className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400">
             {apiKeyDetail.key_prefix}… · {apiKeyDetail.id}
           </p>

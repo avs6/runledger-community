@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAgent, getAgentStats, getAgentRuns, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentDetailGovernancePosture } from '@/lib/api'
+import { getAgent, getAgentStats, getAgentRuns } from '@/lib/api'
 import type { AgentResponse, AgentStats, WorkflowRunSummary } from '@/types/api'
 import { num } from '@/lib/utils'
 
@@ -60,10 +60,6 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
 
   if (!agent) return null
 
-  const budgetBuildPosture = await getBudgetDetailBuildPosture(session.apiKey).catch(() => null)
-  const budgetControlBuildPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
-  const governancePosture = await getAgentDetailGovernancePosture(session.apiKey).catch(() => null)
-
   return (
     <div className="space-y-3">
       {/* ── Header ───────────────────────────────── */}
@@ -118,59 +114,9 @@ export default async function AgentDetailPage({ params }: { params: { agent_id: 
         </div>
       )}
 
-      {/* ── Posture cards (compact) ──────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-        {budgetBuildPosture && (
-          <div className="rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">Budget Context</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{budgetBuildPosture.budget_context.active_budgets} active</span>
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)} 30d</span>
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{budgetBuildPosture.budget_context.feature_budgets} features</span>
-              {budgetBuildPosture.budget_context.breach_count > 0 && <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">{budgetBuildPosture.budget_context.breach_count} breached</span>}
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-emerald-200/60 dark:border-emerald-800/40">
-              <Link href="/budgets" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-              <Link href="/analytics?tab=economics" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Economics</Link>
-              <Link href="/model-scorecards" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Scorecards</Link>
-            </div>
-          </div>
-        )}
 
-        {budgetControlBuildPosture && (
-          <div className="rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">Budget Control</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{budgetControlBuildPosture.budget_policy.active_budgets} active</span>
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}% util</span>
-              {budgetControlBuildPosture.budget_policy.breached_budgets > 0 && <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300">{budgetControlBuildPosture.budget_policy.breached_budgets} breached</span>}
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{Object.keys(budgetControlBuildPosture.scope_context).length} scopes</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-emerald-200/60 dark:border-emerald-800/40">
-              <Link href="/budgets" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-              <Link href="/budgets?tab=overrides" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Overrides</Link>
-              <Link href="/billing" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Billing</Link>
-            </div>
-          </div>
-        )}
 
-        {governancePosture && (
-          <div className="rounded-lg border border-violet-200/60 dark:border-violet-800/40 bg-violet-50/30 dark:bg-violet-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-1">Governance</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.guardrail_context.rules} rules</span>
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.guardrail_context.events_30d} events</span>
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.safety_context.capture_policies} capture</span>
-              <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-700 dark:text-violet-300">{governancePosture.observe_context.runs_30d} runs</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-1.5 pt-1.5 border-t border-violet-200/60 dark:border-violet-800/40">
-              <Link href="/guardrails" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Guardrails</Link>
-              <Link href="/security" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Security</Link>
-              <Link href="/evaluation" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Eval Studio</Link>
-              <Link href="/runs" className="text-[10px] text-violet-600 hover:underline dark:text-violet-400">Runs</Link>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Models & Tools ────────────────────────── */}

@@ -10,8 +10,8 @@ import {
   Layers, Network, Plus, Rocket, Shield, Sparkles,
   Terminal, Wrench, Zap, X,
 } from 'lucide-react'
-import { getAgents, createAgent, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getAgentsListPosture } from '@/lib/api'
-import type { AgentResponse, BudgetDetailBuildPosture } from '@/types/api'
+import { getAgents, createAgent } from '@/lib/api'
+import type { AgentResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 import { useRole } from '@/components/rbac/useRole'
 
@@ -108,8 +108,6 @@ export default function AgentsPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  const [budgetBuildPosture, setBudgetBuildPosture] = useState<Record<string, unknown> | null>(null)
-  const [agentsPosture, setAgentsPosture] = useState<Record<string, unknown> | null>(null)
 
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -139,8 +137,6 @@ export default function AgentsPage() {
   useEffect(() => {
     fetchAgents()
     if (apiKey) {
-      getBudgetDetailBuildPosture(apiKey).then((p) => setBudgetBuildPosture(p as unknown as Record<string, unknown>)).catch(() => {})
-      getAgentsListPosture(apiKey).then((p) => setAgentsPosture(p as unknown as Record<string, unknown>)).catch(() => {})
     }
   }, [fetchAgents, apiKey])
 
@@ -178,8 +174,6 @@ export default function AgentsPage() {
   const activeCount = agents.filter(a => a.status === 'active').length
   const pausedCount = agents.filter(a => a.status === 'paused').length
   const typeCounts = agents.reduce((acc, a) => { acc[a.agent_type] = (acc[a.agent_type] || 0) + 1; return acc }, {} as Record<string, number>)
-  const bp = budgetBuildPosture as unknown as BudgetDetailBuildPosture | null
-  const ap = agentsPosture as Record<string, Record<string, number>> | null
 
   return (
     <div className="space-y-3">
@@ -377,8 +371,6 @@ export default function AgentsPage() {
           { label: 'Autonomous', value: typeCounts.autonomous ?? 0, icon: Rocket, color: 'text-blue-600 dark:text-blue-400' },
           { label: 'Semi-Auto', value: typeCounts.semi_autonomous ?? 0, icon: GitBranch, color: 'text-violet-600 dark:text-violet-400' },
           { label: 'Workflow', value: typeCounts.workflow ?? 0, icon: Layers, color: 'text-cyan-600 dark:text-cyan-400' },
-          { label: 'Runs 30d', value: ap?.observe_context?.runs_30d ?? 0, icon: Terminal, color: 'text-blue-600 dark:text-blue-400' },
-          { label: '30d Spend', value: bp?.spend_context?.total_spend_30d != null ? `$${num(bp.spend_context.total_spend_30d).toFixed(2)}` : '$0', icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400' },
         ].map(kpi => (
           <div key={kpi.label} className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center gap-1">
@@ -390,79 +382,9 @@ export default function AgentsPage() {
         ))}
       </div>
 
-      {/* Posture chips — condensed */}
       <div className="grid gap-2 lg:grid-cols-3">
-        {bp && (
-          <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">FinOps</span>
-              </div>
-              <Link href="/budgets" className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">Manage</Link>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { l: 'Budgets', v: bp.budget_context?.active_budgets ?? 0 },
-                { l: 'Agents', v: bp.build_context?.agents ?? 0 },
-                { l: 'Breached', v: bp.budget_context?.breach_count ?? 0 },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                  <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {ap && (
-          <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Network className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Providers</span>
-              </div>
-              <Link href="/provider-profiles" className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-400">Providers</Link>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { l: 'Hub Models', v: ap.org_context?.hub_models ?? 0 },
-                { l: 'Active', v: ap.org_context?.active_models ?? 0 },
-                { l: 'Providers', v: ap.provider_context?.distinct_providers ?? 0 },
-                { l: 'Chargeback', v: ap.finops_context?.chargeback_rules ?? 0 },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
-                  <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
-                  <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {ap && (
-          <div className="rounded-xl border border-rose-200/60 bg-rose-50/30 p-3 dark:border-rose-800/40 dark:bg-rose-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <FlaskConical className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-                <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">Build & Improve</span>
-              </div>
-              <Link href="/evaluation" className="text-[10px] font-semibold text-rose-600 hover:underline dark:text-rose-400">Eval Studio</Link>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { l: 'Datasets', v: ap.eval_context?.datasets ?? 0 },
-                { l: 'Experiments', v: ap.eval_context?.experiments ?? 0 },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] dark:border-rose-800 dark:bg-rose-950/40">
-                  <span className="font-medium text-rose-500 dark:text-rose-400">{c.l}</span>
-                  <span className="font-bold text-rose-700 dark:text-rose-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Agent grid */}

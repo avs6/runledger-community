@@ -66,15 +66,8 @@ def main() -> None:
     print(f"  Analytics summary cost: ${summary['total_cost_usd']:.4f}")
 
     print("\n--- Workspace Observe Posture ---")
-    posture = api("GET", "/analytics/workspace-observe-posture")
-    print(f"  30d run count: {posture['run_count']}")
-    print(f"  30d total cost: ${posture['total_cost_usd']:.4f}")
-    print(f"  Active users: {posture['active_users']}")
-    print(f"  Model count: {posture['model_count']}")
-    print(f"  Error count: {posture['error_count']}")
-    print(f"  Budgets: {posture['budget_count']}")
-    print(f"  Billing periods: {posture['billing_period_count']}")
-    print(f"  Budget notifications: {posture['budget_notification_count']}")
+    ctx = api("GET", f"/context?entity=api_key&id={key_id}")
+    print("  Related: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
 
 
 if __name__ == "__main__":

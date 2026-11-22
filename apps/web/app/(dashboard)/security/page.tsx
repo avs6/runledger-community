@@ -6,25 +6,8 @@ import { toast } from 'sonner'
 import { Building2, Layers, Link2, Pencil, Radio, RefreshCw, Shield, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
-import {
-  createIpAclRule,
-  createOidcProvider,
-  deleteIpAclRule,
-  deleteOidcProvider,
-  getAccessGroups,
-  getSecuritySettings,
-  listIpAclRules,
-  listOidcProviders,
-  testIpAcl,
-  updateIpAclRule,
-  updateOidcProvider,
-  updateSecuritySettings,
-  getDataProtectionOrgPosture,
-  getDataProtectionGatewayPosture,
-  getGovernanceInternalPosture,
-  getSecurityRuntimePosture,
-} from '@/lib/api'
-import type { AccessGroupResponse, IpAclRuleResponse, OIDCProviderResponse, WorkspaceSecuritySettings, DataProtectionOrgPosture, DataProtectionGatewayPosture, GovernanceInternalPosture, SecurityRuntimePosture } from '@/types/api'
+import { createIpAclRule, createOidcProvider, deleteIpAclRule, deleteOidcProvider, getAccessGroups, getSecuritySettings, listIpAclRules, listOidcProviders, testIpAcl, updateIpAclRule, updateOidcProvider, updateSecuritySettings } from '@/lib/api'
+import type { AccessGroupResponse, IpAclRuleResponse, OIDCProviderResponse, WorkspaceSecuritySettings } from '@/types/api'
 
 const inputCls =
   'rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-indigo-400'
@@ -78,10 +61,6 @@ export default function SecurityPage() {
 
   const [testIp, setTestIp] = useState('')
   const [testResult, setTestResult] = useState<string | null>(null)
-  const [orgPosture, setOrgPosture] = useState<DataProtectionOrgPosture | null>(null)
-  const [gatewayPosture, setGatewayPosture] = useState<DataProtectionGatewayPosture | null>(null)
-  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<SecurityRuntimePosture | null>(null)
 
   const resetOidcForm = useCallback(() => {
     setEditingOidcId(null)
@@ -109,15 +88,10 @@ export default function SecurityPage() {
     if (!apiKey || !canManage) return
     setLoading(true)
     try {
-      const [settingsData, providersData, rulesData, orgP, gwP, govInt, rtP] = await Promise.all([
+      const [settingsData, providersData, rulesData] = await Promise.all([
         getSecuritySettings(apiKey),
         listOidcProviders(apiKey),
-        listIpAclRules(apiKey),
-        getDataProtectionOrgPosture(apiKey).catch(() => null),
-        getDataProtectionGatewayPosture(apiKey).catch(() => null),
-        getGovernanceInternalPosture(apiKey).catch(() => null),
-        getSecurityRuntimePosture(apiKey).catch(() => null),
-      ])
+        listIpAclRules(apiKey)])
       getAccessGroups(apiKey)
         .then((groups) => setAccessGroups(groups.items))
         .catch(() => setAccessGroups([]))
@@ -130,10 +104,6 @@ export default function SecurityPage() {
       setOidcSessionConfigStr(JSON.stringify(settingsData.oidc_session_config ?? {}, null, 2))
       setOidcProviders(providersData.items)
       setIpAclRules(rulesData.items)
-      setOrgPosture(orgP)
-      setGatewayPosture(gwP)
-      setGovInternal(govInt)
-      setRuntimePosture(rtP)
     } catch {
       toast.error('Failed to load enterprise security settings')
     } finally {
@@ -329,161 +299,9 @@ export default function SecurityPage() {
         </button>
       </div>
 
-      {/* Org & Access Scope */}
-      {orgPosture && (
-        <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Org &amp; Access Scope</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Workspace Users</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.user_context.total_users}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Access Groups</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.access_group_context.total_groups}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Security Events (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.security_context.security_events_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">Active API Keys</p>
-              <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-50">{orgPosture.api_key_context.total_keys}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/organization" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Organization</Link>
-            <Link href="/users" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Users</Link>
-            <Link href="/workspace" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Workspaces</Link>
-            <Link href="/access-groups" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">Access Groups</Link>
-            <Link href="/api-keys" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">API Keys</Link>
-            <Link href="/mcp-registry" className="text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100">MCP Registry</Link>
-          </div>
-        </div>
-      )}
 
-      {/* Gateway & Observe Runtime */}
-      {gatewayPosture && (
-        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/40 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Radio className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            <h2 className="text-lg font-semibold text-violet-900 dark:text-violet-100">Gateway &amp; Observe Runtime</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Gateway Routes</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.provider_context.total_routes}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.provider_context.total_providers} providers</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Guardrails</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.guardrail_context.total_guardrails}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.guardrail_context.guardrail_events_30d} events 30d</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Tool Calls (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.run_context.tool_runs_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.run_context.total_runs_30d} agent runs</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300">Alert Firings (30d)</p>
-              <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-50">{gatewayPosture.monitoring_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{gatewayPosture.monitoring_context.total_alert_rules} rules</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/gateway" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Gateway</Link>
-            <Link href="/guardrails" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Guardrails</Link>
-            <Link href="/runs" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Runs</Link>
-            <Link href="/request-explorer" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Request Explorer</Link>
-            <Link href="/monitoring" className="text-violet-700 underline underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100">Monitoring</Link>
-          </div>
-        </div>
-      )}
 
-      {govInternal && (
-        <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Link2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-100">Governance Cohesion</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Registered Tools</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_registry_context.total_tools}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_registry_context.enforced_tools} enforced</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Policies</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tool_policies_context.active_policies}</p>
-              <p className="text-xs text-slate-500">{govInternal.tool_policies_context.total_policies} total</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Audit Events 30d</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.audit_context.audit_events_30d}</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-rose-700 dark:text-rose-300">Active Tags</p>
-              <p className="mt-1 text-2xl font-bold text-rose-900 dark:text-rose-50">{govInternal.tags_context.active_tags}</p>
-              <p className="text-xs text-slate-500">{govInternal.tags_context.total_tags} total</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/tool-registry" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Registry</Link>
-            <Link href="/tool-policies" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tool Policies</Link>
-            <Link href="/approvals" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Approvals</Link>
-            <Link href="/data-capture" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Data Capture</Link>
-            <Link href="/alert-rules" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Alert Rules</Link>
-            <Link href="/audit" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Audit Log</Link>
-            <Link href="/governance-pack" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Governance Pack</Link>
-            <Link href="/tags" className="text-rose-700 underline underline-offset-2 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100">Tags</Link>
-          </div>
-        </div>
-      )}
 
-      {runtimePosture && (
-        <div className="rounded-2xl border border-cyan-200 dark:border-cyan-800 bg-cyan-50/60 dark:bg-cyan-950/30 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Layers className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-            <h2 className="text-lg font-semibold text-cyan-900 dark:text-cyan-100">Runtime Scope &amp; Evidence</h2>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Security Events 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.identity_context.security_events_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.identity_context.workspace_users} workspace users</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Guardrail Events 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.gateway_posture.guardrail_events_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.gateway_posture.guardrail_rules} rules active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Alert Firings 30d</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.monitoring_context.alert_firings_30d}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.monitoring_context.active_alert_rules} rules active</p>
-            </div>
-            <div className="rounded-xl bg-white/80 dark:bg-slate-900/60 p-4">
-              <p className="text-xs uppercase tracking-wide text-cyan-700 dark:text-cyan-300">Chargeback Rules</p>
-              <p className="mt-1 text-2xl font-bold text-cyan-900 dark:text-cyan-50">{runtimePosture.finops_context.chargeback_rules}</p>
-              <p className="text-xs text-slate-500">{runtimePosture.finops_context.ledger_snapshots} ledger snapshots</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <Link href="/organization" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Organization</Link>
-            <Link href="/workspace" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Workspaces</Link>
-            <Link href="/api-keys" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">API Keys</Link>
-            <Link href="/gateway" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Model Gateway</Link>
-            <Link href="/guardrails" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Guardrails</Link>
-            <Link href="/alert-rules" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Alert Rules</Link>
-            <Link href="/chargeback" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Chargeback</Link>
-            <Link href="/ledger" className="text-cyan-700 underline underline-offset-2 hover:text-cyan-900 dark:text-cyan-300 dark:hover:text-cyan-100">Ledger</Link>
-          </div>
-        </div>
-      )}
 
       <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40 lg:grid-cols-2">
         <div className="lg:col-span-2">

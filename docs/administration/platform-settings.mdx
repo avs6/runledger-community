@@ -19,24 +19,6 @@ The **Platform Settings** page is platform-admin-only. It is the convergence con
 
 Backups dump the whole installation (every organization's data), so every backup endpoint (`/settings/backups/*`) is **platform-admin only**; org admins get `403`. The S3 secret access key is **write-only**: it is encrypted at rest, never returned by the API (responses carry `has_secret_access_key`), and leaving the field blank on save keeps the stored secret.
 
-## Platform Posture Cards
-
-Platform Settings surfaces three posture card groups at the top of the page:
-
-- **Budget Control — Platform Posture** (emerald): cross-org budget totals, 30-day spend, active overrides, and breach counts. Drill-through to Budgets, Feature Budgets, All Organizations, and Economics.
-- **Ledger × Cross-Feature Context** (emerald): org scope, observe context, safety context, platform context, and ledger snapshot history. Drill-through to Organization, Economics, Billing, Audit Log, and Tags.
-- **Telemetry & Capture Convergence** (cyan): OTLP batch and span ingestion counts, capture policy counts. Drill-through to Telemetry, Retention, Monitoring, and Organizations.
-- **Audit & Compliance Convergence** (amber): audit events, security events, ledger snapshots, ledger closures, alert rules, and alert firings. Drill-through to Audit Log, Alerts, Governance, Evaluation Studio, and Organizations.
-
-## Convergence Posture Endpoint
-
-`GET /analytics/platform-settings-convergence-posture` (platform admin only) returns:
-
-- **telemetry_context**: OTLP batches (7d), spans ingested (7d), capture policies
-- **audit_context**: audit events (7d), security events (7d)
-- **compliance_context**: ledger snapshots, ledger closures (signed)
-- **ops_context**: alert rules, alert firings (7d)
-
 ## Ownership Boundaries
 
 Platform Settings owns the **platform-wide defaults and compliance control plane**. It does not own:

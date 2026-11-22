@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { num } from '@/lib/utils'
-import { getWorkflows, getBudgetDetailBuildPosture, getBudgetControlBuildPosture, getWorkflowsListPosture } from '@/lib/api'
+import { getWorkflows } from '@/lib/api'
 import type { WorkflowDefinitionResponse } from '@/types/api'
 
 const statusDot: Record<string, string> = {
@@ -100,10 +100,6 @@ export default async function WorkflowsPage() {
     total = data.total
   } catch { /* API may not be reachable */ }
 
-  const budgetBuildPosture = await getBudgetDetailBuildPosture(session.apiKey).catch(() => null)
-  const budgetControlPosture = await getBudgetControlBuildPosture(session.apiKey).catch(() => null)
-  const workflowsPosture = await getWorkflowsListPosture(session.apiKey).catch(() => null)
-
   const activeCount = workflows.filter(w => w.status === 'active').length
   const archivedCount = workflows.filter(w => w.status === 'archived').length
   const totalSteps = workflows.reduce((s, w) => s + (w.steps_schema?.length ?? 0), 0)
@@ -142,10 +138,6 @@ export default async function WorkflowsPage() {
           { label: 'Active', value: activeCount, icon: Zap, color: 'text-emerald-600 dark:text-emerald-400' },
           { label: 'Archived', value: archivedCount, icon: Shield, color: 'text-slate-500 dark:text-slate-400' },
           { label: 'Total Steps', value: totalSteps, icon: Layers, color: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Runs 30d', value: workflowsPosture?.observe_context.runs_30d ?? 0, icon: Terminal, color: 'text-blue-600 dark:text-blue-400' },
-          { label: '30d Spend', value: workflowsPosture ? `$${num(workflowsPosture.observe_context.spend_30d).toFixed(2)}` : '$0', icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'GW Routes', value: workflowsPosture?.gateway_context.gateway_routes ?? 0, icon: Network, color: 'text-violet-600 dark:text-violet-400' },
-          { label: 'Routing', value: workflowsPosture?.gateway_context.routing_policies ?? 0, icon: GitBranch, color: 'text-violet-600 dark:text-violet-400' },
         ].map(kpi => (
           <div key={kpi.label} className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center gap-1">
@@ -157,78 +149,9 @@ export default async function WorkflowsPage() {
         ))}
       </div>
 
-      {/* Posture chips — condensed */}
       <div className="grid gap-2 lg:grid-cols-3">
-        {budgetBuildPosture && (
-          <div className="rounded-xl border border-emerald-300 bg-emerald-50/50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">FinOps</span>
-              </div>
-              <Link href="/budgets" className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">Manage</Link>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { l: 'Budgets', v: budgetBuildPosture.budget_context.active_budgets },
-                { l: 'Workflows', v: budgetBuildPosture.build_context.workflows },
-                { l: 'Spend', v: `$${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}` },
-                { l: 'Breached', v: budgetBuildPosture.budget_context.breach_count },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                  <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                  <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {workflowsPosture && (
-          <div className="rounded-xl border border-blue-300 bg-blue-50/50 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Network className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Models</span>
-              </div>
-              <Link href="/ai-hub" className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-400">AI Hub</Link>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { l: 'Hub Models', v: workflowsPosture.org_context.hub_models },
-                { l: 'Active', v: workflowsPosture.org_context.active_models },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
-                  <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
-                  <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {workflowsPosture && (
-          <div className="rounded-xl border border-rose-300 bg-rose-50/50 p-3 dark:border-rose-800/40 dark:bg-rose-950/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <FlaskConical className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-                <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">Build & Improve</span>
-              </div>
-              <Link href="/evaluation" className="text-[10px] font-semibold text-rose-600 hover:underline dark:text-rose-400">Eval Studio</Link>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[
-                { l: 'Datasets', v: workflowsPosture.eval_context.datasets },
-                { l: 'Experiments', v: workflowsPosture.eval_context.experiments },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] dark:border-rose-800 dark:bg-rose-950/40">
-                  <span className="font-medium text-rose-500 dark:text-rose-400">{c.l}</span>
-                  <span className="font-bold text-rose-700 dark:text-rose-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Workflow grid */}

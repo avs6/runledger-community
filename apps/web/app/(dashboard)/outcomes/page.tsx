@@ -8,8 +8,6 @@ import {
   deleteOutcome,
   getOutcomeSummary,
   getOutcomeTrend,
-  getOutcomesFinopsPosture,
-  getInvestigationOrgIdentityPosture,
   getQualityCorrelation,
   getWorkflowROI,
   listOutcomes,
@@ -20,8 +18,6 @@ import type {
   OutcomeResponse,
   OutcomeSummary,
   OutcomeTrend,
-  OutcomesFinopsPosture,
-  InvestigationOrgIdentityPosture,
   QualityOutcomeCorrelation,
   WorkflowROIList,
 } from '@/types/api'
@@ -212,8 +208,6 @@ export default function OutcomesPage() {
   const [editDraft, setEditDraft] = useState<DraftOutcome>(emptyDraft)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [finopsPosture, setFinopsPosture] = useState<OutcomesFinopsPosture | null>(null)
-  const [orgIdentityPosture, setOrgIdentityPosture] = useState<InvestigationOrgIdentityPosture | null>(null)
   const [showForm, setShowForm] = useState(false)
 
   const loadAnalytics = useCallback(async () => {
@@ -269,8 +263,6 @@ export default function OutcomesPage() {
 
   useEffect(() => {
     if (!apiKey) return
-    getOutcomesFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
-    getInvestigationOrgIdentityPosture(apiKey).then(setOrgIdentityPosture).catch(() => {})
   }, [apiKey])
 
   const trendByType = useMemo(
@@ -475,61 +467,8 @@ export default function OutcomesPage() {
               </div>
             )}
 
-            {/* Context postures side by side */}
             <div className="space-y-2">
-              {finopsPosture && (
-                <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-                  <div className="flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">FinOps Context</span>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {[
-                      { l: 'Budgets', v: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.budgets}` },
-                      { l: 'Breaches', v: `${finopsPosture.budget_context.breach_count}` },
-                      { l: 'Billing', v: `${finopsPosture.billing_context.open_billing_periods}/${finopsPosture.billing_context.billing_periods}` },
-                      { l: 'Outcomes 30d', v: `${finopsPosture.spend_context.outcomes_30d}` },
-                    ].map(c => (
-                      <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                        <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                        <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {['Budgets', 'Billing', 'Chargeback', 'Ledger'].map(l => (
-                      <Link key={l} href={`/${l.toLowerCase()}`} className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">{l}</Link>
-                    ))}
-                  </div>
-                </div>
-              )}
 
-              {orgIdentityPosture && (
-                <div className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
-                  <div className="flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Workspace & Identity</span>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {[
-                      { l: 'Workspace', v: orgIdentityPosture.org_context.workspace_name },
-                      { l: 'Users', v: `${orgIdentityPosture.org_context.workspace_users}` },
-                      { l: 'End Users 30d', v: `${orgIdentityPosture.user_context.distinct_end_users_30d}` },
-                      { l: 'API Keys', v: `${orgIdentityPosture.api_key_context.active_keys}/${orgIdentityPosture.api_key_context.total_keys}` },
-                    ].map(c => (
-                      <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
-                        <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
-                        <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {['Workspaces', 'Users', 'API Keys', 'Organization'].map(l => (
-                      <Link key={l} href={`/${l.toLowerCase().replace(' ', '-')}`} className="text-[10px] font-semibold text-blue-600 hover:underline dark:text-blue-400">{l}</Link>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 

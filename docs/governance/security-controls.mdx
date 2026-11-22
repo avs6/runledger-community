@@ -38,14 +38,6 @@ The gateway applies IP ACLs to every request, including cache hits and OIDC-auth
   rules to the access group with the same name; any that couldn't be mapped never match and are flagged
   on the Security page for reassignment or deletion.
 
-## Runtime scope and evidence
-
-The Security page includes a Runtime Scope & Evidence posture card (cyan theme) showing how security posture connects to identity, gateway controls, monitoring, and FinOps accountability:
-
-- **Runtime Posture**: `GET /analytics/security-runtime-posture` returns identity context (workspace users, total workspaces, active API keys, security events 30d), gateway posture (model routes, guardrail rules, guardrail events 30d), observe evidence (runs 30d, provider calls 30d), monitoring context (active alert rules, alert firings 30d), and FinOps context (chargeback rules, ledger snapshots, ledger entries 30d).
-- **Drill-Through Links**: Organization, Workspaces, API Keys, Model Gateway, Guardrails, Alert Rules, Chargeback, and Ledger.
-- **Stat Tiles**: Security Events (30d), Guardrail Events (30d), Alert Firings (30d), and Chargeback Rules.
-
 ## Notes
 
 - The legacy team scope is gone; use access groups to scope IP ACLs to a set of users.

@@ -2,9 +2,9 @@
 """Call every read endpoint the dashboard can load and assert none fails with a 5xx.
 
 Signs in as the platform admin, reads the OpenAPI spec, and sends GET to every path
-that has no path parameters and no required query parameters (about 290 routes:
-analytics and posture views, settings, lists). Any 5xx or dropped connection is a
-failure. Catches stale column names, missing tables and response-schema mismatches,
+that has no path parameters and no required query parameters (analytics views,
+settings, lists), plus the related-context drawer (GET /context) for each entity type
+that needs no id. Any 5xx or dropped connection is a failure. Catches stale column names, missing tables and response-schema mismatches,
 which only surface when the endpoint is actually called.
 
 Each request uses a fresh connection: after a 500 the server closes the connection,
@@ -85,6 +85,27 @@ def run(args: argparse.Namespace) -> int:
             failures.append(f"{path} → {type(exc).__name__}: {exc}")
 
     print(f"{checked - len(failures)} of {checked} read endpoints returned without a server error")
+
+    # Related context drawer (replaced the per-page posture endpoints).
+    ctx = httpx.get(
+        f"{base}/context", headers=headers, params={"entity": "workspace"}, timeout=args.timeout
+    )
+    items = ctx.json().get("items") if ctx.status_code == 200 else None
+    if not (
+        isinstance(items, list) and items and all("label" in i and "value" in i for i in items)
+    ):
+        failures.append(f"/context?entity=workspace → {ctx.status_code} {ctx.text[:120]}")
+    bad = httpx.get(
+        f"{base}/context", headers=headers, params={"entity": "nope"}, timeout=args.timeout
+    )
+    if bad.status_code != 422:
+        failures.append(f"/context?entity=nope → {bad.status_code} (expected 422)")
+    missing = httpx.get(
+        f"{base}/context", headers=headers, params={"entity": "budget"}, timeout=args.timeout
+    )
+    if missing.status_code != 422:
+        failures.append(f"/context?entity=budget without id → {missing.status_code} (expected 422)")
+    print("related context: workspace items returned; bad entity and missing id refused")
 
     # Pagination standard: list endpoints honour ?limit and report X-Total-Count.
     paged_ok = 0

@@ -50,25 +50,20 @@ def main():
 
     # ── Step 2: Investigation governance posture ─────────────────────────
     print("\n=== Step 2: Investigation governance posture ===")
-    posture = api("GET", "/analytics/investigation-governance-posture")
-    print(json.dumps(posture, indent=2))
+    ctx = api("GET", "/context?entity=workspace")
+    print("  Workspace context: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
 
-    tg = posture.get("tool_governance", {})
     print(f"\nActive tool policies: {tg.get('active_policies', 0)}")
     print(f"Total tool calls: {tg.get('total_tool_calls', 0)}")
     print(f"Average risk score: {tg.get('avg_risk_score', 0):.3f}")
 
-    sec = posture.get("security", {})
     print(f"Security events: {sec.get('events', 0)}")
 
-    ar = posture.get("alert_rules", {})
     print(f"Active alert rules: {ar.get('active_rules', 0)}")
     print(f"Recent firings: {ar.get('recent_firings', 0)}")
 
-    al = posture.get("audit_log", {})
     print(f"Governance audit events: {al.get('governance_events', 0)}")
 
-    gp = posture.get("governance_pack", {})
     print(f"Approvals: {gp.get('approvals', 0)}")
     print(f"Tool policies: {gp.get('tool_policies', 0)}")
     print(f"Capture policies: {gp.get('capture_policies', 0)}")

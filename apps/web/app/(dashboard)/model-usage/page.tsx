@@ -17,15 +17,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import {
-  getBestValueModels,
-  getBudgetControlObservePosture,
-  getCostQuality,
-  getInvestigationGatewayRuntimePosture,
-  getModelBudgetUtilization,
-  getModelUsageGatewayPosture,
-  getRunFlow,
-} from '@/lib/api'
+import { getBestValueModels, getCostQuality, getModelBudgetUtilization, getRunFlow } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
 import {
@@ -264,14 +256,10 @@ export default async function ModelUsagePage({
     from: win.from,
     to: win.to,
   })
-  const budgetControlPosture = await getBudgetControlObservePosture(session.apiKey).catch(() => null)
-  const [costQuality, bestValue, modelBudgets, gatewayPosture, gatewayRuntime] = await Promise.all([
+  const [costQuality, bestValue, modelBudgets] = await Promise.all([
     getCostQuality(session.apiKey, { score_name: 'quality', from: win.from, to: win.to }).catch(() => ({ items: [] })),
     getBestValueModels(session.apiKey, { score_name: 'quality', from: win.from, to: win.to }).catch(() => ({ items: [] })),
-    getModelBudgetUtilization(session.apiKey).catch(() => null),
-    getModelUsageGatewayPosture(session.apiKey).catch(() => null),
-    getInvestigationGatewayRuntimePosture(session.apiKey).catch(() => null),
-  ])
+    getModelBudgetUtilization(session.apiKey).catch(() => null)])
 
   const items = flow.items
   const timeline = buildTimeline(items)
@@ -404,77 +392,8 @@ export default async function ModelUsagePage({
         </div>
       </div>
 
-      {/* Gateway posture — compact chips */}
-      {gatewayPosture && (
-        <div className="rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <Network className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Gateway & Intelligence</span>
-              {gatewayRuntime && (
-                <span className="text-[10px] text-violet-500 dark:text-violet-400">
-                  {gatewayRuntime.guardrail_context.active_rules} guardrails, {gatewayRuntime.rate_limit_context.routes_with_rpm_limits} RPM limits
-                </span>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {[
-                { href: '/gateway', label: 'Gateway' },
-                { href: '/provider-profiles', label: 'Providers' },
-                { href: '/guardrails', label: 'Guardrails' },
-                { href: '/tags', label: 'Tags' },
-              ].map(l => (
-                <Link key={l.label} href={l.href} className="text-[10px] font-semibold text-violet-600 hover:underline dark:text-violet-400">{l.label}</Link>
-              ))}
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {[
-              { l: 'Routes', v: `${gatewayPosture.gateway_context.active_routes}/${gatewayPosture.gateway_context.total_routes}` },
-              { l: 'Models', v: `${gatewayPosture.gateway_context.distinct_models}` },
-              { l: 'Policies', v: `${gatewayPosture.gateway_context.routing_policies}` },
-              { l: 'Runs 30d', v: `${gatewayPosture.investigation_context.runs_30d}` },
-              { l: 'Calls 30d', v: `${gatewayPosture.investigation_context.provider_calls_30d}` },
-              { l: 'Tags', v: `${gatewayPosture.tag_context.active_tags}/${gatewayPosture.tag_context.tags}` },
-            ].map(c => (
-              <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] dark:border-violet-800 dark:bg-violet-950/40">
-                <span className="font-medium text-violet-500 dark:text-violet-400">{c.l}</span>
-                <span className="font-bold text-violet-700 dark:text-violet-300">{c.v}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Budget control — compact chips */}
-      {budgetControlPosture && (
-        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Budget Control</span>
-            </div>
-            <div className="flex gap-1.5">
-              {[{ href: '/budgets', l: 'Budgets' }, { href: '/billing', l: 'Billing' }].map(x => (
-                <Link key={x.l} href={x.href} className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">{x.l}</Link>
-              ))}
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {[
-              { l: 'Active', v: `${budgetControlPosture.budget_policy.active_budgets}` },
-              { l: 'Breached', v: `${budgetControlPosture.budget_policy.breached_budgets}` },
-              { l: 'At Risk', v: `${budgetControlPosture.budget_policy.at_risk_budgets}` },
-              { l: 'Utilization', v: `${num(budgetControlPosture.budget_policy.avg_utilization_pct).toFixed(1)}%` },
-            ].map(c => (
-              <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Model Budget Utilization — compact */}
       {modelBudgets && modelBudgets.models.filter(m => m.budget_limit_usd !== null).length > 0 && (

@@ -8,8 +8,8 @@ import {
   Activity, Shield, Bell, Building2, Network, RefreshCw,
   AlertTriangle, CheckCircle, Info, XCircle, Search, X, SlidersHorizontal, Wallet,
 } from 'lucide-react'
-import { getSecurityEvents, listAlertHistory, listGatewayRequests, getMonitoringFinopsPosture, getMonitoringOpsPosture } from '@/lib/api'
-import type { SecurityEventResponse, AlertFiring, GatewayRequestLog, MonitoringFinopsPosture, MonitoringOpsPosture } from '@/types/api'
+import { getSecurityEvents, listAlertHistory, listGatewayRequests } from '@/lib/api'
+import type { SecurityEventResponse, AlertFiring, GatewayRequestLog } from '@/types/api'
 
 type Tab = 'events' | 'alerts' | 'gateway'
 type TimePreset = 'all' | '1d' | '7d' | '30d'
@@ -421,8 +421,6 @@ export default function MonitoringPage() {
   const [securityEvents, setSecurityEvents] = useState<SecurityEventResponse[]>([])
   const [alertFirings, setAlertFirings] = useState<AlertFiring[]>([])
   const [gatewayRequests, setGatewayRequests] = useState<GatewayRequestLog[]>([])
-  const [finopsPosture, setFinopsPosture] = useState<MonitoringFinopsPosture | null>(null)
-  const [opsPosture, setOpsPosture] = useState<MonitoringOpsPosture | null>(null)
 
   const load = useCallback(async (isRefresh = false) => {
     if (!apiKey) {
@@ -456,8 +454,6 @@ export default function MonitoringPage() {
 
   useEffect(() => {
     if (!apiKey) return
-    getMonitoringFinopsPosture(apiKey).then(setFinopsPosture).catch(() => {})
-    getMonitoringOpsPosture(apiKey).then(setOpsPosture).catch(() => {})
   }, [apiKey])
 
   const activeAlerts = alertFirings.filter((a) => !a.resolved_at).length
@@ -525,108 +521,7 @@ export default function MonitoringPage() {
         ))}
       </div>
 
-      {/* Posture chips */}
-      {finopsPosture && (
-        <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800/40 dark:bg-emerald-950/20">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <Wallet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">FinOps Context</span>
-            </div>
-            <div className="flex gap-1.5">
-              {[{ href: '/budgets', l: 'Budgets' }, { href: '/billing', l: 'Billing' }, { href: '/chargeback', l: 'Chargeback' }, { href: '/ledger', l: 'Ledger' }].map(x => (
-                <Link key={x.l} href={x.href} className="text-[10px] font-semibold text-emerald-600 hover:underline dark:text-emerald-400">{x.l}</Link>
-              ))}
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {[
-              { l: 'Budgets', v: `${finopsPosture.budget_context.active_budgets}/${finopsPosture.budget_context.budgets}` },
-              { l: 'Breaches', v: `${finopsPosture.budget_context.breach_count}` },
-              { l: 'Overrides', v: `${finopsPosture.budget_context.active_overrides}/${finopsPosture.budget_context.overrides}` },
-              { l: 'Notifications', v: `${finopsPosture.notification_context.active_notifications}/${finopsPosture.notification_context.notifications}` },
-              { l: 'Billing', v: `${finopsPosture.billing_context.open_billing_periods}/${finopsPosture.billing_context.billing_periods}` },
-              { l: 'Snapshots', v: `${finopsPosture.ledger_context.ledger_snapshots}` },
-            ].map(c => (
-              <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] dark:border-emerald-800 dark:bg-emerald-950/40">
-                <span className="font-medium text-emerald-500 dark:text-emerald-400">{c.l}</span>
-                <span className="font-bold text-emerald-700 dark:text-emerald-300">{c.v}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {opsPosture && (
-        <div className="grid gap-2 lg:grid-cols-3">
-          {/* Gateway ops */}
-          <div className="rounded-xl border border-violet-300 bg-violet-50 p-3 dark:border-violet-800/40 dark:bg-violet-950/20">
-            <div className="mb-2 flex items-center gap-1.5">
-              <Network className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">Gateway Ops</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { l: 'Providers', v: opsPosture.gateway_context.distinct_providers },
-                { l: 'Routes', v: opsPosture.gateway_context.active_routes },
-                { l: 'Guardrails', v: opsPosture.gateway_context.guardrail_rules },
-                { l: 'Events 30d', v: opsPosture.gateway_context.guardrail_events_30d },
-                { l: 'Cache', v: opsPosture.gateway_context.cache_configs },
-                { l: 'RPM', v: opsPosture.gateway_context.rate_limit_routes },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] dark:border-violet-800 dark:bg-violet-950/40">
-                  <span className="font-medium text-violet-500 dark:text-violet-400">{c.l}</span>
-                  <span className="font-bold text-violet-700 dark:text-violet-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Governance ops */}
-          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
-            <div className="mb-2 flex items-center gap-1.5">
-              <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Governance Ops</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { l: 'Tools', v: opsPosture.governance_context.tool_registry },
-                { l: 'Policies', v: opsPosture.governance_context.tool_policies },
-                { l: 'Capture', v: opsPosture.governance_context.capture_policies },
-                { l: 'Audit 30d', v: opsPosture.governance_context.audit_events_30d },
-                { l: 'Approvals', v: opsPosture.governance_context.approvals },
-                { l: 'Tags', v: opsPosture.governance_context.tags },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] dark:border-amber-800 dark:bg-amber-950/40">
-                  <span className="font-medium text-amber-500 dark:text-amber-400">{c.l}</span>
-                  <span className="font-bold text-amber-700 dark:text-amber-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Org & investigation */}
-          <div className="rounded-xl border border-blue-300 bg-blue-50 p-3 dark:border-blue-800/40 dark:bg-blue-950/20">
-            <div className="mb-2 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Org & Investigation</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { l: 'Users', v: opsPosture.org_context.workspace_users },
-                { l: 'MCP', v: `${opsPosture.org_context.active_mcp_servers}/${opsPosture.org_context.mcp_servers}` },
-                { l: 'Runs 30d', v: opsPosture.investigation_context.runs_30d },
-                { l: 'GW Reqs 30d', v: opsPosture.investigation_context.gateway_requests_30d },
-              ].map(c => (
-                <span key={c.l} className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] dark:border-blue-800 dark:bg-blue-950/40">
-                  <span className="font-medium text-blue-500 dark:text-blue-400">{c.l}</span>
-                  <span className="font-bold text-blue-700 dark:text-blue-300">{c.v}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tab bar */}
       <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/50">

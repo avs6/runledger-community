@@ -11,30 +11,8 @@ import {
   Network, ChevronDown, ChevronRight, Sparkles,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
-import {
-  listEvalDatasets, createEvalDataset, listEvalExperiments, createEvalExperiment, runEvalExperiment,
-  listPrompts, createPrompt, deletePrompt,
-  listEvaluators, createEvaluator, deleteEvaluator, runEvaluator,
-  getCostQuality, getBestValueModels,
-  getBudgetDetailBuildPosture,
-  getBudgetControlBuildPosture,
-  getEvalReplayOrgGatewayPosture,
-  getEvalReplayObservePosture,
-  getBuildInternalPosture,
-  getEvalStudioParentPosture,
-  getReplayLabModePosture,
-} from '@/lib/api'
-import type {
-  EvalDataset, EvalExperiment, DatasetItem, PromptResponse,
-  EvaluatorResponse, CostQualityPoint, BestValueModel,
-  BudgetDetailBuildPosture,
-  BudgetControlBuildPosture,
-  EvalReplayOrgGatewayPosture,
-  EvalReplayObservePosture,
-  BuildInternalPosture,
-  EvalStudioParentPosture,
-  ReplayLabModePosture,
-} from '@/types/api'
+import { listEvalDatasets, createEvalDataset, listEvalExperiments, createEvalExperiment, runEvalExperiment, listPrompts, createPrompt, deletePrompt, listEvaluators, createEvaluator, deleteEvaluator, runEvaluator, getCostQuality, getBestValueModels } from '@/lib/api'
+import type { EvalDataset, EvalExperiment, DatasetItem, PromptResponse, EvaluatorResponse, CostQualityPoint, BestValueModel } from '@/types/api'
 import QualityScoresTab from '@/components/evaluation/QualityScoresTab'
 import { num } from '@/lib/utils'
 
@@ -676,7 +654,6 @@ function EvaluatorsTab({
 function ReplayTab({
   datasets, experiments, loading, canWrite,
   onCreateDataset, onCreateExperiment, onRunExperiment,
-  modePosture,
 }: {
   datasets: EvalDataset[]
   experiments: EvalExperiment[]
@@ -685,7 +662,6 @@ function ReplayTab({
   onCreateDataset: (data: { name: string; description?: string; items: DatasetItem[] }) => Promise<void>
   onCreateExperiment: (data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) => Promise<void>
   onRunExperiment: (id: string) => Promise<void>
-  modePosture: ReplayLabModePosture | null
 }) {
   const [subTab, setSubTab] = useState<'datasets' | 'experiments'>('datasets')
   const [showNewDs, setShowNewDs] = useState(false)
@@ -731,26 +707,6 @@ function ReplayTab({
 
   return (
     <div className="space-y-3">
-      {modePosture && (
-        <div className="grid grid-cols-4 gap-2">
-          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">Chargeback Rules</p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.chargeback_context.chargeback_rules}</p>
-          </div>
-          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">Cost 30d</p>
-            <p className="text-sm font-bold text-amber-600 dark:text-amber-400">${num(modePosture.chargeback_context.cost_30d).toFixed(2)}</p>
-          </div>
-          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">Replay Experiments</p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.replay_context.replay_experiments}</p>
-          </div>
-          <div className="rounded-lg border border-amber-300 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">Replay Datasets</p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white">{modePosture.replay_context.replay_datasets}</p>
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center gap-3 rounded-lg border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 px-3 py-2">
         <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
@@ -916,13 +872,6 @@ export default function EvaluationPage() {
   const [evaluators, setEvaluators] = useState<EvaluatorResponse[]>([])
   const [costQuality, setCostQuality] = useState<CostQualityPoint[]>([])
   const [bestValue, setBestValue] = useState<BestValueModel[]>([])
-  const [budgetBuildPosture, setBudgetBuildPosture] = useState<BudgetDetailBuildPosture | null>(null)
-  const [budgetControlBuildPosture, setBudgetControlBuildPosture] = useState<BudgetControlBuildPosture | null>(null)
-  const [orgGatewayPosture, setOrgGatewayPosture] = useState<EvalReplayOrgGatewayPosture | null>(null)
-  const [observePosture, setObservePosture] = useState<EvalReplayObservePosture | null>(null)
-  const [buildPosture, setBuildPosture] = useState<BuildInternalPosture | null>(null)
-  const [parentPosture, setParentPosture] = useState<EvalStudioParentPosture | null>(null)
-  const [modePosture, setModePosture] = useState<ReplayLabModePosture | null>(null)
 
   const refresh = useCallback(async () => {
     if (!apiKey) {
@@ -954,13 +903,6 @@ export default function EvaluationPage() {
   useEffect(() => {
     refresh()
     if (apiKey) {
-      getBudgetDetailBuildPosture(apiKey).then(setBudgetBuildPosture).catch(() => {})
-      getBudgetControlBuildPosture(apiKey).then(setBudgetControlBuildPosture).catch(() => {})
-      getEvalReplayOrgGatewayPosture(apiKey).then(setOrgGatewayPosture).catch(() => {})
-      getEvalReplayObservePosture(apiKey).then(setObservePosture).catch(() => {})
-      getBuildInternalPosture(apiKey).then(setBuildPosture).catch(() => {})
-      getEvalStudioParentPosture(apiKey).then(setParentPosture).catch(() => {})
-      getReplayLabModePosture(apiKey).then(setModePosture).catch(() => {})
     }
   }, [refresh])
 
@@ -1040,52 +982,15 @@ export default function EvaluationPage() {
           { label: 'Prompts', value: prompts.length },
           { label: 'Evaluators', value: evaluators.length },
           { label: 'Scores', value: bestValue.length > 0 ? bestValue.reduce((a, b) => a + b.run_count, 0) : '—' },
-          { label: 'Active Budgets', value: budgetBuildPosture?.budget_context.active_budgets ?? '—' },
-          { label: '30d Spend', value: budgetBuildPosture ? `$${num(budgetBuildPosture.spend_context.total_spend_30d).toFixed(2)}` : '—', accent: true },
-          { label: 'Hub Models', value: orgGatewayPosture?.ai_hub_context.hub_models ?? '—' },
-        ].map(({ label, value, accent }) => (
+        ].map(({ label, value }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
-            <p className={`text-sm font-bold ${accent ? 'text-violet-600 dark:text-violet-400' : 'text-slate-900 dark:text-white'}`}>{value}</p>
+            <p className={`text-sm font-bold text-slate-900 dark:text-white`}>{value}</p>
           </div>
         ))}
       </div>
 
-      {/* ── Posture chips ──────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-2">
-        {budgetControlBuildPosture && (
-          <div className="rounded-lg border border-emerald-300 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">FinOps</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{budgetControlBuildPosture.budget_policy.active_budgets} budgets</span>
-              <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300">{num(budgetControlBuildPosture.budget_policy.avg_utilization_pct).toFixed(1)}% util</span>
-              {budgetControlBuildPosture.budget_policy.breached_budgets > 0 && <span className="rounded-full bg-red-100 dark:bg-red-900/40 px-2 py-0.5 text-[10px] text-red-700 dark:text-red-300">{budgetControlBuildPosture.budget_policy.breached_budgets} breached</span>}
-              <Link href="/budgets" className="text-[10px] text-emerald-600 hover:underline dark:text-emerald-400">Budgets</Link>
-            </div>
-          </div>
-        )}
-        {orgGatewayPosture && (
-          <div className="rounded-lg border border-blue-300 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Org & Providers</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.distinct_providers} providers</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.provider_context.active_routes} routes</span>
-              <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">{orgGatewayPosture.guardrail_context.guardrail_rules} guardrails</span>
-              <Link href="/gateway" className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">Gateway</Link>
-            </div>
-          </div>
-        )}
-        {buildPosture && (
-          <div className="rounded-lg border border-rose-300 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-950/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400 mb-1">Build & Improve</p>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.playground_context.sessions_30d} playground</span>
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.workflows_context.definitions} workflows</span>
-              <span className="rounded-full bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 text-[10px] text-rose-700 dark:text-rose-300">{buildPosture.scorecards_context.score_events_30d} scores</span>
-              <Link href="/workflows" className="text-[10px] text-rose-600 hover:underline dark:text-rose-400">Workflows</Link>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Tab bar ────────────────────────────────────────── */}
@@ -1128,7 +1033,7 @@ export default function EvaluationPage() {
       {tab === 'replay' && (
         <ReplayTab datasets={datasets} experiments={experiments} loading={loading} canWrite={canWrite}
           onCreateDataset={handleCreateDataset} onCreateExperiment={handleCreateExperiment} onRunExperiment={handleRunExperiment}
-          modePosture={modePosture} />
+          />
       )}
     </div>
   )

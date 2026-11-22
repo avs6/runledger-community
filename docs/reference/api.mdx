@@ -76,6 +76,12 @@ Create workspace API keys from **Control Plane -> API Keys** in the dashboard. O
 | Agentic | `/agents` · `/workflows` · `/vector-stores` · `/playground` |
 | Admin | `/auth` · `/org` · `/users` · `/settings` · `/retention` |
 
+## Related context
+
+`GET /context?entity=&id=` returns counts and links for one entity (`workspace` needs no id;
+`workflow` takes a feature tag; `api_key`, `route`, `budget` and `prompt` take a UUID). It replaced
+the per-page `/analytics/*-posture` endpoints, which were removed.
+
 ## Related
 
 <CardGroup cols={2}>

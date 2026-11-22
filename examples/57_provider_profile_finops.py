@@ -67,8 +67,8 @@ def main():
     print(f"Created override {override['id']} (new limit: $500.00)")
 
     print("\n--- Provider Profile FinOps Posture ---")
-    posture = api("GET", f"/analytics/provider-profile-finops-posture?profile_id={profile_id}")
-    print(json.dumps(posture, indent=2))
+    ctx = api("GET", "/context?entity=workspace")
+    print("  Workspace context: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
 
     print("\n--- Listing budget overrides ---")
     overrides = api("GET", f"/budgets/{budget_id}/overrides")

@@ -6,20 +6,8 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { Database, Plus, Pencil, Trash2, RefreshCw, Search, X, CloudDownload, Upload, FileDown, ChevronDown, ChevronUp } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
-import {
-  listProviderPricing,
-  createProviderPricing,
-  updateProviderPricing,
-  deleteProviderPricing,
-  repriceProvider,
-  triggerPricingSync,
-  importProviderPricing,
-  getPricingExampleYaml,
-  getProviderProfileFinopsPosture,
-  getProviderProfileObservePosture,
-  getProviderProfileRuntimePosture,
-} from '@/lib/api'
-import type { ProviderPricingResponse, ProviderProfileFinopsPosture, ProviderProfileObservePosture, ProviderProfileRuntimePosture } from '@/types/api'
+import { listProviderPricing, createProviderPricing, updateProviderPricing, deleteProviderPricing, repriceProvider, triggerPricingSync, importProviderPricing, getPricingExampleYaml } from '@/lib/api'
+import type { ProviderPricingResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 import UnpricedUsagePanel from '@/components/monitoring/UnpricedUsagePanel'
 
@@ -62,27 +50,6 @@ export default function ProviderProfilesPage() {
   const [pricingScopeFilter, setPricingScopeFilter] = useState<'all' | 'workspace' | 'global'>('all')
 
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [postureData, setPostureData] = useState<Record<string, ProviderProfileFinopsPosture>>({})
-  const [observeData, setObserveData] = useState<Record<string, ProviderProfileObservePosture>>({})
-  const [postureLoading, setPostureLoading] = useState<string | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<ProviderProfileRuntimePosture | null>(null)
-
-  async function loadPosture(p: ProviderPricingResponse) {
-    if (!apiKey) return
-    if (postureData[p.id] && observeData[p.id]) return
-    setPostureLoading(p.id)
-    try {
-      const [finops, observe] = await Promise.all([
-        getProviderProfileFinopsPosture(apiKey, p.id).catch(() => null),
-        getProviderProfileObservePosture(apiKey, p.id).catch(() => null),
-      ])
-      if (finops) setPostureData((prev) => ({ ...prev, [p.id]: finops }))
-      if (observe) setObserveData((prev) => ({ ...prev, [p.id]: observe }))
-    } finally {
-      setPostureLoading(null)
-    }
-  }
-
   const load = useCallback(async () => {
     if (!apiKey || !canManage) { setLoading(false); return }
     setLoading(true)
@@ -100,7 +67,6 @@ export default function ProviderProfilesPage() {
 
   useEffect(() => {
     if (!apiKey) return
-    getProviderProfileRuntimePosture(apiKey).then(setRuntimePosture).catch(() => {})
   }, [apiKey])
 
   if (!canManage) {
@@ -303,7 +269,6 @@ export default function ProviderProfilesPage() {
           { label: 'Workspace', value: pricing.filter((p) => p.workspace_id).length },
           { label: 'Global', value: pricing.filter((p) => !p.workspace_id).length },
           { label: 'With Budgets', value: pricing.filter((p) => p.budget_count > 0).length, accent: true },
-          { label: 'Runtime Alerts', value: runtimePosture?.observe_context?.monitoring_alerts ?? '—' },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -419,8 +384,6 @@ export default function ProviderProfilesPage() {
                 <tbody className="divide-y divide-slate-100/60 dark:divide-slate-700/30">
                   {models.map((p) => {
                     const isExpanded = expandedId === p.id
-                    const finops = postureData[p.id]
-                    const observe = observeData[p.id]
                     return (
                       <>
                         <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
@@ -428,7 +391,7 @@ export default function ProviderProfilesPage() {
                             <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => {
-                                  if (isExpanded) { setExpandedId(null) } else { setExpandedId(p.id); void loadPosture(p) }
+                                  if (isExpanded) { setExpandedId(null) } else { setExpandedId(p.id) }
                                 }}
                                 className="text-slate-400 hover:text-indigo-500"
                               >
@@ -493,49 +456,7 @@ export default function ProviderProfilesPage() {
                         {isExpanded && (
                           <tr key={`${p.id}-detail`}>
                             <td colSpan={canManage ? 7 : 6} className="px-3 py-2 bg-slate-50/50 dark:bg-slate-800/30">
-                              {postureLoading === p.id ? (
-                                <div className="flex items-center gap-2 text-xs text-slate-400"><RefreshCw className="h-3 w-3 animate-spin" /> Loading posture data...</div>
-                              ) : (
                                 <div className="grid gap-2 sm:grid-cols-2">
-                                  {/* FinOps posture */}
-                                  {finops && (
-                                    <div className="rounded-lg border border-slate-200/60 dark:border-slate-700/40 p-2 space-y-1.5">
-                                      <h4 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">FinOps Posture</h4>
-                                      <div className="flex flex-wrap gap-1">
-                                        {[
-                                          `${finops.budgets.budget_count} budgets`,
-                                          `${finops.budgets.active_budget_count} active`,
-                                          `$${num(finops.budgets.total_limit_usd).toFixed(2)} limit`,
-                                          `${finops.budgets.breach_count} breaches`,
-                                          `${finops.overrides.override_count} overrides`,
-                                          `${finops.billing.billing_period_count} billing periods`,
-                                          `${finops.chargeback.chargeback_rule_count} chargeback rules`,
-                                        ].map((chip) => (
-                                          <span key={chip} className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:text-emerald-300">{chip}</span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {/* Observe posture */}
-                                  {observe && (
-                                    <div className="rounded-lg border border-slate-200/60 dark:border-slate-700/40 p-2 space-y-1.5">
-                                      <h4 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Observe Posture</h4>
-                                      <div className="flex flex-wrap gap-1">
-                                        {[
-                                          `${observe.runs.run_count} runs`,
-                                          `${observe.runs.request_count} requests`,
-                                          `${observe.runs.error_count} errors`,
-                                          `$${num(observe.cost.total_cost_usd).toFixed(4)} cost`,
-                                          `$${num(observe.cost.total_savings_usd).toFixed(4)} saved`,
-                                          `${observe.tokens.input_tokens.toLocaleString()} in tokens`,
-                                          `${observe.tokens.output_tokens.toLocaleString()} out tokens`,
-                                          observe.performance.avg_latency_ms != null ? `${observe.performance.avg_latency_ms}ms avg` : null,
-                                        ].filter(Boolean).map((chip) => (
-                                          <span key={chip} className="rounded-full bg-sky-100 dark:bg-sky-900/30 px-1.5 py-0.5 text-[9px] font-medium text-sky-700 dark:text-sky-300">{chip}</span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
                                   {/* Quick links */}
                                   <div className="sm:col-span-2 flex flex-wrap gap-1.5">
                                     {[
@@ -550,7 +471,6 @@ export default function ProviderProfilesPage() {
                                     ))}
                                   </div>
                                 </div>
-                              )}
                             </td>
                           </tr>
                         )}
@@ -564,26 +484,6 @@ export default function ProviderProfilesPage() {
         </div>
       )}
 
-      {/* ── Runtime posture strip ─────────────────── */}
-      {runtimePosture && (
-        <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 p-3 space-y-2">
-          <h3 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Runtime & Scope Posture</h3>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              `${runtimePosture.provider_profiles} profiles`,
-              `${runtimePosture.finops_context.budget_notifications} budget notifications`,
-              `${runtimePosture.finops_context.ledger_snapshots} ledger snapshots`,
-              `${runtimePosture.org_context.users} users`,
-              `${runtimePosture.observe_context.monitoring_alerts} alerts`,
-              `${runtimePosture.governance_context.mcp_servers} MCP servers`,
-              `${runtimePosture.governance_context.search_tools} search tools`,
-              `${runtimePosture.governance_context.capture_policies} capture policies`,
-            ].map((chip) => (
-              <span key={chip} className="rounded-full bg-violet-100 dark:bg-violet-900/30 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">{chip}</span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

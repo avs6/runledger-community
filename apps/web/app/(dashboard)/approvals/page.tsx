@@ -5,36 +5,10 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ScrollText, Plus, Trash2, ShieldCheck, X, Zap, Clock, CheckCircle2, XCircle, Ban, Pencil } from 'lucide-react'
-import {
-  getApprovalSummary,
-  getApprovalsAlertFinopsPosture,
-  getGovernanceInternalPosture,
-  getApprovalsRuntimePosture,
-  getExceptionWorkflowsOrgPosture,
-  getExceptionWorkflowsGatewayPosture,
-  listApprovals,
-  createApproval,
-  approveApproval,
-  denyApproval,
-  cancelApproval,
-  listAutoApprovalPolicies,
-  createAutoApprovalPolicy,
-  updateAutoApprovalPolicy,
-  deleteAutoApprovalPolicy,
-} from '@/lib/api'
+import { getApprovalSummary, listApprovals, createApproval, approveApproval, denyApproval, cancelApproval, listAutoApprovalPolicies, createAutoApprovalPolicy, updateAutoApprovalPolicy, deleteAutoApprovalPolicy } from '@/lib/api'
 import { useRole } from '@/components/rbac/useRole'
 import { num } from '@/lib/utils'
-import type {
-  ApprovalResponse,
-  ApprovalSummary,
-  ApprovalRequestType,
-  ApprovalsAlertFinopsPosture,
-  ExceptionWorkflowsOrgPosture,
-  ExceptionWorkflowsGatewayPosture,
-  GovernanceInternalPosture,
-  ApprovalsRuntimePosture,
-  AutoApprovalPolicy,
-} from '@/types/api'
+import type { ApprovalResponse, ApprovalSummary, ApprovalRequestType, AutoApprovalPolicy } from '@/types/api'
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500'
@@ -76,11 +50,6 @@ export default function ApprovalsPage() {
   const [tab, setTab] = useState<Tab>('queue')
   const [summary, setSummary] = useState<ApprovalSummary | null>(null)
   const [approvals, setApprovals] = useState<ApprovalResponse[]>([])
-  const [finopsPosture, setFinopsPosture] = useState<ApprovalsAlertFinopsPosture | null>(null)
-  const [orgPosture, setOrgPosture] = useState<ExceptionWorkflowsOrgPosture | null>(null)
-  const [gatewayPosture, setGatewayPosture] = useState<ExceptionWorkflowsGatewayPosture | null>(null)
-  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<ApprovalsRuntimePosture | null>(null)
   const [total, setTotal] = useState(0)
   const [statusFilter, setStatusFilter] = useState<string>('pending')
   const [loading, setLoading] = useState(true)
@@ -105,23 +74,12 @@ export default function ApprovalsPage() {
     if (!apiKey || !isWorkspaceAdmin) return
     setLoading(true)
     try {
-      const [s, list, posture, orgP, gwP, govInt, rtP] = await Promise.all([
+      const [s, list] = await Promise.all([
         getApprovalSummary(apiKey),
-        listApprovals(apiKey, { status: statusFilter || undefined, limit: 100 }),
-        getApprovalsAlertFinopsPosture(apiKey).catch(() => null),
-        getExceptionWorkflowsOrgPosture(apiKey).catch(() => null),
-        getExceptionWorkflowsGatewayPosture(apiKey).catch(() => null),
-        getGovernanceInternalPosture(apiKey).catch(() => null),
-        getApprovalsRuntimePosture(apiKey).catch(() => null),
-      ])
+        listApprovals(apiKey, { status: statusFilter || undefined, limit: 100 })])
       setSummary(s)
       setApprovals(list.items)
       setTotal(list.total)
-      setFinopsPosture(posture)
-      setOrgPosture(orgP)
-      setGatewayPosture(gwP)
-      setGovInternal(govInt)
-      setRuntimePosture(rtP)
     } catch {
       toast.error('Failed to load approvals')
     } finally {
@@ -292,41 +250,7 @@ export default function ApprovalsPage() {
           </div>
         )}
 
-        {/* Posture chips */}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {finopsPosture && (
-            <>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{finopsPosture.budget_context.total_budgets}</span> budgets
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{finopsPosture.budget_context.breach_count_30d}</span> breaches 30d
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{finopsPosture.alert_context.budget_alert_rules}</span> alert rules
-              </span>
-            </>
-          )}
-          {orgPosture && (
-            <>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{orgPosture.user_context.total_users}</span> users
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{orgPosture.access_group_context.total_groups}</span> groups
-              </span>
-            </>
-          )}
-          {runtimePosture && (
-            <>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{runtimePosture.observe_evidence.runs_30d}</span> runs 30d
-              </span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{runtimePosture.gateway_escalation.guardrail_rules}</span> guardrails
-              </span>
-            </>
-          )}
         </div>
       </div>
 

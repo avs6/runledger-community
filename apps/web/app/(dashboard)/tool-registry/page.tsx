@@ -10,22 +10,8 @@ import {
   Play, FlaskConical, Shield, Layers, Radio, Building2, Link2, Zap, Activity,
   CheckCircle2, XCircle, Loader2, FileText, ArrowUpCircle, ExternalLink,
 } from 'lucide-react'
-import {
-  createSearchTool, createToolPolicy, deleteSearchTool, deleteToolPolicy,
-  deleteToolRegistry, getAccessGroups, getGovernanceInternalPosture, getSearchTools,
-  getToolGovernanceGatewayPosture, getToolGovernanceOrgPosture, getToolPolicies,
-  getToolPolicyAnalytics, getToolRegistryFinopsPosture, getToolRegistryRuntimePosture,
-  getToolPoliciesRuntimePosture, listMcpTools, listToolRegistry, policyDryRun,
-  getPolicyDryRunReport, promotePolicy, simulateToolPolicy, updateSearchTool,
-  updateToolPolicy, updateToolRegistry, upsertToolRegistry,
-} from '@/lib/api'
-import type {
-  AccessGroupResponse, GovernanceInternalPosture, McpToolListItem, SearchToolResponse,
-  ToolGovernanceGatewayPosture, ToolGovernanceOrgPosture, ToolPoliciesRuntimePosture,
-  ToolPolicyResponse, ToolPolicySimulationResponse, ToolRegistryResponse,
-  ToolRegistryFinopsPosture, ToolRegistryRuntimePosture, ToolUsageAnalyticsResponse,
-  PolicyCheckResponse, PolicyDryRunReport,
-} from '@/types/api'
+import { createSearchTool, createToolPolicy, deleteSearchTool, deleteToolPolicy, deleteToolRegistry, getAccessGroups, getSearchTools, getToolPolicies, getToolPolicyAnalytics, listMcpTools, listToolRegistry, policyDryRun, getPolicyDryRunReport, promotePolicy, simulateToolPolicy, updateSearchTool, updateToolPolicy, updateToolRegistry, upsertToolRegistry } from '@/lib/api'
+import type { AccessGroupResponse, McpToolListItem, SearchToolResponse, ToolPolicyResponse, ToolPolicySimulationResponse, ToolRegistryResponse, ToolUsageAnalyticsResponse, PolicyCheckResponse, PolicyDryRunReport } from '@/types/api'
 import { num } from '@/lib/utils'
 import { useRole } from '@/components/rbac/useRole'
 import ReadOnlyNotice from '@/components/rbac/ReadOnlyNotice'
@@ -104,12 +90,6 @@ export default function ToolGovernancePage() {
   const [analytics, setAnalytics] = useState<ToolUsageAnalyticsResponse | null>(null)
   const [accessGroups, setAccessGroups] = useState<AccessGroupResponse[]>([])
   const [discoveredTools, setDiscoveredTools] = useState<McpToolListItem[]>([])
-  const [finopsPosture, setFinopsPosture] = useState<ToolRegistryFinopsPosture | null>(null)
-  const [orgPosture, setOrgPosture] = useState<ToolGovernanceOrgPosture | null>(null)
-  const [gatewayPosture, setGatewayPosture] = useState<ToolGovernanceGatewayPosture | null>(null)
-  const [govInternal, setGovInternal] = useState<GovernanceInternalPosture | null>(null)
-  const [runtimePosture, setRuntimePosture] = useState<ToolRegistryRuntimePosture | null>(null)
-  const [policiesRuntimePosture, setPoliciesRuntimePosture] = useState<ToolPoliciesRuntimePosture | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [showRegistryForm, setShowRegistryForm] = useState(false)
@@ -151,32 +131,19 @@ export default function ToolGovernancePage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      const [registry, providers, polRes, anaRes, agRes, mcpTools, posture, orgP, gwP, govI, rtP, prtP] = await Promise.all([
+      const [registry, providers, polRes, anaRes, agRes, mcpTools] = await Promise.all([
         listToolRegistry(apiKey),
         getSearchTools(apiKey, { include_inactive: true }),
         getToolPolicies(apiKey, { tool_name: filterTool ?? undefined, include_inactive: true }).catch(() => ({ items: [], total: 0 })),
         getToolPolicyAnalytics(apiKey, 250).catch(() => null),
         getAccessGroups(apiKey).catch(() => ({ items: [], total: 0 })),
-        listMcpTools(apiKey).catch(() => ({ items: [], total: 0 })),
-        getToolRegistryFinopsPosture(apiKey).catch(() => null),
-        getToolGovernanceOrgPosture(apiKey).catch(() => null),
-        getToolGovernanceGatewayPosture(apiKey).catch(() => null),
-        getGovernanceInternalPosture(apiKey).catch(() => null),
-        getToolRegistryRuntimePosture(apiKey).catch(() => null),
-        getToolPoliciesRuntimePosture(apiKey).catch(() => null),
-      ])
+        listMcpTools(apiKey).catch(() => ({ items: [], total: 0 }))])
       setTools(registry.items)
       setSearchToolsList(providers.items)
       setPolicies(polRes.items || [])
       setAnalytics(anaRes)
       setAccessGroups(agRes.items || [])
       setDiscoveredTools(mcpTools.items || [])
-      setFinopsPosture(posture)
-      setOrgPosture(orgP)
-      setGatewayPosture(gwP)
-      setGovInternal(govI)
-      setRuntimePosture(rtP)
-      setPoliciesRuntimePosture(prtP)
     } catch {
       toast.error('Failed to load tool governance data')
     } finally {
@@ -386,131 +353,12 @@ export default function ToolGovernancePage() {
         })}
       </div>
 
-      {/* ── Posture Sections (compact chips) ── */}
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {finopsPosture && (
-          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-950/20 px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">FinOps</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">Spend 30d: ${num(finopsPosture.spend_context.tool_spend_30d).toFixed(2)}</span>
-              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{finopsPosture.spend_context.tool_call_count_30d.toLocaleString()} calls</span>
-              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{finopsPosture.budget_context.total_budgets} budgets</span>
-              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{finopsPosture.chargeback_context.chargeback_rules} chargeback</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <Link href="/budgets" className="text-[10px] text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">Budgets</Link>
-              <Link href="/chargeback?dimension=feature_tag" className="text-[10px] text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">Chargeback</Link>
-              <Link href="/ledger" className="text-[10px] text-emerald-600 hover:text-emerald-500 dark:text-emerald-400">Ledger</Link>
-            </div>
-          </div>
-        )}
 
-        {orgPosture && (
-          <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 dark:bg-blue-950/20 px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-blue-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">Org Scope</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">{orgPosture.user_context.total_users} users</span>
-              <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">{orgPosture.access_group_context.total_groups} groups</span>
-              <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">{orgPosture.api_key_context.total_keys} API keys</span>
-              <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300">{orgPosture.mcp_context.active_servers} MCP servers</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <Link href="/organization" className="text-[10px] text-blue-600 hover:text-blue-500 dark:text-blue-400">Org</Link>
-              <Link href="/users" className="text-[10px] text-blue-600 hover:text-blue-500 dark:text-blue-400">Users</Link>
-              <Link href="/access-groups" className="text-[10px] text-blue-600 hover:text-blue-500 dark:text-blue-400">Groups</Link>
-              <Link href="/mcp-registry" className="text-[10px] text-blue-600 hover:text-blue-500 dark:text-blue-400">MCP</Link>
-            </div>
-          </div>
-        )}
 
-        {gatewayPosture && (
-          <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 dark:bg-violet-950/20 px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Radio className="h-3.5 w-3.5 text-violet-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">Gateway</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">{gatewayPosture.provider_context.total_routes} routes</span>
-              <span className="rounded-md bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">{gatewayPosture.guardrail_context.total_guardrails} guardrails</span>
-              <span className="rounded-md bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">{gatewayPosture.run_context.tool_runs_30d.toLocaleString()} tool calls</span>
-              <span className="rounded-md bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">{gatewayPosture.monitoring_context.alert_firings_30d} alerts</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <Link href="/gateway" className="text-[10px] text-violet-600 hover:text-violet-500 dark:text-violet-400">Gateway</Link>
-              <Link href="/guardrails" className="text-[10px] text-violet-600 hover:text-violet-500 dark:text-violet-400">Guardrails</Link>
-              <Link href="/runs" className="text-[10px] text-violet-600 hover:text-violet-500 dark:text-violet-400">Runs</Link>
-              <Link href="/monitoring" className="text-[10px] text-violet-600 hover:text-violet-500 dark:text-violet-400">Monitoring</Link>
-            </div>
-          </div>
-        )}
 
-        {govInternal && (
-          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 dark:bg-rose-950/20 px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Link2 className="h-3.5 w-3.5 text-rose-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-rose-600 dark:text-rose-400">Governance</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">{govInternal.approvals_context.pending_approvals} pending</span>
-              <span className="rounded-md bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">{govInternal.security_context.security_events_30d} security</span>
-              <span className="rounded-md bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">{govInternal.audit_context.audit_events_30d} audit</span>
-              <span className="rounded-md bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">{govInternal.tags_context.active_tags} tags</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <Link href="/approvals" className="text-[10px] text-rose-600 hover:text-rose-500 dark:text-rose-400">Approvals</Link>
-              <Link href="/security" className="text-[10px] text-rose-600 hover:text-rose-500 dark:text-rose-400">Security</Link>
-              <Link href="/audit" className="text-[10px] text-rose-600 hover:text-rose-500 dark:text-rose-400">Audit</Link>
-              <Link href="/tags" className="text-[10px] text-rose-600 hover:text-rose-500 dark:text-rose-400">Tags</Link>
-            </div>
-          </div>
-        )}
 
-        {runtimePosture && (
-          <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-950/20 px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 text-cyan-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-600 dark:text-cyan-400">Runtime</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-700 dark:text-cyan-300">{runtimePosture.api_key_scope.keys_with_tool_calls_30d} keys w/ tools</span>
-              <span className="rounded-md bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-700 dark:text-cyan-300">{runtimePosture.gateway_runtime.model_routes} model routes</span>
-              <span className="rounded-md bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-700 dark:text-cyan-300">{runtimePosture.observe_evidence.tool_requests_30d.toLocaleString()} requests</span>
-              <span className="rounded-md bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-700 dark:text-cyan-300">{runtimePosture.budget_linkage.budget_notifications_30d} budget alerts</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <Link href="/api-keys" className="text-[10px] text-cyan-600 hover:text-cyan-500 dark:text-cyan-400">Keys</Link>
-              <Link href="/gateway" className="text-[10px] text-cyan-600 hover:text-cyan-500 dark:text-cyan-400">Gateway</Link>
-              <Link href="/request-explorer" className="text-[10px] text-cyan-600 hover:text-cyan-500 dark:text-cyan-400">Requests</Link>
-              <Link href="/budgets" className="text-[10px] text-cyan-600 hover:text-cyan-500 dark:text-cyan-400">Budgets</Link>
-            </div>
-          </div>
-        )}
 
-        {policiesRuntimePosture && (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-950/20 px-3 py-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Activity className="h-3.5 w-3.5 text-amber-500" />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400">Enforcement</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">{policiesRuntimePosture.gateway_enforcement.guardrail_events_30d} guardrail events</span>
-              <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">{policiesRuntimePosture.observe_evidence.policy_violations_30d} violations</span>
-              <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">{policiesRuntimePosture.budget_context.total_budgets} budgets</span>
-              <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">{policiesRuntimePosture.ledger_context.ledger_snapshots} snapshots</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <Link href="/guardrails" className="text-[10px] text-amber-600 hover:text-amber-500 dark:text-amber-400">Guardrails</Link>
-              <Link href="/alert-rules" className="text-[10px] text-amber-600 hover:text-amber-500 dark:text-amber-400">Alert Rules</Link>
-              <Link href="/ledger" className="text-[10px] text-amber-600 hover:text-amber-500 dark:text-amber-400">Ledger</Link>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Tab Bar ── */}

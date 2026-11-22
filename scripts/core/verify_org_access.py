@@ -20,7 +20,7 @@ Replays the org lifecycle a real operator goes through and asserts every control
      ingest, an ingest key cannot read, and an unscoped key keeps full access.
  10. Backups and the global pricing import are platform-admin only, and ingest from one
      org cannot change another org's run.
- 11. Unauthenticated surfaces stay closed (analytics posture, removed unsigned ingest).
+ 11. Unauthenticated surfaces stay closed (workspace context, removed unsigned ingest).
  12. Repeated failed sign-ins for one account are throttled (429).
 
 Both orgs are deleted at the end (pass --keep to inspect them in the UI).
@@ -331,8 +331,8 @@ def run(args: argparse.Namespace) -> int:
             )
 
         print("\n→ unauthenticated surfaces closed")
-        anon = api.call("GET", "/analytics/agents-list-posture")
-        check(anon.status_code in (401, 403), "analytics posture needs auth", anon.status_code)
+        anon = api.call("GET", "/context?entity=workspace")
+        check(anon.status_code in (401, 403), "workspace context needs auth", anon.status_code)
         webhook = api.call(
             "POST", "/ingest/v1/webhook", body={"workspace_id": org_a["id"], "events": []}
         )

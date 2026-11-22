@@ -13,23 +13,12 @@ import {
   Wallet,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import {
-  getAccessGroupDashboard,
-  getInvestigationAccessGroupPosture,
-  getOrgDashboard,
-  getOverviewFinopsBudgetPosture,
-  getOverviewGatewayPosture,
-  getOverviewGovernancePosture,
-  getOverviewOrgPosture,
-  getOverviewScopePosture,
-  getRunFlow,
-  getRuns,
-  getScopedSummary,
-} from '@/lib/api'
+import { getAccessGroupDashboard, getOrgDashboard, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatAge, formatCost, formatTokens, truncateId, num } from '@/lib/utils'
 import AnalyticsBreakdownClient from '@/components/dashboard/AnalyticsBreakdownClient'
 import type { DashboardRange } from '@/components/dashboard/DashboardScopeBar'
+import { RelatedPanel } from '@/components/context/RelatedPanel'
 
 type Scope = 'workspace' | 'org' | 'platform'
 
@@ -163,106 +152,6 @@ function HeroStat({
   )
 }
 
-function PostureSection({
-  title,
-  icon: Icon,
-  color,
-  href,
-  chips,
-}: {
-  title: string
-  icon: React.ElementType
-  color: string
-  href: string
-  chips: { label: string; value: string }[]
-}) {
-  const borderCls: Record<string, string> = {
-    slate: 'border-slate-200/60 dark:border-slate-700/40',
-    emerald: 'border-emerald-200/60 dark:border-emerald-800/40',
-    violet: 'border-violet-200/60 dark:border-violet-800/40',
-    amber: 'border-amber-200/60 dark:border-amber-800/40',
-    blue: 'border-blue-200/60 dark:border-blue-800/40',
-  }
-  const bgCls: Record<string, string> = {
-    slate: 'bg-slate-50/30 dark:bg-slate-950/20',
-    emerald: 'bg-emerald-50/30 dark:bg-emerald-950/20',
-    violet: 'bg-violet-50/30 dark:bg-violet-950/20',
-    amber: 'bg-amber-50/30 dark:bg-amber-950/20',
-    blue: 'bg-blue-50/30 dark:bg-blue-950/20',
-  }
-  const iconCls: Record<string, string> = {
-    slate: 'text-slate-500 dark:text-slate-400',
-    emerald: 'text-emerald-600 dark:text-emerald-400',
-    violet: 'text-violet-600 dark:text-violet-400',
-    amber: 'text-amber-600 dark:text-amber-400',
-    blue: 'text-blue-600 dark:text-blue-400',
-  }
-  const titleCls: Record<string, string> = {
-    slate: 'text-slate-700 dark:text-slate-300',
-    emerald: 'text-emerald-700 dark:text-emerald-300',
-    violet: 'text-violet-700 dark:text-violet-300',
-    amber: 'text-amber-700 dark:text-amber-300',
-    blue: 'text-blue-700 dark:text-blue-300',
-  }
-  const linkCls: Record<string, string> = {
-    slate: 'text-slate-500 hover:text-slate-700 dark:text-slate-400',
-    emerald: 'text-emerald-600 dark:text-emerald-400',
-    violet: 'text-violet-600 dark:text-violet-400',
-    amber: 'text-amber-600 dark:text-amber-400',
-    blue: 'text-blue-600 dark:text-blue-400',
-  }
-  const chipBorder: Record<string, string> = {
-    slate: 'border-slate-200 dark:border-slate-700',
-    emerald: 'border-emerald-200 dark:border-emerald-800',
-    violet: 'border-violet-200 dark:border-violet-800',
-    amber: 'border-amber-200 dark:border-amber-800',
-    blue: 'border-blue-200 dark:border-blue-800',
-  }
-  const chipBg: Record<string, string> = {
-    slate: 'bg-white dark:bg-slate-900',
-    emerald: 'bg-emerald-50 dark:bg-emerald-950/40',
-    violet: 'bg-violet-50 dark:bg-violet-950/40',
-    amber: 'bg-amber-50 dark:bg-amber-950/40',
-    blue: 'bg-blue-50 dark:bg-blue-950/40',
-  }
-  const chipLabelCls: Record<string, string> = {
-    slate: 'text-slate-400 dark:text-slate-500',
-    emerald: 'text-emerald-500 dark:text-emerald-400',
-    violet: 'text-violet-500 dark:text-violet-400',
-    amber: 'text-amber-500 dark:text-amber-400',
-    blue: 'text-blue-500 dark:text-blue-400',
-  }
-  const chipValueCls: Record<string, string> = {
-    slate: 'text-slate-700 dark:text-slate-300',
-    emerald: 'text-emerald-700 dark:text-emerald-300',
-    violet: 'text-violet-700 dark:text-violet-300',
-    amber: 'text-amber-700 dark:text-amber-300',
-    blue: 'text-blue-700 dark:text-blue-300',
-  }
-
-  return (
-    <div className={`rounded-xl border ${borderCls[color] ?? ''} ${bgCls[color] ?? ''} p-3`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Icon className={`h-3.5 w-3.5 ${iconCls[color] ?? ''}`} />
-          <span className={`text-xs font-semibold ${titleCls[color] ?? ''}`}>{title}</span>
-        </div>
-        <Link href={href} className={`text-[10px] font-semibold hover:underline ${linkCls[color] ?? ''}`}>
-          Manage
-        </Link>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {chips.map(c => (
-          <span key={c.label} className={`inline-flex items-center gap-1 rounded-md border ${chipBorder[color] ?? ''} ${chipBg[color] ?? ''} px-2 py-0.5 text-[11px]`}>
-            <span className={`font-medium ${chipLabelCls[color] ?? ''}`}>{c.label}</span>
-            <span className={`font-bold ${chipValueCls[color] ?? ''}`}>{c.value}</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export default async function AnalyticsOverviewPage({
   searchParams,
 }: {
@@ -285,14 +174,6 @@ export default async function AnalyticsOverviewPage({
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
-  const [investigationPosture, budgetPosture, gatewayPosture, governancePosture, orgPosture, scopePosture] = await Promise.all([
-    getInvestigationAccessGroupPosture(session.apiKey).catch(() => null),
-    getOverviewFinopsBudgetPosture(session.apiKey).catch(() => null),
-    getOverviewGatewayPosture(session.apiKey).catch(() => null),
-    getOverviewGovernancePosture(session.apiKey).catch(() => null),
-    getOverviewOrgPosture(session.apiKey).catch(() => null),
-    getOverviewScopePosture(session.apiKey).catch(() => null),
-  ])
 
   const [summary, flow, workspaceRuns, orgDashboard] = await Promise.all([
     getScopedSummary(session.apiKey, scope, { from: win.from, to: win.to, access_group_id: accessGroupId }),
@@ -334,6 +215,7 @@ export default async function AnalyticsOverviewPage({
               <h1 className="text-2xl font-bold tracking-tight text-slate-950 dark:text-white">
                 Observability Command Center
               </h1>
+                <div className="mt-2"><RelatedPanel entity="workspace" label="Workspace context" /></div>
               <p className="mt-1 max-w-2xl text-xs text-slate-500 dark:text-slate-400">
                 Unified analytics, cost attribution, and platform health.
               </p>
@@ -447,61 +329,11 @@ export default async function AnalyticsOverviewPage({
         </div>
       </div>
 
-      {/* Posture sections — compact */}
       <div className="grid gap-2 lg:grid-cols-2">
-        {investigationPosture && (
-          <PostureSection title="Investigation" icon={Shield} color="slate" href="/access-groups" chips={[
-            { label: 'Groups', value: investigationPosture.access_group_context.access_groups.toLocaleString() },
-            { label: 'Members', value: investigationPosture.access_group_context.total_members.toLocaleString() },
-            { label: 'Runs 30d', value: investigationPosture.investigation_context.runs_30d.toLocaleString() },
-            { label: 'Users', value: investigationPosture.investigation_context.active_users.toLocaleString() },
-          ]} />
-        )}
 
-        {budgetPosture && (
-          <PostureSection title="FinOps & Budget" icon={Wallet} color="emerald" href="/budgets" chips={[
-            { label: 'Budgets', value: `${budgetPosture.budget_context.active_budgets}` },
-            { label: 'Limit', value: `$${num(budgetPosture.budget_context.total_limit_usd).toFixed(2)}` },
-            { label: 'Spend 30d', value: `$${num(budgetPosture.spend_context.total_spend_30d).toFixed(2)}` },
-            { label: 'Breached', value: `${budgetPosture.budget_context.breach_count}` },
-            { label: 'Alerts', value: `${budgetPosture.notification_context.active_notifications}` },
-          ]} />
-        )}
 
-        {gatewayPosture && (
-          <PostureSection title="Gateway & Routing" icon={Network} color="violet" href="/gateway" chips={[
-            { label: 'Providers', value: `${gatewayPosture.provider_context.distinct_providers}` },
-            { label: 'Routes', value: `${gatewayPosture.provider_context.active_routes}/${gatewayPosture.provider_context.total_routes}` },
-            { label: 'Guardrails', value: `${gatewayPosture.guardrail_context.active_rules}` },
-            ...(scopePosture ? [
-              { label: 'Cache Hits', value: scopePosture.cache_context.total_hits.toLocaleString() },
-              { label: 'Saved', value: `$${num(scopePosture.cache_context.total_savings_usd).toFixed(2)}` },
-            ] : []),
-          ]} />
-        )}
 
-        {governancePosture && (
-          <PostureSection title="Governance & Audit" icon={Shield} color="amber" href="/security" chips={[
-            { label: 'Security 30d', value: `${governancePosture.security_context.security_events_30d}` },
-            { label: 'Alerts', value: `${governancePosture.alert_context.active_alert_rules}/${governancePosture.alert_context.alert_rules}` },
-            { label: 'Audit 30d', value: `${governancePosture.audit_context.audit_events_30d}` },
-            { label: 'Tags', value: `${governancePosture.governance_context.active_tags}` },
-            ...(scopePosture ? [
-              { label: 'Tools', value: `${scopePosture.tool_context.tool_registry_entries}` },
-              { label: 'Pending', value: `${scopePosture.tool_context.pending_approvals}` },
-            ] : []),
-          ]} />
-        )}
 
-        {orgPosture && (
-          <PostureSection title="Org Identity" icon={Users} color="blue" href="/organization" chips={[
-            { label: 'Users', value: `${orgPosture.user_context.workspace_users}` },
-            { label: 'API Keys', value: `${orgPosture.api_key_context.active_api_keys}/${orgPosture.api_key_context.api_keys}` },
-            { label: 'Telemetry 30d', value: `${orgPosture.telemetry_context.telemetry_batches_30d}` },
-            { label: 'MCP', value: `${orgPosture.mcp_context.active_mcp_servers}` },
-            { label: 'Hub Models', value: `${orgPosture.hub_context.active_hub_models}` },
-          ]} />
-        )}
       </div>
     </div>
   )
