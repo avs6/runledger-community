@@ -34,6 +34,33 @@ export async function apiFetch<T>(path: string, apiKey: string, init?: RequestIn
   return res.json() as Promise<T>
 }
 
+/** One page of a list endpoint on the pagination standard: rows plus X-Total-Count. */
+export interface Page<T> {
+  items: T[]
+  total: number
+}
+
+/**
+ * GET a paginated list (`?limit=&offset=`) and read the total from X-Total-Count. Accepts
+ * endpoints that return either a bare array or `{ items: [...] }`.
+ */
+export async function apiFetchPage<T>(path: string, apiKey: string): Promise<Page<T>> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    cache: 'no-store',
+  })
+  if (res.status === 401) {
+    const { redirect } = await import('next/navigation')
+    redirect('/login')
+  }
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+  const body = await res.json()
+  const items: T[] = Array.isArray(body) ? body : (body?.items ?? [])
+  const header = res.headers.get('x-total-count')
+  const total = header != null ? Number(header) : typeof body?.total === 'number' ? body.total : items.length
+  return { items, total }
+}
+
 export async function adminFetch<T>(path: string, adminSecret: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,

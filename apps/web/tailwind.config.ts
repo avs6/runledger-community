@@ -52,6 +52,34 @@ const config: Config = {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
+  			// Semantic tokens backed by the CSS variables in app/globals.css (light + dark).
+  			// Use these instead of raw hex or ad-hoc palette colours (review Wave 0.4).
+  			status: {
+  				success: 'hsl(var(--status-success))',
+  				warning: 'hsl(var(--status-warning))',
+  				error: 'hsl(var(--status-error))',
+  				info: 'hsl(var(--status-info))',
+  				neutral: 'hsl(var(--status-neutral))'
+  			},
+  			severity: {
+  				low: 'hsl(var(--severity-low))',
+  				medium: 'hsl(var(--severity-medium))',
+  				high: 'hsl(var(--severity-high))',
+  				critical: 'hsl(var(--severity-critical))'
+  			},
+  			scope: {
+  				platform: 'hsl(var(--scope-platform))',
+  				organization: 'hsl(var(--scope-organization))',
+  				workspace: 'hsl(var(--scope-workspace))',
+  				'access-group': 'hsl(var(--scope-access-group))',
+  				'api-key': 'hsl(var(--scope-api-key))'
+  			},
+  			runtime: {
+  				active: 'hsl(var(--runtime-active))',
+  				degraded: 'hsl(var(--runtime-degraded))',
+  				down: 'hsl(var(--runtime-down))',
+  				maintenance: 'hsl(var(--runtime-maintenance))'
+  			},
   			chart: {
   				'1': 'hsl(var(--chart-1))',
   				'2': 'hsl(var(--chart-2))',

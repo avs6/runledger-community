@@ -1,1 +1,43 @@
-{"extends":"next/core-web-vitals"}
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-globals": [
+      "warn",
+      {
+        "name": "confirm",
+        "message": "Use useConfirm() / <ConfirmDialog> from components/ui/confirm-dialog instead of window.confirm."
+      }
+    ],
+    "no-restricted-properties": [
+      "warn",
+      {
+        "object": "window",
+        "property": "confirm",
+        "message": "Use useConfirm() / <ConfirmDialog> from components/ui/confirm-dialog instead of window.confirm."
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{6}/]",
+        "message": "Raw hex colour: use a Tailwind token (status-*, severity-*, scope-*, runtime-*) or lib/tokens.ts."
+      },
+      {
+        "selector": "TemplateElement[value.raw=/#[0-9a-fA-F]{6}/]",
+        "message": "Raw hex colour: use a Tailwind token (status-*, severity-*, scope-*, runtime-*) or lib/tokens.ts."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "lib/tokens.ts",
+        "lib/modelColors.ts",
+        "tailwind.config.ts"
+      ],
+      "rules": {
+        "no-restricted-syntax": "off"
+      }
+    }
+  ]
+}
