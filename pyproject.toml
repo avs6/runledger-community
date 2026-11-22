@@ -26,6 +26,7 @@ ignore = [
 "apps/api/runledger_api/routers/gateway_passthrough.py" = ["F403", "F405"]
 "apps/api/runledger_api/routers/gateway_routing.py" = ["F403", "F405"]
 "apps/api/runledger_api/routers/gateway_runtime.py" = ["F403", "F405"]
+"apps/api/runledger_api/routers/analytics/*.py" = ["F403", "F405"]
 
 [tool.mypy]
 python_version = "3.13"
