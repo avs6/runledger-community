@@ -30,6 +30,9 @@ details.card summary::before{content:"▸ ";color:var(--mute)}details.card[open]
 ul.items{margin:6px 0 0;padding-left:18px}ul.items li{margin:2px 0}
 .ids{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;color:var(--acc)}
 .enh{color:var(--warn);font-weight:600;font-size:12px}
+li.done,tr.done td{text-decoration:line-through;opacity:.55}
+s.idone{opacity:.55}
+.status{background:var(--ok-bg);border:1px solid var(--ok);border-radius:10px;padding:10px 14px;margin:12px 0}
 pre{background:var(--code);padding:12px;border-radius:8px;overflow-x:auto;font-size:12.5px;white-space:pre-wrap;position:relative}
 button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:2px 8px;cursor:pointer}
 .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
@@ -40,15 +43,16 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 <body>
 <main>
 <h1>Review burn-down: parallel strategy</h1>
-<p class="lede">How to finish every open item in <code>docs/review/runledger-review.html</code> and add a round of UI/UX "good to have" improvements, using many agents at once without them colliding with each other or with other sessions. Snapshot taken 2026-11-22.</p>
+<p class="lede">How to finish every open item in <code>docs/review/runledger-review.html</code> and add a round of UI/UX "good to have" improvements, using many agents at once without them colliding with each other or with other sessions. Snapshot taken 2026-11-22; refreshed the same day after master <code>67de27b</code>.</p>
 
 <nav class="toc"><a href="#scope">Scope</a><a href="#rules">Ground rules</a><a href="#waves">Waves</a><a href="#w0">Wave 0</a><a href="#w1">Wave 1 streams</a><a href="#w2">Wave 2 UX</a><a href="#w3">Wave 3 integration</a><a href="#own">File ownership</a><a href="#prompt">Kick-off prompt</a><a href="#risks">Risks</a></nav>
 
+<div class="status"><b>Status (refreshed 2026-11-22, master 67de27b):</b> Wave 0 step 0.1 is done: all work up to the gateway and security fixes is committed and merged. Since the plan was written, every code-deep gateway item (cd:G-01 to cd:G-22) plus S-01, S-02, S-12, S-13 and G-21 to G-26 were fixed and verified (<code>verify-security</code> 108/108). So <b>W1-B</b> is now small: G-15, G-19, O-12, G-09, B-23, cd:gw-perf and the ENH header. <b>W1-C</b> loses G-14, G-21, G-22, G-23, G-25 and G-26. G-16 is partly addressed (route edits keep error-triggered fallback rules; routing_config is still cleared when intelligent routing is off). <b>W1-A</b> no longer needs the IP ACL work (S-13, cd:G-18). Struck-through lines and IDs below are done. Next: steps 0.2 to 0.5, then branch <code>review/base</code>.</div>
 <h2 id="scope">What's left</h2>
 <div class="grid">
-<div class="card stat"><b>~110</b><span>open findings in the feature registers (O, B, G, S, F, P, A, I)</span></div>
-<div class="card stat"><b>6</b><span>partly resolved: O-04, G-03, S-25, P-05, P-06, P-12</span></div>
-<div class="card stat"><b>~21</b><span>open code-deep items (cd-register: gateway, budgets, ledger, MCP)</span></div>
+<div class="card stat"><b>105</b><span>open findings in the feature registers (O, B, G, S, F, P, A, I)</span></div>
+<div class="card stat"><b>2</b><span>partly resolved: cd:B-01 (model budgets), cd:S-05 (gateway-rs on the shared admin secret)</span></div>
+<div class="card stat"><b>7</b><span>open code-deep items: cd:B-05, cd:B-06, cd:B-09, cd:M-02, cd:M-03, cd:S-04, cd:S-06 (all cd:G gateway items are done)</span></div>
 <div class="card stat"><b>~75</b><span>open UI rows (ui-nav, ui-matrix, ui-fixes, tr-gui), plus themes, roadmap and legacy surfaces</span></div>
 </div>
 <p class="note"><b>ID collision:</b> the code-deep register reuses prefixes (its <code>B-</code> = budget, <code>G-</code> = gateway, <code>S-</code> = security) that mean something else in the feature register. In this plan, code-deep items are written <code>cd:B-05</code> and so on. Agents must quote the section as well as the ID when reporting.</p>
@@ -74,7 +78,7 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 <h2 id="w0"><span class="tag w0">Wave 0</span> Foundation (must finish before Wave 1)</h2>
 <p>Most collisions would come from three giant files and posture cards that sit on almost every page. Removing those first is what makes nine parallel streams safe.</p>
 <table><thead><tr><th>Step</th><th>What</th><th>Covers</th></tr></thead><tbody>
-<tr><td>0.1</td><td>Commit the current uncommitted work on <code>docs/review-status-refresh</code> (pagination plus the hardening batch), merge to master, then branch <code>review/base</code>. Worktrees only see committed code.</td><td>—</td></tr>
+<tr class="done"><td>0.1</td><td>Commit the current uncommitted work on <code>docs/review-status-refresh</code> (pagination plus the hardening batch), merge to master, then branch <code>review/base</code>. Worktrees only see committed code.</td><td>—</td></tr>
 <tr><td>0.2</td><td><b>Split hot files mechanically, without behaviour change:</b> <code>routers/analytics.py</code> → <code>routers/analytics/</code> package (overview, runs, posture, optimization, scorecards, tags…); <code>app/(dashboard)/gateway/page.tsx</code> → one component per tab; <code>lib/api.ts</code> → <code>lib/api/&lt;domain&gt;.ts</code> with a barrel re-export.</td><td>roadmap "split analytics.py and gateway/page.tsx", O-23</td></tr>
 <tr><td>0.3</td><td><b>Delete posture sprawl:</b> the 68 posture endpoints, 121 fetchers, posture cards on 56 pages and the 83 posture-only examples. Add <code>GET /context?entity=&amp;id=</code> and a lazy <code>&lt;RelatedPanel&gt;</code> drawer.</td><td>tr-sprawl, ui-fixes #8, G-18 (fewer calls), O-25, fa-cohesion</td></tr>
 <tr><td>0.4</td><td><b>Shared UI kit</b> in <code>components/ui</code>: <code>DataTable</code> (server paging via X-Total-Count, sort, column chooser, CSV, URL state), <code>ConfirmDialog</code>, <code>AsyncCard</code>/<code>SectionError</code> with retry, <code>EmptyState</code>, <code>PageHeader</code>, <code>TimeRangePicker</code>, typed <code>lib/routes.ts</code>, design tokens replacing hex colours, plus an eslint rule banning <code>window.confirm</code> and raw hex.</td><td>P-28, ui-fixes #1 and #4, tr-gui consistency</td></tr>
@@ -89,7 +93,7 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 <li><span class="ids">S-03 S-04 G-05 F-15 B-09 cd:M-03</span> One <code>core/secrets.py</code> (Fernet/KMS envelope) with a migration that encrypts existing auth-provider, LDAP, search-provider, pass-through, webhook and evaluator secrets. Secrets become write-only in the API and UI (masked, "replace" button).</li>
 <li><span class="ids">S-02 S-16 S-27</span> Emit audit before commit; actor on every event; hash-chained audit log; actor and pack filters in the Audit UI.</li>
 <li><span class="ids">S-15</span> Separation of duties on approvals and <code>FOR UPDATE</code> locking.</li>
-<li><span class="ids">S-13 cd:G-18</span> IP ACL: use the rightmost untrusted XFF hop; honour priority and deny; fix the OIDC crash; key by workspace, not team.</li>
+<li class="done"><span class="ids">S-13 cd:G-18</span> IP ACL: use the rightmost untrusted XFF hop; honour priority and deny; fix the OIDC crash; key by workspace, not team.</li>
 <li><span class="ids">P-27</span> Structlog PII-redaction processor. <span class="ids">S-25</span> LDAP min_length and threadpool for sync calls.</li>
 <li><span class="ids">tr-security</span> Separate secret per internal channel (gateway-rs off the shared admin secret, cd:S-05); block <code>/internal</code> at Caddy; Postgres RLS defence in depth plus a cross-workspace fuzz test.</li>
 <li><span class="enh">ENH</span> Security page: secret-age and last-rotated badges, a "rotate" action, and an audit timeline per secret.</li>
@@ -97,10 +101,10 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 
 <details class="card stream"><summary>W1-B · Gateway runtime <span class="ids">review/gateway-runtime</span></summary>
 <ul class="items">
-<li><span class="ids">cd:G-09 cd:G-10 S-12</span> Guardrails and redaction before sidecars; redact non-streamed calls; record blocked-post-call runs before returning 451.</li>
-<li><span class="ids">cd:G-11 cd:G-12 cd:G-13 cd:G-14</span> Fallback on content-policy and context-window errors; fire-and-forget mirror; 429 with a reason instead of 502; per-user RPM counts only the route actually used, with a sliding window.</li>
-<li><span class="ids">cd:G-15 cd:G-17 cd:G-20 cd:G-21 cd:G-22</span> Real gateway_overhead_ms; no fake price for local models; per-request timeout overrides, no ORM mutation; correct Anthropic defaults; reqwest timeouts and backoff.</li>
-<li><span class="ids">G-15 G-24</span> Pass-through gets governance preflight and no redirects; reserved slugs.</li>
+<li class="done"><span class="ids">cd:G-09 cd:G-10 S-12</span> Guardrails and redaction before sidecars; redact non-streamed calls; record blocked-post-call runs before returning 451.</li>
+<li class="done"><span class="ids">cd:G-11 cd:G-12 cd:G-13 cd:G-14</span> Fallback on content-policy and context-window errors; fire-and-forget mirror; 429 with a reason instead of 502; per-user RPM counts only the route actually used, with a sliding window.</li>
+<li class="done"><span class="ids">cd:G-15 cd:G-17 cd:G-20 cd:G-21 cd:G-22</span> Real gateway_overhead_ms; no fake price for local models; per-request timeout overrides, no ORM mutation; correct Anthropic defaults; reqwest timeouts and backoff.</li>
+<li><span class="ids">G-15 <s class="idone">G-24</s></span> Pass-through gets governance preflight and no redirects; reserved slugs.</li>
 <li><span class="ids">G-19 O-12</span> Persist <code>run_id</code>, <code>api_key_id</code> and <code>workflow</code> on GatewayRequest and GuardrailEvent; drop the heuristic linkage.</li>
 <li><span class="ids">G-09</span> One cache profile with real hit/miss counters. <span class="ids">cd:gw-perf</span> All 10 perf rows; p50/p99 overhead benchmark in CI.</li>
 <li><span class="ids">B-23</span> Prompt-ref resolution in the gateway (<code>prompt: "name@prod"</code>).</li>
@@ -110,11 +114,11 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 <details class="card stream"><summary>W1-C · Gateway admin &amp; UI <span class="ids">review/gateway-admin</span></summary>
 <ul class="items">
 <li><span class="ids">G-03 G-10</span> Flywheel apply: org admin only, with audit and rollback; audit every gateway, tier, quota, cache, pricing and flywheel mutation.</li>
-<li><span class="ids">G-02 G-20 G-26</span> Tier rpm/tpm/allowed_models enforced per key (runtime hook supplied to W1-B as a cross-stream edit), or dropped; correct soft-delete; grouped counts; DataTable.</li>
+<li><span class="ids">G-02 G-20 <s class="idone">G-26</s></span> Tier rpm/tpm/allowed_models enforced per key (runtime hook supplied to W1-B as a cross-stream edit), or dropped; correct soft-delete; grouped counts; DataTable.</li>
 <li><span class="ids">G-06 G-16</span> Partner guardrail edit keeps untouched credentials; route edit merges fallback and routing config.</li>
-<li><span class="ids">G-08 G-21 G-25</span> Implement <code>/pricing/sync</code> or remove the button; versioned pricing, and block deletes that would orphan budgets; GET-by-id endpoints.</li>
-<li><span class="ids">G-11 G-12 G-13 G-14</span> Alias invariants, policy ownership, policy_type validator, <code>ge=0</code> on costs.</li>
-<li><span class="ids">G-17 G-18 G-22 G-23</span> One role matrix; lazy tabs with React Query; violations debounce and a stats endpoint; per-section errors on Guardrails.</li>
+<li><span class="ids">G-08 <s class="idone">G-21</s> <s class="idone">G-25</s></span> Implement <code>/pricing/sync</code> or remove the button; versioned pricing, and block deletes that would orphan budgets; GET-by-id endpoints.</li>
+<li><span class="ids">G-11 G-12 G-13 <s class="idone">G-14</s></span> Alias invariants, policy ownership, policy_type validator, <code>ge=0</code> on costs.</li>
+<li><span class="ids">G-17 G-18 <s class="idone">G-22</s> <s class="idone">G-23</s></span> One role matrix; lazy tabs with React Query; violations debounce and a stats endpoint; per-section errors on Guardrails.</li>
 <li><span class="ids">ui-fixes #2</span> Label or hide decorative controls until they're enforced.</li>
 <li><span class="enh">ENH</span> Route "test request" button with a live preview of the chosen route, cost and latency; diff view before saving a route change.</li>
 </ul></details>
