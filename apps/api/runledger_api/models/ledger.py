@@ -64,6 +64,11 @@ class LedgerSnapshot(Base):
     entries_root: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     entry_count: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     sealed_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    # Off-box anchor (services.ledger_anchor): where the sealed hash was written, when,
+    # and whether S3 Object Lock protects it.
+    anchor_uri: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    anchored_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
+    anchor_locked: Mapped[bool | None] = mapped_column(sa.Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

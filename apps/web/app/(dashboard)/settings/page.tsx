@@ -1,6 +1,7 @@
 'use client'
 
 import { LedgerVerifyBadge, ledgerVerifySummary } from '@/components/ledger/LedgerVerifyBadge'
+import { LedgerAnchorCell } from '@/components/ledger/LedgerAnchorCell'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
@@ -514,6 +515,7 @@ export default function SettingsPage() {
                       <th className="px-4 py-2 text-right">Total Cost</th>
                       <th className="px-4 py-2 text-right">Calls</th>
                       <th className="px-4 py-2 text-left">Hash</th>
+                      <th className="px-4 py-2 text-left">Off-box anchor</th>
                       <th className="px-4 py-2 text-left">Integrity</th>
                     </tr>
                   </thead>
@@ -521,7 +523,7 @@ export default function SettingsPage() {
                     {loadingCompliance ? (
                       [1,2,3].map((i) => (
                         <tr key={i}>
-                          {[1,2,3,4,5].map((j) => (
+                          {[1,2,3,4,5,6].map((j) => (
                             <td key={j} className="px-4 py-3">
                               <div className="h-4 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
                             </td>
@@ -530,7 +532,7 @@ export default function SettingsPage() {
                       ))
                     ) : snapshots.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
+                        <td colSpan={6} className="px-4 py-6 text-center text-gray-400 dark:text-gray-500">
                           No snapshots yet. Click &ldquo;Generate Snapshot&rdquo; to create one.
                         </td>
                       </tr>
@@ -542,6 +544,13 @@ export default function SettingsPage() {
                           <td className="px-4 py-2 text-right font-mono dark:text-gray-200">${parseFloat(snap.total_cost_usd).toFixed(6)}</td>
                           <td className="px-4 py-2 text-right dark:text-gray-200">{snap.call_count}</td>
                           <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{snap.hash.slice(0, 12)}…</td>
+                          <td className="px-4 py-2">
+                            <LedgerAnchorCell
+                              apiKey={apiKey ?? ''}
+                              snapshot={snap}
+                              onAnchored={(updated) => setSnapshots((prev) => prev.map((s) => (s.snapshot_date === updated.snapshot_date ? updated : s)))}
+                            />
+                          </td>
                           <td className="px-4 py-2">
                             {vr ? (
                               <LedgerVerifyBadge result={vr} />

@@ -17,7 +17,8 @@ Review items (W1-D): cd:B-01 / G-01 / top#2, cd:B-05, cd:B-09, F-12, F-22, F-25,
   delivery is queued and retried by a worker instead of running inline (F-22).
 - provider_pricing.cache_write_cost_per_1m: prompt-cache write rate (F-25).
 - ledger_snapshots: prev_hash / entries_root / entry_count / sealed_at, plus
-  ledger_snapshot_entries, the per-call manifest a snapshot seals (cd:M-02).
+  ledger_snapshot_entries, the per-call manifest a snapshot seals, and
+  anchor_uri / anchored_at / anchor_locked for the off-box anchor (cd:M-02).
 
 Revision ID: finops_budget_spend
 Revises: 095_ip_acl_access_groups
@@ -132,7 +133,9 @@ def upgrade() -> None:
 
     # ── Queued webhook delivery (F-22) ───────────────────────────────────────
     op.add_column("budget_notification_deliveries", sa.Column("payload", JSONB, nullable=True))
-    op.add_column("budget_notification_deliveries", sa.Column("next_attempt_at", _TS, nullable=True))
+    op.add_column(
+        "budget_notification_deliveries", sa.Column("next_attempt_at", _TS, nullable=True)
+    )
     op.add_column(
         "budget_notification_deliveries",
         sa.Column("breach_id", PGUUID(as_uuid=True), nullable=True),
@@ -153,6 +156,9 @@ def upgrade() -> None:
     op.add_column("ledger_snapshots", sa.Column("entries_root", sa.Text, nullable=True))
     op.add_column("ledger_snapshots", sa.Column("entry_count", sa.Integer, nullable=True))
     op.add_column("ledger_snapshots", sa.Column("sealed_at", _TS, nullable=True))
+    op.add_column("ledger_snapshots", sa.Column("anchor_uri", sa.Text, nullable=True))
+    op.add_column("ledger_snapshots", sa.Column("anchored_at", _TS, nullable=True))
+    op.add_column("ledger_snapshots", sa.Column("anchor_locked", sa.Boolean, nullable=True))
     op.create_table(
         "ledger_snapshot_entries",
         sa.Column(
@@ -169,7 +175,15 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("ledger_snapshot_entries")
-    for col in ("sealed_at", "entry_count", "entries_root", "prev_hash"):
+    for col in (
+        "anchor_locked",
+        "anchored_at",
+        "anchor_uri",
+        "sealed_at",
+        "entry_count",
+        "entries_root",
+        "prev_hash",
+    ):
         op.drop_column("ledger_snapshots", col)
     op.drop_column("provider_pricing", "cache_write_cost_per_1m")
     op.drop_index(

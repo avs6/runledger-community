@@ -450,3 +450,72 @@ async def test_security_events_list(
     resp = await authed_client.get("/tools/security-events")
     assert resp.status_code == 200
     assert resp.json() == {"items": []}
+
+
+# ── Off-box anchor (cd:M-02) ──────────────────────────────────────────────────
+
+
+def _sealed_snap(**kw: object) -> SimpleNamespace:
+    base = dict(
+        workspace_id=uuid.uuid4(),
+        snapshot_date=date(2026, 2, 27),
+        hash="h1",
+        prev_hash=None,
+        entries_root="r1",
+        entry_count=3,
+        key_id=uuid.uuid4(),
+        sealed_at=datetime(2026, 2, 28, 1, tzinfo=UTC),
+        anchor_uri=None,
+        anchored_at=None,
+        anchor_locked=None,
+    )
+    return SimpleNamespace(**{**base, **kw})
+
+
+@pytest.mark.asyncio
+async def test_anchor_writes_object_and_records_lock() -> None:
+    from runledger_api.services import ledger_anchor
+
+    snap = _sealed_snap()
+    target = SimpleNamespace(bucket="evidence", prefix="rl", workspace_id=snap.workspace_id)
+    db = AsyncMock()
+    with (
+        patch.object(ledger_anchor, "_target", AsyncMock(return_value=target)),
+        patch.object(ledger_anchor, "_put", MagicMock(return_value=(True, "v1"))) as put,
+    ):
+        assert await ledger_anchor.anchor_snapshot(db, snap) == "anchored"  # type: ignore[arg-type]
+        assert await ledger_anchor.anchor_snapshot(db, snap) == "already_anchored"  # type: ignore[arg-type]
+    key = put.call_args.args[1]
+    assert key == f"rl/ledger-anchors/{snap.workspace_id}/2026-02-27.json"
+    assert snap.anchor_uri == f"s3://evidence/{key}?versionId=v1" and snap.anchor_locked is True
+
+
+@pytest.mark.asyncio
+async def test_anchor_without_target_or_seal() -> None:
+    from runledger_api.services import ledger_anchor
+
+    with patch.object(ledger_anchor, "_target", AsyncMock(return_value=None)):
+        assert await ledger_anchor.anchor_snapshot(AsyncMock(), _sealed_snap()) == "no_target"  # type: ignore[arg-type]
+    assert (
+        await ledger_anchor.anchor_snapshot(AsyncMock(), _sealed_snap(entries_root=None))  # type: ignore[arg-type]
+        == "unsealed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_anchor_detects_resigned_snapshot() -> None:
+    """A DB admin re-signing a snapshot can't change what was written off-box."""
+    from runledger_api.services import ledger_anchor
+
+    snap = _sealed_snap(anchor_uri="s3://evidence/rl/ledger-anchors/x/2026-02-27.json?versionId=v9")
+    anchored = ledger_anchor.anchor_payload(snap)  # type: ignore[arg-type]
+    target = SimpleNamespace(bucket="evidence", prefix="rl")
+    with (
+        patch.object(ledger_anchor, "_target", AsyncMock(return_value=target)),
+        patch.object(ledger_anchor, "_get", MagicMock(return_value=anchored)) as get,
+    ):
+        assert await ledger_anchor.check_anchor(AsyncMock(), snap) == (True, None)  # type: ignore[arg-type]
+        snap.hash = "re-signed"
+        ok, detail = await ledger_anchor.check_anchor(AsyncMock(), snap)  # type: ignore[arg-type]
+    assert ok is False and "hash" in (detail or "")
+    assert get.call_args.args[1:] == ("rl/ledger-anchors/x/2026-02-27.json", "v9")

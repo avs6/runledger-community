@@ -21,6 +21,9 @@ class LedgerSnapshotResponse(BaseModel):
     prev_hash: str | None = None
     entry_count: int | None = None
     sealed_at: datetime | None = None
+    anchor_uri: str | None = None
+    anchored_at: datetime | None = None
+    anchor_locked: bool | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -44,6 +47,9 @@ class LedgerVerifyResult(BaseModel):
     missing_rows: int = 0
     late_enriched_rows: int = 0
     late_arrival_rows: int = 0
+    # Off-box anchor: True matches, False differs (tampering), None not checkable.
+    anchored: bool = False
+    anchor_ok: bool | None = None
     detail: str | None = None
 
 

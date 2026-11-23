@@ -25,6 +25,8 @@ export function ledgerVerifySummary(r: LedgerVerifyResult): string {
   if (r.late_arrival_rows) parts.push(`${r.late_arrival_rows} call(s) recorded after sealing`)
   if (r.modified_rows) parts.push(`${r.modified_rows} sealed call(s) changed`)
   if (r.missing_rows) parts.push(`${r.missing_rows} sealed call(s) no longer exist (retention?)`)
+  if (r.anchor_ok === true) parts.push('matches the off-box anchor')
+  else if (r.anchored === false && r.sealed) parts.push('not anchored off-box yet')
   if (r.detail) parts.push(r.detail)
   return parts.join('; ') || (r.status === 'ok' ? 'Matches the sealed manifest' : r.status)
 }

@@ -403,6 +403,16 @@ export async function verifyLedgerSnapshot(
   return apiFetch<LedgerVerifyResult>(`/ledger/verify/${snapshotDate}`, apiKey)
 }
 
+/** Write a sealed snapshot's hash to the workspace's backup bucket (off-box anchor). */
+export async function anchorLedgerSnapshot(
+  apiKey: string,
+  snapshotDate: string
+): Promise<LedgerSnapshotResponse> {
+  return apiFetch<LedgerSnapshotResponse>(`/ledger/snapshots/${snapshotDate}/anchor`, apiKey, {
+    method: 'POST',
+  })
+}
+
 export async function getLedgerClosureSummary(apiKey: string): Promise<LedgerClosureSummary> {
   return apiFetch<LedgerClosureSummary>('/ledger/closure-summary', apiKey)
 }

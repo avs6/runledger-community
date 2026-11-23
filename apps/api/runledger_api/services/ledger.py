@@ -332,7 +332,8 @@ async def verify_snapshot(
     ``incomplete`` (sealed calls no longer exist, e.g. retention); ``tampered`` (the
     signature, the chain link or a sealed call's fields don't match);
     ``unsealed_drift`` (a legacy aggregate-only snapshot no longer matches; it can't
-    tell late data from tampering); ``not_found``.
+    tell late data from tampering); ``not_found``. An anchored snapshot is also
+    compared with its off-box anchor; a mismatch is tampering.
     """
     snapshot = (
         await db.execute(
@@ -424,7 +425,11 @@ async def verify_snapshot(
             modified += 1
     late_arrivals = len(set(live) - sealed_ids)
 
-    if not signature_ok or not chain_ok or modified:
+    from runledger_api.services.ledger_anchor import check_anchor  # noqa: PLC0415
+
+    anchor_ok, anchor_detail = await check_anchor(db, snapshot)
+
+    if not signature_ok or not chain_ok or modified or anchor_ok is False:
         status_ = "tampered"
     elif missing:
         status_ = "incomplete"
@@ -443,6 +448,8 @@ async def verify_snapshot(
         problems.append("signature or manifest does not match")
     if not chain_ok:
         problems.append("previous-snapshot link does not match")
+    if anchor_ok is False and anchor_detail:
+        problems.append(anchor_detail)
     return LedgerVerifyResult(
         snapshot_date=snapshot_date,
         status=status_,
@@ -456,6 +463,8 @@ async def verify_snapshot(
         missing_rows=missing,
         late_enriched_rows=late_enriched,
         late_arrival_rows=late_arrivals,
+        anchored=bool(getattr(snapshot, "anchor_uri", None)),
+        anchor_ok=anchor_ok,
         detail="; ".join(problems) or None,
     )
 
@@ -503,6 +512,9 @@ async def get_ledger_closure_summary(
                 prev_hash=snap.prev_hash,
                 entry_count=snap.entry_count,
                 sealed_at=snap.sealed_at,
+                anchor_uri=getattr(snap, "anchor_uri", None),
+                anchored_at=getattr(snap, "anchored_at", None),
+                anchor_locked=getattr(snap, "anchor_locked", None),
                 created_at=snap.created_at,
             )
         if result.status in {"ok", "late_data"}:

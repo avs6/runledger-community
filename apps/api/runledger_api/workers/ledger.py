@@ -29,6 +29,7 @@ from runledger_api.core.config import settings
 from runledger_api.models.events import AgentRun, ProviderCall, ToolCall
 from runledger_api.models.ledger import SecurityEvent
 from runledger_api.services.ledger import seal_snapshot
+from runledger_api.services.ledger_anchor import anchor_snapshot, retry_unanchored
 
 log = structlog.get_logger()
 
@@ -73,14 +74,26 @@ async def _run_daily_snapshots() -> dict[str, int]:
         ]
         for workspace_id in workspace_ids:
             try:
-                _, created = await seal_snapshot(session, workspace_id, yesterday)
+                snap, created = await seal_snapshot(session, workspace_id, yesterday)
                 await session.commit()
                 snapshotted += int(created)
+                if await anchor_snapshot(session, snap) == "anchored":
+                    await session.commit()
             except Exception as exc:  # noqa: BLE001
                 log.error("ledger_snapshot_error", workspace_id=str(workspace_id), error=str(exc))
                 await session.rollback()
 
-    return {"workspaces_snapshotted": snapshotted}
+        # Anchor earlier snapshots that were sealed before a backup target existed or
+        # whose anchor write failed.
+        try:
+            anchored = await retry_unanchored(session)
+            await session.commit()
+        except Exception as exc:  # noqa: BLE001
+            log.error("ledger_anchor_retry_error", error=str(exc))
+            await session.rollback()
+            anchored = 0
+
+    return {"workspaces_snapshotted": snapshotted, "anchors_retried": anchored}
 
 
 # ── suspicious_sequences ──────────────────────────────────────────────────────
