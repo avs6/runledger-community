@@ -298,89 +298,18 @@ async def optimization_opportunities(
     from_dt: Annotated[str | None, Query(alias="from")] = None,
     to_dt: Annotated[str | None, Query(alias="to")] = None,
 ) -> OptimizationOpportunitiesResponse:
-    """Identify cost optimization opportunities from request patterns."""
-    t_from = _parse_dt(from_dt, _default_from())
-    t_to = _parse_dt(to_dt, _default_to())
+    """Optimization opportunities from the Flywheel (review B-20).
 
-    base = [
-        ProviderCall.workspace_id == workspace.id,
-        ProviderCall.created_at >= t_from,
-        ProviderCall.created_at < t_to,
-        ProviderCall.status == "success",
-    ]
+    One engine: each item is a pending Flywheel recommendation learned from observed
+    cost and quality, applied with ``POST /flywheel/recommendations/{id}/apply``.
+    ``from``/``to`` are accepted for compatibility; the Flywheel's own lookback
+    window applies.
+    """
+    from runledger_api.services.optimization import flywheel_opportunities  # noqa: PLC0415
 
-    opportunities: list[OptimizationOpportunity] = []
-
-    # 1) Calls without any optimization — estimate 15% potential savings via caching/routing
-    unopt_row = (
-        await db.execute(
-            select(
-                func.count(ProviderCall.id).label("calls"),
-                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
-            ).where(*base, ProviderCall.optimization_applied.is_(None))
-        )
-    ).one()
-    if unopt_row.calls > 0:
-        potential = unopt_row.cost * Decimal("0.15")
-        opportunities.append(
-            OptimizationOpportunity(
-                optimization_type="unoptimized_requests",
-                potential_savings_usd=potential,
-                affected_calls=unopt_row.calls,
-                description=f"{unopt_row.calls} calls have no optimization applied — caching or model routing could save ~15%",
-            )
-        )
-
-    # 2) High-cost models that could be downgraded for simple intents
-    expensive = (
-        await db.execute(
-            select(
-                ProviderCall.model,
-                func.count(ProviderCall.id).label("calls"),
-                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
-            )
-            .where(*base)
-            .group_by(ProviderCall.model)
-            .having(func.avg(ProviderCall.cost_usd) > Decimal("0.01"))
-            .order_by(func.sum(ProviderCall.cost_usd).desc())
-            .limit(5)
-        )
-    ).all()
-    for row in expensive:
-        potential = row.cost * Decimal("0.30")
-        opportunities.append(
-            OptimizationOpportunity(
-                optimization_type="model_downgrade",
-                potential_savings_usd=potential,
-                affected_calls=row.calls,
-                description=f"Model '{row.model}' averaging >$0.01/call — routing simple tasks to a smaller model could save ~30%",
-            )
-        )
-
-    # 3) Repeated similar prompts that could benefit from caching
-    cache_row = (
-        await db.execute(
-            select(
-                func.count(ProviderCall.id).label("calls"),
-                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
-            ).where(
-                *base,
-                ProviderCall.cached_input_tokens.is_(None),
-                ProviderCall.input_tokens > 1000,
-            )
-        )
-    ).one()
-    if cache_row.calls > 10:
-        potential = cache_row.cost * Decimal("0.20")
-        opportunities.append(
-            OptimizationOpportunity(
-                optimization_type="prompt_caching",
-                potential_savings_usd=potential,
-                affected_calls=cache_row.calls,
-                description=f"{cache_row.calls} calls with >1K input tokens and no cache hits — prompt caching could save ~20%",
-            )
-        )
-
+    del from_dt, to_dt
+    rows = await flywheel_opportunities(db, workspace.id)
+    opportunities = [OptimizationOpportunity(**r) for r in rows]
     total_potential = sum((o.potential_savings_usd for o in opportunities), Decimal(0))
     return OptimizationOpportunitiesResponse(
         items=opportunities, total_potential_savings_usd=total_potential
