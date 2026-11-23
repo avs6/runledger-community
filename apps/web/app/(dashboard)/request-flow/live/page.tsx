@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import {
@@ -9,7 +9,8 @@ import {
   ChevronDown, ChevronUp, AlertTriangle, Database,
   Pause, Play, Filter, RefreshCw,
 } from 'lucide-react'
-import { getRuns, getRun, getRunGovernanceContext } from '@/lib/api'
+import { getRun, getRunGovernanceContext } from '@/lib/api'
+import { useRunStream } from '@/components/observe/useRunStream'
 import { num } from '@/lib/utils'
 import type {
   RunListItem, RunDetailResponse, RunGovernanceContextResponse,
@@ -436,32 +437,19 @@ export default function LivePipelinePage() {
   const { data: session } = useSession()
   const apiKey = session?.apiKey || ''
 
-  const [runs, setRuns] = useState<RunListItem[]>([])
-  const [loading, setLoading] = useState(true)
   const [paused, setPaused] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [modelFilter, setModelFilter] = useState<string>('all')
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-
-  const fetchRuns = useCallback(async () => {
-    if (!apiKey) return
-    try {
-      const data = await getRuns(apiKey, { limit: 100 })
-      setRuns(data.items)
-      setLastUpdated(new Date())
-    } catch { /* swallow */ }
-    finally { setLoading(false) }
-  }, [apiKey])
-
-  useEffect(() => {
-    fetchRuns()
-    if (!paused) {
-      pollRef.current = setInterval(fetchRuns, 2000)
-    }
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [fetchRuns, paused])
+  // Live over SSE: no COUNT polling; the stream closes while the tab is hidden (O-07).
+  const { runs, state: streamState, error: streamError, lastEvent: lastUpdated } = useRunStream(apiKey, {}, paused)
+  const loading = streamState === 'connecting' && runs.length === 0
+  const streamLabel =
+    streamState === 'live' ? 'Live (server-sent events)'
+      : streamState === 'paused' ? 'Paused'
+      : streamState === 'hidden' ? 'Paused while the tab is hidden'
+      : streamState === 'error' ? 'Reconnecting…'
+      : 'Connecting…'
 
   const models = Array.from(new Set(runs.map(r => r.primary_model).filter(Boolean))) as string[]
   const statuses = Array.from(new Set(runs.map(r => r.status)))
@@ -500,6 +488,7 @@ export default function LivePipelinePage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setPaused(!paused)}
+            aria-pressed={paused}
             className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition
               ${paused
                 ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
@@ -509,13 +498,9 @@ export default function LivePipelinePage() {
             {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
             {paused ? 'Resume' : 'Pause'}
           </button>
-          <button
-            onClick={() => { setLoading(true); fetchRuns() }}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 transition"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          {streamError && (
+            <span role="alert" className="text-xs text-rose-300">Stream error: {streamError}</span>
+          )}
           <Link
             href="/pipeline"
             className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 transition"
@@ -546,7 +531,7 @@ export default function LivePipelinePage() {
             </span>
             Request Pipeline
           </h2>
-          <span className="text-xs text-slate-500">{paused ? 'Paused' : 'Polling every 2s'}</span>
+          <span className="text-xs text-slate-500" aria-live="polite">{streamLabel}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
           {stages.map((stage, i) => {

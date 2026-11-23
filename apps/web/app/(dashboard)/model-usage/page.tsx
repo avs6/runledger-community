@@ -17,7 +17,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBestValueModels, getCostQuality, getModelBudgetUtilization, getRunFlow } from '@/lib/api'
+import { getAnalyticsSummary, getBestValueModels, getCostQuality, getModelBudgetUtilization, getRunFlow, getSpendByModel } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
 import {
@@ -245,29 +245,51 @@ export default async function ModelUsagePage({
   const s = session as unknown as Record<string, unknown>
   const isPlatformAdmin = Boolean(s.isPlatformAdmin)
   const tenantRole = String(s.tenantRole ?? '')
-  const isOrgAdmin = isPlatformAdmin || tenantRole === 'org_admin'
+  const isOrgAdmin = isPlatformAdmin || tenantRole === 'org_admin' || tenantRole === 'org_manager'
   const selectedScope = allowedScope(searchParams?.scope, isPlatformAdmin, isOrgAdmin)
   const win = getDashboardWindow(searchParams?.range ?? '30d')
-  const flow = await getRunFlow(session.apiKey, {
-    scope: selectedScope,
-    mode: 'request-route-provider-outcome',
-    metric: 'requests',
-    limit: 1000,
-    from: win.from,
-    to: win.to,
-  })
-  const [costQuality, bestValue, modelBudgets] = await Promise.all([
+  // Totals per model come from /analytics/spend-by-model (every call in the window,
+  // rollup-backed); the flow sample only supplies latency, routes and outcome mix (O-17).
+  const scopeWindow = { from: win.from, to: win.to, scope: selectedScope }
+  const [flow, spend, summary, costQuality, bestValue, modelBudgets] = await Promise.all([
+    getRunFlow(session.apiKey, {
+      scope: selectedScope,
+      mode: 'request-route-provider-outcome',
+      metric: 'requests',
+      limit: 500,
+      from: win.from,
+      to: win.to,
+    }),
+    getSpendByModel(session.apiKey, scopeWindow),
+    getAnalyticsSummary(session.apiKey, scopeWindow),
     getCostQuality(session.apiKey, { score_name: 'quality', from: win.from, to: win.to }).catch(() => ({ items: [] })),
     getBestValueModels(session.apiKey, { score_name: 'quality', from: win.from, to: win.to }).catch(() => ({ items: [] })),
     getModelBudgetUtilization(session.apiKey).catch(() => null)])
 
   const items = flow.items
   const timeline = buildTimeline(items)
-  const models = rollupModels(items)
+  const sampled = new Map(rollupModels(items).map(m => [m.model, m]))
+  const models: ModelRollup[] = spend.items.map(row => {
+    const sample = sampled.get(row.model)
+    return {
+      model: row.model,
+      provider: row.provider,
+      requests: row.call_count,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      cachedTokens: sample?.cachedTokens ?? 0,
+      cost: parseMoney(row.cost_usd),
+      savings: sample?.savings ?? 0,
+      latencyTotal: sample?.latencyTotal ?? 0,
+      latencySamples: sample?.latencySamples ?? 0,
+      // Success share from the sample, scaled to this model's sampled requests.
+      successes: sample && sample.requests > 0 ? (sample.successes / sample.requests) * row.call_count : 0,
+    }
+  })
   const routes = rollupRoutes(items)
-  const requests = flow.total_runs || items.length
-  const totalCost = items.reduce((sum, item) => sum + parseMoney(item.total_cost_usd), 0)
-  const totalSavings = items.reduce((sum, item) => sum + parseMoney(item.savings_usd), 0)
+  const requests = summary.call_count
+  const totalCost = parseMoney(summary.total_cost_usd)
+  const totalSavings = parseMoney(summary.total_savings_usd ?? '0')
   const avgLatency = (() => {
     const samples = items.map((item) => item.latency_ms).filter((value): value is number => value !== null)
     return samples.length > 0 ? samples.reduce((sum, value) => sum + value, 0) / samples.length : null
@@ -308,6 +330,9 @@ export default async function ModelUsagePage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Model Usage</h1>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Models, routes, cost, latency, cache, and outcomes.</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">
+            Cost, calls and tokens cover every call in the window. Latency, routes and outcome mix come from the newest {items.length.toLocaleString()} runs.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {(['workspace', 'org', 'platform'] as FlowScope[]).map((scope) => {

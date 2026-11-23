@@ -15,6 +15,7 @@ import {
   getAnalyticsSummary, getSpendOverTime, getSpendByModel,
   getSpendByFeature, getRuns,
 } from '@/lib/api'
+import { SectionError } from '@/components/ui/async-card'
 import type {
   AnalyticsSummary, SpendOverTime, SpendByModel,
   SpendByFeature, RunListItem,
@@ -57,6 +58,9 @@ type AnalyticsBreakdownClientProps = {
   embedded?: boolean
   initialPreset?: Preset
   apiKey?: string
+  /** Scope and access group of the page around it: every chart honours them (O-06). */
+  scope?: 'workspace' | 'org' | 'platform'
+  accessGroupId?: string
 }
 type LoadingKey = 'summary' | 'spendTime' | 'byModel' | 'byFeature' | 'runs'
 
@@ -1052,7 +1056,7 @@ function Card({ title, sub, icon, children, action, controls }: {
   )
 }
 
-export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24h', apiKey: apiKeyOverride }: AnalyticsBreakdownClientProps = {}) {
+export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24h', apiKey: apiKeyOverride, scope = 'workspace', accessGroupId }: AnalyticsBreakdownClientProps = {}) {
   const { data: session } = useSession()
   const apiKey = apiKeyOverride ?? (session as { apiKey?: string })?.apiKey
   const loadIdRef = useRef(0)
@@ -1070,6 +1074,7 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
   const [byModel, setByModel] = useState<SpendByModel | null>(null)
   const [byFeature, setByFeature] = useState<SpendByFeature | null>(null)
   const [recentRuns, setRecentRuns] = useState<RunListItem[]>([])
+  const [sectionErrors, setSectionErrors] = useState<string[]>([])
 
   useEffect(() => {
     setPreset(initialPreset)
@@ -1090,7 +1095,7 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
       return
     }
     setLoadingState(LOADING_ON)
-    const win = presetWindow(preset)
+    const win = { ...presetWindow(preset), scope, access_group_id: accessGroupId }
     const gran = presetGranularity(preset)
 
     async function loadSection<T>(
@@ -1118,13 +1123,17 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
       loadSection('spendTime', 'Spend over time', getSpendOverTime(apiKey, gran, win), setSpendTime),
       loadSection('byModel', 'Spend by model', getSpendByModel(apiKey, win), setByModel),
       loadSection('byFeature', 'Spend by feature', getSpendByFeature(apiKey, win), setByFeature),
-      loadSection('runs', 'Recent runs', getRuns(apiKey, { limit: 80, from: win.from, to: win.to }), result => setRecentRuns(result.items)),
+      scope === 'workspace'
+        ? loadSection('runs', 'Recent runs', getRuns(apiKey, { limit: 80, from: win.from, to: win.to, access_group_id: accessGroupId, include_total: false }), result => setRecentRuns(result.items))
+        : Promise.resolve(null).then(() => { setRecentRuns([]); setLoadingState(c => ({ ...c, runs: false })); return null }),
     ])
+    const labels = ['Summary', 'Spend over time', 'Spend by model', 'Spend by workflow', 'Recent runs']
+    if (isCurrentLoad()) setSectionErrors(labels.filter((_, i) => results[i]))
     const failures = results.filter(Boolean)
     if (isCurrentLoad() && failures.length === results.length) {
       toast.error('Failed to load analytics')
     }
-  }, [apiKey, preset])
+  }, [apiKey, preset, scope, accessGroupId])
 
   useEffect(() => { load() }, [load])
 
@@ -1239,6 +1248,12 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
 
   return (
     <div className={embedded ? 'space-y-3' : 'max-w-7xl space-y-4'}>
+      {sectionErrors.length > 0 && (
+        <SectionError
+          message={`Some charts failed to load: ${sectionErrors.join(', ')}. The rest are current.`}
+          onRetry={load}
+        />
+      )}
       {!embedded && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
