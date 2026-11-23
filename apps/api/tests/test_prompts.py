@@ -248,7 +248,7 @@ async def test_create_version_success(
             "content": "Hello {{user_name}}, how can I help?",
             "variables": [{"name": "user_name", "type": "string"}],
             "commit_message": "Initial version",
-            "environment": "production",
+            "environment": "dev",
         },
     )
     assert resp.status_code == 201

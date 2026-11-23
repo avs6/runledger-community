@@ -15,7 +15,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -63,6 +63,7 @@ def _make_request(**overrides):
         route_decision=None,
         error=None,
         gateway_request_id=None,
+        run_id=None,
         created_at=datetime.now(UTC),
     )
     defaults.update(overrides)
@@ -220,18 +221,101 @@ async def test_send_request(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.refresh = AsyncMock(side_effect=_refresh_defaults)
+    """Send goes through the gateway with the caller's key and stores the real reply."""
+    from runledger_api.services.gateway_client import GatewayCallResult
 
-    resp = await authed_client.post(
-        "/playground/send",
-        headers={"Authorization": "Bearer test-key"},
-        json={"model": "gpt-4o", "user_prompt": "Hello"},
+    mock_db_session.refresh = AsyncMock(side_effect=_refresh_defaults)
+    run_id = uuid.uuid4()
+    fake = GatewayCallResult(
+        ok=True,
+        status_code=200,
+        model="gpt-4o",
+        request_ref="ref-1",
+        text="Hi there",
+        input_tokens=5,
+        output_tokens=3,
+        latency_ms=42,
+        run_id=run_id,
     )
+    with (
+        patch(
+            "runledger_api.services.gateway_client.chat_completion",
+            AsyncMock(return_value=fake),
+        ) as chat,
+        patch(
+            "runledger_api.services.gateway_client.attach_run",
+            AsyncMock(side_effect=lambda _db, _ws, r: r),
+        ),
+    ):
+        resp = await authed_client.post(
+            "/playground/send",
+            headers={"Authorization": "Bearer test-key"},
+            json={
+                "model": "gpt-4o",
+                "user_prompt": "Hello",
+                "parameters": {"temperature": 0.2, "evil": 1},
+            },
+        )
     assert resp.status_code == 201
     data = resp.json()
     assert data["model"] == "gpt-4o"
     assert data["user_prompt"] == "Hello"
     assert data["status"] == "completed"
+    assert data["response_text"] == "Hi there"
+    assert "gateway integration pending" not in data["response_text"]
+    assert data["run_id"] == str(run_id)
+    args, kwargs = chat.call_args
+    assert args[0] == "Bearer test-key"
+    assert kwargs["params"] == {"temperature": 0.2}
+    assert kwargs["metadata"]["feature_tag"] == "playground"
+
+
+@pytest.mark.asyncio
+async def test_send_request_gateway_error_is_recorded_as_failed(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    from runledger_api.services.gateway_client import GatewayCallResult
+
+    mock_db_session.refresh = AsyncMock(side_effect=_refresh_defaults)
+    fake = GatewayCallResult(
+        ok=False, status_code=429, model="gpt-4o", request_ref="r", error="budget exceeded"
+    )
+    with (
+        patch(
+            "runledger_api.services.gateway_client.chat_completion",
+            AsyncMock(return_value=fake),
+        ),
+        patch(
+            "runledger_api.services.gateway_client.attach_run",
+            AsyncMock(side_effect=lambda _db, _ws, r: r),
+        ),
+    ):
+        resp = await authed_client.post(
+            "/playground/send",
+            headers={"Authorization": "Bearer test-key"},
+            json={"model": "gpt-4o", "user_prompt": "Hello"},
+        )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "failed"
+    assert "429" in data["error"] and "budget exceeded" in data["error"]
+
+
+@pytest.mark.asyncio
+async def test_list_models_returns_route_aliases(
+    authed_client: AsyncClient,
+) -> None:
+    aliases = [{"alias": "fast", "provider": "openai", "targets": ["gpt-4o-mini"]}]
+    with patch(
+        "runledger_api.services.gateway_client.list_route_aliases",
+        AsyncMock(return_value=aliases),
+    ):
+        resp = await authed_client.get(
+            "/playground/models", headers={"Authorization": "Bearer test-key"}
+        )
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["alias"] == "fast"
 
 
 # ── History ──────────────────────────────────────────────────────────────────

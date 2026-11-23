@@ -113,7 +113,9 @@ async def test_store_memory(
     agent = _make_agent()
     find_result = MagicMock()
     find_result.scalar_one_or_none.return_value = agent
-    mock_db_session.execute = AsyncMock(return_value=find_result)
+    no_existing = MagicMock()
+    no_existing.scalar_one_or_none.return_value = None
+    mock_db_session.execute = AsyncMock(side_effect=[find_result, no_existing])
     mock_db_session.refresh = AsyncMock(side_effect=_refresh_memory_defaults)
 
     resp = await authed_client.post(
@@ -137,7 +139,9 @@ async def test_store_memory_detects_pii(
     agent = _make_agent()
     find_result = MagicMock()
     find_result.scalar_one_or_none.return_value = agent
-    mock_db_session.execute = AsyncMock(return_value=find_result)
+    no_existing = MagicMock()
+    no_existing.scalar_one_or_none.return_value = None
+    mock_db_session.execute = AsyncMock(side_effect=[find_result, no_existing])
     mock_db_session.refresh = AsyncMock(side_effect=_refresh_memory_defaults)
 
     resp = await authed_client.post(
@@ -147,6 +151,54 @@ async def test_store_memory_detects_pii(
     )
     assert resp.status_code == 201
     assert resp.json()["has_pii"] is True
+    # Returned decrypted, stored encrypted (review B-16).
+    assert resp.json()["value"] == "email is user@example.com"
+    stored = mock_db_session.add.call_args_list[0].args[0]
+    assert stored.value.startswith("enc::")
+    assert "user@example.com" not in stored.value
+
+
+@pytest.mark.asyncio
+async def test_store_memory_duplicate_key_409_then_upsert(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    agent = _make_agent()
+    existing = _make_memory(key="user_pref", value="light mode", expires_at=None)
+    find_agent = MagicMock()
+    find_agent.scalar_one_or_none.return_value = agent
+    find_existing = MagicMock()
+    find_existing.scalar_one_or_none.return_value = existing
+    mock_db_session.execute = AsyncMock(side_effect=[find_agent, find_existing])
+    resp = await authed_client.post(
+        f"/agents/{agent.id}/memory",
+        headers={"Authorization": "Bearer test-key"},
+        json={"key": "user_pref", "value": "dark mode"},
+    )
+    assert resp.status_code == 409
+
+    mock_db_session.execute = AsyncMock(side_effect=[find_agent, find_existing])
+    mock_db_session.refresh = AsyncMock()
+    resp = await authed_client.post(
+        f"/agents/{agent.id}/memory",
+        headers={"Authorization": "Bearer test-key"},
+        json={"key": "user_pref", "value": "dark mode", "upsert": True},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["value"] == "dark mode"
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_deletes_rows() -> None:
+    from runledger_api.services.agent_memory import purge_expired
+
+    db = AsyncMock()
+    count = MagicMock()
+    count.scalar.return_value = 3
+    db.execute = AsyncMock(side_effect=[count, MagicMock()])
+    assert await purge_expired(db) == 3
+    assert db.execute.await_count == 2
+    db.commit.assert_awaited()
 
 
 @pytest.mark.asyncio
