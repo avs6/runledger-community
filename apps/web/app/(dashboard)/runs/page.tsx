@@ -180,11 +180,11 @@ async function RunsContent({ searchParams }: PageProps) {
       <RunsTabs
         overview={
           <div className="space-y-4">
-            <HeroChart items={data.items} total={data.total} />
+            <HeroChart items={data.items} total={data.total ?? data.items.length} />
           </div>
         }
         runs={
-          <RunsPaginated items={data.items} total={data.total} nextCursorHref={nextHref} />
+          <RunsPaginated items={data.items} total={data.total ?? data.items.length} nextCursorHref={nextHref} />
         }
         sessions={
           <SessionsEmbed
