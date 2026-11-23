@@ -96,11 +96,13 @@ export default async function RequestFlowFocusPage({ searchParams }: PageProps) 
     ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
+  // Only a 403 on org/platform scope falls back to workspace; other errors reach the
+  // error boundary instead of an empty chart (review O-19).
   let flow: RunFlowResponse
-
   try {
     flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 1000, access_group_id: accessGroupId })
-  } catch {
+  } catch (err) {
+    if (scope === 'workspace' || !(err instanceof Error && err.message.includes('API 403'))) throw err
     scope = 'workspace'
     flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 1000, access_group_id: accessGroupId })
   }

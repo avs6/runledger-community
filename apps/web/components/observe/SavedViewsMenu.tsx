@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Bookmark, Check, Trash2 } from 'lucide-react'
@@ -25,7 +25,7 @@ export function viewQuery(params: URLSearchParams): string {
  * Per-user saved views for an Observe list page: a name plus the page's filter query
  * string, stored by `/runs/saved-views` (minimal until the W2-C preferences API).
  */
-export default function SavedViewsMenu({ page }: { page: SavedViewPage }) {
+function SavedViewsMenuInner({ page }: { page: SavedViewPage }) {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey
   const router = useRouter()
@@ -150,5 +150,13 @@ export default function SavedViewsMenu({ page }: { page: SavedViewPage }) {
         </div>
       )}
     </div>
+  )
+}
+
+export default function SavedViewsMenu({ page }: { page: SavedViewPage }) {
+  return (
+    <Suspense fallback={null}>
+      <SavedViewsMenuInner page={page} />
+    </Suspense>
   )
 }

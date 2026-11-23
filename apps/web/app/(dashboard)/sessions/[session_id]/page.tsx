@@ -3,6 +3,8 @@
 import { use } from 'react'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { SectionError } from '@/components/ui/async-card'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
@@ -53,6 +55,8 @@ export default function SessionDetailPage({
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [turns, setTurns] = useState<TurnCostResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     if (!authSession?.apiKey) return
@@ -67,9 +71,14 @@ export default function SessionDetailPage({
         setDetail(d)
         setTurns(t)
       })
-      .catch(() => toast.error('Failed to load session'))
+      .then(() => setLoadError(null))
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Failed to load session'
+        setLoadError(message)
+        toast.error('Failed to load session')
+      })
       .finally(() => setLoading(false))
-  }, [authSession?.apiKey, session_id])
+  }, [authSession?.apiKey, session_id, reload])
 
   const chartData: ChartPoint[] = (turns?.turns ?? []).map((t) => ({
     turn: t.turn_number,
@@ -87,6 +96,14 @@ export default function SessionDetailPage({
     )
   }
 
+  // A missing session and a failed load are different states (review O-19).
+  if (loadError) {
+    return loadError.includes('API 404') ? (
+      <EmptyState title="Session not found" description="It may belong to another workspace, or its runs were removed by retention." />
+    ) : (
+      <SectionError message={loadError} onRetry={() => setReload(r => r + 1)} />
+    )
+  }
   if (!detail) return null
 
   const totalDurationMs =

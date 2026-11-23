@@ -97,13 +97,19 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
   const govParams = { access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined }
+  // Only a 403 on org/platform scope falls back to workspace (with a notice); any
+  // other failure reaches the error boundary instead of an empty chart (review O-19).
   let flow: RunFlowResponse
+  let scopeNotice: string | null = null
   try {
     flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined, api_key_id: apiKeyId, end_user_id: endUserId })
-  } catch {
+  } catch (err) {
+    if (scope === 'workspace' || !(err instanceof Error && err.message.includes('API 403'))) throw err
+    scopeNotice = `Your role can't view ${scope} scope, so this shows your workspace.`
     scope = 'workspace'
     flow = await getRunFlow(session.apiKey, { scope, mode, metric, limit: 500, access_group_id: accessGroupId, tag: govTag, tool_name: govToolName, security_event_only: govSecurityOnly || undefined, api_key_id: apiKeyId, end_user_id: endUserId })
   }
+  const truncated = flow.total_runs > flow.sampled_runs
   const items = flow.items
   const uniqueIntents = new Set(items.map((run) => run.feature_tag || 'General / Untagged')).size
   const uniqueModels = new Set(items.map((run) => run.primary_model || 'Model Unknown')).size
@@ -144,6 +150,12 @@ export default async function RequestFlowPage({ searchParams }: PageProps) {
         </div>
       </div>
 
+      {(scopeNotice || truncated) && (
+        <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          {scopeNotice}{scopeNotice && truncated ? ' ' : ''}
+          {truncated && `Showing the newest ${flow.sampled_runs.toLocaleString()} of ${flow.total_runs.toLocaleString()} runs.`}
+        </p>
+      )}
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-20 text-center dark:border-slate-700 dark:bg-slate-950/30">
           <RouteIcon className="h-10 w-10 text-slate-400 dark:text-slate-500" />
