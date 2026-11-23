@@ -125,8 +125,8 @@ and async functions.
 @rl.workflow("support-triage", agent="triage-bot")
 def triage(ticket): ...
 
-# With a registered agent id, its monthly budget envelope is checked first and
-# RunLedgerBudgetExceededError is raised when it is spent.
+# With a registered agent id, the agent preflight (status, monthly envelope) runs
+# first and RunLedgerBudgetExceededError is raised when it refuses.
 @rl.workflow("support-triage", agent_id="...")
 async def triage_async(ticket): ...
 ```

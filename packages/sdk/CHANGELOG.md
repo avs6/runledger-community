@@ -9,10 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - **`@rl.workflow(name, agent=..., agent_id=...)`** decorator (sync and async): each call
-  is one run attributed to the workflow. With `agent_id`, the agent's budget envelope is
-  checked first (`GET /agents/{id}/envelope`) and `RunLedgerBudgetExceededError` raised.
+  is one run attributed to the workflow. With `agent_id`, the agent preflight runs first
+  (`GET /agents/{id}/preflight`: status, envelope) and `RunLedgerBudgetExceededError` is
+  raised when it refuses.
 - `record_run_start(workflow=, agent_name=, agent_id=)`, `rl.task(..., workflow=, agent=,
-  agent_id=)` and `AgentTelemetryHelper.check_agent_envelope()`.
+  agent_id=)` and `AgentTelemetryHelper.check_agent_preflight(agent_id, alias=None)`.
 
 ### Changed
 - `RunLedgerTask` no longer sends `total_cost_usd=0` and zero tokens at run end when it

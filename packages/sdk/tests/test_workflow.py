@@ -59,7 +59,7 @@ def test_async_decorator() -> None:
     assert any(e.get("workflow") == "wf-async" for e in events)
 
 
-def test_envelope_exhausted_blocks_before_run_starts() -> None:
+def test_agent_preflight_refusal_blocks_before_run_starts() -> None:
     rl, events = _client()
     resp = MagicMock()
     resp.json.return_value = {
@@ -74,5 +74,5 @@ def test_envelope_exhausted_blocks_before_run_starts() -> None:
 
         with pytest.raises(RunLedgerBudgetExceededError, match="envelope"):
             run()
-    assert get.call_args.args[0].endswith("/agents/a1/envelope")
+    assert get.call_args.args[0].endswith("/agents/a1/preflight")
     assert not events

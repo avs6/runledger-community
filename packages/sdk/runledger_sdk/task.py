@@ -50,11 +50,11 @@ class RunLedgerTask:
                 RunLedgerBudgetExceededError,  # noqa: PLC0415
             )
 
-            status = self._client.agent_helper().check_agent_envelope(self.agent_id)
+            status = self._client.agent_helper().check_agent_preflight(self.agent_id)
             if not status.get("allowed", True):
                 raise RunLedgerBudgetExceededError(
                     f"agent:{self.agent_id}",
-                    str(status.get("reason") or "Agent budget envelope exhausted"),
+                    str(status.get("reason") or "Agent policy refused the run"),
                 )
         default_metadata = getattr(self._client, "_default_task_metadata", {})
         merged_metadata = {**default_metadata, **self.metadata, "task": self.name}

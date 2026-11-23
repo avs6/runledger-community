@@ -3409,7 +3409,8 @@ export interface AgentResponse {
   default_model: string | null
   default_tools: string[]
   budget_envelope: number | null
-  policy_profile: string | null
+  /** Gateway route aliases the agent may call; empty = any. Enforced by the gateway and SDK. */
+  allowed_aliases: string[]
   status: string
   config: Record<string, unknown>
   created_at: string
@@ -3423,6 +3424,8 @@ export interface AgentListResponse {
 
 export interface AgentEnvelopeStatus {
   agent_id: string
+  reason_code: 'agent_inactive' | 'alias_not_allowed' | 'envelope_exhausted' | null
+  allowed_aliases: string[]
   envelope_usd: number | string | null
   spent_usd: number | string
   remaining_usd: number | string | null

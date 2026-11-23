@@ -9,6 +9,10 @@
 - The record-only workflow_runs / workflow_steps tables (rows were written by hand
   through POST /workflows/{id}/runs and never executed or costed) are dropped;
   workflow_runs is recreated as a read-only view over agent_runs.
+- agents.policy_profile (free text that nothing enforced, review B-14) is replaced by
+  agents.allowed_aliases (gateway route aliases the agent may call), enforced with
+  status and the budget envelope by the agent preflight in the gateway and the SDK.
+  Old values are kept in config.policy_profile_legacy.
 
 Revision ID: workflows_spine
 Revises: 095_ip_acl_access_groups
@@ -108,8 +112,30 @@ def upgrade() -> None:
     op.drop_table("workflow_runs")
     op.execute(_VIEW)
 
+    op.add_column(
+        "agents",
+        sa.Column("allowed_aliases", JSONB, nullable=False, server_default=sa.text("'[]'")),
+    )
+    op.execute(
+        """
+        UPDATE agents
+        SET config = config || jsonb_build_object('policy_profile_legacy', policy_profile)
+        WHERE policy_profile IS NOT NULL AND policy_profile <> ''
+        """
+    )
+    op.drop_column("agents", "policy_profile")
+
 
 def downgrade() -> None:
+    op.add_column("agents", sa.Column("policy_profile", sa.Text, nullable=True))
+    op.execute(
+        """
+        UPDATE agents SET policy_profile = config->>'policy_profile_legacy',
+                          config = config - 'policy_profile_legacy'
+        WHERE config ? 'policy_profile_legacy'
+        """
+    )
+    op.drop_column("agents", "allowed_aliases")
     op.execute("DROP VIEW IF EXISTS workflow_runs")
     op.create_table(
         "workflow_runs",

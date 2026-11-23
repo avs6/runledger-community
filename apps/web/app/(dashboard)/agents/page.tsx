@@ -45,7 +45,7 @@ function AgentsInner() {
 
   const onRetire = async (a: AgentResponse) => {
     if (!apiKey) return
-    if (!(await confirm({ title: `Retire ${a.name}?`, description: 'New runs naming this agent are no longer attributed to it, and its envelope check refuses runs. History is kept; you can reactivate it from Edit.', confirmLabel: 'Retire', destructive: true }))) return
+    if (!(await confirm({ title: `Retire ${a.name}?`, description: 'The gateway and SDK refuse its new requests. History is kept; you can reactivate it from Edit.', confirmLabel: 'Retire', destructive: true }))) return
     try {
       await retireAgent(apiKey, a.id)
       toast.success(`${a.name} retired`)
@@ -60,6 +60,7 @@ function AgentsInner() {
     { key: 'agent_type', header: 'Type' },
     { key: 'default_model', header: 'Default model', render: (a) => a.default_model ?? '—' },
     { key: 'budget_envelope', header: 'Monthly envelope', value: (a) => (a.budget_envelope == null ? null : Number(a.budget_envelope)), render: (a) => (a.budget_envelope == null ? 'none' : money(a.budget_envelope)) },
+    { key: 'allowed_aliases', header: 'Allowed aliases', value: (a) => a.allowed_aliases.join(' '), render: (a) => (a.allowed_aliases.length ? a.allowed_aliases.join(', ') : 'any') },
     { key: 'owner', header: 'Owner', render: (a) => a.owner ?? '—' },
     { key: 'status', header: 'Status', render: (a) => <StatusBadge status={a.status} /> },
     {

@@ -396,8 +396,9 @@ class RunLedger:
 
         ``workflow`` is a workflow id, its feature_tag or its name. The run records
         success or failure (exceptions re-raise); model calls made inside are
-        attributed to it. With ``agent_id`` the agent's budget envelope is checked
-        first and :class:`RunLedgerBudgetExceededError` is raised when it is spent::
+        attributed to it. With ``agent_id`` the agent preflight runs first (status and
+        monthly budget envelope) and :class:`RunLedgerBudgetExceededError` is raised when
+        it refuses::
 
             @rl.workflow("support-triage", agent="triage-bot")
             def triage(ticket): ...

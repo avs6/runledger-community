@@ -10,6 +10,7 @@ from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
 from runledger_api.core.scopes import normalize_scopes
+from runledger_api.services.agent_policy import enforce_agent_policy_for_request
 from runledger_api.services.budgets import (
     check_budget_throttle,
     check_provider_profile_budgets,
@@ -657,6 +658,13 @@ async def gateway_runtime_preflight(
         request_tags=request_tags,
         preferred_region=preferred_region,
     )
+    # Agent policy (W1-F, review B-14): status, alias allow-list and monthly envelope of
+    # the registered agent the request names; 403/429 when refused.
+    agent_note = await enforce_agent_policy_for_request(
+        db, workspace.id, metadata, route_alias=body.body.model
+    )
+    if agent_note:
+        budget_note = f"{budget_note}|{agent_note}" if budget_note else agent_note
 
     primary_route, primary_reason = await choose_route_for_alias(
         db,

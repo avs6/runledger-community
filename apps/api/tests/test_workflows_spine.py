@@ -178,22 +178,73 @@ async def test_removed_record_only_endpoints_are_gone(authed_client: AsyncClient
     ).status_code in (404, 405)
 
 
-@pytest.mark.asyncio
-async def test_envelope_blocks_when_spent() -> None:
-    from runledger_api.routers.agents import envelope_status
-
-    db = AsyncMock()
-    db.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=Decimal("5"))))
-    agent = SimpleNamespace(
-        id=uuid.uuid4(), workspace_id=uuid.uuid4(), status="active", budget_envelope=Decimal("5")
+def _agent(**kw: Any) -> SimpleNamespace:
+    base = dict(
+        id=uuid.uuid4(),
+        workspace_id=uuid.uuid4(),
+        name="triage-bot",
+        status="active",
+        budget_envelope=Decimal("5"),
+        allowed_aliases=[],
     )
-    st = await envelope_status(db, agent)  # type: ignore[arg-type]
-    assert st.allowed is False and st.remaining_usd == Decimal("0")
-    agent.budget_envelope = Decimal("10")
-    st = await envelope_status(db, agent)  # type: ignore[arg-type]
-    assert st.allowed is True and st.remaining_usd == Decimal("5")
-    agent.status = "paused"
-    assert (await envelope_status(db, agent)).allowed is False  # type: ignore[arg-type]
+    base.update(kw)
+    return SimpleNamespace(**base)
+
+
+def _spent(amount: str) -> AsyncMock:
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=MagicMock(scalar=MagicMock(return_value=Decimal(amount))))
+    return db
+
+
+@pytest.mark.asyncio
+async def test_agent_policy_envelope_status_and_aliases() -> None:
+    from runledger_api.services.agent_policy import evaluate_agent_policy
+
+    d = await evaluate_agent_policy(_spent("5"), _agent())  # type: ignore[arg-type]
+    assert d.allowed is False and d.reason_code == "envelope_exhausted" and d.http_status == 429
+    assert d.remaining_usd == Decimal("0")
+    d = await evaluate_agent_policy(_spent("5"), _agent(budget_envelope=Decimal("10")))  # type: ignore[arg-type]
+    assert d.allowed is True and d.remaining_usd == Decimal("5")
+    d = await evaluate_agent_policy(_spent("0"), _agent(status="paused"))  # type: ignore[arg-type]
+    assert d.reason_code == "agent_inactive" and d.http_status == 403
+    scoped = _agent(budget_envelope=None, allowed_aliases=["cheap"])
+    d = await evaluate_agent_policy(_spent("0"), scoped, route_alias="smart")  # type: ignore[arg-type]
+    assert d.reason_code == "alias_not_allowed" and d.http_status == 403
+    d = await evaluate_agent_policy(_spent("0"), scoped, route_alias="cheap")  # type: ignore[arg-type]
+    assert d.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_gateway_hook_refuses_and_passes_through() -> None:
+    from fastapi import HTTPException
+    from runledger_api.services import agent_policy as ap
+
+    ws = uuid.uuid4()
+    with patch.object(ap, "find_agent_for_request", AsyncMock(return_value=None)):
+        assert await ap.enforce_agent_policy_for_request(AsyncMock(), ws, {}, "smart") is None
+    agent = _agent(workspace_id=ws)
+    with patch.object(ap, "find_agent_for_request", AsyncMock(return_value=agent)):
+        with pytest.raises(HTTPException) as exc:
+            await ap.enforce_agent_policy_for_request(_spent("9"), ws, {"agent_name": "x"}, "s")
+        assert exc.value.status_code == 429
+        assert exc.value.headers["X-Agent-Policy-Reason"] == "envelope_exhausted"
+        assert exc.value.headers["X-Cost-Cap-Reason"] == "agent_envelope"
+        agent.budget_envelope = None
+        note = await ap.enforce_agent_policy_for_request(_spent("9"), ws, {}, "smart")
+        assert note == f"agent:{agent.id}"
+
+
+@pytest.mark.asyncio
+async def test_create_agent_rejects_unknown_alias(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
+    none_known = MagicMock()
+    none_known.scalars.return_value.all.return_value = []
+    mock_db_session.execute = AsyncMock(return_value=none_known)
+    resp = await authed_client.post("/agents", json={"name": "a", "allowed_aliases": ["nope"]})
+    assert resp.status_code == 422
+    assert "nope" in resp.json()["detail"]
 
 
 # ── Postgres-backed ──────────────────────────────────────────────────────────
@@ -418,5 +469,43 @@ async def test_pg_agent_stats_from_agent_runs(pg: Any, pg_client: AsyncClient) -
     assert stats["envelope"]["allowed"] is False  # $0.02 spent of $0.02
     runs = (await pg_client.get(f"/agents/{agent_id}/runs")).json()
     assert runs["total"] == 2
-    env = (await pg_client.get(f"/agents/{agent_id}/envelope")).json()
-    assert env["reason"] == "monthly budget envelope exhausted"
+    env = (await pg_client.get(f"/agents/{agent_id}/preflight")).json()
+    assert env["reason_code"] == "envelope_exhausted"
+
+    # Gateway hook: the same decision for a request naming the agent.
+    from fastapi import HTTPException
+    from runledger_api.services.agent_policy import enforce_agent_policy_for_request
+
+    async with pg.factory() as s:
+        with pytest.raises(HTTPException) as exc:
+            await enforce_agent_policy_for_request(
+                s, pg.ws1, {"runledger.agent": "triage-bot"}, "smart"
+            )
+        assert exc.value.status_code == 429
+        # Another workspace naming the same agent id is not affected.
+        assert (
+            await enforce_agent_policy_for_request(s, pg.ws2, {"agent_id": agent_id}, "smart")
+            is None
+        )
+    # Lift the envelope, restrict aliases: unknown alias refused on save, allow-list enforced.
+    bad = await pg_client.put(f"/agents/{agent_id}", json={"allowed_aliases": ["no-such-route"]})
+    assert bad.status_code == 422
+    async with pg.factory() as s:
+        from sqlalchemy import text
+
+        await s.execute(
+            text(
+                "INSERT INTO gateway_routes(id, workspace_id, alias, provider, target_model) "
+                "VALUES (:id, :ws, 'cheap', 'openai', 'gpt-4o-mini')"
+            ),
+            {"id": uuid.uuid4(), "ws": pg.ws1},
+        )
+        await s.commit()
+    ok = await pg_client.put(
+        f"/agents/{agent_id}", json={"allowed_aliases": ["cheap"], "budget_envelope": None}
+    )
+    assert ok.status_code == 200 and ok.json()["allowed_aliases"] == ["cheap"]
+    pf = (await pg_client.get(f"/agents/{agent_id}/preflight?alias=smart")).json()
+    assert pf["reason_code"] == "alias_not_allowed"
+    pf = (await pg_client.get(f"/agents/{agent_id}/preflight?alias=cheap")).json()
+    assert pf["allowed"] is True

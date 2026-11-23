@@ -23,7 +23,10 @@ curl -X POST http://localhost:8201/agents \
 ```
 
 Fields: `name` (required), `description`, `agent_type` (`autonomous | semi_autonomous | workflow | chat`),
-`owner`, `default_model`, `default_tools`, `budget_envelope`, `policy_profile`, `status`, `config`.
+`owner`, `default_model`, `default_tools`, `budget_envelope`, `allowed_aliases`, `status`, `config`.
+Every entry in `allowed_aliases` must be an existing gateway route alias (422 otherwise).
+The old free-text `policy_profile` field was removed because nothing enforced it; its
+values were kept in `config.policy_profile_legacy`.
 
 ## List & filter
 
@@ -71,14 +74,28 @@ Computed from the runs attributed to the agent (optionally `?days=`): `total_run
 `success_rate`, `last_run_at`, `models_used` (from provider calls), `tools_used` (from tool
 calls) and `envelope`.
 
-## Budget envelope
+## Runtime policy
 
-`budget_envelope` is a monthly USD limit on the agent's attributed spend.
-`GET /agents/{id}/envelope` returns `envelope_usd`, `spent_usd`, `remaining_usd` and
-`allowed`. `allowed` is false once the month's spend reaches the envelope, or when the agent
-is paused or retired. The SDK enforces it: `@rl.workflow(..., agent_id=...)` and
-`rl.task(..., agent_id=...)` check it first and raise `RunLedgerBudgetExceededError`.
-For hard limits on gateway traffic, use a budget (feature tag, API key or end user).
+Each agent's controls are enforced wherever its traffic starts:
+
+| Control | Refused when | Gateway response |
+|---|---|---|
+| `status` | the agent is `paused` or `retired` | 403 |
+| `allowed_aliases` | the request calls an alias not in the list (empty = any) | 403 |
+| `budget_envelope` | this month's attributed spend has reached the envelope | 429, `X-Cost-Cap-Reason: agent_envelope` |
+
+Every refusal carries `X-Agent-Policy-Reason` (`agent_inactive`, `alias_not_allowed` or
+`envelope_exhausted`).
+
+- **Gateway:** the preflight checks every request whose metadata names a registered agent
+  (`runledger.agent`, `gen_ai.agent.name`, `agent_name`, or `runledger.agent.id` /
+  `agent_id`), after budgets and before routing. Names prefer an active agent but also find
+  paused and retired ones, so those are refused rather than let through.
+- **SDK:** `@rl.workflow(..., agent_id=...)` and `rl.task(..., agent_id=...)` call
+  `GET /agents/{id}/preflight` first and raise `RunLedgerBudgetExceededError` on refusal.
+- **API:** `GET /agents/{id}/preflight?alias=smart` returns the same decision:
+  `allowed`, `reason_code`, `reason`, `envelope_usd`, `spent_usd`, `remaining_usd` and
+  `allowed_aliases`.
 
 ## Agent runs
 

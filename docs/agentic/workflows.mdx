@@ -72,8 +72,10 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer $RUNLEDGER_API_KEY,X-Run
 </CodeGroup>
 
 `@rl.workflow` works on sync and async functions. With `agent_id=…` it first calls
-`GET /agents/{id}/envelope` and raises `RunLedgerBudgetExceededError` when the agent's
-monthly budget envelope is spent or the agent is paused or retired.
+`GET /agents/{id}/preflight` and raises `RunLedgerBudgetExceededError` when the agent's
+monthly budget envelope is spent or the agent is paused or retired. Gateway requests that
+name an agent get the same check, plus the agent's alias allow-list (see
+[Agents](agents#runtime-policy)).
 
 ## API
 

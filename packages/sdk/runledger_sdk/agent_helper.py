@@ -227,11 +227,15 @@ class AgentTelemetryHelper:
         resp.raise_for_status()
         return cast("dict[str, Any]", resp.json())
 
-    def check_agent_envelope(self, agent_id: str) -> dict[str, Any]:
-        """``GET /agents/{id}/envelope``: ``allowed`` is false once the agent's monthly
-        budget envelope is spent or the agent is paused/retired."""
+    def check_agent_preflight(
+        self, agent_id: str, alias: str | None = None
+    ) -> dict[str, Any]:
+        """``GET /agents/{id}/preflight``: ``allowed`` is false when the agent is paused or
+        retired, ``alias`` isn't in its allowed aliases, or its monthly budget envelope is
+        spent. The gateway makes the same decision for agent-tagged requests."""
         resp = httpx.get(
-            f"{self._client.base_url}/agents/{agent_id}/envelope",
+            f"{self._client.base_url}/agents/{agent_id}/preflight",
+            params={"alias": alias} if alias else None,
             headers=self._headers,
             timeout=5.0,
         )

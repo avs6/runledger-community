@@ -39,7 +39,11 @@ class Agent(Base):
     budget_envelope: Mapped[Decimal | None] = mapped_column(
         sa.Numeric(precision=12, scale=4), nullable=True
     )
-    policy_profile: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Gateway route aliases this agent may call; empty = any. Enforced with status and
+    # budget_envelope by services/agent_policy.py (gateway preflight + SDK).
+    allowed_aliases: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'")
+    )
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
     config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")

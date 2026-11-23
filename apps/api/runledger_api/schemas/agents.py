@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,12 @@ class AgentCreate(BaseModel):
     default_model: str | None = Field(None, max_length=200)
     default_tools: list[str] = Field(default_factory=list)
     budget_envelope: Decimal | None = Field(None, ge=0)
-    policy_profile: str | None = Field(None, max_length=200)
+    allowed_aliases: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Gateway route aliases the agent may call (empty = any). Enforced "
+        "by the gateway preflight and the SDK.",
+    )
     status: AgentStatus = "active"
     config: dict[str, Any] = Field(default_factory=dict)
 
@@ -37,7 +42,9 @@ class AgentUpdate(BaseModel):
     default_model: str | None = Field(None, max_length=200)
     default_tools: list[str] | None = None
     budget_envelope: Decimal | None = Field(None, ge=0)
-    policy_profile: str | None = Field(None, max_length=200)
+    allowed_aliases: list[Annotated[str, Field(min_length=1, max_length=200)]] | None = Field(
+        None, max_length=50
+    )
     status: AgentStatus | None = None
     config: dict[str, Any] | None = None
 
@@ -52,7 +59,7 @@ class AgentResponse(BaseModel):
     default_model: str | None = None
     default_tools: list[str]
     budget_envelope: Decimal | None = None
-    policy_profile: str | None = None
+    allowed_aliases: list[str] = Field(default_factory=list)
     status: str
     config: dict[str, Any]
     created_at: datetime
@@ -83,13 +90,16 @@ class AgentStats(BaseModel):
 
 
 class AgentEnvelopeStatus(BaseModel):
-    """Monthly spend against the agent's ``budget_envelope``.
+    """The agent preflight: status, alias allow-list and monthly budget envelope.
 
-    ``allowed`` is false once the month's attributed spend reaches the envelope; the
-    SDK's ``@workflow(..., agent=...)`` / ``agent_preflight`` refuse to start a run then.
+    ``allowed`` is false when the agent is paused/retired, the alias isn't allowed, or
+    the month's attributed spend has reached ``budget_envelope``. The gateway refuses
+    such requests (403 / 429) and the SDK refuses to start the run.
     """
 
     agent_id: uuid.UUID
+    reason_code: Literal["agent_inactive", "alias_not_allowed", "envelope_exhausted"] | None = None
+    allowed_aliases: list[str] = Field(default_factory=list)
     envelope_usd: Decimal | None = None
     spent_usd: Decimal = Decimal("0")
     remaining_usd: Decimal | None = None

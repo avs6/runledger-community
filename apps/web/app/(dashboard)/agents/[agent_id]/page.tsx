@@ -127,7 +127,7 @@ function AgentDetail() {
           )}
         </AsyncCard>
 
-        <AsyncCard title="Budget envelope" description="This month's attributed spend; enforced by the SDK preflight" loading={loading && !stats} error={error} onRetry={() => setTick((t) => t + 1)}>
+        <AsyncCard title="Runtime policy" description="Enforced by the gateway preflight and the SDK for this agent's traffic" loading={loading && !stats} error={error} onRetry={() => setTick((t) => t + 1)}>
           {env && (
             <div className="space-y-2 text-xs">
               <p className="flex justify-between"><span>{money(env.spent_usd)} spent</span><span>{env.envelope_usd == null ? 'no envelope' : `of ${money(env.envelope_usd)}`}</span></p>
@@ -136,7 +136,11 @@ function AgentDetail() {
                   <div className={`h-1.5 rounded ${envUsed >= 100 ? 'bg-status-error' : envUsed >= 80 ? 'bg-status-warning' : 'bg-status-success'}`} style={{ width: `${envUsed}%` }} />
                 </div>
               )}
-              <p className={env.allowed ? 'text-status-success' : 'text-status-error'}>{env.allowed ? 'New runs allowed' : `Runs refused: ${env.reason}`}</p>
+              <p>
+                Aliases:{' '}
+                {env.allowed_aliases.length ? env.allowed_aliases.map((a) => <code key={a} className="mr-1">{a}</code>) : 'any'}
+              </p>
+              <p className={env.allowed ? 'text-status-success' : 'text-status-error'}>{env.allowed ? 'New requests allowed' : `Requests refused: ${env.reason}`}</p>
             </div>
           )}
         </AsyncCard>

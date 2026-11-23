@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { createAgent, updateAgent } from '@/lib/api'
+import { X } from 'lucide-react'
+import { createAgent, listGatewayRoutes, updateAgent } from '@/lib/api'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import type { AgentResponse } from '@/types/api'
 import { apiErrorMessage, inputCls, useApiKey } from '../../workflows/_components/shared'
@@ -22,6 +23,7 @@ interface Form {
   default_model: string
   budget_envelope: string
   status: string
+  allowed_aliases: string[]
 }
 
 function toForm(a?: AgentResponse | null): Form {
@@ -33,6 +35,7 @@ function toForm(a?: AgentResponse | null): Form {
     default_model: a?.default_model ?? '',
     budget_envelope: a?.budget_envelope != null ? String(a.budget_envelope) : '',
     status: a?.status ?? 'active',
+    allowed_aliases: a?.allowed_aliases ?? [],
   }
 }
 
@@ -57,6 +60,16 @@ export function AgentSheet({
     setLastId(agent?.id)
     setForm(toForm(agent))
   }
+  const [aliases, setAliases] = useState<string[]>([])
+  useEffect(() => {
+    if (!open || !apiKey) return
+    listGatewayRoutes(apiKey)
+      .then((r) => setAliases(Array.from(new Set(r.items.map((x) => x.alias))).sort()))
+      .catch(() => setAliases([]))
+  }, [open, apiKey])
+  const addAlias = (alias: string) => {
+    if (alias && !form.allowed_aliases.includes(alias)) setForm({ ...form, allowed_aliases: [...form.allowed_aliases, alias] })
+  }
   const envelopeInvalid = form.budget_envelope !== '' && !(Number(form.budget_envelope) >= 0)
   const set = (k: keyof Form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value })
 
@@ -72,6 +85,7 @@ export function AgentSheet({
       default_model: form.default_model || null,
       budget_envelope: form.budget_envelope === '' ? null : Number(form.budget_envelope),
       status: form.status,
+      allowed_aliases: form.allowed_aliases,
     }
     try {
       const saved = agent ? await updateAgent(apiKey, agent.id, body) : await createAgent(apiKey, body)
@@ -117,7 +131,26 @@ export function AgentSheet({
           <div className="space-y-1">
             <label htmlFor="ag-env" className="text-xs font-medium">Monthly budget envelope (USD)</label>
             <input id="ag-env" inputMode="decimal" aria-invalid={envelopeInvalid} className={inputCls} value={form.budget_envelope} onChange={set('budget_envelope')} placeholder="no limit" />
-            <p className="text-[11px] text-slate-500">When the month&apos;s attributed spend reaches this, the SDK refuses to start the agent&apos;s runs (GET /agents/:id/envelope). Paused and retired agents are refused too.</p>
+            <p className="text-[11px] text-slate-500">When the month&apos;s attributed spend reaches this, the gateway refuses the agent&apos;s requests (429) and the SDK refuses to start its runs. Paused and retired agents are refused too (403).</p>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="ag-aliases" className="text-xs font-medium">Allowed gateway aliases</label>
+            <div className="flex flex-wrap gap-1" aria-live="polite">
+              {form.allowed_aliases.length === 0 && <span className="text-[11px] text-slate-500">Any alias</span>}
+              {form.allowed_aliases.map((a) => (
+                <span key={a} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 font-mono text-[11px] text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                  {a}
+                  <button type="button" aria-label={`Remove alias ${a}`} onClick={() => setForm({ ...form, allowed_aliases: form.allowed_aliases.filter((x) => x !== a) })}>
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <select id="ag-aliases" className={inputCls} value="" onChange={(e) => addAlias(e.target.value)}>
+              <option value="">Add an alias…</option>
+              {aliases.filter((a) => !form.allowed_aliases.includes(a)).map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <p className="text-[11px] text-slate-500">The gateway refuses this agent&apos;s requests to any other alias (403). Leave empty to allow all.</p>
           </div>
           <div className="space-y-1">
             <label htmlFor="ag-model" className="text-xs font-medium">Default model</label>

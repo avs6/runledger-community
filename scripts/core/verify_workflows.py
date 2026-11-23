@@ -14,7 +14,10 @@ Replays what a team does when it adopts workflows and asserts every step:
      doesn't exist in the workspace is not attributed.
   5. Asserts the Workflow page data: cost by step rolls up to the runs' cost, the health
      card's runs, failures and cost per success are right, the eval score shows up.
-  6. Asserts agent stats come from the attributed runs and the envelope now refuses runs.
+  6. Asserts agent stats come from the attributed runs, the agent preflight refuses once
+     the envelope is spent, an alias outside the agent's allow-list and a paused agent.
+     With --gateway-url and --alias, the same refusals come back from gateway-rs
+     (429 envelope, 403 alias) with X-Agent-Policy-Reason.
   7. Archives the workflow (new traffic stops matching), restores it (traffic re-links).
 
 The workflow, agent and key are archived/retired/deleted at the end (pass --keep to look
@@ -176,6 +179,23 @@ def otlp_trace(workflow: str) -> dict[str, Any]:
     }
 
 
+def gateway_call(
+    args: argparse.Namespace, key: str, metadata: dict[str, Any], alias: str
+) -> httpx.Response:
+    """One chat completion through gateway-rs carrying agent metadata."""
+    return httpx.post(
+        f"{args.gateway_url.rstrip('/')}/gateway/chat/completions",
+        headers={"Authorization": f"Bearer {key}"},
+        json={
+            "model": alias,
+            "messages": [{"role": "user", "content": "ping"}],
+            "metadata": metadata,
+            "cache": False,
+        },
+        timeout=60,
+    )
+
+
 def wait_for(fn: Any, timeout: float) -> Any:
     deadline = time.monotonic() + timeout
     value = fn()
@@ -311,8 +331,70 @@ def run(args: argparse.Namespace) -> int:
             "agent stats count its 2 attributed runs",
             st.get("total_runs"),
         )
-        env = api.call("GET", f"/agents/{agent_id}/envelope", session).json()
-        check(env.get("allowed") is False, "envelope refuses runs once $0.04 > $0.03 is spent", env)
+        env = api.call("GET", f"/agents/{agent_id}/preflight", session).json()
+        check(
+            env.get("reason_code") == "envelope_exhausted",
+            "preflight refuses once $0.04 > $0.03 envelope is spent",
+            env,
+        )
+        if args.gateway_url and args.alias:
+            gw = gateway_call(args, key, {"runledger.agent": agent_name}, args.alias)
+            check(
+                gw.status_code == 429
+                and gw.headers.get("x-agent-policy-reason") == "envelope_exhausted",
+                "gateway refuses the agent's request (429 envelope)",
+                f"{gw.status_code} {gw.text[:150]}",
+            )
+
+        print("\n→ agent alias allow-list")
+        bad = api.call(
+            "PUT", f"/agents/{agent_id}", session, {"allowed_aliases": [f"nope-{suffix}"]}
+        )
+        check(bad.status_code == 422, "unknown alias refused on save (422)", bad.status_code)
+        route = api.call(
+            "POST",
+            "/gateway/routes",
+            session,
+            {
+                "alias": f"verify-cheap-{suffix}",
+                "provider": "openai",
+                "target_model": "gpt-4o-mini",
+            },
+        )
+        check(route.status_code in (200, 201), "test route created", route.text[:150])
+        route_id = route.json().get("id") if route.status_code in (200, 201) else None
+        ok = api.call(
+            "PUT",
+            f"/agents/{agent_id}",
+            session,
+            {"allowed_aliases": [f"verify-cheap-{suffix}"], "budget_envelope": None},
+        )
+        check(ok.status_code == 200, "allow-list saved and envelope lifted", ok.text[:150])
+        other = api.call(
+            "GET", f"/agents/{agent_id}/preflight?alias=other-{suffix}", session
+        ).json()
+        check(other.get("reason_code") == "alias_not_allowed", "other alias refused", other)
+        allowed = api.call(
+            "GET", f"/agents/{agent_id}/preflight?alias=verify-cheap-{suffix}", session
+        ).json()
+        check(allowed.get("allowed") is True, "allowed alias passes", allowed)
+        if args.gateway_url and args.alias:
+            gw = gateway_call(args, key, {"runledger.agent": agent_name}, args.alias)
+            check(
+                gw.status_code == 403
+                and gw.headers.get("x-agent-policy-reason") == "alias_not_allowed",
+                "gateway refuses an alias outside the allow-list (403)",
+                f"{gw.status_code} {gw.text[:150]}",
+            )
+        paused = api.call("PUT", f"/agents/{agent_id}", session, {"status": "paused"})
+        pf = api.call("GET", f"/agents/{agent_id}/preflight", session).json()
+        check(
+            paused.status_code == 200 and pf.get("reason_code") == "agent_inactive",
+            "paused agent refused",
+            pf,
+        )
+        if route_id:
+            api.call("DELETE", f"/gateway/routes/{route_id}", session)
 
         print("\n→ archive and restore")
         check(api.call("DELETE", f"/workflows/{wf_id}", session).status_code == 204, "archived")
@@ -354,6 +436,8 @@ def main() -> int:
     parser.add_argument(
         "--timeout", type=float, default=30.0, help="Seconds to wait for the pipeline worker."
     )
+    parser.add_argument("--gateway-url", default=os.getenv("RUNLEDGER_GATEWAY_URL"))
+    parser.add_argument("--alias", default=os.getenv("RUNLEDGER_GATEWAY_ALIAS"))
     parser.add_argument("--keep", action="store_true", help="Keep the workflow, agent and key.")
     return run(parser.parse_args())
 

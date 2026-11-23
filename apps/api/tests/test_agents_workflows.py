@@ -38,7 +38,7 @@ def _make_agent(**overrides):
         default_model="gpt-4o",
         default_tools=["web_search"],
         budget_envelope=Decimal("10.0000"),
-        policy_profile="default",
+        allowed_aliases=[],
         status="active",
         config={},
         created_at=datetime.now(UTC),

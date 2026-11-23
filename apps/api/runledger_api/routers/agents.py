@@ -13,7 +13,7 @@ PUT    /agents/{id}                         Update agent
 DELETE /agents/{id}                         Retire agent
 GET    /agents/{id}/runs                    Runs attributed to the agent (agent_runs)
 GET    /agents/{id}/stats                   Cost/performance from agent_runs + envelope
-GET    /agents/{id}/envelope                Envelope preflight (allowed / spent / remaining)
+GET    /agents/{id}/preflight               Agent policy check: status, alias allow-list, envelope
 
 POST   /agents/{id}/memory                  Store a memory
 GET    /agents/{id}/memory                  List memories
@@ -42,6 +42,7 @@ from runledger_api.core.deps import get_current_workspace, require_workspace_wri
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
 from runledger_api.models.agents import Agent, AgentMemory, AgentMemoryAudit
 from runledger_api.models.events import AgentRun, ProviderCall, RunStatusEnum, ToolCall
+from runledger_api.models.gateway import GatewayRoute
 from runledger_api.models.tenant import Workspace
 from runledger_api.routers.workflows import _run_summary
 from runledger_api.schemas.agents import (
@@ -61,6 +62,7 @@ from runledger_api.schemas.agents import (
     AgentUpdate,
     RunSummaryListResponse,
 )
+from runledger_api.services.agent_policy import evaluate_agent_policy
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -80,7 +82,7 @@ def _agent_to_response(a: Agent) -> AgentResponse:
         default_model=a.default_model,
         default_tools=a.default_tools or [],
         budget_envelope=a.budget_envelope,
-        policy_profile=a.policy_profile,
+        allowed_aliases=list(a.allowed_aliases or []),
         status=a.status,
         config=a.config or {},
         created_at=a.created_at,
@@ -98,6 +100,7 @@ def _agent_to_response(a: Agent) -> AgentResponse:
     dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_agent(body: AgentCreate, ws: WorkspaceDep, db: DbDep) -> AgentResponse:
+    await _validate_aliases(db, ws, body.allowed_aliases)
     agent = Agent(
         id=uuid.uuid4(),
         workspace_id=ws.id,
@@ -108,7 +111,7 @@ async def create_agent(body: AgentCreate, ws: WorkspaceDep, db: DbDep) -> AgentR
         default_model=body.default_model,
         default_tools=body.default_tools,
         budget_envelope=body.budget_envelope,
-        policy_profile=body.policy_profile,
+        allowed_aliases=body.allowed_aliases,
         status=body.status,
         config=body.config,
     )
@@ -198,7 +201,12 @@ async def update_agent(
     if not agent:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent not found")
 
-    for field, val in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    if updates.get("allowed_aliases"):
+        await _validate_aliases(db, ws, updates["allowed_aliases"])
+    if "allowed_aliases" in updates and updates["allowed_aliases"] is None:
+        updates["allowed_aliases"] = []
+    for field, val in updates.items():
         setattr(agent, field, val)
     agent.updated_at = datetime.now(UTC)
 
@@ -284,52 +292,61 @@ async def _agent_or_404(db: AsyncSession, ws: Workspace, agent_id: uuid.UUID) ->
     return agent
 
 
-async def envelope_status(db: AsyncSession, agent: Agent) -> AgentEnvelopeStatus:
-    """This month's attributed spend against the agent's budget envelope."""
-    now = datetime.now(UTC)
-    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    spent = Decimal(
-        str(
-            (
-                await db.execute(
-                    select(func.coalesce(func.sum(AgentRun.total_cost_usd), 0)).where(
-                        AgentRun.workspace_id == agent.workspace_id,
-                        AgentRun.agent_id == agent.id,
-                        AgentRun.started_at >= start,
-                    )
-                )
-            ).scalar()
-            or 0
-        )
-    )
-    envelope = agent.budget_envelope
-    allowed, reason = True, None
-    if agent.status != "active":
-        allowed, reason = False, f"agent is {agent.status}"
-    elif envelope is not None and spent >= envelope:
-        allowed, reason = False, "monthly budget envelope exhausted"
+async def envelope_status(
+    db: AsyncSession, agent: Agent, route_alias: str | None = None
+) -> AgentEnvelopeStatus:
+    """The agent preflight (status, alias allow-list, monthly envelope) as a response."""
+    d = await evaluate_agent_policy(db, agent, route_alias=route_alias)
     return AgentEnvelopeStatus(
-        agent_id=agent.id,
-        envelope_usd=envelope,
-        spent_usd=spent,
-        remaining_usd=max(envelope - spent, Decimal("0")) if envelope is not None else None,
-        period_start=start,
-        allowed=allowed,
-        reason=reason,
+        agent_id=d.agent_id,
+        envelope_usd=d.envelope_usd,
+        spent_usd=d.spent_usd,
+        remaining_usd=d.remaining_usd,
+        period_start=d.period_start,
+        allowed=d.allowed,
+        reason=d.reason,
+        reason_code=d.reason_code,  # type: ignore[arg-type]
+        allowed_aliases=d.allowed_aliases,
     )
+
+
+async def _validate_aliases(db: AsyncSession, ws: Workspace, aliases: list[str] | None) -> None:
+    """Every allowed alias must be a gateway route in this workspace (no dead entries)."""
+    if not aliases:
+        return
+    known = set(
+        (
+            await db.execute(
+                select(GatewayRoute.alias)
+                .where(GatewayRoute.workspace_id == ws.id, GatewayRoute.alias.in_(aliases))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    missing = sorted(set(aliases) - known)
+    if missing:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"No gateway route with alias {', '.join(repr(m) for m in missing)} in this workspace",
+        )
 
 
 @router.get(
-    "/{agent_id}/envelope",
+    "/{agent_id}/preflight",
     response_model=AgentEnvelopeStatus,
     dependencies=[Depends(analytics_rate_limit)],
 )
-async def get_agent_envelope(
-    agent_id: uuid.UUID, ws: WorkspaceDep, db: DbDep
+async def get_agent_preflight(
+    agent_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
+    alias: str | None = Query(None, max_length=200, description="Route alias about to be called"),
 ) -> AgentEnvelopeStatus:
-    """Preflight for agent runs: ``allowed`` is false once the envelope is spent or the
-    agent is paused/retired. The SDK checks this before starting an agent's run."""
-    return await envelope_status(db, await _agent_or_404(db, ws, agent_id))
+    """May this agent start a run (optionally on ``alias``)? Same decision the gateway
+    makes for agent-tagged requests; the SDK calls it before starting an agent's run."""
+    return await envelope_status(db, await _agent_or_404(db, ws, agent_id), alias)
 
 
 @router.get(
