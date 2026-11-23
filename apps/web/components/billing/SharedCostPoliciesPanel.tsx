@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import {
   apiErrorMessage,
@@ -33,6 +34,7 @@ const EMPTY_ALLOCATIONS = JSON.stringify(
 )
 
 export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Props) {
+  const { confirm, dialog } = useConfirm()
   const [items, setItems] = useState<SharedCostPolicy[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -81,10 +83,11 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   }, [apiKey, month])
 
   async function handleApply(policy: SharedCostPolicy) {
-    const ok = window.confirm(
-      `Apply ${policy.name} to ${month} with a pool of USD ${poolUsd}? ` +
-        `This replaces any earlier split of this policy for ${month}.`,
-    )
+    const ok = await confirm({
+      title: `Apply ${policy.name} to ${month}?`,
+      description: `Pool of USD ${poolUsd}. This replaces any earlier split of this policy for ${month}.`,
+      confirmLabel: 'Apply',
+    })
     if (!ok) return
     try {
       const res = await applySharedCostPolicy(apiKey, policy.id, { period: month, pool_usd: poolUsd })
@@ -164,7 +167,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   }
 
   async function handleDelete(policyId: string) {
-    if (!window.confirm('Delete this shared-cost policy?')) return
+    if (!(await confirm({ title: 'Delete this shared-cost policy?', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deleteSharedCostPolicy(apiKey, policyId)
       toast.success('Shared-cost policy deleted')
@@ -187,6 +190,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   }
 
   return (
+    <>
     <div className="grid gap-6 xl:grid-cols-[1.05fr_1.35fr]">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div>
@@ -401,5 +405,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
         ) : null}
       </div>
     </div>
+      {dialog}
+    </>
   )
 }

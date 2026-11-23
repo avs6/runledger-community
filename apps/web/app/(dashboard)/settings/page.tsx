@@ -1,5 +1,6 @@
 'use client'
 
+import { LedgerVerifyBadge, ledgerVerifySummary } from '@/components/ledger/LedgerVerifyBadge'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useTheme } from 'next-themes'
@@ -256,7 +257,7 @@ export default function SettingsPage() {
       setSnapshots((prev) => [snap, ...prev.filter((s) => s.snapshot_date !== snap.snapshot_date)])
       const summary = await getLedgerClosureSummary(apiKey)
       setClosureSummary(summary)
-      toast.success('Snapshot generated')
+      toast.success(snap.entry_count != null ? `Snapshot sealed (${snap.entry_count} calls)` : 'Snapshot generated')
     } catch { toast.error('Failed to generate snapshot') }
     finally { setGeneratingSnap(false) }
   }
@@ -269,8 +270,9 @@ export default function SettingsPage() {
       setVerifyResults((prev) => ({ ...prev, [snap.snapshot_date]: result }))
       const summary = await getLedgerClosureSummary(apiKey)
       setClosureSummary(summary)
-      if (result.match) toast.success('Snapshot integrity verified')
-      else toast.error(`Integrity check failed: ${result.status}`)
+      if (result.status === 'ok' || result.status === 'late_data') toast.success(`Snapshot verified: ${ledgerVerifySummary(result)}`)
+      else if (result.status === 'tampered') toast.error(`Integrity check failed: ${ledgerVerifySummary(result)}`)
+      else toast.warning(`Snapshot ${result.status}: ${ledgerVerifySummary(result)}`)
     } catch { toast.error('Failed to verify snapshot') }
     finally { setVerifyingSnap(null) }
   }
@@ -542,9 +544,7 @@ export default function SettingsPage() {
                           <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">{snap.hash.slice(0, 12)}…</td>
                           <td className="px-4 py-2">
                             {vr ? (
-                              vr.match
-                                ? <span className="rounded bg-green-100 dark:bg-green-900 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">✓ ok</span>
-                                : <span className="rounded bg-red-100 dark:bg-red-900 px-2 py-0.5 text-xs text-red-700 dark:text-red-300">⚠ {vr.status}</span>
+                              <LedgerVerifyBadge result={vr} />
                             ) : (
                               <button
                                 onClick={() => handleVerifySnapshot(snap)}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import {
   createBillingAdjustment,
@@ -35,6 +36,7 @@ export default function BillingAdjustmentsPanel({
   initialData,
   canEdit,
 }: Props) {
+  const { confirm, dialog } = useConfirm()
   const [items, setItems] = useState(initialData.items)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -82,7 +84,7 @@ export default function BillingAdjustmentsPanel({
   }
 
   async function handleDelete(adjustmentId: string) {
-    if (!window.confirm('Delete this adjustment?')) return
+    if (!(await confirm({ title: 'Delete this adjustment?', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deleteBillingAdjustment(apiKey, periodId, adjustmentId)
       setItems((current) => current.filter((item) => item.id !== adjustmentId))
@@ -105,6 +107,7 @@ export default function BillingAdjustmentsPanel({
   }
 
   return (
+    <>
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
       <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div>
@@ -247,5 +250,7 @@ export default function BillingAdjustmentsPanel({
         </table>
       </div>
     </div>
+      {dialog}
+    </>
   )
 }

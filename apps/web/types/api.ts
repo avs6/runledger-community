@@ -298,9 +298,12 @@ export interface Budget {
     | 'access_group'
     | 'api_key'
     | 'provider_profile'
+    | 'model'
   scope_id: string | null
   scope_display_name: string | null
-  period_type: 'daily' | 'monthly' | 'total'
+  /** Key filter for model budgets ("this key's spend on gpt-4*"). */
+  api_key_id?: string | null
+  period_type: 'daily' | 'weekly' | 'monthly' | 'total'
   limit_usd: string
   action: 'notify' | 'block' | 'downgrade' | 'throttle' | 'fallback'
   downgrade_to_model: string | null
@@ -355,6 +358,79 @@ export interface BudgetCheckResponse {
   action?: string
   budget_id?: string
   downgrade_model?: string
+  throttled?: boolean
+  fallback_model?: string | null
+  reason?: string | null
+}
+
+export interface RunawayHold {
+  id: string
+  subject_type: 'run' | 'session'
+  subject_id: string
+  reason: string
+  details: Record<string, unknown>
+  created_at: string
+  expires_at: string
+  released_at: string | null
+  active: boolean
+}
+
+export interface RunawayHoldList {
+  items: RunawayHold[]
+}
+
+export interface BudgetBurndownPoint {
+  date: string
+  spend_usd: string
+  cumulative_usd: string
+  forecast: boolean
+}
+
+export interface BudgetBurndown {
+  budget_id: string
+  period_type: string
+  period_start: string | null
+  period_end: string | null
+  limit_usd: string
+  current_spend_usd: string
+  daily_run_rate_usd: string
+  projected_period_spend_usd: string | null
+  forecast_breach_date: string | null
+  already_breached: boolean
+  points: BudgetBurndownPoint[]
+}
+
+export interface BudgetSimulateRequest {
+  scope_type: string
+  scope_id?: string | null
+  api_key_id?: string | null
+  period_type: string
+  limit_usd: number
+  action: string
+  days?: number
+}
+
+export interface BudgetSimulatePeriod {
+  period_key: string
+  spend_usd: string
+  call_count: number
+  breached_at: string | null
+  affected_calls: number
+  affected_cost_usd: string
+}
+
+export interface BudgetSimulateResult {
+  days: number
+  window_start: string
+  window_end: string
+  total_spend_usd: string
+  total_calls: number
+  periods: BudgetSimulatePeriod[]
+  breach_count: number
+  affected_calls: number
+  affected_cost_usd: string
+  first_breach_at: string | null
+  summary: string
 }
 
 export interface Breach {
@@ -604,9 +680,9 @@ export interface ExperimentResults { experiment_id: string; experiment_name: str
 
 // ── Phase 11 — Ledger ──────────────────────────────────────────────────────────
 
-export interface LedgerSnapshotResponse { id: string; workspace_id: string; snapshot_date: string; total_cost_usd: string; model_breakdown: Record<string, string>; call_count: number; hash: string; key_id: string; created_at: string }
+export interface LedgerSnapshotResponse { id: string; workspace_id: string; snapshot_date: string; total_cost_usd: string; model_breakdown: Record<string, string>; call_count: number; hash: string; key_id: string; prev_hash?: string | null; entry_count?: number | null; sealed_at?: string | null; created_at: string }
 export interface LedgerSnapshotList { items: LedgerSnapshotResponse[] }
-export interface LedgerVerifyResult { snapshot_date: string; status: 'ok' | 'tampered' | 'not_found'; stored_hash: string | null; computed_hash: string | null; match: boolean }
+export interface LedgerVerifyResult { snapshot_date: string; status: 'ok' | 'late_data' | 'incomplete' | 'tampered' | 'unsealed_drift' | 'not_found'; stored_hash: string | null; computed_hash: string | null; match: boolean; sealed?: boolean; chain_ok?: boolean | null; entry_count?: number | null; modified_rows?: number; missing_rows?: number; late_enriched_rows?: number; late_arrival_rows?: number; detail?: string | null }
 export interface LedgerVerificationSummary { total_snapshots: number; ok_count: number; tampered_count: number; pending_count: number; latest_status: string | null }
 export interface LedgerClosedPeriodSummary { id: string; period_start: string; period_end: string; total_cost_usd: string | null; net_cost_usd: string | null; closed_at: string | null }
 export interface LedgerChargebackSummary { period: string; dimension: string; total_cost_usd: string; covered_cost_usd: string; unallocated_cost_usd: string; breakdown_count: number }
@@ -3339,23 +3415,6 @@ export interface BudgetTierList {
   items: BudgetTier[]
 }
 
-export interface ModelBudget {
-  id: string
-  api_key_id: string
-  model_pattern: string
-  max_spend_usd: number | null
-  period_type: 'daily' | 'monthly' | 'total'
-  rpm_limit: number | null
-  tpm_limit: number | null
-  action: string
-  is_active: boolean
-  created_at: string
-}
-
-export interface ModelBudgetList {
-  items: ModelBudget[]
-}
-
 export interface BudgetOverride {
   id: string
   budget_id: string
@@ -3365,7 +3424,7 @@ export interface BudgetOverride {
   expires_at: string
   reason: string | null
   approved_by: string | null
-  status: 'pending' | 'active' | 'expired' | 'revoked'
+  status: 'pending' | 'scheduled' | 'active' | 'expired' | 'revoked'
   approval_id: string | null
   approval_status: 'pending' | 'approved' | 'denied' | 'cancelled' | null
   created_at: string

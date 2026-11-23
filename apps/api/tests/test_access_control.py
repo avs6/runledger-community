@@ -81,6 +81,7 @@ _OPEN_WRITES = {
     ("POST", "/approvals"),
     ("POST", "/policies/check"),
     ("POST", "/policies/simulate-finops"),
+    ("POST", "/budgets/simulate"),
     ("POST", "/analytics/simulate-optimization"),
     ("POST", "/tags/auto-rules/simulate"),
     ("POST", "/tool-policies/simulate"),

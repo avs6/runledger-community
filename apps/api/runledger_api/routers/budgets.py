@@ -8,7 +8,11 @@ Endpoints
 ---------
 POST   /budgets                  Create a budget
 GET    /budgets                  List budgets with current Redis spend
-GET    /budgets/check            Hot-path check (Redis only, target <5ms)
+GET    /budgets/check            Pre-call check (budgets, model budgets, runaway holds)
+POST   /budgets/simulate         Replay the last 30 days against a candidate budget
+GET    /budgets/{id}/burndown    Spend this period + forecast-to-breach date
+GET    /budgets/runaway-holds    Runs / sessions held by runaway protection
+POST   /budgets/runaway-holds    Hold a run or session; …/{id}/release releases it
 GET    /budgets/{id}/breaches    Breach history
 DELETE /budgets/{id}             Soft-delete (is_active=False)
 POST   /budgets/notifications    Create notification channel
@@ -18,7 +22,7 @@ GET    /budgets/notifications    List notification channels
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
@@ -26,6 +30,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from redis.asyncio import Redis
 from sqlalchemy import and_, literal_column, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
@@ -46,9 +51,16 @@ from runledger_api.models.budgets import (
     BudgetBreach,
     BudgetNotification,
     BudgetNotificationDelivery,
+    RunawayHold,
 )
 from runledger_api.models.metering import ProviderPricing
-from runledger_api.models.tenant import ApiKey, TenantRoleEnum, TenantUser, Workspace
+from runledger_api.models.tenant import (
+    ApiKey,
+    Application,
+    TenantRoleEnum,
+    TenantUser,
+    Workspace,
+)
 from runledger_api.schemas.budget_overrides import (
     BudgetOverrideCreate,
     BudgetOverrideList,
@@ -59,12 +71,17 @@ from runledger_api.schemas.budgets import (
     BillingSummaryResponse,
     BreachList,
     BreachResponse,
+    BudgetBurndownPoint,
+    BudgetBurndownResponse,
     BudgetCheckResponse,
     BudgetCreate,
     BudgetList,
     BudgetResponse,
     BudgetRollupResponse,
     BudgetRollupWorkspace,
+    BudgetSimulatePeriod,
+    BudgetSimulateRequest,
+    BudgetSimulateResponse,
     BudgetUpdate,
     BudgetUserBreakdownEntry,
     NotificationCreate,
@@ -74,18 +91,28 @@ from runledger_api.schemas.budgets import (
     NotificationResponse,
     NotificationTestResult,
     NotificationUpdate,
+    RunawayHoldCreate,
+    RunawayHoldList,
+    RunawayHoldResponse,
 )
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.budgets import (
+    UUID_SCOPES,
+    budget_burndown,
     build_delivery_record,
     check_budgets,
     get_budget_spend,
+    invalidate_runaway_holds_cache,
     invalidate_workspace_budgets_cache,
     send_notification,
+    simulate_budget,
 )
 from runledger_api.services.budgets import (
     get_budget_breakdown as _svc_get_budget_breakdown,
 )
+
+# An override above this multiple of the budget's limit requires approval (F-13).
+OVERRIDE_APPROVAL_RATIO = Decimal("1.5")
 
 router = APIRouter(
     prefix="/budgets", tags=["budgets"], dependencies=[Depends(management_rate_limit)]
@@ -109,6 +136,7 @@ def _budget_response(
         scope_type=budget.scope_type,
         scope_id=budget.scope_id,
         scope_display_name=scope_display_name,
+        api_key_id=str(budget.api_key_id) if getattr(budget, "api_key_id", None) else None,
         period_type=budget.period_type,
         limit_usd=budget.limit_usd,
         action=budget.action,
@@ -127,30 +155,86 @@ def _validate_budget_payload(
     scope_id: str | None,
     action: str,
     downgrade_to_model: str | None,
+    api_key_id: str | None = None,
 ) -> None:
+    """Shape checks for a budget scope (review F-12); references are checked by
+    :func:`_validate_scope_reference`."""
     if scope_type == "workspace":
-        return
-    if (
-        scope_type
-        in {
-            "end_user",
-            "feature_tag",
-            "app",
-            "access_group",
-            "api_key",
-            "provider_profile",
-        }
-        and not scope_id
-    ):
+        if scope_id:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "Workspace budgets take no scope_id",
+            )
+    elif not scope_id or not scope_id.strip():
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "scope_id is required for non-workspace budgets",
+        )
+    if scope_type in UUID_SCOPES and scope_id:
+        try:
+            uuid.UUID(scope_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"scope_id must be a valid {scope_type.replace('_', ' ')} UUID",
+            ) from exc
+    if scope_type == "model" and scope_id and "*" in scope_id[:-1]:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Model patterns support one trailing * only (e.g. gpt-4*)",
+        )
+    if api_key_id is not None and scope_type != "model":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "api_key_id narrows model budgets only; use scope_type=api_key for a key budget",
         )
     if action in {"downgrade", "fallback"} and not downgrade_to_model:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "downgrade_to_model is required for downgrade or fallback actions",
         )
+
+
+async def _ensure_unique_scope(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    *,
+    scope_type: str,
+    scope_id: str | None,
+    api_key_id: uuid.UUID | None,
+    period_type: str,
+    exclude_id: uuid.UUID | None = None,
+) -> None:
+    """409 when an active budget already covers this scope, key filter and period
+    (backed by the unique index uq_budgets_active_scope, review F-12)."""
+    stmt = select(Budget.id).where(
+        Budget.workspace_id == workspace_id,
+        Budget.is_active.is_(True),
+        Budget.scope_type == scope_type,
+        Budget.period_type == period_type,
+        (Budget.scope_id == scope_id) if scope_id is not None else Budget.scope_id.is_(None),
+        (Budget.api_key_id == api_key_id)
+        if api_key_id is not None
+        else Budget.api_key_id.is_(None),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Budget.id != exclude_id)
+    if (await db.execute(stmt.limit(1))).scalar_one_or_none() is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "An active budget already exists for this scope and period; edit it instead",
+        )
+
+
+def _parse_key_id(api_key_id: str | None) -> uuid.UUID | None:
+    if api_key_id is None:
+        return None
+    try:
+        return uuid.UUID(api_key_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "api_key_id must be a valid UUID"
+        ) from exc
 
 
 async def _resolve_scope_display_name(
@@ -163,8 +247,23 @@ async def _resolve_scope_display_name(
         return "All workspace traffic"
     if not scope_id:
         return None
-    if scope_type in {"end_user", "feature_tag", "app"}:
+    if scope_type in {"end_user", "feature_tag"}:
         return scope_id
+    if scope_type == "model":
+        return f"Model {scope_id}"
+    if scope_type == "app":
+        try:
+            app_id = uuid.UUID(scope_id)
+        except ValueError:
+            return scope_id
+        name = (
+            await db.execute(
+                select(Application.name).where(
+                    Application.id == app_id, Application.workspace_id == workspace_id
+                )
+            )
+        ).scalar_one_or_none()
+        return str(name) if name else scope_id
     if scope_type == "access_group":
         try:
             group_id = uuid.UUID(scope_id)
@@ -229,14 +328,26 @@ async def _validate_scope_reference(
 ) -> None:
     if scope_type == "workspace" or not scope_id:
         return
-    if scope_type in {"end_user", "feature_tag", "app"}:
+    if scope_type in {"end_user", "feature_tag", "model"}:
+        return
+    if scope_type == "app":
+        exists = (
+            await db.execute(
+                select(Application.id).where(
+                    Application.id == uuid.UUID(scope_id),
+                    Application.workspace_id == workspace_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if exists is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Application not found")
         return
     if scope_type == "access_group":
         try:
             group_id = uuid.UUID(scope_id)
         except ValueError as exc:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "scope_id must be a valid access-group UUID",
             ) from exc
         exists = (
@@ -255,7 +366,7 @@ async def _validate_scope_reference(
             key_id = uuid.UUID(scope_id)
         except ValueError as exc:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "scope_id must be a valid API key UUID",
             ) from exc
         exists = (
@@ -274,7 +385,7 @@ async def _validate_scope_reference(
             pricing_id = uuid.UUID(scope_id)
         except ValueError as exc:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "scope_id must be a valid provider-profile UUID",
             ) from exc
         exists = (
@@ -435,7 +546,7 @@ async def _budget_rollup_workspace_ids(
         return list(result.scalars().all())
 
     raise HTTPException(
-        status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform"
+        status.HTTP_422_UNPROCESSABLE_CONTENT, "scope must be workspace, org, or platform"
     )
 
 
@@ -466,12 +577,25 @@ async def create_budget(
         scope_id=body.scope_id,
         action=body.action,
         downgrade_to_model=body.downgrade_to_model,
+        api_key_id=body.api_key_id,
     )
     await _validate_scope_reference(db, workspace.id, body.scope_type, body.scope_id)
+    key_filter = _parse_key_id(body.api_key_id)
+    if key_filter is not None:
+        await _validate_scope_reference(db, workspace.id, "api_key", str(key_filter))
+    await _ensure_unique_scope(
+        db,
+        workspace.id,
+        scope_type=body.scope_type,
+        scope_id=body.scope_id,
+        api_key_id=key_filter,
+        period_type=body.period_type,
+    )
     budget = Budget(
         workspace_id=workspace.id,
         scope_type=body.scope_type,
         scope_id=body.scope_id,
+        api_key_id=key_filter,
         period_type=body.period_type,
         limit_usd=body.limit_usd,
         action=body.action,
@@ -479,7 +603,13 @@ async def create_budget(
         is_active=True,
     )
     db.add(budget)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:  # concurrent create of the same scope
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "An active budget already exists for this scope and period"
+        ) from exc
     await db.refresh(budget)
 
     await invalidate_workspace_budgets_cache(redis, workspace.id)
@@ -546,7 +676,7 @@ async def list_budgets(
 
     items = []
     for b in budgets:
-        spend = await get_budget_spend(redis, b.id, b.period_type)
+        spend = await get_budget_spend(redis, b.id, b.period_type, db=db)
         scope_display_name = await _resolve_scope_display_name(
             db,
             workspace.id,
@@ -768,7 +898,7 @@ async def budget_rollup(
         if not budget.is_active:
             continue
 
-        spend = await get_budget_spend(redis, budget.id, budget.period_type)
+        spend = await get_budget_spend(redis, budget.id, budget.period_type, db=db)
         pct = (spend / budget.limit_usd * 100) if budget.limit_usd > 0 else Decimal(0)
         bucket["active_budget_count"] += 1
         bucket["limit_usd"] += budget.limit_usd
@@ -832,12 +962,16 @@ async def budget_check(
     app_id: Annotated[str | None, Query()] = None,
     access_group_id: Annotated[str | None, Query()] = None,
     provider_profile_id: Annotated[str | None, Query()] = None,
+    model: Annotated[str | None, Query(max_length=255)] = None,
+    run_id: Annotated[str | None, Query(max_length=255)] = None,
+    session_id: Annotated[str | None, Query(max_length=255)] = None,
 ) -> BudgetCheckResponse:
     """
-    Hot-path budget check.
+    Budget check for SDK and MCP callers before a model call.
 
-    Reads from Redis cache + spend counters only.
-    Target latency: <5ms p99.
+    Reads cached budget definitions and period spend (Redis, falling back to
+    Postgres). Pass ``model`` to include model budgets and ``run_id`` /
+    ``session_id`` to be told when runaway protection holds the run or session.
     """
     return await check_budgets(
         redis=redis,
@@ -849,6 +983,9 @@ async def budget_check(
         api_key_id=str(api_key.id),
         access_group_id=access_group_id,
         provider_profile_id=provider_profile_id,
+        model=model,
+        run_id=run_id,
+        session_id=session_id,
     )
 
 
@@ -1140,6 +1277,173 @@ async def list_notification_deliveries(
 # ── GET /budgets/{id}/breaches ────────────────────────────────────────────────
 
 
+# ── Runaway holds (review cd:B-09) ───────────────────────────────────────────
+
+
+def _hold_response(hold: RunawayHold) -> RunawayHoldResponse:
+    now = datetime.now(UTC)
+    return RunawayHoldResponse(
+        id=str(hold.id),
+        subject_type=hold.subject_type,
+        subject_id=hold.subject_id,
+        reason=hold.reason,
+        details=hold.details or {},
+        created_at=hold.created_at,
+        expires_at=hold.expires_at,
+        released_at=hold.released_at,
+        active=hold.released_at is None and hold.expires_at > now,
+    )
+
+
+@router.get("/runaway-holds", response_model=RunawayHoldList)
+async def list_runaway_holds(
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page: PageDep,
+    response: Response,
+    active_only: Annotated[bool, Query()] = False,
+) -> RunawayHoldList:
+    """Runs and sessions runaway protection has held (newest first)."""
+    stmt = select(RunawayHold).where(RunawayHold.workspace_id == workspace.id)
+    if active_only:
+        stmt = stmt.where(
+            RunawayHold.released_at.is_(None), RunawayHold.expires_at > datetime.now(UTC)
+        )
+    holds = await paginate(
+        db, stmt.order_by(RunawayHold.created_at.desc(), RunawayHold.id), page, response
+    )
+    return RunawayHoldList(items=[_hold_response(h) for h in holds])
+
+
+@router.post(
+    "/runaway-holds", response_model=RunawayHoldResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_runaway_hold(
+    body: RunawayHoldCreate,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    api_key: Annotated[ApiKey, Depends(get_current_api_key)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> RunawayHoldResponse:
+    """Hold a run or session by hand: the gateway refuses its calls until released."""
+    workspace: Workspace = auth[0]
+    hold = RunawayHold(
+        workspace_id=workspace.id,
+        subject_type=body.subject_type,
+        subject_id=body.subject_id.strip(),
+        reason=body.reason or "manual",
+        details={"source": "manual"},
+        created_by=api_key.created_by,
+        expires_at=datetime.now(UTC) + timedelta(minutes=body.minutes),
+    )
+    db.add(hold)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "runaway_hold.created",
+        target_type="runaway_hold",
+        target_id=str(hold.id),
+        after={"subject": f"{hold.subject_type}:{hold.subject_id}", "minutes": body.minutes},
+    )
+    await db.commit()
+    await db.refresh(hold)
+    await invalidate_runaway_holds_cache(redis, workspace.id)
+    return _hold_response(hold)
+
+
+@router.post("/runaway-holds/{hold_id}/release", response_model=RunawayHoldResponse)
+async def release_runaway_hold(
+    hold_id: uuid.UUID,
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    api_key: Annotated[ApiKey, Depends(get_current_api_key)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> RunawayHoldResponse:
+    """Release a hold; the run or session can call the gateway again."""
+    workspace: Workspace = auth[0]
+    hold = (
+        await db.execute(
+            select(RunawayHold).where(
+                RunawayHold.id == hold_id, RunawayHold.workspace_id == workspace.id
+            )
+        )
+    ).scalar_one_or_none()
+    if hold is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Hold not found")
+    if hold.released_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Hold already released")
+    hold.released_at = datetime.now(UTC)
+    hold.released_by = api_key.created_by
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "runaway_hold.released",
+        target_type="runaway_hold",
+        target_id=str(hold.id),
+        after={"subject": f"{hold.subject_type}:{hold.subject_id}"},
+    )
+    await db.commit()
+    await invalidate_runaway_holds_cache(redis, workspace.id)
+    return _hold_response(hold)
+
+
+# ── Simulation (ENH) ─────────────────────────────────────────────────────────
+
+
+@router.post("/simulate", response_model=BudgetSimulateResponse)
+async def simulate(
+    body: BudgetSimulateRequest,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> BudgetSimulateResponse:
+    """Replay the last N days (default 30) of real spend against a candidate budget:
+    when it would have breached and how many calls its action would have affected."""
+    _validate_budget_payload(
+        scope_type=body.scope_type,
+        scope_id=body.scope_id,
+        action=body.action,
+        downgrade_to_model=body.action if body.action in {"downgrade", "fallback"} else None,
+        api_key_id=body.api_key_id,
+    )
+    await _validate_scope_reference(db, workspace.id, body.scope_type, body.scope_id)
+    key_filter = _parse_key_id(body.api_key_id)
+    try:
+        result = await simulate_budget(
+            db,
+            workspace.id,
+            scope_type=body.scope_type,
+            scope_id=body.scope_id,
+            api_key_id=str(key_filter) if key_filter else None,
+            period_type=body.period_type,
+            limit_usd=body.limit_usd,
+            action=body.action,
+            days=body.days,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return BudgetSimulateResponse(
+        **{k: v for k, v in result.items() if k != "periods"},
+        periods=[BudgetSimulatePeriod(**p) for p in result["periods"]],
+    )
+
+
+@router.get("/{budget_id}/burndown", response_model=BudgetBurndownResponse)
+async def get_budget_burndown(
+    budget_id: uuid.UUID,
+    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+) -> BudgetBurndownResponse:
+    """Cumulative spend this period with a run-rate forecast and forecast-to-breach date."""
+    budget = await _get_workspace_budget(db=db, workspace_id=workspace.id, budget_id=budget_id)
+    data = await budget_burndown(db, redis, budget)
+    return BudgetBurndownResponse(
+        **{k: v for k, v in data.items() if k != "points"},
+        points=[BudgetBurndownPoint(**p) for p in data["points"]],
+    )
+
+
 @router.get("/{budget_id}", response_model=BudgetResponse)
 async def get_budget(
     budget_id: uuid.UUID,
@@ -1160,7 +1464,7 @@ async def get_budget(
         db=db,
         end_user_id=None,
     )
-    spend = await get_budget_spend(redis, budget.id, budget.period_type)
+    spend = await get_budget_spend(redis, budget.id, budget.period_type, db=db)
     scope_display_name = await _resolve_scope_display_name(
         db,
         workspace.id,
@@ -1209,18 +1513,47 @@ async def update_budget(
         budget.downgrade_to_model,
     )
 
+    next_key = (
+        data["api_key_id"]
+        if "api_key_id" in data
+        else (str(budget.api_key_id) if budget.api_key_id else None)
+    )
+    if next_scope_type != "model" and "api_key_id" not in data:
+        next_key = None  # leaving model scope drops the key filter
     _validate_budget_payload(
         scope_type=next_scope_type,
         scope_id=next_scope_id,
         action=next_action,
         downgrade_to_model=next_downgrade_model,
+        api_key_id=next_key,
     )
     await _validate_scope_reference(db, workspace.id, next_scope_type, next_scope_id)
+    key_filter = _parse_key_id(next_key)
+    if key_filter is not None:
+        await _validate_scope_reference(db, workspace.id, "api_key", str(key_filter))
+    if data.get("is_active", budget.is_active):
+        await _ensure_unique_scope(
+            db,
+            workspace.id,
+            scope_type=next_scope_type,
+            scope_id=next_scope_id,
+            api_key_id=key_filter,
+            period_type=data.get("period_type", budget.period_type),
+            exclude_id=budget.id,
+        )
 
+    data.pop("api_key_id", None)
     for key, value in data.items():
         setattr(budget, key, value)
+    budget.api_key_id = key_filter
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "An active budget already exists for this scope and period"
+        ) from exc
     await db.refresh(budget)
     await invalidate_workspace_budgets_cache(redis, workspace.id)
 
@@ -1243,7 +1576,7 @@ async def update_budget(
     )
     await db.commit()
 
-    spend = await get_budget_spend(redis, budget.id, budget.period_type)
+    spend = await get_budget_spend(redis, budget.id, budget.period_type, db=db)
     scope_display_name = await _resolve_scope_display_name(
         db,
         workspace.id,
@@ -1374,14 +1707,23 @@ async def create_override(
 
     if body.expires_at <= body.starts_at:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "expires_at must be after starts_at",
         )
 
     requested_by = api_key.created_by
-    override_status = (
-        "pending" if body.require_approval or body.starts_at > datetime.now(UTC) else "active"
+    # Large increases always need a second admin's approval (review F-13): the
+    # requester can't skip it by leaving require_approval off.
+    needs_approval = body.require_approval or (
+        budget.limit_usd > 0
+        and body.override_limit_usd > budget.limit_usd * OVERRIDE_APPROVAL_RATIO
     )
+    if needs_approval:
+        override_status = "pending"
+    elif body.starts_at > datetime.now(UTC):
+        override_status = "scheduled"  # activated by budgets.expire_overrides
+    else:
+        override_status = "active"
     override = BudgetOverride(
         budget_id=budget_id,
         original_limit_usd=budget.limit_usd,
@@ -1395,7 +1737,7 @@ async def create_override(
     await db.flush()
 
     approval: Approval | None = None
-    if body.require_approval:
+    if needs_approval:
         approval = Approval(
             workspace_id=workspace.id,
             request_type="budget_increase",
@@ -1517,8 +1859,8 @@ async def revoke_override(
     override = result.scalar_one_or_none()
     if override is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Override not found")
-    if override.status != "active":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Override is not active")
+    if override.status not in {"active", "scheduled", "pending"}:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Override is no longer active")
 
     await db.execute(
         update(BudgetOverride).where(BudgetOverride.id == override_id).values(status="revoked")

@@ -356,57 +356,42 @@ async def test_alert_emails_uses_workspace_name() -> None:
 
 @pytest.mark.asyncio
 async def test_budget_runaway_emails_admins() -> None:
+    from datetime import UTC, datetime, timedelta
+
     from runledger_api.workers.budgets import _run_runaway_protection
 
-    run = SimpleNamespace(
-        id=uuid.uuid4(),
-        workspace_id=WORKSPACE_ID,
-        status="running",
-        started_at="2026-01-01T00:00:00Z",
-    )
     workspace = make_workspace()
     user = make_user()
     prefs = make_prefs(budget_alerts_enabled=True)
-
-    call_count = [0]
-
-    def make_exec_mock(n: int) -> MagicMock:
-        mock = MagicMock()
-        if n == 1:
-            # active runs — list(result.scalars()) pattern
-            mock.scalars.return_value = [run]
-        elif n == 2:
-            mock.scalar_one.return_value = 25  # storm count >20
-        elif n == 3:
-            mock.scalar_one.return_value = 0  # spike count
-        elif n == 4:
-            mock.scalars.return_value = []  # notifications
-        elif n == 5:
-            mock.scalar_one_or_none.return_value = workspace  # workspace lookup
-        else:
-            mock.scalars.return_value = []
-            mock.scalar_one_or_none.return_value = None
-            mock.scalar_one.return_value = 0
-        return mock
-
-    async def execute_side_effect(stmt: object) -> MagicMock:
-        call_count[0] += 1
-        return make_exec_mock(call_count[0])
+    candidate = {
+        "workspace_id": WORKSPACE_ID,
+        "subject_type": "run",
+        "subject_id": str(uuid.uuid4()),
+        "reason": "retry_storm",
+        "calls": 25,
+    }
+    hold = SimpleNamespace(id=uuid.uuid4(), expires_at=datetime.now(UTC) + timedelta(minutes=30))
 
     mock_session = AsyncMock()
-    mock_session.execute = AsyncMock(side_effect=execute_side_effect)
     mock_session.add = MagicMock()
-    mock_session.commit = AsyncMock()
+    mock_session.get = AsyncMock(return_value=workspace)
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=False)
-
     mock_factory = MagicMock(return_value=mock_session)
     mock_redis = AsyncMock()
-    mock_redis.aclose = AsyncMock()
 
     with (
         patch("runledger_api.workers.budgets._make_session_factory", return_value=mock_factory),
         patch("runledger_api.workers.budgets._make_redis", return_value=mock_redis),
+        patch(
+            "runledger_api.workers.budgets.detect_runaways",
+            new_callable=AsyncMock,
+            return_value=[candidate],
+        ),
+        patch(
+            "runledger_api.workers.budgets.place_hold", new_callable=AsyncMock, return_value=hold
+        ),
+        patch("runledger_api.workers.budgets.queue_notifications", new_callable=AsyncMock),
         patch(
             "runledger_api.workers.budgets.get_email_preference",
             new_callable=AsyncMock,
@@ -420,11 +405,11 @@ async def test_budget_runaway_emails_admins() -> None:
         patch(
             "runledger_api.workers.budgets.send_budget_breach_email", new_callable=AsyncMock
         ) as mock_email,
-        patch("runledger_api.workers.budgets.send_notification", new_callable=AsyncMock),
     ):
         await _run_runaway_protection()
 
     mock_email.assert_awaited()
+    assert mock_email.await_args.kwargs["action"] == "held"
 
 
 # ── Test 10: Billing period close fires email ─────────────────────────────────

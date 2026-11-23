@@ -23,6 +23,8 @@ asserts every control:
      (and a tampered copy doesn't).
  10. Reopen (reason required) and close again include the late usage; rotating the
      signing key keeps the old snapshot verifiable.
+ 11. Ledger: sealing yesterday twice returns the same signed snapshot, and
+     verification never reports honest late data as tampering.
 
 The org is deleted at the end (pass --keep to inspect it in the UI).
 
@@ -596,6 +598,25 @@ def run(args: argparse.Namespace) -> int:
         )
         check(old.json().get("valid") is True, "old export still verifies after rotation", old.text)
         _ = snapshot_sig
+
+        print("\n→ ledger seal (cd:M-02)")
+        first = api.call("POST", "/ledger/snapshots/generate", platform)
+        check(
+            first.status_code in (200, 201), "yesterday's ledger snapshot sealed", first.text[:200]
+        )
+        again = api.call("POST", "/ledger/snapshots/generate", platform)
+        check(
+            again.status_code == 200 and again.json().get("hash") == first.json().get("hash"),
+            "a sealed snapshot is immutable (re-generate returns it unchanged)",
+            again.status_code,
+        )
+        day = first.json().get("snapshot_date")
+        verdict = api.call("GET", f"/ledger/verify/{day}", platform).json()
+        check(
+            verdict.get("status") in {"ok", "late_data", "incomplete", "unsealed_drift"},
+            "honest late data is not reported as tampering",
+            verdict,
+        )
     finally:
         if not args.keep:
             api.call(

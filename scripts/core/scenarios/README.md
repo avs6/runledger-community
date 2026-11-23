@@ -157,7 +157,7 @@ Defined in `_base.py`; every method maps to a real API call and is best-effort.
 | `get_ml_dashboard()` | ML observability dashboard |
 | `create_budget_tier(name, max_spend_usd=, rpm_limit=, tpm_limit=, allowed_models=, is_default=)` | Budget tiers with RPM/TPM/spend/model-access limits |
 | `assign_tier_to_key(key_id, tier_id=)` | Assign or unassign a budget tier to an API key |
-| `create_model_budget(key_id, model_pattern, max_spend_usd=, rpm_limit=, tpm_limit=, action=)` | Per-model spend/rate limits with trailing * wildcards |
+| `create_model_budget(key_id, model_pattern, max_spend_usd=, action=)` | A `scope_type=model` budget for one key (trailing * wildcards) |
 | `create_budget_override(budget_id, override_limit_usd, starts_at, expires_at, reason=)` | Temporary budget increases with auto-expiry |
 | `list_budget_overrides(budget_id)` | List overrides for a budget |
 | `revoke_budget_override(budget_id, override_id)` | Revoke an active override immediately |

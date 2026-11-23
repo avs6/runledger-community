@@ -1,19 +1,21 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Shield } from 'lucide-react'
 import type { Budget, BudgetRollupResponse, NotificationResponse } from '@/types/api'
 import BudgetList from './BudgetList'
 import BudgetNotificationsPanel from './BudgetNotificationsPanel'
 import BudgetOverridesPanel from './BudgetOverridesPanel'
 import CreateBudgetModal from './CreateBudgetModal'
+import RunawayHoldsPanel from './RunawayHoldsPanel'
 
 interface Props {
   initialItems: Budget[]
   notifications: NotificationResponse[]
   rollup: BudgetRollupResponse | null
   apiKey: string
-  initialTab?: 'policies' | 'overrides' | 'notifications'
+  initialTab?: 'policies' | 'overrides' | 'notifications' | 'holds'
   initialScopeType?: Budget['scope_type']
   initialScopeId?: string
   autoOpenCreate?: boolean
@@ -35,7 +37,19 @@ export default function BudgetManager({
 }: Props) {
   const [items, setItems] = useState(initialItems)
   const [showCreate, setShowCreate] = useState(false)
-  const [activeTab, setActiveTab] = useState<Props['initialTab']>(initialTab)
+  const [activeTab, setActiveTabState] = useState<Props['initialTab']>(initialTab)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // The tab lives in the URL (?tab=) so it survives reloads and can be linked.
+  const setActiveTab = (tab: Props['initialTab']) => {
+    setActiveTabState(tab)
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    if (tab && tab !== 'policies') params.set('tab', tab)
+    else params.delete('tab')
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
 
   const scopedItems = useMemo(() => {
     if (!initialScopeType) {
@@ -59,7 +73,7 @@ export default function BudgetManager({
   useEffect(() => {
     if (autoOpenCreate) {
       setShowCreate(true)
-      setActiveTab('policies')
+      setActiveTabState('policies')
     }
   }, [autoOpenCreate])
 
@@ -67,6 +81,7 @@ export default function BudgetManager({
     { id: 'policies', label: 'Policies' },
     { id: 'overrides', label: 'Overrides' },
     { id: 'notifications', label: 'Notifications' },
+    { id: 'holds', label: 'Runaway holds' },
   ]
 
   return (
@@ -99,6 +114,7 @@ export default function BudgetManager({
           </p>
         </div>
         <button
+          type="button"
           onClick={() => setShowCreate(true)}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:brightness-110"
         >
@@ -115,10 +131,13 @@ export default function BudgetManager({
 
       {/* Tab bar */}
       <div className="rounded-lg bg-slate-100 p-1 dark:bg-slate-800/80">
-        <nav className="flex gap-1">
+        <nav className="flex gap-1" role="tablist" aria-label="Budget sections">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === tab.id
@@ -146,6 +165,8 @@ export default function BudgetManager({
       )}
 
       {activeTab === 'overrides' && <BudgetOverridesPanel budgets={items} apiKey={apiKey} />}
+
+      {activeTab === 'holds' && <RunawayHoldsPanel apiKey={apiKey} />}
 
       {activeTab === 'notifications' && (
         <BudgetNotificationsPanel initialItems={notifications} apiKey={apiKey} />

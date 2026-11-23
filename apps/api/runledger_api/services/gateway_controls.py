@@ -1,14 +1,18 @@
 """
 Gateway runtime control checks.
 
-  check_cost_cap     — daily/monthly USD spend vs route limits (429 on breach)
-  check_per_user_rpm — atomic Redis sliding window per (workspace, end user or key, route)
+  check_cost_cap        — daily/monthly USD spend vs route limits (429 on breach)
+  key_tier_breach       — the API key's budget tier spend limit (checked in preflight
+                          through services.budgets.check_request_budgets)
+  enforce_runaway_hold  — 429 for a run or session the runaway detector holds
+  check_per_user_rpm    — atomic Redis sliding window per (workspace, end user or key, route)
 """
 
 from __future__ import annotations
 
 import time
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -27,15 +31,30 @@ log = structlog.get_logger()
 LOCAL_PROVIDERS = frozenset({"ollama", "vllm", "local", "lmstudio", "llamacpp"})
 
 
-def _estimate_cost(
+async def _route_cost(
+    db: AsyncSession,
     row: Any,
-    input_rate: Decimal,
-    output_rate: Decimal,
+    *,
+    provider: str | None,
+    model: str | None,
+    workspace_id: uuid.UUID,
 ) -> Decimal:
-    """Estimate USD cost from token counts using per-model pricing rates."""
-    input_t = Decimal(str(row.total_input or 0))
-    output_t = Decimal(str(row.total_output or 0))
-    return input_t / Decimal("1000000") * input_rate + output_t / Decimal("1000000") * output_rate
+    """USD cost of a route's token totals, priced exactly like the ledger:
+    ``services.pricing.calculate_cost`` with this workspace's pricing override first
+    (review F-14). Local providers without a price cost 0."""
+    from runledger_api.services.pricing import calculate_cost  # noqa: PLC0415
+
+    cost = None
+    if provider and model:
+        cost = await calculate_cost(
+            db,
+            provider=provider,
+            model=model,
+            input_tokens=int(row.total_input or 0),
+            output_tokens=int(row.total_output or 0),
+            workspace_id=workspace_id,
+        )
+    return cost if cost is not None else Decimal("0")
 
 
 async def _lookup_model_rates(
@@ -49,8 +68,6 @@ async def _lookup_model_rates(
 
     Local providers with no pricing row cost 0. Returns None for an unpriced hosted
     model, so a cap is never enforced against a made-up price (review G-17)."""
-    from datetime import UTC, datetime  # noqa: PLC0415
-
     from runledger_api.services.pricing import _get_pricing  # noqa: PLC0415
 
     pricing = None
@@ -106,7 +123,7 @@ async def check_cost_cap(
     if not has_daily and not has_monthly:
         return
 
-    from datetime import UTC, datetime, timedelta  # noqa: PLC0415
+    from datetime import timedelta  # noqa: PLC0415
 
     rates = await _lookup_model_rates(
         db, getattr(route, "target_model", None), getattr(route, "provider", None), workspace_id
@@ -121,7 +138,8 @@ async def check_cost_cap(
             model=getattr(route, "target_model", None),
         )
         return
-    input_rate, output_rate = rates
+    provider = getattr(route, "provider", None)
+    model = getattr(route, "target_model", None)
 
     now = datetime.now(UTC)
     today_start = datetime(now.year, now.month, now.day, tzinfo=UTC)
@@ -155,7 +173,9 @@ async def check_cost_cap(
     daily_row = day_result.one()
 
     if has_daily:
-        daily_cost = _estimate_cost(daily_row, input_rate, output_rate)
+        daily_cost = await _route_cost(
+            db, daily_row, provider=provider, model=model, workspace_id=workspace_id
+        )
         if daily_cost >= route.daily_cost_limit_usd:  # type: ignore[operator]
             log.warning(
                 "gateway_cost_cap_daily_exceeded",
@@ -173,7 +193,9 @@ async def check_cost_cap(
             )
 
     if has_monthly:
-        monthly_cost = _estimate_cost(monthly_row, input_rate, output_rate)
+        monthly_cost = await _route_cost(
+            db, monthly_row, provider=provider, model=model, workspace_id=workspace_id
+        )
         if monthly_cost >= route.monthly_cost_limit_usd:  # type: ignore[operator]
             log.warning(
                 "gateway_cost_cap_monthly_exceeded",
@@ -190,38 +212,133 @@ async def check_cost_cap(
                 },
             )
 
-    # ── Budget Tier check ─────────────────────────────────────────────────────
-    from runledger_api.models.budget_tiers import BudgetTier  # noqa: PLC0415
 
-    bt_stmt = (
-        select(BudgetTier)
-        .where(
-            BudgetTier.workspace_id == workspace_id,
-            BudgetTier.is_active.is_(True),
-            BudgetTier.max_spend_usd.isnot(None),
+# ── Budget tier spend (review cd:B-06) ────────────────────────────────────────
+
+_TIER_CACHE_TTL = 30  # seconds
+
+
+async def resolve_key_tier(db: AsyncSession, workspace_id: uuid.UUID, api_key_id: uuid.UUID) -> Any:
+    """The tier that governs a key: its assigned tier when active, else the
+    workspace default tier; None when neither exists."""
+    from runledger_api.models.budget_tiers import BudgetTier  # noqa: PLC0415
+    from runledger_api.models.tenant import ApiKey  # noqa: PLC0415
+
+    key = await db.get(ApiKey, api_key_id)
+    tier_id = getattr(key, "budget_tier_id", None) if key is not None else None
+    if tier_id is not None:
+        tier = await db.get(BudgetTier, tier_id)
+        if tier is not None and tier.is_active and tier.workspace_id == workspace_id:
+            return tier
+    return (
+        await db.execute(
+            select(BudgetTier)
+            .where(
+                BudgetTier.workspace_id == workspace_id,
+                BudgetTier.is_active.is_(True),
+                BudgetTier.is_default.is_(True),
+            )
+            .limit(1)
         )
-        .order_by(BudgetTier.is_default.desc())
-        .limit(1)
+    ).scalar_one_or_none()
+
+
+async def key_period_spend(
+    db: AsyncSession, workspace_id: uuid.UUID, api_key_id: uuid.UUID, period_type: str
+) -> Decimal:
+    """The key's priced spend in the current period, across every route and source."""
+    from runledger_api.models.events import ProviderCall  # noqa: PLC0415
+    from runledger_api.services.budgets import period_window  # noqa: PLC0415
+
+    start, end = period_window(period_type, datetime.now(UTC))
+    stmt = select(func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0))).where(
+        ProviderCall.workspace_id == workspace_id,
+        ProviderCall.api_key_id == api_key_id,
+        ProviderCall.cost_usd.is_not(None),
     )
-    bt_res = await db.execute(bt_stmt)
-    bt = bt_res.scalar_one_or_none()
-    if bt and bt.max_spend_usd is not None:
-        tier_cost = _estimate_cost(monthly_row, input_rate, output_rate)
-        if tier_cost >= bt.max_spend_usd:
+    if start is not None and end is not None:
+        stmt = stmt.where(ProviderCall.created_at >= start, ProviderCall.created_at < end)
+    return Decimal((await db.execute(stmt)).scalar_one() or 0)
+
+
+async def key_tier_breach(
+    db: AsyncSession, redis: Any, workspace_id: uuid.UUID, api_key_id: uuid.UUID
+) -> str | None:
+    """``"budget_tier:<name>"`` when the key's tier spend limit is used up, else None.
+
+    Fixes cd:B-06: the tier is the key's own (or the workspace default), its spend is
+    the key's spend across all routes, and it applies whether or not the route has a
+    cost cap. The result is cached in Redis for 30 s per key.
+    """
+    cache_key = f"rl:tier:{workspace_id}:{api_key_id}"
+    try:
+        cached = await redis.get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return None if cached == "-" else str(cached)
+    tier = await resolve_key_tier(db, workspace_id, api_key_id)
+    verdict: str | None = None
+    if tier is not None and tier.max_spend_usd is not None:
+        spend = await key_period_spend(db, workspace_id, api_key_id, tier.period_type or "monthly")
+        if spend >= tier.max_spend_usd:
+            verdict = f"budget_tier:{tier.name}"
             log.warning(
                 "gateway_budget_tier_exceeded",
-                tier_id=str(bt.id),
-                tier_cost=str(tier_cost),
-                limit=str(bt.max_spend_usd),
+                tier_id=str(tier.id),
+                api_key_id=str(api_key_id),
+                spend=str(spend),
+                limit=str(tier.max_spend_usd),
             )
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Budget Tier '{bt.name}' limit breached (${bt.max_spend_usd:.2f})",
-                headers={
-                    "X-Cost-Cap-Reason": "budget_tier_exceeded",
-                    "Retry-After": _seconds_until(_next_month(month_start), now),
-                },
-            )
+    try:
+        await redis.set(cache_key, verdict or "-", ex=_TIER_CACHE_TTL)
+    except Exception:
+        log.warning("gateway_budget_tier_cache_failed", api_key_id=str(api_key_id))
+    return verdict
+
+
+# ── Runaway holds (review cd:B-09) ────────────────────────────────────────────
+
+
+async def enforce_runaway_hold(
+    db: AsyncSession, workspace_id: uuid.UUID, metadata: dict[str, Any] | None
+) -> None:
+    """Refuse (429) a request whose run or session the runaway detector holds.
+
+    The run id comes from ``runledger.run_id`` / ``run_id`` metadata and the session
+    from ``runledger.session_id`` / ``session_id`` / ``session``, the same keys the
+    gateway records runs under. Fails open if Redis and Postgres both fail.
+    """
+    from runledger_api.core.redis import get_redis  # noqa: PLC0415
+    from runledger_api.services.budgets import find_runaway_hold  # noqa: PLC0415
+
+    meta = metadata or {}
+
+    def _first(*keys: str) -> str | None:
+        for k in keys:
+            value = meta.get(k)
+            if isinstance(value, str | int) and str(value).strip():
+                return str(value).strip()
+        return None
+
+    run_id = _first("runledger.run_id", "run_id")
+    session_id = _first("runledger.session_id", "session_id", "session")
+    if not run_id and not session_id:
+        return
+    try:
+        held = await find_runaway_hold(
+            await get_redis(), db, workspace_id, run_id=run_id, session_id=session_id
+        )
+    except Exception:
+        log.warning("gateway_runaway_hold_check_failed", workspace_id=str(workspace_id))
+        return
+    if held is None:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=f"Runaway protection: {held} is on hold",
+        headers={"X-Cost-Cap-Reason": "runaway_hold", "Retry-After": "300"},
+    )
 
 
 # Atomic sliding window over a sorted set of request timestamps (ms). Refused requests

@@ -4,7 +4,6 @@ from fastapi import APIRouter
 
 from runledger_api.core.config import settings
 from runledger_api.models.budget_tiers import BudgetTier
-from runledger_api.models.model_budgets import ModelBudget
 
 from .gateway_shared import *
 
@@ -218,18 +217,9 @@ async def gateway_rate_limit_overview(
         )
     ).scalar_one()
 
-    model_budget_count = (
-        await db.execute(
-            select(func.count(ModelBudget.id))
-            .select_from(ModelBudget)
-            .join(ApiKey, ApiKey.id == ModelBudget.api_key_id)
-            .where(
-                ApiKey.workspace_id == workspace.id,
-                ModelBudget.is_active.is_(True),
-                sa.or_(ModelBudget.rpm_limit.is_not(None), ModelBudget.tpm_limit.is_not(None)),
-            )
-        )
-    ).scalar_one()
+    # Per-model rpm/tpm limits were never enforced and were dropped when model
+    # budgets became budget scopes (review G-01, W1-D).
+    model_budget_count = 0
 
     return GatewayRateLimitOverview(
         tiers=[

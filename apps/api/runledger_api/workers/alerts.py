@@ -276,6 +276,12 @@ async def _compute_metric(
         index = min(len(overheads) - 1, max(0, int(len(overheads) * 0.95) - 1))
         return Decimal(str(round(overheads[index], 4)))
 
+    if metric in {"budget_utilization", "budget_breach_count"}:
+        # Review S-18: computed from budget_spend / budget_breaches (W1-D).
+        from runledger_api.services.budgets import compute_budget_metric  # noqa: PLC0415
+
+        return await compute_budget_metric(session, workspace_id, metric, window_start, window_end)
+
     return None
 
 

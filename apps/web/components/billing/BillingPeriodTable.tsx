@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -48,6 +49,7 @@ function money(value: string | null) {
 }
 
 export default function BillingPeriodTable({ items, apiKey, onClosed, accessGroupId }: Props) {
+  const { confirm, dialog } = useConfirm()
   const [loading, setLoading] = useState<string | null>(null)
   const router = useRouter()
   const accessGroupQuery = accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''
@@ -58,17 +60,14 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
     try {
       // Confirm with the amount that will be frozen (review F-19).
       const preview = await getPeriodBreakdown(apiKey, id)
-      const ok = window.confirm(
-        `Close ${period.period_start} – ${period.period_end}?
-
-` +
+      const ok = await confirm({
+        title: `Close ${period.period_start} – ${period.period_end}?`,
+        description:
           `Gross ${money(preview.gross_cost_usd)} · adjustments ${money(preview.total_adjustments_usd)} · ` +
-          `net ${money(preview.net_cost_usd)}
-
-` +
-          'Closing freezes these numbers and signs them. Usage that arrives later will not change ' +
-          'this bill unless the period is reopened.',
-      )
+          `net ${money(preview.net_cost_usd)}. Closing freezes these numbers and signs them. Usage that ` +
+          'arrives later will not change this bill unless the period is reopened.',
+        confirmLabel: 'Close period',
+      })
       if (!ok) return
       await closeBillingPeriod(apiKey, id)
       onClosed?.(id)
@@ -100,7 +99,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
   }
 
   async function handleDelete(period: BillingPeriod) {
-    if (!window.confirm(`Delete the open period ${period.period_start} – ${period.period_end}?`)) return
+    if (!(await confirm({ title: `Delete the open period ${period.period_start} – ${period.period_end}?`, confirmLabel: 'Delete', destructive: true }))) return
     setLoading(`delete-${period.id}`)
     try {
       await deleteBillingPeriod(apiKey, period.id)
@@ -149,6 +148,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
   }
 
   return (
+    <>
     <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800">
@@ -236,5 +236,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
         </tbody>
       </table>
     </div>
+      {dialog}
+    </>
   )
 }

@@ -13,8 +13,17 @@ Replays what a workflow owner does and asserts every step:
   5. Re-sends the same batch and asserts nothing is double counted.
   6. Asserts the feature-tag budget recorded one breach, and that
      GET /budgets/check now blocks that workflow but allows another one.
-  7. Optional (--gateway-url + --alias): sends a chat completion tagged with the
-     workflow through gateway-rs and expects 429 ``budget_exceeded``.
+  7. Scope validation: a duplicate active scope is refused (409), malformed scopes 422.
+  8. Model budget (scope_type=model, one key): a new priced call counts against it and
+     /budgets/check?model= blocks that model for the key but not another model.
+  9. Burn-down: GET /budgets/{id}/burndown reports this period's spend.
+ 10. Simulation: POST /budgets/simulate replays today's calls and reports the breach
+     and the calls a tighter limit would have blocked.
+ 11. Runaway hold: a held session is refused by /budgets/check and allowed again
+     once released.
+ 12. Optional (--gateway-url + --alias): sends a chat completion tagged with the
+     workflow through gateway-rs and expects 429 ``budget_exceeded``, and one in a
+     held session and expects 429 ``runaway_hold``.
 
 Budgets and the key are deleted at the end (pass --keep to inspect them in the UI).
 Needs the API, Redis and the Celery pipeline worker running.
@@ -73,7 +82,7 @@ def _iso(dt: datetime) -> str:
     return dt.isoformat().replace("+00:00", "Z")
 
 
-def _priced_run(feature: str, user: str) -> list[dict[str, Any]]:
+def _priced_run(feature: str, user: str, model: str = "gpt-4o-mini") -> list[dict[str, Any]]:
     run_id, span_id = str(uuid.uuid4()), str(uuid.uuid4())
     now = _iso(datetime.now(UTC))
     return [
@@ -98,7 +107,7 @@ def _priced_run(feature: str, user: str) -> list[dict[str, Any]]:
             "run_id": run_id,
             "span_id": span_id,
             "provider": "openai",
-            "model": "gpt-4o-mini",
+            "model": model,
             "input_tokens": 1200,
             "output_tokens": 300,
             "latency_ms": 800,
@@ -226,6 +235,155 @@ def run(args: argparse.Namespace) -> int:
         )
         other = api.call("GET", f"/budgets/check?feature_tag=other-{suffix}", raw_key).json()
         check(other.get("allowed") is True, "another workflow is still allowed", other)
+
+        print("\n→ scope validation (F-12)")
+        dup = api.call(
+            "POST",
+            "/budgets",
+            session_key,
+            {
+                "scope_type": "feature_tag",
+                "scope_id": feature,
+                "period_type": "monthly",
+                "limit_usd": "1",
+                "action": "notify",
+            },
+        )
+        check(dup.status_code == 409, "duplicate active scope refused (409)", dup.status_code)
+        for bad, label in (
+            ({"scope_type": "app", "scope_id": "not-a-uuid"}, "malformed app scope"),
+            ({"scope_type": "workspace", "scope_id": "x"}, "workspace scope with scope_id"),
+            (
+                {"scope_type": "feature_tag", "scope_id": feature, "api_key_id": key_id},
+                "key filter on a non-model scope",
+            ),
+        ):
+            resp = api.call(
+                "POST",
+                "/budgets",
+                session_key,
+                {**bad, "period_type": "monthly", "limit_usd": "1", "action": "notify"},
+            )
+            check(resp.status_code == 422, f"{label} refused (422)", resp.status_code)
+
+        print("\n→ model budget (G-01)")
+        model = f"verify-model-{suffix}"
+        resp = api.call(
+            "POST",
+            "/budgets",
+            session_key,
+            {
+                "scope_type": "model",
+                "scope_id": f"{model}*",
+                "api_key_id": key_id,
+                "period_type": "daily",
+                "limit_usd": "0.02",
+                "action": "block",
+            },
+        )
+        check(resp.status_code == 201, "model budget created", resp.text)
+        model_budget = resp.json()["id"] if resp.status_code == 201 else None
+        if model_budget:
+            budget_ids.append(model_budget)
+            sent = api.call(
+                "POST",
+                "/ingest/v1/batch",
+                raw_key,
+                {"events": _priced_run(f"model-{suffix}", user, model=f"{model}-large")},
+            )
+            check(sent.status_code == 202, "model call accepted", sent.text)
+            got = _wait_for_spend(api, session_key, [model_budget], CALL_COST, args.timeout)
+            check(got.get(model_budget) == CALL_COST, "model budget counted the call", got)
+            held = api.call("GET", f"/budgets/check?model={model}-large", raw_key).json()
+            check(
+                held.get("allowed") is False and held.get("budget_id") == model_budget,
+                "budget check blocks the model for this key",
+                held,
+            )
+            free = api.call("GET", "/budgets/check?model=some-other-model", raw_key).json()
+            check(free.get("allowed") is True, "another model is still allowed", free)
+
+        print("\n→ burn-down and forecast")
+        burn = api.call("GET", f"/budgets/{feature_budget}/burndown", session_key)
+        check(burn.status_code == 200, "burn-down returned", burn.text[:200])
+        if burn.status_code == 200:
+            data = burn.json()
+            check(
+                Decimal(str(data["current_spend_usd"])) >= expected,
+                "burn-down shows spend",
+                data["current_spend_usd"],
+            )
+            check(data["already_breached"] is True, "burn-down marks the breach")
+            check(len(data["points"]) > 0, "burn-down has points")
+
+        print("\n→ simulation against the last day")
+        sim = api.call(
+            "POST",
+            "/budgets/simulate",
+            session_key,
+            {
+                "scope_type": "feature_tag",
+                "scope_id": feature,
+                "period_type": "daily",
+                "limit_usd": "0.02",
+                "action": "block",
+                "days": 1,
+            },
+        )
+        check(sim.status_code == 200, "simulation ran", sim.text[:200])
+        if sim.status_code == 200:
+            result = sim.json()
+            check(
+                result["total_calls"] == 2,
+                "simulation saw the workflow's 2 calls",
+                result["total_calls"],
+            )
+            check(result["breach_count"] == 1, "simulation finds the breach", result["summary"])
+            check(
+                result["affected_calls"] == 1, "one call would have been blocked", result["summary"]
+            )
+
+        print("\n→ runaway hold (cd:B-09)")
+        session_id = f"verify-session-{suffix}"
+        hold = api.call(
+            "POST",
+            "/budgets/runaway-holds",
+            session_key,
+            {"subject_type": "session", "subject_id": session_id, "minutes": 5},
+        )
+        check(hold.status_code == 201, "hold placed", hold.text)
+        stopped = api.call("GET", f"/budgets/check?session_id={session_id}", raw_key).json()
+        check(
+            stopped.get("allowed") is False and "runaway_hold" in str(stopped.get("reason")),
+            "budget check refuses the held session",
+            stopped,
+        )
+        if args.gateway_url and args.alias:
+            gw = httpx.post(
+                f"{args.gateway_url.rstrip('/')}/gateway/chat/completions",
+                headers={"Authorization": f"Bearer {raw_key}"},
+                json={
+                    "model": args.alias,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "metadata": {"session_id": session_id},
+                    "cache": False,
+                },
+                timeout=60,
+            )
+            check(gw.status_code == 429, "gateway refuses the held session (429)", gw.text[:200])
+            check(
+                gw.headers.get("x-cost-cap-reason") in (None, "runaway_hold"),
+                "rejection names runaway protection",
+                gw.headers.get("x-cost-cap-reason"),
+            )
+        if hold.status_code == 201:
+            released = api.call(
+                "POST", f"/budgets/runaway-holds/{hold.json()['id']}/release", session_key
+            )
+            check(released.status_code == 200, "hold released", released.text)
+            time.sleep(1)
+            again_ok = api.call("GET", f"/budgets/check?session_id={session_id}", raw_key).json()
+            check(again_ok.get("allowed") is True, "released session is allowed again", again_ok)
 
         if args.gateway_url and args.alias:
             print("\n→ gateway enforcement")

@@ -57,9 +57,31 @@ class LedgerSnapshot(Base):
     call_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
     hash: Mapped[str] = mapped_column(sa.Text, nullable=False)
     key_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    # Sealing (review cd:M-02): the previous snapshot's hash (chain), the digest of the
+    # per-call manifest in ledger_snapshot_entries and when it was sealed. NULL on
+    # legacy snapshots, which can only be compared by aggregates.
+    prev_hash: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    entries_root: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    entry_count: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    sealed_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
+
+
+class LedgerSnapshotEntry(Base):
+    """One provider call sealed into a snapshot: its canonical hash and sealed cost."""
+
+    __tablename__ = "ledger_snapshot_entries"
+
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("ledger_snapshots.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    provider_call_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    row_hash: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    cost_usd: Mapped[Decimal | None] = mapped_column(sa.Numeric(14, 8), nullable=True)
 
 
 class ToolRegistry(Base):

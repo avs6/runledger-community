@@ -668,37 +668,6 @@ export async function triggerDemoReset(
   })
 }
 
-export async function listModelBudgets(
-  apiKey: string,
-  keyId: string
-): Promise<import('@/types/api').ModelBudgetList> {
-  return apiFetch<import('@/types/api').ModelBudgetList>(`/api-keys/${keyId}/model-budgets`, apiKey)
-}
-
-export async function createModelBudget(
-  apiKey: string,
-  keyId: string,
-  body: { model_pattern: string; max_spend_usd?: number; period_type?: string; rpm_limit?: number; tpm_limit?: number; action?: string }
-): Promise<import('@/types/api').ModelBudget> {
-  return apiFetch<import('@/types/api').ModelBudget>(`/api-keys/${keyId}/model-budgets`, apiKey, { method: 'POST', body: JSON.stringify(body) })
-}
-
-export async function updateModelBudget(
-  apiKey: string,
-  keyId: string,
-  budgetId: string,
-  body: { model_pattern?: string; max_spend_usd?: number | null; period_type?: string; rpm_limit?: number | null; tpm_limit?: number | null; action?: string; is_active?: boolean }
-): Promise<import('@/types/api').ModelBudget> {
-  return apiFetch<import('@/types/api').ModelBudget>(`/api-keys/${keyId}/model-budgets/${budgetId}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
-}
-
-export async function deleteModelBudget(
-  apiKey: string,
-  keyId: string,
-  budgetId: string
-): Promise<void> {
-  await apiFetch<void>(`/api-keys/${keyId}/model-budgets/${budgetId}`, apiKey, { method: 'DELETE' })
-}
 
 export async function registerMcpServer(
   apiKey: string,

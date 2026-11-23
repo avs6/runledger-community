@@ -1,5 +1,5 @@
 /** Budgets, billing, invoices and ledger. */
-import type { BillingAdjustment, BillingAdjustmentList, BillingPeriod, BillingPeriodList, BreachList, ChargebackReportList, ChargebackRuleList, ChargebackRuleResponse, Budget, BudgetList, BudgetRollupResponse, LedgerSnapshotList, NotificationList, NotificationDeliveryList, NotificationResponse, NotificationTestResult, LedgerSnapshotResponse, LedgerClosureSummary, LedgerVerifyResult, PeriodBreakdown, ReconciliationResult, SharedCostAllocationResult, SharedCostPolicy, SharedCostPolicyList, UsageSnapshot } from '@/types/api'
+import type { BudgetBurndown, BudgetSimulateRequest, BudgetSimulateResult, RunawayHold, RunawayHoldList, BillingAdjustment, BillingAdjustmentList, BillingPeriod, BillingPeriodList, BreachList, ChargebackReportList, ChargebackRuleList, ChargebackRuleResponse, Budget, BudgetList, BudgetRollupResponse, LedgerSnapshotList, NotificationList, NotificationDeliveryList, NotificationResponse, NotificationTestResult, LedgerSnapshotResponse, LedgerClosureSummary, LedgerVerifyResult, PeriodBreakdown, ReconciliationResult, SharedCostAllocationResult, SharedCostPolicy, SharedCostPolicyList, UsageSnapshot } from '@/types/api'
 import { apiFetch } from './client'
 
 // ── Budget helpers ─────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ export async function createBudget(
   body: {
     scope_type: string
     scope_id?: string | null
+    api_key_id?: string | null
     period_type: string
     limit_usd: number
     action: string
@@ -50,6 +51,7 @@ export async function updateBudget(
   body: Partial<{
     scope_type: string
     scope_id: string | null
+    api_key_id: string | null
     period_type: string
     limit_usd: number
     action: string
@@ -65,6 +67,45 @@ export async function updateBudget(
 
 export async function deleteBudget(apiKey: string, id: string): Promise<void> {
   await apiFetch<void>(`/budgets/${id}`, apiKey, { method: 'DELETE' })
+}
+
+export async function getBudgetBurndown(apiKey: string, id: string): Promise<BudgetBurndown> {
+  return apiFetch<BudgetBurndown>(`/budgets/${id}/burndown`, apiKey)
+}
+
+/** Replay the last N days of real spend against a candidate budget. */
+export async function simulateBudget(
+  apiKey: string,
+  body: BudgetSimulateRequest
+): Promise<BudgetSimulateResult> {
+  return apiFetch<BudgetSimulateResult>('/budgets/simulate', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listRunawayHolds(
+  apiKey: string,
+  activeOnly = false
+): Promise<RunawayHoldList> {
+  return apiFetch<RunawayHoldList>(
+    `/budgets/runaway-holds?limit=100${activeOnly ? '&active_only=true' : ''}`,
+    apiKey
+  )
+}
+
+export async function createRunawayHold(
+  apiKey: string,
+  body: { subject_type: 'run' | 'session'; subject_id: string; minutes: number; reason?: string }
+): Promise<RunawayHold> {
+  return apiFetch<RunawayHold>('/budgets/runaway-holds', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function releaseRunawayHold(apiKey: string, id: string): Promise<RunawayHold> {
+  return apiFetch<RunawayHold>(`/budgets/runaway-holds/${id}/release`, apiKey, { method: 'POST' })
 }
 
 export async function getBudgetBreaches(apiKey: string, id: string): Promise<BreachList> {
@@ -609,7 +650,8 @@ export async function listBillingWebhooks(
         created_at: item.created_at,
       })),
   }
-}
+}
+
 export async function createBillingWebhook(
   apiKey: string,
   body: { url: string; secret: string; label?: string }
@@ -627,7 +669,8 @@ export async function createBillingWebhook(
     enabled: result.is_active,
     created_at: result.created_at,
   }
-}
+}
+
 export async function deleteBillingWebhook(apiKey: string, id: string): Promise<void> {
   await deleteBudgetNotification(apiKey, id)
 }

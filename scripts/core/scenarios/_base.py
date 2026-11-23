@@ -1610,18 +1610,22 @@ class Workspace:
         *,
         max_spend_usd: float | None = None,
         period_type: str = "monthly",
-        rpm_limit: int | None = None,
-        tpm_limit: int | None = None,
         action: str = "notify",
+        **_ignored: Any,
     ) -> dict[str, Any]:
-        body: dict[str, Any] = {"model_pattern": model_pattern, "period_type": period_type, "action": action}
-        if max_spend_usd is not None:
-            body["max_spend_usd"] = max_spend_usd
-        if rpm_limit is not None:
-            body["rpm_limit"] = rpm_limit
-        if tpm_limit is not None:
-            body["tpm_limit"] = tpm_limit
-        return self._manage_post(f"/api-keys/{key_id}/model-budgets", body, f"model budget '{model_pattern}'")
+        """A model budget is a budget with scope_type=model narrowed to one key (G-01).
+
+        rpm/tpm limits were never enforced and are no longer accepted (ignored here).
+        """
+        body: dict[str, Any] = {
+            "scope_type": "model",
+            "scope_id": model_pattern,
+            "api_key_id": key_id,
+            "period_type": period_type,
+            "limit_usd": max_spend_usd if max_spend_usd is not None else 1.0,
+            "action": action if action in {"notify", "block", "throttle"} else "block",
+        }
+        return self._manage_post("/budgets", body, f"model budget '{model_pattern}'")
 
     def create_budget_override(
         self,

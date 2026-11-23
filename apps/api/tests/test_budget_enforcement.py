@@ -30,37 +30,25 @@ from runledger_api.services.budgets import (
     record_budget_spend,
 )
 
+from tests.budget_fakes import FakeRedis, spend_store
+
 WS = uuid.uuid4()
 
 
-class _FakeRedis:
-    """Just enough of redis.asyncio for budget counters and flags."""
+_FakeRedis = FakeRedis
 
-    def __init__(self) -> None:
-        self.store: dict[str, Any] = {}
 
-    async def get(self, key: str) -> Any:
-        return self.store.get(key)
-
-    async def set(self, key: str, value: Any, nx: bool = False, ex: int | None = None) -> bool:
-        if nx and key in self.store:
-            return False
-        self.store[key] = value
-        return True
-
-    async def incrbyfloat(self, key: str, amount: float) -> float:
-        self.store[key] = float(self.store.get(key, 0)) + amount
-        return float(self.store[key])
-
-    async def incr(self, key: str) -> int:
-        self.store[key] = int(self.store.get(key, 0)) + 1
-        return int(self.store[key])
-
-    async def expire(self, key: str, seconds: int) -> bool:
-        return True
-
-    async def delete(self, key: str) -> int:
-        return 1 if self.store.pop(key, None) is not None else 0
+@pytest.fixture(autouse=True)
+def _store() -> Any:
+    """Durable spend in memory; no budget tier for the request checks."""
+    with (
+        spend_store() as store,
+        patch(
+            "runledger_api.services.gateway_controls.key_tier_breach",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        yield store
 
 
 def _budget(
@@ -246,22 +234,116 @@ async def test_record_spend_threshold_and_breach_fire_once_per_period() -> None:
 
 
 @pytest.mark.asyncio
-async def test_record_spend_failure_releases_dedup_key() -> None:
+async def test_record_spend_failure_propagates_to_caller_transaction() -> None:
+    """A failed write raises, so the caller's transaction (which also holds the
+    budget_spend_calls claim) rolls back and a retry counts the call."""
     redis = _FakeRedis()
-    pc_id = uuid.uuid4()
     with (
         _patch_budgets([_budget()]),
-        patch.object(budgets_svc, "incr_budget_spend", AsyncMock(side_effect=RuntimeError)),
+        patch.object(budgets_svc, "_db_add_spend", AsyncMock(side_effect=RuntimeError)),
         pytest.raises(RuntimeError),
     ):
         await record_budget_spend(
             AsyncMock(),
             redis,  # type: ignore[arg-type]
             workspace_id=WS,
-            provider_call_id=pc_id,
+            provider_call_id=uuid.uuid4(),
             cost_usd=Decimal("1"),
         )
-    assert f"rl:budget:counted:{pc_id}" not in redis.store
+
+
+@pytest.mark.asyncio
+async def test_spend_survives_redis_loss(_store: Any) -> None:
+    """cd:B-05: losing the Redis cache (eviction / restart) doesn't reset spend."""
+    redis = _FakeRedis()
+    budget = _budget(limit="5")
+    with _patch_budgets([budget]), patch.object(budgets_svc, "fire_breach", AsyncMock()):
+        await record_budget_spend(
+            AsyncMock(),
+            redis,  # type: ignore[arg-type]
+            workspace_id=WS,
+            provider_call_id=uuid.uuid4(),
+            cost_usd=Decimal("6"),
+        )
+        redis.store.clear()  # everything evicted
+        result = await check_request_budgets(
+            redis,  # type: ignore[arg-type]
+            AsyncMock(),
+            workspace_id=WS,
+            api_key_id=None,
+            end_user_id=None,
+            feature_tag=None,
+        )
+    assert result.allowed is False and result.action == "block"
+    assert _store.total(budget["id"]) == Decimal(6)
+
+
+@pytest.mark.asyncio
+async def test_model_budget_counts_and_blocks_matching_route(_store: Any) -> None:
+    """G-01: a model budget (scope_type=model) accrues spend and blocks the route."""
+    redis = _FakeRedis()
+    key_id = uuid.uuid4()
+    budget = _budget("model", "gpt-4*", limit="1")
+    budget["api_key_id"] = str(key_id)
+    with _patch_budgets([budget]), patch.object(budgets_svc, "fire_breach", AsyncMock()):
+        n = await record_budget_spend(
+            AsyncMock(),
+            redis,  # type: ignore[arg-type]
+            workspace_id=WS,
+            provider_call_id=uuid.uuid4(),
+            cost_usd=Decimal("2"),
+            api_key_id=key_id,
+            model="gpt-4o",
+        )
+        other_key = await record_budget_spend(
+            AsyncMock(),
+            redis,  # type: ignore[arg-type]
+            workspace_id=WS,
+            provider_call_id=uuid.uuid4(),
+            cost_usd=Decimal("2"),
+            api_key_id=uuid.uuid4(),
+            model="gpt-4o",
+        )
+        blocked = await check_provider_profile_budgets(
+            redis,  # type: ignore[arg-type]
+            AsyncMock(),
+            workspace_id=WS,
+            provider="openai",
+            model="gpt-4o-mini",
+            api_key_id=key_id,
+        )
+        other_model = await check_provider_profile_budgets(
+            redis,  # type: ignore[arg-type]
+            AsyncMock(),
+            workspace_id=WS,
+            provider="anthropic",
+            model="claude-sonnet-4",
+            api_key_id=key_id,
+        )
+    assert n == 1 and other_key == 0
+    assert blocked.allowed is False and blocked.budget_id == budget["id"]
+    assert other_model.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_request_check_blocks_on_key_tier() -> None:
+    """cd:B-06: the key's tier spend limit blocks in preflight, with no route caps."""
+    with (
+        patch(
+            "runledger_api.services.gateway_controls.key_tier_breach",
+            AsyncMock(return_value="budget_tier:starter"),
+        ),
+        _patch_budgets([]),
+    ):
+        result = await check_request_budgets(
+            _FakeRedis(),  # type: ignore[arg-type]
+            AsyncMock(),
+            workspace_id=WS,
+            api_key_id=uuid.uuid4(),
+            end_user_id=None,
+            feature_tag=None,
+        )
+    assert result.allowed is False and result.reason == "budget_tier:starter"
 
 
 @pytest.mark.asyncio
@@ -289,10 +371,10 @@ async def test_record_spend_counts_access_group_budget_for_member() -> None:
 
 
 async def _exhaust(redis: _FakeRedis, budget: dict[str, Any], amount: str = "999") -> None:
-    await budgets_svc.incr_budget_spend(
+    await budgets_svc._cache_spend(
         redis,  # type: ignore[arg-type]
         uuid.UUID(budget["id"]),
-        budget["period_type"],
+        budgets_svc._period_key(budget["period_type"], datetime.now(UTC)),
         Decimal(amount),
     )
 
@@ -515,6 +597,7 @@ async def test_metering_enrichment_counts_priced_call_against_budgets() -> None:
         provider="openai",
         model="gpt-4o",
         created_at=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
+        span_id=None,
     )
     run = SimpleNamespace(
         api_key_id=key_id, end_user_id="u9", feature_tag="support", application_id=None

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { createBudgetOverride, listBudgetOverrides, revokeBudgetOverride } from '@/lib/api'
@@ -18,6 +18,7 @@ function formatMoney(value: number | string | null) {
 
 const statusColors: Record<string, string> = {
   active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  scheduled: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
   expired: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
   revoked: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
@@ -48,7 +49,7 @@ export default function BudgetOverridesPanel({ budgets, apiKey }: Props) {
     [budgets, selectedBudget]
   )
 
-  async function loadOverrides(budgetId: string) {
+  const loadOverrides = useCallback(async (budgetId: string) => {
     if (!budgetId) {
       setItems([])
       return
@@ -64,7 +65,7 @@ export default function BudgetOverridesPanel({ budgets, apiKey }: Props) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiKey])
 
   useEffect(() => {
     if (budgets.length === 0) return
@@ -73,21 +74,27 @@ export default function BudgetOverridesPanel({ budgets, apiKey }: Props) {
       return
     }
     void loadOverrides(selectedBudget)
-  }, [budgets, selectedBudget])
+  }, [budgets, selectedBudget, loadOverrides])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedBudget) return
     setSaving(true)
     try {
-      await createBudgetOverride(apiKey, selectedBudget, {
+      const created = await createBudgetOverride(apiKey, selectedBudget, {
         override_limit_usd: parseFloat(form.override_limit_usd),
         starts_at: new Date(form.starts_at).toISOString(),
         expires_at: new Date(form.expires_at).toISOString(),
         reason: form.reason || undefined,
         require_approval: form.require_approval,
       })
-      toast.success(form.require_approval ? 'Override sent for approval' : 'Override created')
+      toast.success(
+        created.status === 'pending'
+          ? 'Override sent for approval'
+          : created.status === 'scheduled'
+            ? 'Override scheduled: it activates at its start time'
+            : 'Override active'
+      )
       setShowForm(false)
       setForm({
         override_limit_usd: '',
@@ -211,6 +218,9 @@ export default function BudgetOverridesPanel({ budgets, apiKey }: Props) {
                 />
                 Require governance approval before activating this override
               </label>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Increases above 1.5× the budget&apos;s limit always need another admin&apos;s approval.
+              </p>
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -280,8 +290,9 @@ export default function BudgetOverridesPanel({ budgets, apiKey }: Props) {
                               Review approval
                             </Link>
                           )}
-                          {item.status === 'active' && (
+                          {(item.status === 'active' || item.status === 'scheduled' || item.status === 'pending') && (
                             <button
+                              type="button"
                               onClick={() => handleRevoke(item.id)}
                               className="rounded-lg px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
                             >

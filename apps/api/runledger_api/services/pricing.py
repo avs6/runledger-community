@@ -16,6 +16,14 @@ Cached input discount:
   If ``cached_input_cost_per_1m`` is set on the pricing row, it is used
   directly.  If NULL, the discount defaults to 50 % of ``input_cost_per_1m``
   (matching OpenAI Prompt Caching behaviour).
+
+Cached-token edge cases (review F-25):
+  - OpenAI-style usage reports cached tokens as a subset of input tokens; Anthropic
+    reports cache reads separately from input. When ``cached_input_tokens`` exceeds
+    ``input_tokens`` the cached tokens are treated as additional (never as a negative
+    billable input), and negative counts are clamped to 0.
+  - Cache writes (``cache_write_tokens``, e.g. Anthropic cache creation) are charged
+    at ``cache_write_cost_per_1m`` when set, otherwise at the input rate.
 """
 
 from __future__ import annotations
@@ -51,6 +59,7 @@ async def calculate_cost(
     cached_input_tokens: int | None = None,
     at_time: datetime | None = None,
     workspace_id: uuid.UUID | None = None,
+    cache_write_tokens: int | None = None,
 ) -> Decimal | None:
     """
     Return the USD cost for a provider call, or ``None`` if no pricing row
@@ -75,6 +84,8 @@ async def calculate_cost(
         Defaults to now (UTC).
     workspace_id:
         If provided, a workspace-specific override row is checked first.
+    cache_write_tokens:
+        Tokens written to the prompt cache, billed at the cache-write rate.
     """
     if input_tokens is None and output_tokens is None:
         return None
@@ -85,28 +96,49 @@ async def calculate_cost(
         log.debug("no_pricing_row", provider=provider, model=model)
         return None
 
-    in_tok = Decimal(input_tokens or 0)
-    out_tok = Decimal(output_tokens or 0)
-    cached_tok = Decimal(cached_input_tokens or 0)
+    return price_tokens(
+        pricing,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cached_input_tokens=cached_input_tokens,
+        cache_write_tokens=cache_write_tokens,
+    )
 
-    # Billable (non-cached) input tokens
-    billable_input = in_tok - cached_tok
 
-    # Cost for non-cached input
+def price_tokens(
+    pricing: ProviderPricing,
+    *,
+    input_tokens: int | None,
+    output_tokens: int | None,
+    cached_input_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
+) -> Decimal:
+    """Cost of token counts under one pricing row (see the module docstring)."""
+    in_tok = Decimal(max(input_tokens or 0, 0))
+    out_tok = Decimal(max(output_tokens or 0, 0))
+    cached_tok = Decimal(max(cached_input_tokens or 0, 0))
+    write_tok = Decimal(max(cache_write_tokens or 0, 0))
+
+    # Cached tokens are normally a subset of input; if they exceed it the provider
+    # reported them separately, so all input tokens are billable.
+    billable_input = in_tok - cached_tok if cached_tok <= in_tok else in_tok
+
     input_cost = (billable_input * pricing.input_cost_per_1m) / _MILLION
-
-    # Cost for cached input
-    if pricing.cached_input_cost_per_1m is not None:
-        cached_rate = pricing.cached_input_cost_per_1m
+    cached_rate_set = getattr(pricing, "cached_input_cost_per_1m", None)
+    if cached_rate_set is not None:
+        cached_rate = cached_rate_set
     else:
         cached_rate = pricing.input_cost_per_1m * _HALF
     cached_cost = (cached_tok * cached_rate) / _MILLION
-
-    # Output cost
+    write_rate = getattr(pricing, "cache_write_cost_per_1m", None)
+    if write_rate is None:
+        write_rate = pricing.input_cost_per_1m
+    write_cost = (write_tok * write_rate) / _MILLION
     output_cost = (out_tok * pricing.output_cost_per_1m) / _MILLION
 
-    total = (input_cost + cached_cost + output_cost).quantize(_QUANTIZE, rounding=ROUND_HALF_UP)
-    return total
+    return (input_cost + cached_cost + write_cost + output_cost).quantize(
+        _QUANTIZE, rounding=ROUND_HALF_UP
+    )
 
 
 async def _get_pricing(

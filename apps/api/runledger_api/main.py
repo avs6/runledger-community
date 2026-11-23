@@ -42,7 +42,6 @@ from runledger_api.routers import hub as hub_router
 from runledger_api.routers import integrations as integrations_router
 from runledger_api.routers import intelligence as intelligence_router
 from runledger_api.routers import mcp_registry as mcp_registry_router
-from runledger_api.routers import model_budgets as model_budgets_router
 from runledger_api.routers import org as org_router
 from runledger_api.routers import otlp as otlp_router
 from runledger_api.routers import outcomes as outcomes_router
@@ -143,7 +142,6 @@ app.include_router(guardrails_router.router)
 app.include_router(governance_router.router)
 app.include_router(intelligence_router.router)
 app.include_router(budget_tiers_router.router)
-app.include_router(model_budgets_router.router)
 app.include_router(agents_router.router)
 app.include_router(workflows_router.router)
 app.include_router(vector_stores_router.router)

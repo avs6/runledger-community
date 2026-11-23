@@ -16,7 +16,7 @@ from runledger_api.services.budgets import (
     check_request_budgets,
     record_budget_spend,
 )
-from runledger_api.services.gateway_controls import rpm_subject
+from runledger_api.services.gateway_controls import enforce_runaway_hold, rpm_subject
 from runledger_api.services.sessions import resolve_principal_user_id
 
 from .gateway_shared import *
@@ -197,7 +197,10 @@ async def _enforce_request_budgets(
     if check.allowed and not check.throttled:
         return route_alias, None
     if check.action == "block":
-        raise _budget_exceeded(check.budget_id, "Budget limit reached")
+        raise _budget_exceeded(
+            check.budget_id,
+            f"Budget limit reached ({check.reason})" if check.reason else "Budget limit reached",
+        )
     if check.action in {"downgrade", "fallback"}:
         target = check.downgrade_model or check.fallback_model
         alias = (
@@ -439,6 +442,8 @@ async def gateway_runtime_preflight(
         client_ip=body.client_ip,
         principal_user_id=principal_user_id,
     )
+    # Runaway protection: a held run or session is refused (review cd:B-09, W1-D).
+    await enforce_runaway_hold(db, workspace.id, metadata)
     missing_metadata = await enforce_required_metadata(
         db, workspace_id=workspace.id, metadata=metadata
     )
@@ -699,6 +704,7 @@ async def gateway_runtime_preflight(
                 workspace_id=workspace_id,
                 provider=route.provider,
                 model=route.target_model,
+                api_key_id=api_key.id if api_key is not None else None,
             )
         except Exception:
             log.warning("gateway_provider_budget_check_failed", route_id=str(route.id))
