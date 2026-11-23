@@ -5,6 +5,7 @@ from decimal import Decimal
 import structlog
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
@@ -16,7 +17,14 @@ from runledger_api.services.budgets import (
     check_request_budgets,
     record_budget_spend,
 )
+from runledger_api.services.gateway_cache import get_cache_profile, record_cache_outcome
 from runledger_api.services.gateway_controls import rpm_subject
+from runledger_api.services.gateway_decision import (
+    DecisionTrace,
+    link_guardrail_events_to_run,
+)
+from runledger_api.services.gateway_hotpath import is_missing, request_memo, ttl_cache
+from runledger_api.services.gateway_prompts import apply_resolved_prompt, resolve_prompt_ref
 from runledger_api.services.sessions import resolve_principal_user_id
 
 from .gateway_shared import *
@@ -160,6 +168,61 @@ async def _cache_hit_rate_limit(
         await check_per_user_rpm(redis, workspace_id, subject, route.id, route.per_user_rpm_limit)
 
 
+async def _check_cost_cap_cached(db: AsyncSession, route: GatewayRoute, workspace_id: Any) -> None:
+    """check_cost_cap with a few seconds of reuse per route (review cd:gw-perf).
+
+    Caps are daily / monthly sums, so re-deciding them on every request is ~6 queries
+    per route for an answer that changes slowly. A pass or a refusal is reused for
+    ``RUNLEDGER_GATEWAY_HOTPATH_TTL_S`` (default 5 s; 0 = always re-check)."""
+    if route.daily_cost_limit_usd is None and route.monthly_cost_limit_usd is None:
+        return
+    key = ("cost_cap", str(route.id))
+    cached = ttl_cache.get(key)
+    if not is_missing(cached):
+        if cached is not None:
+            code, detail, headers = cached
+            raise HTTPException(code, detail, headers=dict(headers or {}))
+        return
+    try:
+        await check_cost_cap(db, route, workspace_id)
+    except HTTPException as exc:
+        ttl_cache.put(key, (exc.status_code, exc.detail, dict(exc.headers or {})))
+        raise
+    ttl_cache.put(key, None)
+
+
+def _cache_savings_route(seed_routes: list[Any], model: str | None) -> Any:
+    """The route whose price a cache hit saved: the seed route serving ``model``."""
+    for route in seed_routes:
+        if model in (route.target_model, route.alias):
+            return route
+    return seed_routes[0] if seed_routes else None
+
+
+async def _cache_hit_savings(
+    db: AsyncSession,
+    workspace_id: Any,
+    seed_routes: list[Any],
+    model: str | None,
+    input_tokens: int | None,
+    output_tokens: int | None,
+) -> Decimal | None:
+    route = _cache_savings_route(seed_routes, model)
+    if route is None:
+        return None
+    try:
+        return await calculate_cost(
+            db,
+            provider=route.provider,
+            model=route.target_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            workspace_id=workspace_id,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+
+
 async def _enforce_request_budgets(
     db: AsyncSession,
     *,
@@ -285,6 +348,31 @@ async def _record_canonical_gateway_run(
     if shadow_of:
         run_metadata["shadow"] = True
         run_metadata["shadow_of_alias"] = shadow_of
+    if body.request_id is not None:
+        run_metadata["gateway_request_id"] = str(body.request_id)
+    decision = dict(body.decision or {})
+    prompt_info = decision.get("prompt") if isinstance(decision.get("prompt"), dict) else None
+    if decision:
+        # The structured "why this route" record the run-detail panel reads (ENH).
+        decision.setdefault("route", {})
+        if isinstance(decision["route"], dict):
+            decision["route"]["served"] = {
+                "route_id": str(route.id),
+                "alias": route.alias,
+                "provider": route.provider,
+                "target_model": route.target_model,
+                "region": route.region,
+                "reason": body.decision_reason,
+                "shadow": bool(shadow_of),
+            }
+        if blocked_reason:
+            decision.setdefault("guardrail", {})
+            if isinstance(decision["guardrail"], dict):
+                decision["guardrail"]["post_call"] = "block"
+                decision["guardrail"]["reason"] = blocked_reason
+        run_metadata["gateway_decision"] = decision
+    if prompt_info:
+        run_metadata.update({k: v for k, v in prompt_info.items() if k.startswith("prompt_")})
     feature_tag = _feature_tag_from(metadata, body.request_tags)
 
     run = AgentRun(
@@ -299,6 +387,12 @@ async def _record_canonical_gateway_run(
             "deployment_version",
             "service.version",
             "version",
+        )
+        # A resolved prompt ref keys the run to its prompt version (review B-23).
+        or (
+            f"{prompt_info['prompt_name']}:{prompt_info['prompt_version']}"
+            if prompt_info and prompt_info.get("prompt_name")
+            else None
         ),
         status=RunStatusEnum.failed if blocked_reason else RunStatusEnum.succeeded,
         started_at=started_at,
@@ -422,6 +516,16 @@ async def gateway_runtime_preflight(
     _: AdminDep,
     db: DbDep,
 ) -> GatewayRuntimePreflightResponse:
+    # Route / group lookups run once per request inside the memo (review cd:gw-perf).
+    with request_memo():
+        return await _preflight(body, db)
+
+
+async def _preflight(
+    body: GatewayRuntimePreflightRequest, db: AsyncSession
+) -> GatewayRuntimePreflightResponse:
+    request_id = uuid.uuid4()
+    trace = DecisionTrace(request_id=request_id, model_requested=body.body.model)
     workspace, api_key, _oidc_auth = await _resolve_gateway_bearer_token(
         body.raw_key, db, GATEWAY_SCOPE
     )
@@ -454,6 +558,20 @@ async def gateway_runtime_preflight(
         request_tags.extend(tag.strip() for tag in body.tags_header.split(",") if tag.strip())
     request_tags = await resolve_request_tags(db, workspace.id, body.body.model, request_tags)
     preferred_region = body.region_header.strip() if body.region_header else None
+    api_key_id = api_key.id if api_key is not None else None
+    workflow = _feature_tag_from(metadata, request_tags)
+
+    # A managed prompt named by ref is rendered and prepended before guardrails run, so
+    # its text is checked like the caller's own messages (review B-23).
+    if body.body.prompt:
+        resolved_prompt = await resolve_prompt_ref(
+            db, workspace.id, body.body.prompt, body.body.prompt_variables
+        )
+        messages = apply_resolved_prompt(messages, resolved_prompt)
+        trace.prompt = {
+            **resolved_prompt.as_metadata(),
+            "missing_variables": list(resolved_prompt.missing_variables),
+        }
 
     # Guardrails run before either cache is consulted, so a cache hit can't bypass
     # them, and before any sidecar (compiler, router) sees the prompt (G-05, G-09).
@@ -480,7 +598,11 @@ async def gateway_runtime_preflight(
             end_user_id=body.end_user_id,
             user_id=str(principal_user_id) if principal_user_id else None,
             guardrail_ids=guardrail_ids,
+            gateway_request_id=request_id,
+            api_key_id=api_key_id,
+            workflow=workflow,
         )
+        trace.guardrail = {"pre_call": gr_decision, "checked": len(gr_results)}
         if gr_decision == "block":
             blocked_reason = next(
                 (r["reason"] for r in gr_results if r["decision"] == "block"),
@@ -489,6 +611,8 @@ async def gateway_runtime_preflight(
             raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
         if gr_decision == "modify":
             _apply_modified_texts(messages, text_positions, gr_results)
+    else:
+        trace.guardrail = {"pre_call": "off"}
 
     seed_routes = await select_routes(
         db,
@@ -510,11 +634,33 @@ async def gateway_runtime_preflight(
     semantic_scope = _semantic_scope(api_key, body.end_user_id, cache_params)
 
     cache_entry = None
-    if body.body.cache and not body.body.stream:
-        cache_entry = await check_cache(db, workspace.id, cache_key)
+    cache_profile = await get_cache_profile(db, workspace.id)
+    exact_cacheable = (
+        body.body.cache and not body.body.stream and cache_profile.allows(body.body.model)
+    )
+    if exact_cacheable:
+        cache_entry = await check_cache(db, workspace.id, cache_key, model=body.body.model)
+    trace.cache["exact"] = (
+        "hit" if cache_entry is not None else ("miss" if exact_cacheable else "off")
+    )
     if cache_entry is not None:
         await _cache_hit_rate_limit(workspace.id, rpm_key, seed_routes)
         await increment_hit_count(db, cache_entry)
+        await record_cache_outcome(
+            db,
+            workspace.id,
+            hit=True,
+            savings_usd=await _cache_hit_savings(
+                db,
+                workspace.id,
+                seed_routes,
+                cache_entry.model,
+                cache_entry.prompt_tokens,
+                cache_entry.completion_tokens,
+            ),
+        )
+        trace.route = {"alias": body.body.model, "reason": "cache_hit"}
+        trace.budget = {"status": "skipped"}
         await record_gateway_request(
             db=db,
             workspace_id=workspace.id,
@@ -527,6 +673,10 @@ async def gateway_runtime_preflight(
             latency_ms=0,
             req_status="cache_hit",
             decision_reason="cache_hit",
+            config_fingerprint={"decision": trace.as_dict()},
+            request_id=request_id,
+            api_key_id=api_key_id,
+            workflow=workflow,
         )
         return GatewayRuntimePreflightResponse(
             api_key_id=api_key.id if api_key is not None else None,
@@ -546,18 +696,43 @@ async def gateway_runtime_preflight(
             effective_reasoning_effort=body.body.reasoning_effort,
             decision_reason="cache_hit",
             execution_steps=[],
+            request_id=request_id,
+            decision=trace.as_dict(),
+            decision_header=trace.header(),
         )
+    if exact_cacheable:
+        await record_cache_outcome(db, workspace.id, hit=False)
 
     semantic_enabled = body.body.semantic_cache
     if not semantic_enabled and not body.body.stream:
         semantic_enabled = bool(seed_routes and seed_routes[0].semantic_cache_enabled)
     if semantic_enabled and not body.body.stream:
         sem_hit = await semantic_cache_svc.lookup(
-            workspace.id, body.body.model, messages, security_scope=semantic_scope
+            workspace.id,
+            body.body.model,
+            messages,
+            security_scope=semantic_scope,
+            threshold=cache_profile.similarity_threshold,
         )
+        trace.cache["semantic"] = "hit" if sem_hit is not None else "miss"
         if sem_hit is not None:
             await _cache_hit_rate_limit(workspace.id, rpm_key, seed_routes)
             usage = sem_hit.get("usage") or {}
+            await record_cache_outcome(
+                db,
+                workspace.id,
+                hit=True,
+                savings_usd=await _cache_hit_savings(
+                    db,
+                    workspace.id,
+                    seed_routes,
+                    body.body.model,
+                    _optional_int(usage.get("prompt_tokens")),
+                    _optional_int(usage.get("completion_tokens")),
+                ),
+            )
+            trace.route = {"alias": body.body.model, "reason": "semantic_cache_hit"}
+            trace.budget = {"status": "skipped"}
             await record_gateway_request(
                 db=db,
                 workspace_id=workspace.id,
@@ -570,6 +745,10 @@ async def gateway_runtime_preflight(
                 latency_ms=0,
                 req_status="cache_hit",
                 decision_reason="semantic_cache_hit",
+                config_fingerprint={"decision": trace.as_dict()},
+                request_id=request_id,
+                api_key_id=api_key_id,
+                workflow=workflow,
             )
             return GatewayRuntimePreflightResponse(
                 api_key_id=api_key.id if api_key is not None else None,
@@ -591,7 +770,12 @@ async def gateway_runtime_preflight(
                 semantic_cache_enabled=True,
                 decision_reason="semantic_cache_hit",
                 execution_steps=[],
+                request_id=request_id,
+                decision=trace.as_dict(),
+                decision_header=trace.header(),
             )
+    elif "semantic" not in trace.cache:
+        trace.cache["semantic"] = "off"
 
     compiler_enabled = body.body.context_compiler
     compiler_config: dict[str, Any] | None = None
@@ -626,12 +810,13 @@ async def gateway_runtime_preflight(
             if isinstance(on_fail, str) and on_fail != "passthrough":
                 route_alias = (routing_config.get("tiers") or {}).get(on_fail, route_alias)
 
+    alias_before_budget = route_alias
     route_alias, budget_note = await _enforce_request_budgets(
         db,
         workspace_id=workspace.id,
-        api_key_id=api_key.id if api_key is not None else None,
+        api_key_id=api_key_id,
         end_user_id=body.end_user_id,
-        feature_tag=_feature_tag_from(metadata, request_tags),
+        feature_tag=workflow,
         principal_user_id=principal_user_id,
         route_alias=route_alias,
         request_tags=request_tags,
@@ -656,8 +841,19 @@ async def gateway_runtime_preflight(
         if ir_decision and ir_decision.get("reason")
         else primary_reason
     )
+    trace.budget = {"status": "ok"}
     if budget_note:
         decision_reason = f"{decision_reason}|{budget_note}"
+        action, _, budget_id = budget_note.partition(":")
+        trace.budget = {
+            "status": action.removeprefix("budget_"),
+            "budget_id": budget_id or None,
+            "rerouted_from": alias_before_budget if route_alias != alias_before_budget else None,
+        }
+    if ir_decision:
+        trace.intelligent_routing = {
+            k: ir_decision.get(k) for k in ("alias", "reason", "task_class", "reasoning_effort")
+        }
     if missing_metadata:
         decision_reason = f"{decision_reason}|metadata_warn:{','.join(missing_metadata)}"
 
@@ -772,7 +968,7 @@ async def gateway_runtime_preflight(
             if route.cooldown_until is not None and route.cooldown_until > datetime.now(UTC):
                 continue
             try:
-                await check_cost_cap(db, route, workspace.id)
+                await _check_cost_cap_cached(db, route, workspace.id)
                 if not await _route_within_provider_budgets(db, workspace.id, route):
                     continue
                 if rpm_key and route.per_user_rpm_limit:
@@ -790,6 +986,14 @@ async def gateway_runtime_preflight(
             except HTTPException as exc:
                 if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
                     limit_refusal = exc
+                    trace.skipped.append(
+                        {
+                            "route_id": str(route.id),
+                            "alias": alias_to_try,
+                            "why": (exc.headers or {}).get("X-Cost-Cap-Reason")
+                            or str(exc.detail)[:80],
+                        }
+                    )
                 continue
             step_forward_messages = (
                 redact_messages(step_messages) if route.pii_redaction_enabled else step_messages
@@ -860,6 +1064,16 @@ async def gateway_runtime_preflight(
                 if direct_provider.provider_stream_format:
                     step_entry["provider_stream_format"] = direct_provider.provider_stream_format
             execution_steps.append(step_entry)
+            trace.candidates.append(
+                {
+                    "route_id": str(route.id),
+                    "alias": alias_to_try,
+                    "provider": route.provider,
+                    "target_model": route.target_model,
+                    "trigger": trigger,
+                    "region": route.region,
+                }
+            )
 
     if not execution_steps:
         if limit_refusal is not None:
@@ -873,6 +1087,12 @@ async def gateway_runtime_preflight(
             f"No runnable gateway routes remained for alias '{route_alias}'",
         )
 
+    trace.route = {
+        "alias": route_alias,
+        "requested": body.body.model,
+        "reason": decision_reason,
+        "primary_route_id": str(primary_route.id),
+    }
     return GatewayRuntimePreflightResponse(
         api_key_id=api_key.id if api_key is not None else None,
         workspace_id=workspace.id,
@@ -895,6 +1115,9 @@ async def gateway_runtime_preflight(
         execution_steps=execution_steps,
         cache_key=cache_key,
         semantic_scope=semantic_scope,
+        request_id=request_id,
+        decision=trace.as_dict(),
+        decision_header=trace.header(),
     )
 
 
@@ -917,6 +1140,7 @@ async def gateway_runtime_finalize(
     # A post-call block still records the run, the request and the spend (the provider
     # was paid) and skips the caches; the 451 is raised at the end (review G-10).
     blocked_reason: str | None = None
+    finalize_workflow = _feature_tag_from(body.request_metadata or {}, body.request_tags)
     if body.guardrails_enabled:
         finalize_key = await db.get(ApiKey, body.api_key_id) if body.api_key_id else None
         principal_user_id = await resolve_principal_user_id(
@@ -946,6 +1170,9 @@ async def gateway_runtime_finalize(
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
                 user_id=str(principal_user_id) if principal_user_id else None,
+                gateway_request_id=body.request_id,
+                api_key_id=body.api_key_id,
+                workflow=finalize_workflow,
             )
             during_result = await evaluate_guardrails(
                 db,
@@ -960,6 +1187,9 @@ async def gateway_runtime_finalize(
                 model=body.model_requested,
                 end_user_id=body.end_user_id,
                 user_id=str(principal_user_id) if principal_user_id else None,
+                gateway_request_id=body.request_id,
+                api_key_id=body.api_key_id,
+                workflow=finalize_workflow,
             )
             for phase_decision, phase_results, _ in [post_result, during_result]:
                 if phase_decision == "block" and blocked_reason is None:
@@ -982,6 +1212,7 @@ async def gateway_runtime_finalize(
             response_json=body.response_json,
             prompt_tokens=input_tokens,
             completion_tokens=output_tokens,
+            scope_model=body.model_requested,
         )
     if body.semantic_cache_enabled and blocked_reason is None:
         await semantic_cache_svc.store(
@@ -1032,6 +1263,14 @@ async def gateway_runtime_finalize(
             "region": route.region,
         },
         segment_key=_segment_key(body.model_requested, body.ir_decision),
+        request_id=body.request_id,
+        run_id=run_id,
+        api_key_id=body.api_key_id,
+        workflow=feature_tag,
+    )
+    # Pre- and post-call guardrail events of this request now point at its run (G-19).
+    await link_guardrail_events_to_run(
+        db, workspace_id=workspace.id, request_id=body.request_id, run_id=run_id
     )
     try:
         async with db.begin_nested():
@@ -1248,6 +1487,7 @@ async def gateway_runtime_mirror(
                 latency_ms=latency_ms,
                 decision_reason=decision,
                 end_user_id=body.end_user_id,
+                request_id=None,
             ),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -1269,7 +1509,11 @@ async def gateway_runtime_mirror(
                 "shadow": True,
                 "cost_usd": str(cost) if cost is not None else None,
                 "run_id": str(run_id),
+                "shadow_of_request_id": str(body.request_id) if body.request_id else None,
             },
+            run_id=run_id,
+            api_key_id=body.api_key_id,
+            workflow=feature_tag,
         )
         try:
             async with db.begin_nested():
@@ -1338,3 +1582,111 @@ async def ingest_signed_gateway_runtime_events(
         events=[event.model_dump(mode="json") for event in payload.events],
     )
     return GatewayRuntimeEventBatchResponse(accepted=accepted)
+
+
+# ── Run decision ("why this route") ───────────────────────────────────────────
+
+
+class GatewayRunGuardrailEvent(BaseModel):
+    guardrail_name: str
+    mode: str
+    decision: str
+    reason: str | None = None
+    latency_ms: float | None = None
+    created_at: datetime
+
+
+class GatewayRunDecisionResponse(BaseModel):
+    """Everything the gateway decided for one run: the decision trace preflight built
+    (route, cache, budget, guardrail, prompt, candidates, skipped routes), the request
+    row it recorded and the guardrail events linked to it (ENH, review G-19)."""
+
+    run_id: uuid.UUID
+    gateway_request_id: uuid.UUID | None = None
+    decision: dict[str, Any] | None = None
+    decision_header: str | None = None
+    status: str | None = None
+    latency_ms: int | None = None
+    gateway_overhead_ms: int | None = None
+    workflow: str | None = None
+    api_key_id: uuid.UUID | None = None
+    guardrail_events: list[GatewayRunGuardrailEvent] = Field(default_factory=list)
+
+
+def _header_from_decision(decision: dict[str, Any]) -> str | None:
+    """The X-RunLedger-Decision value this run was answered with."""
+    served = (decision.get("route") or {}).get("served") or {}
+    parts = []
+    if served:
+        parts.append(
+            f"route={served.get('alias')}/{served.get('provider')}:{served.get('target_model')}"
+        )
+    cache = (decision.get("cache") or {}).get("result")
+    if cache:
+        parts.append(f"cache={cache}")
+    budget = (decision.get("budget") or {}).get("status")
+    if budget:
+        parts.append(f"budget={budget}")
+    guardrail = (decision.get("guardrail") or {}).get("result")
+    if guardrail:
+        parts.append(f"guardrail={guardrail}")
+    return "; ".join(parts) or None
+
+
+@router.get("/runs/{run_id}/decision", response_model=GatewayRunDecisionResponse)
+async def get_gateway_run_decision(
+    run_id: uuid.UUID,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> GatewayRunDecisionResponse:
+    from runledger_api.models.guardrails import GuardrailEvent  # noqa: PLC0415
+
+    run = await db.get(AgentRun, run_id)
+    if run is None or run.workspace_id != workspace.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
+    request_row = (
+        await db.execute(
+            select(GatewayRequest)
+            .where(GatewayRequest.workspace_id == workspace.id, GatewayRequest.run_id == run_id)
+            .order_by(GatewayRequest.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    metadata = run.run_metadata or {}
+    decision = metadata.get("gateway_decision") if isinstance(metadata, dict) else None
+    events = list(
+        (
+            await db.execute(
+                select(GuardrailEvent)
+                .where(GuardrailEvent.workspace_id == workspace.id, GuardrailEvent.run_id == run_id)
+                .order_by(GuardrailEvent.created_at.asc())
+                .limit(100)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    fingerprint = (request_row.config_fingerprint or {}) if request_row is not None else {}
+    overhead = fingerprint.get("gateway_overhead_ms") if isinstance(fingerprint, dict) else None
+    return GatewayRunDecisionResponse(
+        run_id=run_id,
+        gateway_request_id=request_row.id if request_row is not None else None,
+        decision=decision if isinstance(decision, dict) else None,
+        decision_header=_header_from_decision(decision) if isinstance(decision, dict) else None,
+        status=request_row.status if request_row is not None else None,
+        latency_ms=request_row.latency_ms if request_row is not None else None,
+        gateway_overhead_ms=_optional_int(overhead),
+        workflow=(request_row.workflow if request_row is not None else None) or run.feature_tag,
+        api_key_id=(request_row.api_key_id if request_row is not None else None) or run.api_key_id,
+        guardrail_events=[
+            GatewayRunGuardrailEvent(
+                guardrail_name=e.guardrail_name,
+                mode=e.mode,
+                decision=e.decision,
+                reason=e.reason,
+                latency_ms=e.latency_ms,
+                created_at=e.created_at,
+            )
+            for e in events
+        ],
+    )

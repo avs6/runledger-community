@@ -35,6 +35,7 @@ from runledger_api.models.gateway import (
     PromptCache,
 )
 from runledger_api.services import kafka_export
+from runledger_api.services.gateway_hotpath import is_missing, memo_get, memo_put, ttl_cache
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,11 @@ async def list_routing_groups_for_alias(
     workspace_id: Any,
     alias: str,
 ) -> list[GatewayRoutingGroup]:
+    # One lookup per alias per request (review cd:gw-perf).
+    memo_key = ("routing_groups", str(workspace_id), alias)
+    cached = memo_get(memo_key)
+    if not is_missing(cached):
+        return list(cached)
     stmt = (
         select(GatewayRoutingGroup)
         .where(
@@ -73,7 +79,9 @@ async def list_routing_groups_for_alias(
         .order_by(GatewayRoutingGroup.created_at.asc())
     )
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    groups = list(result.scalars().all())
+    memo_put(memo_key, groups)
+    return list(groups)
 
 
 async def resolve_request_tags(
@@ -217,17 +225,26 @@ def _shadow_similarity(primary_text: str, mirror_text: str) -> float:
     return len(primary_tokens.intersection(mirror_tokens)) / len(union)
 
 
-async def check_cache(db: AsyncSession, workspace_id: Any, cache_key: str) -> PromptCache | None:
-    """Return a live (not-expired) cache entry if caching is enabled for workspace."""
-    from runledger_api.models.cache_config import ResponseCacheConfig  # noqa: PLC0415
+async def check_cache(
+    db: AsyncSession,
+    workspace_id: Any,
+    cache_key: str,
+    *,
+    model: str | None = None,
+) -> PromptCache | None:
+    """Return a live (not-expired) cache entry when the workspace's cache profile
+    allows it for ``model`` (review G-09: one profile, its fields enforced)."""
+    from runledger_api.services.gateway_cache import get_cache_profile  # noqa: PLC0415
 
-    cfg_stmt = (
-        select(ResponseCacheConfig).where(ResponseCacheConfig.workspace_id == workspace_id).limit(1)
-    )
-    cfg = (await db.execute(cfg_stmt)).scalar_one_or_none()
-    if cfg and not cfg.is_enabled:
+    profile = await get_cache_profile(db, workspace_id)
+    if not profile.allows(model):
         return None
+    return await _live_cache_entry(db, workspace_id, cache_key)
 
+
+async def _live_cache_entry(
+    db: AsyncSession, workspace_id: Any, cache_key: str
+) -> PromptCache | None:
     now = datetime.now(UTC)
     stmt = select(PromptCache).where(
         PromptCache.workspace_id == workspace_id,
@@ -256,21 +273,25 @@ async def store_cache(
     response_json: dict[str, Any],
     prompt_tokens: int | None,
     completion_tokens: int | None,
+    *,
+    scope_model: str | None = None,
 ) -> None:
-    """Upsert a prompt cache entry (insert or skip if key already exists)."""
-    existing = await check_cache(db, workspace_id, cache_key)
+    """Insert a prompt cache entry (skip if the key already exists or the workspace's
+    cache profile excludes this model). The profile's TTL sets the expiry and its
+    ``max_entries`` / ``eviction_policy`` bound the cache (review G-09)."""
+    from runledger_api.services.gateway_cache import (  # noqa: PLC0415
+        enforce_max_entries,
+        get_cache_profile,
+    )
+
+    profile = await get_cache_profile(db, workspace_id)
+    if not profile.allows(scope_model or model):
+        return
+    existing = await _live_cache_entry(db, workspace_id, cache_key)
     if existing:
         return  # already cached by a concurrent request
 
-    from runledger_api.models.cache_config import ResponseCacheConfig  # noqa: PLC0415
-
-    cfg_stmt = (
-        select(ResponseCacheConfig.ttl_seconds)
-        .where(ResponseCacheConfig.workspace_id == workspace_id)
-        .limit(1)
-    )
-    ttl = (await db.execute(cfg_stmt)).scalar_one_or_none() or (_CACHE_TTL_HOURS * 3600)
-
+    ttl = profile.ttl_seconds or (_CACHE_TTL_HOURS * 3600)
     expires_at = datetime.now(UTC) + timedelta(seconds=int(ttl))
     entry = PromptCache(
         workspace_id=workspace_id,
@@ -287,6 +308,8 @@ async def store_cache(
         await db.commit()
     except Exception:
         await db.rollback()
+        return
+    await enforce_max_entries(db, workspace_id, profile)
 
 
 async def select_routes(
@@ -296,20 +319,29 @@ async def select_routes(
     request_tags: list[str] | None = None,
     preferred_region: str | None = None,
 ) -> list[GatewayRoute]:
-    """Return active routes for alias ordered by priority ASC."""
+    """Return active routes for alias ordered by priority ASC.
+
+    The route rows are loaded once per alias per request (request memo); the tag,
+    group and region filters below are pure, so every caller still gets its own view.
+    """
     groups = await list_routing_groups_for_alias(db, workspace_id, alias)
     matched_group_ids = _matching_group_ids(groups, request_tags)
-    stmt = (
-        select(GatewayRoute)
-        .where(
-            GatewayRoute.workspace_id == workspace_id,
-            GatewayRoute.alias == alias,
-            GatewayRoute.is_active.is_(True),
+    memo_key = ("routes", str(workspace_id), alias)
+    cached = memo_get(memo_key)
+    if is_missing(cached):
+        stmt = (
+            select(GatewayRoute)
+            .where(
+                GatewayRoute.workspace_id == workspace_id,
+                GatewayRoute.alias == alias,
+                GatewayRoute.is_active.is_(True),
+            )
+            .order_by(GatewayRoute.priority.asc())
         )
-        .order_by(GatewayRoute.priority.asc())
-    )
-    result = await db.execute(stmt)
-    routes = list(result.scalars().all())
+        result = await db.execute(stmt)
+        cached = list(result.scalars().all())
+        memo_put(memo_key, cached)
+    routes = list(cached)
     if matched_group_ids:
         routes = [route for route in routes if route.routing_group_id in matched_group_ids]
     filtered = routes
@@ -347,6 +379,16 @@ async def _rank_routes_by_region_latency(
     region_routes = [route for route in routes if route.region]
     if len(region_routes) < 2:
         return routes
+    # A 24 h aggregate: reuse it for a few seconds instead of per request (cd:gw-perf).
+    cache_key = (
+        "region_latency",
+        str(workspace_id),
+        tuple(sorted(str(r.id) for r in region_routes)),
+    )
+    cached_map = ttl_cache.get(cache_key)
+    if not is_missing(cached_map):
+        latency_map = dict(cached_map)
+        return _sort_by_region_latency(routes, latency_map)
     rows = await db.execute(
         select(
             GatewayRoute.region,
@@ -367,16 +409,22 @@ async def _rank_routes_by_region_latency(
         for row in rows.all()
         if row.region and row.avg_latency is not None
     }
+    ttl_cache.put(cache_key, latency_map)
+    return _sort_by_region_latency(routes, latency_map)
+
+
+def _sort_by_region_latency(
+    routes: list[GatewayRoute], latency_map: dict[str, float]
+) -> list[GatewayRoute]:
     if not latency_map:
         return routes
-    ranked = sorted(
+    return sorted(
         routes,
         key=lambda route: (
             latency_map.get((route.region or "").lower(), float("inf")),
             route.priority,
         ),
     )
-    return ranked
 
 
 async def choose_route_for_alias(
@@ -427,7 +475,17 @@ async def choose_route_for_alias(
         filtered = latency_region_ranked
     if top_group and top_group.strategy_type == "latency_optimized":
         route_ids = [route.id for route in filtered if route.routing_group_id == top_group.id]
-        if route_ids:
+        stats_key = ("group_latency", str(workspace_id), tuple(sorted(str(r) for r in route_ids)))
+        cached_stats = ttl_cache.get(stats_key) if route_ids else None
+        if route_ids and not is_missing(cached_stats):
+            latency_map = {uuid_key: v for uuid_key, v in cached_stats.items()}
+            ranked = sorted(
+                [route for route in filtered if route.id in latency_map],
+                key=lambda route: (latency_map[route.id], route.priority),
+            )
+            if ranked:
+                return ranked[0], f"routing_group:{top_group.name}|latency_optimized"
+        elif route_ids:
             stats_stmt = (
                 select(
                     GatewayRequest.route_id,
@@ -446,6 +504,7 @@ async def choose_route_for_alias(
                 for row in stats_result.all()
                 if row.avg_latency is not None
             }
+            ttl_cache.put(stats_key, latency_map)
             if latency_map:
                 ranked = sorted(
                     [route for route in filtered if route.id in latency_map],
@@ -645,23 +704,46 @@ async def record_gateway_request(
     decision_reason: str | None = None,
     config_fingerprint: dict[str, Any] | None = None,
     segment_key: str | None = None,
-) -> None:
-    """Insert a GatewayRequest log entry."""
-    entry = GatewayRequest(
-        workspace_id=workspace_id,
-        route_id=route.id if route else None,
-        model_requested=model_requested,
-        model_used=model_used,
-        cache_hit=cache_hit,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        latency_ms=latency_ms,
-        status=req_status,
-        decision_reason=decision_reason,
-        config_fingerprint=config_fingerprint,
-        segment_key=segment_key,
-    )
-    db.add(entry)
+    *,
+    request_id: Any = None,
+    run_id: Any = None,
+    api_key_id: Any = None,
+    workflow: str | None = None,
+) -> GatewayRequest:
+    """Insert (or, for a known ``request_id``, complete) a GatewayRequest log entry.
+
+    ``request_id`` is the id preflight minted and the gateway echoes on finalize; a
+    streamed call's runtime event may have created the row first, so it is updated in
+    place instead of logged twice. ``run_id`` / ``api_key_id`` / ``workflow`` persist
+    the attribution (review G-19, O-12)."""
+    values: dict[str, Any] = {
+        "workspace_id": workspace_id,
+        "route_id": route.id if route else None,
+        "model_requested": model_requested,
+        "model_used": model_used,
+        "cache_hit": cache_hit,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "latency_ms": latency_ms,
+        "status": req_status,
+        "decision_reason": decision_reason,
+        "config_fingerprint": config_fingerprint,
+        "segment_key": segment_key,
+        "run_id": run_id,
+        "api_key_id": api_key_id,
+        "workflow": workflow[:255] if workflow else None,
+    }
+    existing = await db.get(GatewayRequest, request_id) if request_id is not None else None
+    if existing is not None and existing.workspace_id == workspace_id:
+        for field, value in values.items():
+            if value is not None or field in {"decision_reason"}:
+                setattr(existing, field, value)
+        entry = existing
+    else:
+        entry = GatewayRequest(**values)
+        if request_id is not None and existing is None:
+            entry.id = request_id
+        db.add(entry)
     await db.flush()
     kafka_event_type = (
         "gateway.request.completed"
@@ -685,6 +767,9 @@ async def record_gateway_request(
                 "latency_ms": latency_ms,
                 "status": req_status,
                 "decision_reason": decision_reason,
+                "agent_run_id": str(run_id) if run_id else None,
+                "api_key_id": str(api_key_id) if api_key_id else None,
+                "workflow": workflow,
                 "source": "runledger.gateway",
                 "event_summary": f"Gateway request {req_status}",
                 "idempotency_key": f"gateway-request:{entry.id}:{req_status}",
@@ -713,8 +798,9 @@ async def record_gateway_request(
                 },
             )
     except Exception:
-        log.exception("kafka_export.gateway_request_failed", gateway_request_id=str(entry.id))
+        log.exception("kafka_export.gateway_request_failed gateway_request_id=%s", str(entry.id))
     await db.commit()
+    return entry
 
 
 async def route_and_forward(

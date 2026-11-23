@@ -90,3 +90,26 @@ RunLedger does not replace the Python gateway path by default. The current recom
 - preserve the same request logging, policy checks, and attribution contracts if a Rust proxy is introduced
 
 That keeps the optimization tied to measured need rather than speculative complexity.
+
+## Preflight hot path
+
+Preflight is the control-plane half of every gateway call. It keeps its SQL small:
+
+- **Request memo** — routes, routing groups and routing policies for an alias load once per request,
+  shared by the semantic decision, route choice, the fallback step loop and the policy engine.
+- **Short process cache** (`RUNLEDGER_GATEWAY_HOTPATH_TTL_S`, default 5 s, 0 disables) for read-mostly
+  aggregates: the 24 h region-latency ranking, latency-optimized group stats, cost-cap decisions per route
+  and the cache profile.
+- **Sidecars** — pooled HTTP client for the semantic cache; context-compiler timeout default 5 s (was 25 s);
+  the router sidecar keeps its 3 s timeout. All fail open.
+
+CI runs `scripts/core/verify_gateway_runtime.py --bench` against Postgres and Redis and fails when one
+preflight issues more than `GATEWAY_BENCH_MAX_SQL` (20) statements or its p99 exceeds
+`GATEWAY_BENCH_MAX_P99_MS`. On a laptop: 14 statements, p50 ≈ 25 ms, p99 ≈ 75 ms (cache off, 2 aliases,
+1 guardrail). Run it locally:
+
+```bash
+cd apps/api
+DATABASE_URL=… REDIS_URL=… uv run python ../../scripts/run_demo.py verify-gateway-runtime --bench
+```
+

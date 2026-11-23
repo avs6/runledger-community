@@ -68,6 +68,7 @@ from runledger_api.schemas.workspace_controls import (
     ToolUsageAnalyticsResponse,
 )
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.gateway_cache import invalidate_cache_profile, live_entry_count
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
@@ -1237,6 +1238,17 @@ async def create_response_cache_config(
     ws: WorkspaceDep,
     db: DbDep,
 ) -> ResponseCacheConfigResponse:
+    # One cache profile per workspace; the gateway enforces it (review G-09).
+    existing_profile = (
+        await db.execute(
+            select(ResponseCacheConfig.id).where(ResponseCacheConfig.workspace_id == ws.id)
+        )
+    ).scalar_one_or_none()
+    if existing_profile is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This workspace already has a cache profile; edit it instead",
+        )
     config = ResponseCacheConfig(
         id=uuid.uuid4(),
         workspace_id=ws.id,
@@ -1253,6 +1265,7 @@ async def create_response_cache_config(
     db.add(config)
     await db.commit()
     await db.refresh(config)
+    invalidate_cache_profile(ws.id)
     return _cache_to_response(config)
 
 
@@ -1308,6 +1321,7 @@ async def update_response_cache_config(
     config.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(config)
+    invalidate_cache_profile(ws.id)
     return _cache_to_response(config)
 
 
@@ -1333,6 +1347,7 @@ async def delete_response_cache_config(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Response cache config not found")
     await db.delete(config)
     await db.commit()
+    invalidate_cache_profile(ws.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -1369,9 +1384,8 @@ async def get_response_cache_stats(ws: WorkspaceDep, db: DbDep) -> ResponseCache
         total_misses=total_misses,
         hit_rate=(total_hits / total_requests) if total_requests else None,
         total_savings_usd=sum((config.total_savings_usd or Decimal("0")) for config in configs),
-        live_entry_count=sum(
-            int(config.max_entries or 0) for config in configs if config.is_enabled
-        ),
+        # Unexpired entries actually stored (was the sum of max_entries; review G-09).
+        live_entry_count=await live_entry_count(db, ws.id),
         top_models=[{"model": row[0], "hit_count": row[1]} for row in cache_entries],
     )
 

@@ -104,6 +104,16 @@ struct RuntimePreflightResponse {
     ir_decision: Option<Value>,
     decision_reason: Option<String>,
     execution_steps: Vec<RuntimeExecutionStep>,
+    /// Minted by preflight; echoed on finalize, mirror and runtime events so the
+    /// request row, its guardrail events and its run share one id (review G-19).
+    #[serde(default)]
+    request_id: Option<String>,
+    /// Structured "why" record, echoed on finalize and stored on the run.
+    #[serde(default)]
+    decision: Option<Value>,
+    /// `cache=…; budget=…; guardrail=…`, completed with the served route below.
+    #[serde(default)]
+    decision_header: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -128,6 +138,8 @@ struct RuntimeFinalizeRequest {
     ir_decision: Option<Value>,
     cache_key: Option<String>,
     semantic_scope: Option<String>,
+    request_id: Option<String>,
+    decision: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -159,6 +171,7 @@ struct RuntimeMirrorRequest {
     api_key_id: Option<String>,
     end_user_id: Option<String>,
     request_metadata: Value,
+    request_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -584,6 +597,7 @@ async fn gateway_chat_completions(
         if let Ok(value) = HeaderValue::from_str(kind) {
             response.headers_mut().insert("x-runledger-cache", value);
         }
+        set_decision_header(&mut response, preflight.decision_header.as_deref(), None);
         return response;
     }
     if preflight.execution_steps.is_empty() {
@@ -603,6 +617,7 @@ async fn gateway_chat_completions(
     // status is returned instead of 502 (review G-11).
     let mut last_failure_transient = true;
     let started_at = Utc::now().to_rfc3339();
+    let request_id = preflight.request_id.clone().unwrap_or_else(uuid_like);
 
     for step in &preflight.execution_steps {
         if !step_runs_after(
@@ -622,7 +637,7 @@ async fn gateway_chat_completions(
                 }) => {
                     let event = json!({
                         "event_type": "gateway.request.completed",
-                        "request_id": uuid_like(),
+                        "request_id": request_id.clone(),
                         "workspace_id": preflight.workspace_id,
                         "route_id": step.route_id,
                         "model_requested": preflight.model_requested,
@@ -674,13 +689,21 @@ async fn gateway_chat_completions(
                         ir_decision: preflight.ir_decision.clone(),
                         cache_key: preflight.cache_key.clone(),
                         semantic_scope: preflight.semantic_scope.clone(),
+                        request_id: Some(request_id.clone()),
+                        decision: preflight.decision.clone(),
                     };
-                    return tee_stream_for_finalize(
+                    let mut streamed = tee_stream_for_finalize(
                         response,
                         state.clone(),
                         finalize_template,
                         step.target_model.clone(),
                     );
+                    set_decision_header(
+                        &mut streamed,
+                        preflight.decision_header.as_deref(),
+                        Some(step),
+                    );
+                    return streamed;
                 }
                 Ok(ProviderSuccess::Json {
                     response_json,
@@ -718,6 +741,8 @@ async fn gateway_chat_completions(
                             ir_decision: preflight.ir_decision.clone(),
                             cache_key: preflight.cache_key.clone(),
                             semantic_scope: preflight.semantic_scope.clone(),
+                            request_id: Some(request_id.clone()),
+                            decision: preflight.decision.clone(),
                         },
                     )
                     .await
@@ -742,6 +767,7 @@ async fn gateway_chat_completions(
                                         .get("metadata")
                                         .cloned()
                                         .unwrap_or_else(|| json!({})),
+                                    request_id: Some(request_id.clone()),
                                 };
                                 tokio::spawn(async move {
                                     if let Err(err) = call_mirror(&mirror_state, payload).await {
@@ -749,7 +775,13 @@ async fn gateway_chat_completions(
                                     }
                                 });
                             }
-                            return (StatusCode::OK, Json(response_json)).into_response();
+                            let mut ok = (StatusCode::OK, Json(response_json)).into_response();
+                            set_decision_header(
+                                &mut ok,
+                                preflight.decision_header.as_deref(),
+                                Some(step),
+                            );
+                            return ok;
                         }
                         Err(response) => return response,
                     }
@@ -774,7 +806,7 @@ async fn gateway_chat_completions(
 
     let event = json!({
         "event_type": "gateway.request.rejected",
-        "request_id": uuid_like(),
+        "request_id": request_id.clone(),
         "workspace_id": preflight.workspace_id,
         "route_id": last_route_id,
         "model_requested": preflight.model_requested,
@@ -791,7 +823,7 @@ async fn gateway_chat_completions(
     if let Err(err) = emit_runtime_events(&state, &preflight.workspace_id, vec![event]).await {
         error!("runtime error event emit failed: {}", err);
     }
-    (
+    let mut failed = (
         failure_status(last_upstream_status, last_failure_transient),
         Json(json!({
             "detail": if last_failure_transient {
@@ -804,7 +836,57 @@ async fn gateway_chat_completions(
             "error_triggers": last_error_triggers
         })),
     )
-        .into_response()
+        .into_response();
+    set_decision_header(&mut failed, preflight.decision_header.as_deref(), None);
+    failed
+}
+
+/// `X-RunLedger-Decision`: the route that served (alias/provider:model and the step's
+/// trigger — primary, configured, policy, …) followed by preflight's cache, budget and
+/// guardrail summary. Without a served route it is preflight's summary alone.
+fn decision_header(base: Option<&str>, step: Option<&RuntimeExecutionStep>) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(step) = step {
+        parts.push(format!(
+            "route={}/{}:{}",
+            step.alias, step.provider, step.target_model
+        ));
+        parts.push(format!("trigger={}", step.trigger));
+    }
+    if let Some(base) = base.filter(|b| !b.is_empty()) {
+        parts.push(base.to_string());
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    // Header values must be visible ASCII; anything else becomes '_'.
+    Some(
+        parts
+            .join("; ")
+            .chars()
+            .map(|c| {
+                if c.is_ascii_graphic() || c == ' ' {
+                    c
+                } else {
+                    '_'
+                }
+            })
+            .collect(),
+    )
+}
+
+fn set_decision_header(
+    response: &mut Response,
+    base: Option<&str>,
+    step: Option<&RuntimeExecutionStep>,
+) {
+    if let Some(value) = decision_header(base, step) {
+        if let Ok(header) = HeaderValue::from_str(&value) {
+            response
+                .headers_mut()
+                .insert("x-runledger-decision", header);
+        }
+    }
 }
 
 /// Delay before retrying the same route: the provider's Retry-After when given,
@@ -1730,6 +1812,34 @@ data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usa
         );
         assert!(out.get("usage").is_none());
         assert_eq!(out["model"], "m");
+    }
+
+    #[test]
+    fn decision_header_names_the_served_route() {
+        let step: RuntimeExecutionStep = serde_json::from_value(json!({
+            "route_id": "r1", "alias": "chat", "provider": "openai", "target_model": "gpt-4o-mini",
+            "execution_mode": "direct_http", "base_url": null, "api_key_env_var": null,
+            "priority": 1, "timeout_ms": null, "retry_count": 0, "region": null,
+            "deployment_status": "healthy", "trigger": "policy", "required_error_triggers": [],
+            "decision_reason": null, "request_method": "POST", "request_url": null,
+            "request_headers": {}, "request_body": {}
+        }))
+        .unwrap();
+        let value =
+            decision_header(Some("cache=miss; budget=ok; guardrail=pass"), Some(&step)).unwrap();
+        assert_eq!(
+            value,
+            "route=chat/openai:gpt-4o-mini; trigger=policy; cache=miss; budget=ok; guardrail=pass"
+        );
+        assert_eq!(
+            decision_header(Some("route=cache; cache=exact"), None).as_deref(),
+            Some("route=cache; cache=exact")
+        );
+        assert!(decision_header(None, None).is_none());
+        assert_eq!(
+            decision_header(Some("prompt=caf\u{e9}@1"), None).as_deref(),
+            Some("prompt=caf_@1")
+        );
     }
 
     #[test]

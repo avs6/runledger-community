@@ -54,6 +54,9 @@ async def list_gateway_requests(
     db: DbDep,
     alias: str | None = Query(None, description="Filter by model alias"),
     status_filter: str | None = Query(None, alias="status"),
+    run_id: uuid.UUID | None = Query(None, description="Requests that recorded this run"),
+    workflow: str | None = Query(None, description="Filter by workflow / feature tag"),
+    api_key_id: uuid.UUID | None = Query(None, description="Filter by calling API key"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> GatewayRequestList:
@@ -68,6 +71,12 @@ async def list_gateway_requests(
         stmt = stmt.where(GatewayRequest.model_requested == alias)
     if status_filter:
         stmt = stmt.where(GatewayRequest.status == status_filter)
+    if run_id is not None:
+        stmt = stmt.where(GatewayRequest.run_id == run_id)
+    if workflow:
+        stmt = stmt.where(GatewayRequest.workflow == workflow)
+    if api_key_id is not None:
+        stmt = stmt.where(GatewayRequest.api_key_id == api_key_id)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await db.execute(count_stmt)).scalar_one()

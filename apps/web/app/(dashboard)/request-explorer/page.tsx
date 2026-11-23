@@ -21,7 +21,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
+import { getAccessGroupDashboard, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequestsForRun, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId, num } from '@/lib/utils'
 import type { GatewayRequestLog, OutcomeResponse, ProviderCallDetail, RequestRecord, RunDetailResponse, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
@@ -128,17 +128,9 @@ function responsePreview(run: RunDetailResponse) {
   return JSON.stringify(run.output_payload, null, 2)
 }
 
+// Gateway requests persist the run they recorded (review O-12), so the match is exact.
 function matchingGatewayRequest(run: RunDetailResponse, requests: GatewayRequestLog[]) {
-  const runStarted = new Date(run.started_at).getTime()
-  const models = new Set(run.provider_calls.map((call) => call.model))
-  return (
-    requests.find((request) => {
-      const requestAt = new Date(request.created_at).getTime()
-      const closeInTime = Math.abs(requestAt - runStarted) < 5 * 60_000
-      const modelMatch = request.model_used ? models.has(request.model_used) : models.has(request.model_requested)
-      return closeInTime && modelMatch
-    }) ?? null
-  )
+  return requests.find((request) => request.run_id === run.id) ?? null
 }
 
 function requestHref(current: PageProps['searchParams'], updates: Record<string, string | null | undefined>) {
@@ -575,7 +567,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
         getRunGovernanceContext(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         getRunGraph(session.apiKey, selectedId, { access_group_id: accessGroupId }),
         listOutcomes(session.apiKey, { run_id: selectedId, limit: 20 }),
-        listGatewayRequests(session.apiKey, { limit: 100 }),
+        listGatewayRequestsForRun(session.apiKey, selectedId),
       ])
     : []
 

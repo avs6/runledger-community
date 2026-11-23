@@ -425,7 +425,11 @@ async def test_response_cache_stats(
     configs_result.scalars.return_value.all.return_value = [_make_cache_config()]
     cache_rows_result = MagicMock()
     cache_rows_result.all.return_value = [("gpt-4o-mini", 15)]
-    mock_db_session.execute = AsyncMock(side_effect=[configs_result, cache_rows_result])
+    live_count_result = MagicMock()
+    live_count_result.scalar_one.return_value = 42
+    mock_db_session.execute = AsyncMock(
+        side_effect=[configs_result, cache_rows_result, live_count_result]
+    )
 
     resp = await authed_client.get(
         "/response-cache/stats", headers={"Authorization": "Bearer test-key"}
@@ -434,3 +438,5 @@ async def test_response_cache_stats(
     data = resp.json()
     assert data["total_hits"] == 120
     assert data["top_models"][0]["model"] == "gpt-4o-mini"
+    # The real number of stored entries, not the sum of max_entries (review G-09).
+    assert data["live_entry_count"] == 42

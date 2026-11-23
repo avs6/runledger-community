@@ -41,6 +41,25 @@ Enable it per route (`semantic_cache_enabled`) or per request (`"semantic_cache"
 and defaults off. Full details, tuning, and the vector pipeline are in
 [Semantic Cache](/optimization/semantic-cache).
 
+## Cache profile
+
+Each workspace has **one** cache profile (Settings → Response cache, `POST/PUT/DELETE /response-cache`;
+a second `POST` returns 409). The gateway enforces it:
+
+| Field | Effect |
+|---|---|
+| `is_enabled` | Off: no exact-cache lookup or store |
+| `scope_models` | When set, only these aliases / models are cached |
+| `ttl_seconds` | Expiry of each stored entry |
+| `max_entries` + `eviction_policy` | After a store, the overflow is removed: `lru`/`fifo` oldest first, `lfu` least-hit first |
+| `similarity_threshold` | Sent to the semantic-cache service on lookup |
+| `embedding_model` | Informational; the semantic-cache service owns its embedder |
+
+`total_hits`, `total_misses` and `total_savings_usd` are real counters: every cacheable request adds a
+hit or a miss, and a hit adds the price of the tokens it saved. A workspace without a profile gets one
+named `default` on its first counted request, so no counts are lost. `GET /response-cache/stats` reports
+`live_entry_count` as the number of unexpired entries actually stored.
+
 ## Choosing
 
 | | Exact cache | Semantic cache |

@@ -1051,6 +1051,9 @@ export interface GatewayRequestLog {
   latency_ms: number | null
   status: string
   decision_reason: string | null
+  run_id?: string | null
+  api_key_id?: string | null
+  workflow?: string | null
   created_at: string
 }
 

@@ -2,7 +2,8 @@ import { getServerSession } from 'next-auth'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRun, getRunGovernanceContext, getRunGraph } from '@/lib/api'
+import { getAccessGroupDashboard, getGatewayRunDecision, getRun, getRunGovernanceContext, getRunGraph } from '@/lib/api'
+import DecisionPanel from './_components/DecisionPanel'
 import CancelRunButton from '@/components/runs/CancelRunButton'
 import RunSummaryBar from '@/components/runs/RunSummaryBar'
 import RunGraph from '@/components/dag/RunGraph'
@@ -12,6 +13,7 @@ import {
   ChevronLeft, Cpu, Wrench, Layers, AlertTriangle,
 } from 'lucide-react'
 import { formatCost, formatTokens, formatDuration, num } from '@/lib/utils'
+import type { GatewayRunDecision } from '@/lib/api'
 import type { ProviderCallDetail, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
@@ -246,11 +248,13 @@ export default async function RunDetailPage({
 
   let run, graph
   let governance: RunGovernanceContextResponse | null = null
+  let decision: GatewayRunDecision | null = null
   try {
-    ;[run, graph, governance] = await Promise.all([
+    ;[run, graph, governance, decision] = await Promise.all([
       getRun(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
       getRunGraph(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
-      getRunGovernanceContext(session.apiKey, params.run_id, { access_group_id: accessGroupId }).catch(() => null)])
+      getRunGovernanceContext(session.apiKey, params.run_id, { access_group_id: accessGroupId }).catch(() => null),
+      getGatewayRunDecision(session.apiKey, params.run_id).catch(() => null)])
   } catch {
     notFound()
   }
@@ -327,6 +331,8 @@ export default async function RunDetailPage({
       </div>
 
       <GovernanceEvidencePanel governance={governance} />
+
+      <DecisionPanel data={decision} />
 
       {/* Run actions — inline */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white px-3 py-2 dark:border-slate-700/60 dark:bg-slate-900">

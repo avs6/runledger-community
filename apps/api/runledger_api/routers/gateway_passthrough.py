@@ -3,6 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
+from runledger_api.services.gateway_passthrough import (
+    passthrough_preflight,
+    record_passthrough_spend,
+)
 
 from .gateway_shared import *
 
@@ -153,7 +157,8 @@ async def test_gateway_passthrough_endpoint(
     timeout_seconds = max(1.0, endpoint.timeout_ms / 1000)
     started = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+        # No redirects: a 3xx is returned as-is, never followed to another host (G-15).
+        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False) as client:
             upstream_response = await client.request(
                 method=body.method.upper(),
                 url=target_url,
@@ -363,6 +368,21 @@ async def execute_gateway_passthrough_endpoint(
     )
 
     raw_body = await request.body()
+    # Governance before the upstream sees anything: required metadata, request budgets
+    # and pre-call guardrails (review G-15).
+    gov = await passthrough_preflight(
+        db,
+        workspace=workspace,
+        api_key=api_key,
+        slug=slug,
+        request=request,
+        raw_body=raw_body,
+    )
+    attribution: dict[str, Any] = {
+        "request_id": gov.request_id,
+        "api_key_id": api_key.id if api_key is not None else None,
+        "workflow": gov.workflow,
+    }
     timeout_seconds = max(1.0, endpoint.timeout_ms / 1000)
     if endpoint.rate_limit_rpm:
         from runledger_api.core.redis import get_redis  # noqa: PLC0415
@@ -386,20 +406,23 @@ async def execute_gateway_passthrough_endpoint(
                 output_tokens=None,
                 latency_ms=0,
                 req_status="error",
-                decision_reason=f"passthrough:{slug}|rate_limited",
+                decision_reason=f"passthrough:{slug}|rate_limited{gov.decision_suffix()}",
                 config_fingerprint={
                     "assigned_cost_usd": str(endpoint.cost_per_call_usd or Decimal("0")),
                     "endpoint_slug": slug,
                     "passthrough": True,
                 },
                 segment_key=slug,
+                **attribution,
             )
             raise HTTPException(
                 status.HTTP_429_TOO_MANY_REQUESTS, "Pass-through endpoint rate limit exceeded"
             )
     t0 = time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+        # No redirects: an upstream 3xx goes back to the caller unfollowed, so a
+        # compromised or misconfigured upstream can't bounce traffic elsewhere (G-15).
+        async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False) as client:
             upstream_response = await client.request(
                 method=request.method,
                 url=target_url,
@@ -418,13 +441,14 @@ async def execute_gateway_passthrough_endpoint(
             output_tokens=None,
             latency_ms=int((time.monotonic() - t0) * 1000),
             req_status="error",
-            decision_reason=f"passthrough:{slug}|upstream_error",
+            decision_reason=f"passthrough:{slug}|upstream_error{gov.decision_suffix()}",
             config_fingerprint={
                 "assigned_cost_usd": str(endpoint.cost_per_call_usd or Decimal("0")),
                 "endpoint_slug": slug,
                 "passthrough": True,
             },
             segment_key=slug,
+            **attribution,
         )
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY, f"Upstream request failed: {exc!s}"
@@ -441,7 +465,7 @@ async def execute_gateway_passthrough_endpoint(
         output_tokens=None,
         latency_ms=int((time.monotonic() - t0) * 1000),
         req_status="success" if upstream_response.status_code < 400 else "error",
-        decision_reason=f"passthrough:{slug}",
+        decision_reason=f"passthrough:{slug}{gov.decision_suffix()}",
         config_fingerprint={
             "assigned_cost_usd": str(endpoint.cost_per_call_usd or Decimal("0")),
             "endpoint_slug": slug,
@@ -449,7 +473,17 @@ async def execute_gateway_passthrough_endpoint(
             "rate_limit_rpm": endpoint.rate_limit_rpm,
         },
         segment_key=slug,
+        **attribution,
     )
+    if upstream_response.status_code < 400:
+        await record_passthrough_spend(
+            db,
+            workspace_id=workspace.id,
+            gov=gov,
+            api_key_id=api_key.id if api_key is not None else None,
+            cost_usd=endpoint.cost_per_call_usd,
+            slug=slug,
+        )
 
     response_headers = {
         key: value

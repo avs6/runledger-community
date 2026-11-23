@@ -134,3 +134,55 @@ All controls are set per route on the **Gateway** dashboard page or via `POST/PU
     Guardrail firing rates and latency impact in live dashboards.
   </Card>
 </CardGroup>
+
+## Why this route: `X-RunLedger-Decision`
+
+Every gateway response carries an `X-RunLedger-Decision` header summarising what the gateway decided:
+
+```
+X-RunLedger-Decision: route=chat/openai:gpt-4o-mini; trigger=primary; cache=miss; budget=ok; guardrail=pass; prompt=triage@2
+```
+
+`route` is the alias, provider and model that actually served (after any fallback, `trigger` says why:
+`primary`, `configured`, `request`, `policy`, `timeout`, `content_policy`, `context_window`). A cache hit
+reads `route=cache; cache=exact` (or `semantic`). `budget` is `ok`, `downgrade`, `fallback`, `throttle` or
+`skipped`; `guardrail` is `pass`, `modified` or `off`.
+
+The full record — candidates in try order, routes skipped by cost caps, the budget that rerouted the
+request, intelligent-routing output and the resolved prompt — is stored on the run
+(`run_metadata.gateway_decision`), returned by `GET /gateway/runs/{run_id}/decision`, and shown in the
+**Why this route** panel on the run detail page.
+
+## Attribution
+
+Preflight mints a `request_id` that gateway-rs echoes on finalize, mirror and runtime events. The gateway
+request row uses it as its id and persists `run_id`, `api_key_id` and `workflow`; guardrail events carry the
+same three and are linked to the run when it is recorded. Runs, the request explorer and
+`GET /gateway/requests?run_id=…&workflow=…&api_key_id=…` join on these keys — nothing is matched by time window.
+
+## Prompt refs
+
+A request can name a managed prompt instead of carrying its own system message:
+
+```json
+{"model": "chat", "prompt": "support-triage@prod", "prompt_variables": {"product": "RunLedger"},
+ "messages": [{"role": "user", "content": "Ticket 42: refund?"}]}
+```
+
+`name` uses the prompt's default environment, `name@prod|staging|dev|<env>` the latest version in that
+environment, `name@3` (or `@v3`) an exact version. `{{variable}}` placeholders are filled from
+`prompt_variables` (missing ones are left in place and listed in the decision). The rendered prompt is
+prepended as the system message **before** guardrails run, and the run's `deployment_version` is
+`name:version`, so gateway traffic appears in the prompt's version metrics. An unknown prompt or version is
+a 404.
+
+## Pass-through governance
+
+`/gateway/passthrough/{slug}/…` runs a governance preflight before the upstream is called:
+required metadata (`X-RunLedger-Metadata` JSON header), request budgets for the workspace, key, end user
+(`X-RunLedger-End-User-Id`) and workflow (`X-RunLedger-Workflow`) — 429 when exhausted — and pre-call
+guardrails on the request body (451 on block; a `modify` result can't be applied to an opaque body, so it is
+recorded as `guardrail_modify_not_applied` and the body is forwarded unchanged). The endpoint's
+`cost_per_call_usd` counts against the same budgets. Upstream redirects are **never followed**: a 3xx is
+returned to the caller without its `Location` header.
+

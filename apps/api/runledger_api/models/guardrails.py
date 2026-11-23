@@ -92,6 +92,11 @@ class GuardrailEvent(Base):
     gateway_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
+    # Attribution (review G-19): set at evaluation time (key, workflow) and, for gateway
+    # traffic, linked to the recorded run on finalize via gateway_request_id.
+    run_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    workflow: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     model: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     user_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)

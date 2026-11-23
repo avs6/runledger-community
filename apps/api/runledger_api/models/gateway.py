@@ -212,6 +212,11 @@ class GatewayRequest(Base):
     # Coarse segment label captured at request time (e.g. router task_class); the flywheel
     # can also segment by outcome_type (joined) or alias.
     segment_key: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Attribution (review G-19, O-12): the run this call recorded, the calling key and
+    # the workflow / feature tag, persisted so nothing has to be matched by time window.
+    run_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    workflow: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
