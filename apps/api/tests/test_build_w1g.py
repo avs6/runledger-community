@@ -420,3 +420,36 @@ async def test_runbook_export_and_delete_endpoints(authed_client, mock_db_sessio
     resp = await authed_client.delete(f"/runbooks/{entry.id}")
     assert resp.status_code == 204
     mock_db_session.delete.assert_awaited()
+
+
+# ── Simulator levers from observed data (review B-20) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_observed_rates_from_workspace_data() -> None:
+    from runledger_api.services.optimization import observed_rates
+
+    cache_row = MagicMock()
+    cache_row.one.return_value = (10, 4)
+    comp_row = MagicMock()
+    comp_row.one.return_value = (Decimal("2"), Decimal("10"), 7)
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=[cache_row, comp_row])
+    rates = await observed_rates(db, uuid.uuid4(), datetime.now(UTC))
+    assert rates["cache_hit_rate"] == 0.4 and rates["cache_sample"] == 10
+    assert rates["compression_savings_pct"] == 0.2 and rates["compression_sample"] == 7
+
+
+@pytest.mark.asyncio
+async def test_observed_rates_none_without_data() -> None:
+    from runledger_api.services.optimization import observed_rates
+
+    empty_cache = MagicMock()
+    empty_cache.one.return_value = (0, 0)
+    empty_comp = MagicMock()
+    empty_comp.one.return_value = (0, 0, 0)
+    db = AsyncMock()
+    db.execute = AsyncMock(side_effect=[empty_cache, empty_comp])
+    rates = await observed_rates(db, uuid.uuid4(), datetime.now(UTC))
+    assert rates["cache_hit_rate"] is None
+    assert rates["compression_savings_pct"] is None

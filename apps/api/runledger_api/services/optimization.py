@@ -138,3 +138,61 @@ async def price_ratio(
         current += cur
         projected += new
     return current, projected
+
+
+async def observed_rates(
+    db: AsyncSession, workspace_id: uuid.UUID, since: Any
+) -> dict[str, float | int | None]:
+    """Cache hit rate and compression savings this workspace actually achieved.
+
+    * ``cache_hit_rate``: share of gateway requests served from cache on routes that
+      have caching enabled (exact or semantic), over the window.
+    * ``compression_savings_pct``: savings / baseline cost on provider calls that
+      recorded a compression or context-compiler optimization.
+
+    Either is ``None`` when there is no observed traffic to learn from; the simulator
+    then projects nothing for that lever instead of assuming a number (review B-20).
+    """
+    from sqlalchemy import case, func  # noqa: PLC0415
+
+    from runledger_api.models.events import ProviderCall  # noqa: PLC0415
+    from runledger_api.models.gateway import GatewayRequest, GatewayRoute  # noqa: PLC0415
+
+    cache_routes = select(GatewayRoute.id).where(
+        GatewayRoute.workspace_id == workspace_id,
+        GatewayRoute.semantic_cache_enabled.is_(True),
+    )
+    total, hits = (
+        await db.execute(
+            select(
+                func.count(GatewayRequest.id),
+                func.coalesce(func.sum(case((GatewayRequest.cache_hit.is_(True), 1), else_=0)), 0),
+            ).where(
+                GatewayRequest.workspace_id == workspace_id,
+                GatewayRequest.created_at >= since,
+                (GatewayRequest.route_id.in_(cache_routes)) | (GatewayRequest.cache_hit.is_(True)),
+            )
+        )
+    ).one()
+    savings, baseline, comp_calls = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(ProviderCall.savings_usd), 0),
+                func.coalesce(func.sum(ProviderCall.baseline_cost_usd), 0),
+                func.count(ProviderCall.id),
+            ).where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.created_at >= since,
+                ProviderCall.optimization_applied.in_(
+                    ["prompt_compression", "context_compiler", "compression"]
+                ),
+                ProviderCall.baseline_cost_usd > 0,
+            )
+        )
+    ).one()
+    return {
+        "cache_hit_rate": (float(hits) / float(total)) if total else None,
+        "cache_sample": int(total or 0),
+        "compression_savings_pct": (float(savings) / float(baseline)) if baseline else None,
+        "compression_sample": int(comp_calls or 0),
+    }

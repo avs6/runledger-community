@@ -106,13 +106,26 @@ async def simulate_optimization(
         if cur_ratio > 0:
             model_cost_ratio = Decimal(str(round(new_ratio / cur_ratio, 4)))
 
-    cache_savings_pct = Decimal(0)
-    if body.enable_cache:
-        current_cache_rate = cached_count / affected if affected > 0 else 0
-        target_cache_rate = max(current_cache_rate, 0.40)
-        cache_savings_pct = Decimal(str(round((target_cache_rate - current_cache_rate) * 0.50, 4)))
+    # Cache and compression levers use what this workspace actually achieved
+    # (review B-20); with no observed data the lever projects nothing.
+    from runledger_api.services.optimization import observed_rates  # noqa: PLC0415
 
-    compression_pct = Decimal("0.15") if body.enable_compression else Decimal(0)
+    observed = await observed_rates(db, workspace.id, t_from)
+    current_cache_rate = cached_count / affected if affected > 0 else 0
+    target_cache_rate = current_cache_rate
+    cache_savings_pct = Decimal(0)
+    observed_cache = observed["cache_hit_rate"]
+    if body.enable_cache and observed_cache is not None:
+        target_cache_rate = max(current_cache_rate, float(observed_cache))
+        # A cache hit costs nothing, so each extra hit saves that call's cost.
+        cache_savings_pct = Decimal(str(round(target_cache_rate - current_cache_rate, 4)))
+
+    observed_comp = observed["compression_savings_pct"]
+    compression_pct = (
+        Decimal(str(round(float(observed_comp), 4)))
+        if body.enable_compression and observed_comp is not None
+        else Decimal(0)
+    )
 
     projected_cost = (
         current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
@@ -156,9 +169,12 @@ async def simulate_optimization(
                 current_value=f"{round(cached_count / affected * 100)}% hit rate"
                 if affected > 0
                 else "0%",
-                projected_value=f"~{round(float(cache_savings_pct) * 100 + cached_count / affected * 100)}% hit rate"
-                if affected > 0
-                else "40%",
+                projected_value=(
+                    f"~{round(target_cache_rate * 100)}% hit rate "
+                    f"(observed on {observed['cache_sample']} cached-route requests)"
+                    if observed_cache is not None
+                    else "no observed cache traffic to project from"
+                ),
                 delta_pct=Decimal(str(round(float(cache_savings_pct) * -100, 1))),
             )
         )
@@ -167,8 +183,13 @@ async def simulate_optimization(
             SimulationImpact(
                 label="Prompt compression",
                 current_value="Disabled",
-                projected_value="Enabled (~15% token reduction)",
-                delta_pct=Decimal("-15"),
+                projected_value=(
+                    f"Enabled (~{round(float(compression_pct) * 100, 1)}% cost reduction "
+                    f"observed on {observed['compression_sample']} calls)"
+                    if observed_comp is not None
+                    else "no observed compression savings to project from"
+                ),
+                delta_pct=Decimal(str(round(float(compression_pct) * -100, 1))),
             )
         )
 
@@ -187,7 +208,7 @@ async def simulate_optimization(
         else ""
     )
     if body.enable_cache or body.enable_compression:
-        basis += " Cache/compression effects are assumptions (40% hit rate, 15% fewer tokens)."
+        basis += " Cache/compression effects use this workspace's observed hit rate and savings."
     desc = (
         f"Simulating: {', '.join(parts) or 'no changes'}.{basis} "
         f"Affects {affected:,} requests with ${float(current_cost):.4f} current spend. "
