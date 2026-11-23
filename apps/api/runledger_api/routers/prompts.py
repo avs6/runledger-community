@@ -14,13 +14,25 @@ POST   /prompts/{name}/versions        Commit a new version
 GET    /prompts/{name}/versions        List all versions (desc)
 GET    /prompts/{name}/latest          Latest version for an environment (SDK pull)
 GET    /prompts/{name}/versions/{v}    Get a specific version
+PATCH  /prompts/{name}                 Update description, default env, score gate
 POST   /prompts/{name}/promote         Promote latest staging → production
 GET    /prompts/{name}/metrics         Per-version cost + avg score + run count
+POST   /prompts/{name}/promotion-requests  Ask for a prompt_promote approval
+GET    /prompts/{name}/promotion-requests  Approvals for this prompt (pending/approved/used)
+GET    /prompts/{name}/versions/{v}/score  Score used by the promotion gate
+GET    /prompts/{name}/diff            Line diff between two versions
+
+Production governance (review B-02, B-03): every way into the production
+environment (create, edit, promote, GitHub pull) needs an approved
+``prompt_promote`` approval for this prompt, and each approval authorises exactly
+one production version. A prompt can also carry a score gate: the source version
+must score at least ``promotion_min_score`` before it can be promoted.
 """
 
 from __future__ import annotations
 
 import base64
+import difflib
 import os
 import re
 import uuid
@@ -29,23 +41,26 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
+    get_current_api_key,
     get_current_workspace,
     require_workspace_admin,
     require_workspace_writer,
 )
 from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
-from runledger_api.models.eval_experiments import PromptGithubConfig
+from runledger_api.models.approvals import Approval
+from runledger_api.models.eval_experiments import EvalExperiment, PromptGithubConfig
 from runledger_api.models.events import AgentRun
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.scores import ScoreEvent
-from runledger_api.models.tenant import Workspace
-from runledger_api.routers.approvals import validate_approved
+from runledger_api.models.tenant import ApiKey, Workspace
+from runledger_api.routers.approvals import create_approval, validate_approved
+from runledger_api.schemas.approvals import ApprovalCreate
 from runledger_api.schemas.eval_experiments import (
     GithubConfigCreate,
     GithubConfigResponse,
@@ -53,15 +68,22 @@ from runledger_api.schemas.eval_experiments import (
     GithubSyncResult,
 )
 from runledger_api.schemas.prompts import (
+    DiffLine,
     PromoteRequest,
+    PromotionApproval,
+    PromotionApprovalList,
+    PromotionRequestCreate,
     PromptCreate,
+    PromptDiff,
     PromptList,
     PromptMetrics,
     PromptResponse,
+    PromptUpdate,
     VersionCreate,
     VersionList,
     VersionMetrics,
     VersionResponse,
+    VersionScore,
 )
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.github_sync import pull_prompts_from_github, push_prompts_to_github
@@ -76,6 +98,7 @@ log = structlog.get_logger()
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+ApiKeyDep = Annotated[ApiKey, Depends(get_current_api_key)]
 
 # Deployment version convention: "{prompt_name}:{version_number}"
 _DEPLOYMENT_VERSION_RE = re.compile(r"^(.+):(\d+)$")
@@ -89,6 +112,120 @@ async def _get_prompt_or_404(name: str, workspace_id: uuid.UUID, db: AsyncSessio
     if prompt is None:
         raise HTTPException(status_code=404, detail=f"Prompt '{name}' not found")
     return prompt
+
+
+# ── Production governance helpers (review B-02, B-03; ENH score gate) ──────────
+
+
+def _pulled_environment(env: str | None) -> str:
+    """Environment for a version pulled from GitHub: never production directly."""
+    if env in ("dev", "staging"):
+        return env
+    return "staging"
+
+
+def _approval_prompt_name(approval: Approval) -> str | None:
+    request = approval.request or {}
+    value = request.get("prompt_name") or request.get("prompt")
+    return str(value) if value else None
+
+
+async def _require_production_approval(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    name: str,
+    approval_id: uuid.UUID | None,
+) -> Approval:
+    """An approved ``prompt_promote`` approval for this prompt that hasn't been used yet."""
+    if approval_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Writing to production requires an approved prompt_promote approval. "
+                f"Request one with POST /prompts/{name}/promotion-requests (or POST /approvals "
+                "with request_type='prompt_promote' and request.prompt_name), then pass its "
+                "approval_id once approved."
+            ),
+        )
+    approval = await validate_approved(db, workspace_id, approval_id, "prompt_promote")
+    approved_for = _approval_prompt_name(approval)
+    if approved_for != name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Approval is for prompt '{approved_for}', not '{name}'",
+        )
+    used = (
+        await db.execute(
+            select(PromptVersion.version).where(PromptVersion.approval_id == approval.id)
+        )
+    ).scalar_one_or_none()
+    if used is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Approval was already used for v{used}; request a new one",
+        )
+    return approval
+
+
+async def _version_score(
+    db: AsyncSession, workspace_id: uuid.UUID, prompt: Prompt, version: int
+) -> VersionScore:
+    """Score the promotion gate checks: the latest completed experiment on this
+    version if there is one, otherwise the average score of its recorded runs."""
+    gate = prompt.promotion_min_score
+    score: float | None = None
+    source: str | None = None
+    sample = 0
+
+    exp = (
+        await db.execute(
+            select(EvalExperiment)
+            .where(
+                EvalExperiment.workspace_id == workspace_id,
+                EvalExperiment.prompt_name == prompt.name,
+                EvalExperiment.prompt_version == version,
+                EvalExperiment.status == "completed",
+            )
+            .order_by(EvalExperiment.completed_at.desc().nulls_last())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if exp is not None and isinstance(exp.results, dict):
+        overall = exp.results.get("summary", {}).get("avg_score")
+        if overall is not None:
+            score = float(overall)
+            source = "experiment"
+            sample = int(exp.results.get("summary", {}).get("scored_items") or 0)
+
+    if score is None:
+        stmt = select(func.avg(ScoreEvent.value), func.count(ScoreEvent.id)).where(
+            ScoreEvent.workspace_id == workspace_id,
+            ScoreEvent.run_id.in_(
+                select(AgentRun.id).where(
+                    AgentRun.workspace_id == workspace_id,
+                    AgentRun.deployment_version == f"{prompt.name}:{version}",
+                )
+            ),
+        )
+        if prompt.promotion_score_name:
+            stmt = stmt.where(ScoreEvent.name == prompt.promotion_score_name)
+        avg, count = (await db.execute(stmt)).one()
+        if count:
+            score = float(avg)
+            source = "runs"
+            sample = int(count)
+
+    passes: bool | None = None
+    if gate is not None:
+        passes = score is not None and score >= gate
+    return VersionScore(
+        version=version,
+        score=score,
+        source=source,
+        sample_size=sample,
+        min_score=gate,
+        passes_gate=passes,
+    )
 
 
 # ── POST /prompts ──────────────────────────────────────────────────────────────
@@ -118,6 +255,8 @@ async def create_prompt(
         name=body.name,
         description=body.description,
         default_environment=body.default_environment,
+        promotion_min_score=body.promotion_min_score,
+        promotion_score_name=body.promotion_score_name,
     )
     db.add(prompt)
     await db.flush()
@@ -347,7 +486,9 @@ async def pull_from_github(workspace: WorkspaceDep, db: DbDep) -> GithubSyncResu
                     content=pv.get("content", ""),
                     variables=[],
                     commit_message=pv.get("commit_message") or "Pulled from GitHub",
-                    environment=pv.get("environment", "production"),
+                    # Pulled versions never land in production directly; they go
+                    # to staging and are promoted through an approval (review B-02).
+                    environment=_pulled_environment(pv.get("environment")),
                     model_hint=pv.get("model_hint"),
                 )
             )
@@ -381,6 +522,58 @@ async def get_prompt(
     return PromptResponse.model_validate(prompt)
 
 
+# ── PATCH /prompts/{name} ──────────────────────────────────────────────────────
+
+
+@router.patch(
+    "/{name}",
+    response_model=PromptResponse,
+    dependencies=[Depends(require_workspace_writer)],
+)
+async def update_prompt(
+    name: str,
+    body: PromptUpdate,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> PromptResponse:
+    """Update description, default environment, or the promotion score gate."""
+    prompt = await _get_prompt_or_404(name, workspace.id, db)
+    before = {
+        "promotion_min_score": prompt.promotion_min_score,
+        "promotion_score_name": prompt.promotion_score_name,
+    }
+    if body.description is not None:
+        prompt.description = body.description
+    if body.default_environment is not None:
+        prompt.default_environment = body.default_environment
+    if body.clear_promotion_gate:
+        prompt.promotion_min_score = None
+        prompt.promotion_score_name = None
+    else:
+        if body.promotion_min_score is not None:
+            prompt.promotion_min_score = body.promotion_min_score
+        if body.promotion_score_name is not None:
+            prompt.promotion_score_name = body.promotion_score_name or None
+    prompt.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(prompt)
+    after = {
+        "promotion_min_score": prompt.promotion_min_score,
+        "promotion_score_name": prompt.promotion_score_name,
+    }
+    if before != after:
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "prompt.gate_changed",
+            target_type="prompt",
+            target_id=name,
+            before=before,
+            after=after,
+        )
+    return PromptResponse.model_validate(prompt)
+
+
 # ── DELETE /prompts/{name} ─────────────────────────────────────────────────────
 
 
@@ -399,6 +592,7 @@ async def delete_prompt(
     await db.delete(prompt)
     await db.commit()
     log.info("prompt_deleted", workspace_id=str(workspace.id), name=name)
+    await emit_audit_event(db, workspace.id, "prompt.deleted", target_type="prompt", target_id=name)
 
 
 # ── POST /prompts/{name}/versions ──────────────────────────────────────────────
@@ -415,9 +609,19 @@ async def create_version(
     body: VersionCreate,
     workspace: WorkspaceDep,
     db: DbDep,
+    approval_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> VersionResponse:
-    """Commit a new version of the prompt template."""
+    """Commit a new version of the prompt template.
+
+    Versions land in ``dev`` by default. Writing to ``production`` requires an approved
+    ``prompt_promote`` approval for this prompt (body or ``?approval_id=``).
+    """
     prompt = await _get_prompt_or_404(name, workspace.id, db)
+    approval = None
+    if body.environment == "production":
+        approval = await _require_production_approval(
+            db, workspace.id, name, body.approval_id or approval_id
+        )
 
     # Auto-increment version number per prompt
     max_result = await db.execute(
@@ -434,6 +638,7 @@ async def create_version(
         commit_message=body.commit_message,
         environment=body.environment,
         model_hint=body.model_hint,
+        approval_id=approval.id if approval else None,
     )
     db.add(version)
 
@@ -450,6 +655,15 @@ async def create_version(
         version=new_version_num,
         environment=body.environment,
     )
+    if approval is not None:
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "prompt.version_production",
+            target_type="prompt",
+            target_id=name,
+            after={"version": new_version_num, "approval_id": str(approval.id)},
+        )
     return VersionResponse.model_validate(version)
 
 
@@ -558,22 +772,16 @@ async def promote_version(
     Promote the latest version from source_environment to target_environment.
 
     When target_environment is 'production', an approved ``prompt_promote``
-    approval is required. Pass ``?approval_id=<uuid>`` from ``POST /approvals``.
+    approval for this prompt is required (``POST /prompts/{name}/promotion-requests``
+    or ``POST /approvals``); pass its id in the body or as ``?approval_id=``. If the
+    prompt has a score gate, the source version must meet it.
     """
-    # Enforce approval gate for production promotes
-    if body.target_environment == "production":
-        if approval_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "Promoting to production requires an approved governance approval. "
-                    "Create one via POST /approvals with request_type='prompt_promote', "
-                    "then pass ?approval_id=<id> once approved."
-                ),
-            )
-        await validate_approved(db, workspace.id, approval_id, "prompt_promote")
-
     prompt = await _get_prompt_or_404(name, workspace.id, db)
+    approval = None
+    if body.target_environment == "production":
+        approval = await _require_production_approval(
+            db, workspace.id, name, body.approval_id or approval_id
+        )
 
     # Find latest version in source environment
     src_result = await db.execute(
@@ -591,6 +799,28 @@ async def promote_version(
             status_code=404,
             detail=f"No version found in '{body.source_environment}' environment for prompt '{name}'",
         )
+    if approval is not None:
+        pinned = (approval.request or {}).get("version")
+        if pinned is not None and int(pinned) != src_version.version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Approval covers v{pinned}, but the latest "
+                    f"{body.source_environment} version is v{src_version.version}"
+                ),
+            )
+        score = await _version_score(db, workspace.id, prompt, src_version.version)
+        if score.passes_gate is False:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Score gate: v{src_version.version} scores "
+                    f"{'n/a' if score.score is None else round(score.score, 4)} "
+                    f"(source: {score.source or 'none'}), below the "
+                    f"{prompt.promotion_min_score} required for production. Run an "
+                    "experiment on this version or lower the gate."
+                ),
+            )
 
     # Auto-increment version for the target
     max_result = await db.execute(
@@ -608,6 +838,7 @@ async def promote_version(
         or f"Promoted from {body.source_environment} v{src_version.version}",
         environment=body.target_environment,
         model_hint=src_version.model_hint,
+        approval_id=approval.id if approval else None,
     )
     db.add(promoted)
     prompt.updated_at = datetime.now(UTC)
@@ -633,6 +864,8 @@ async def promote_version(
             "from_env": body.source_environment,
             "to_env": body.target_environment,
             "version": new_version_num,
+            "source_version": src_version.version,
+            "approval_id": str(approval.id) if approval else None,
         },
     )
     return VersionResponse.model_validate(promoted)
@@ -722,10 +955,12 @@ async def edit_version(
     body: VersionCreate,
     workspace: WorkspaceDep,
     db: DbDep,
+    approval_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> VersionResponse:
     """
     Edit a version's content. Creates a new version (auto-bump) — versions are immutable.
-    The new version inherits environment/model_hint from the source unless overridden in body.
+    The new version lands in ``body.environment`` (default ``dev``). An edit never
+    inherits ``production``: writing to production needs an approval, like create.
     """
     prompt = await _get_prompt_or_404(name, workspace.id, db)
 
@@ -740,6 +975,12 @@ async def edit_version(
     if src is None:
         raise HTTPException(status_code=404, detail=f"Version {v} not found for prompt '{name}'")
 
+    approval = None
+    if body.environment == "production":
+        approval = await _require_production_approval(
+            db, workspace.id, name, body.approval_id or approval_id
+        )
+
     max_result = await db.execute(
         select(func.max(PromptVersion.version)).where(PromptVersion.prompt_id == prompt.id)
     )
@@ -751,10 +992,9 @@ async def edit_version(
         content=body.content,
         variables=body.variables if body.variables else src.variables,
         commit_message=body.commit_message or f"Edit of v{v}",
-        environment=body.environment
-        if body.environment != "production" or src.environment == "production"
-        else src.environment,
+        environment=body.environment,
         model_hint=body.model_hint if body.model_hint is not None else src.model_hint,
+        approval_id=approval.id if approval else None,
     )
     db.add(new_v)
     prompt.updated_at = datetime.now(UTC)
@@ -769,3 +1009,214 @@ async def edit_version(
         new_version=new_version_num,
     )
     return VersionResponse.model_validate(new_v)
+
+
+# ── Promotion requests (approval flow in the UI, review B-03) ──────────────────
+
+
+def _promotion_from(approval: Approval, used: dict[uuid.UUID, int]) -> PromotionApproval:
+    request = approval.request or {}
+    version = request.get("version")
+    return PromotionApproval(
+        id=approval.id,
+        status=approval.status,
+        source_environment=request.get("source_environment"),
+        version=int(version) if version is not None else None,
+        requested_by=approval.requested_by,
+        decided_by=approval.decided_by,
+        decided_at=approval.decided_at,
+        decision_note=approval.decision_note,
+        used_by_version=used.get(approval.id),
+        created_at=approval.created_at,
+    )
+
+
+@router.post(
+    "/{name}/promotion-requests",
+    response_model=PromotionApproval,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_workspace_writer)],
+)
+async def request_promotion(
+    name: str,
+    body: PromotionRequestCreate,
+    workspace: WorkspaceDep,
+    api_key: ApiKeyDep,
+    db: DbDep,
+) -> PromotionApproval:
+    """Create a ``prompt_promote`` approval for this prompt (goes through the normal
+    approvals queue, including auto-approval policies and notifications)."""
+    prompt = await _get_prompt_or_404(name, workspace.id, db)
+    version = body.version
+    if version is None:
+        version = (
+            await db.execute(
+                select(func.max(PromptVersion.version)).where(
+                    PromptVersion.prompt_id == prompt.id,
+                    PromptVersion.environment == body.source_environment,
+                )
+            )
+        ).scalar()
+    if version is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No version in '{body.source_environment}' to promote for prompt '{name}'",
+        )
+    created = await create_approval(
+        ApprovalCreate(
+            request_type="prompt_promote",
+            request={
+                "prompt_name": name,
+                "version": int(version),
+                "source_environment": body.source_environment,
+                "environment": "production",
+            },
+            reason=body.reason,
+        ),
+        workspace,
+        api_key,
+        db,
+    )
+    approval = await db.get(Approval, created.id)
+    if approval is None:  # pragma: no cover - just created
+        raise HTTPException(status_code=500, detail="Approval was not stored")
+    return _promotion_from(approval, {})
+
+
+@router.get("/{name}/promotion-requests", response_model=PromotionApprovalList)
+async def list_promotion_requests(
+    name: str,
+    workspace: WorkspaceDep,
+    db: DbDep,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+) -> PromotionApprovalList:
+    """Approvals for promoting this prompt, newest first, with the version each one
+    was used for (an approval authorises one production version)."""
+    await _get_prompt_or_404(name, workspace.id, db)
+    stmt = select(Approval).where(
+        Approval.workspace_id == workspace.id,
+        Approval.request_type == "prompt_promote",
+        or_(
+            Approval.request["prompt_name"].astext == name,
+            Approval.request["prompt"].astext == name,
+        ),
+    )
+    if status_filter:
+        stmt = stmt.where(Approval.status == status_filter)
+    approvals = list(
+        (await db.execute(stmt.order_by(Approval.created_at.desc()).limit(100))).scalars().all()
+    )
+    used: dict[uuid.UUID, int] = {}
+    ids = [a.id for a in approvals]
+    if ids:
+        rows = await db.execute(
+            select(PromptVersion.approval_id, PromptVersion.version).where(
+                PromptVersion.approval_id.in_(ids)
+            )
+        )
+        used = {aid: ver for aid, ver in rows.all() if aid is not None}
+    return PromotionApprovalList(items=[_promotion_from(a, used) for a in approvals])
+
+
+# ── Score gate + diff (ENH) ────────────────────────────────────────────────────
+
+
+@router.get("/{name}/versions/{v}/score", response_model=VersionScore)
+async def get_version_score(
+    name: str,
+    v: int,
+    workspace: WorkspaceDep,
+    db: DbDep,
+) -> VersionScore:
+    """The score the promotion gate uses for this version, and whether it passes."""
+    prompt = await _get_prompt_or_404(name, workspace.id, db)
+    exists = (
+        await db.execute(
+            select(PromptVersion.id).where(
+                PromptVersion.prompt_id == prompt.id, PromptVersion.version == v
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(status_code=404, detail=f"Version {v} not found for prompt '{name}'")
+    return await _version_score(db, workspace.id, prompt, v)
+
+
+def build_diff(old: str, new: str) -> tuple[list[DiffLine], int, int]:
+    """Line diff between two prompt bodies (unified, 3 lines of context)."""
+    lines: list[DiffLine] = []
+    added = removed = 0
+    old_lines = old.splitlines()
+    new_lines = new.splitlines()
+    matcher = difflib.SequenceMatcher(a=old_lines, b=new_lines, autojunk=False)
+    for group in matcher.get_grouped_opcodes(3):
+        first, last = group[0], group[-1]
+        lines.append(
+            DiffLine(
+                kind="hunk",
+                text=f"@@ -{first[1] + 1},{last[2] - first[1]} +{first[3] + 1},{last[4] - first[3]} @@",
+            )
+        )
+        for tag, i1, i2, j1, j2 in group:
+            if tag == "equal":
+                for k in range(i2 - i1):
+                    lines.append(
+                        DiffLine(
+                            kind="context",
+                            text=old_lines[i1 + k],
+                            old_line=i1 + k + 1,
+                            new_line=j1 + k + 1,
+                        )
+                    )
+                continue
+            for k in range(i1, i2):
+                removed += 1
+                lines.append(DiffLine(kind="remove", text=old_lines[k], old_line=k + 1))
+            for k in range(j1, j2):
+                added += 1
+                lines.append(DiffLine(kind="add", text=new_lines[k], new_line=k + 1))
+    return lines, added, removed
+
+
+@router.get("/{name}/diff", response_model=PromptDiff)
+async def diff_versions(
+    name: str,
+    workspace: WorkspaceDep,
+    db: DbDep,
+    from_version: Annotated[int, Query(alias="from", ge=1)],
+    to_version: Annotated[int, Query(alias="to", ge=1)],
+) -> PromptDiff:
+    """Line-by-line diff between two versions of a prompt."""
+    prompt = await _get_prompt_or_404(name, workspace.id, db)
+    rows = (
+        (
+            await db.execute(
+                select(PromptVersion).where(
+                    PromptVersion.prompt_id == prompt.id,
+                    PromptVersion.version.in_([from_version, to_version]),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_version = {r.version: r for r in rows}
+    for wanted in (from_version, to_version):
+        if wanted not in by_version:
+            raise HTTPException(
+                status_code=404, detail=f"Version {wanted} not found for prompt '{name}'"
+            )
+    old, new = by_version[from_version], by_version[to_version]
+    lines, added, removed = build_diff(old.content, new.content)
+    return PromptDiff(
+        name=name,
+        from_version=from_version,
+        to_version=to_version,
+        from_environment=old.environment,
+        to_environment=new.environment,
+        added=added,
+        removed=removed,
+        lines=lines,
+        model_hint_changed=old.model_hint != new.model_hint,
+        variables_changed=(old.variables or []) != (new.variables or []),
+    )

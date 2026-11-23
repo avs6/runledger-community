@@ -75,6 +75,8 @@ class PlaygroundRequest(Base):
     gateway_request_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
+    # The agent_runs row gateway-rs recorded for this call (review B-10).
+    run_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

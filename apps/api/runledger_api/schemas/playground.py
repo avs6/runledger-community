@@ -72,6 +72,7 @@ class PlaygroundRequestResponse(BaseModel):
     route_decision: str | None = None
     error: str | None = None
     gateway_request_id: uuid.UUID | None = None
+    run_id: uuid.UUID | None = None
     created_at: datetime
 
 
@@ -82,10 +83,24 @@ class PlaygroundRequestListResponse(BaseModel):
 
 class PlaygroundCompareRequest(BaseModel):
     models: list[str] = Field(..., min_length=2, max_length=5)
+    session_id: uuid.UUID | None = None
     system_prompt: str | None = Field(None, max_length=100_000)
     user_prompt: str = Field(..., max_length=100_000)
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
 class PlaygroundCompareResponse(BaseModel):
+    compare_group: str | None = None
     results: list[PlaygroundRequestResponse]
+
+
+class PlaygroundModel(BaseModel):
+    """A gateway route alias the Playground can send to."""
+
+    alias: str
+    provider: str | None = None
+    targets: list[str] = Field(default_factory=list)
+
+
+class PlaygroundModelList(BaseModel):
+    items: list[PlaygroundModel]
