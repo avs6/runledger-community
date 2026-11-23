@@ -1,31 +1,33 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import uuid
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import (
     get_current_user,
     get_current_workspace,
+    require_user,
     require_workspace_writer,
 )
-from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.approvals import Approval
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.events import (
     AgentRun,
-    OutcomeEvent,
     ProviderCall,
     RunbookEntry,
     RunStatusEnum,
@@ -34,8 +36,10 @@ from runledger_api.models.events import (
 )
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute
 from runledger_api.models.ledger import CapturePolicy, SecurityEvent, ToolRegistry
+from runledger_api.models.outcomes import Outcome
+from runledger_api.models.saved_views import SAVED_VIEW_PAGES, SavedView
 from runledger_api.models.tags import Tag
-from runledger_api.models.tenant import Application, Tenant, TenantRoleEnum, TenantUser, Workspace
+from runledger_api.models.tenant import Application, Tenant, User, Workspace
 from runledger_api.models.tool_policies import ToolPolicy
 from runledger_api.schemas.runs import (
     GovernanceAlertEvidence,
@@ -48,15 +52,33 @@ from runledger_api.schemas.runs import (
     ProviderCallDetail,
     RunbookList,
     RunbookResponse,
+    RunCompareResponse,
+    RunCompareSide,
     RunDetailResponse,
+    RunFacetsResponse,
     RunFlowRecord,
     RunFlowResponse,
     RunGovernanceContextResponse,
     RunGraphResponse,
     RunListItem,
     RunListResponse,
+    RunStatsResponse,
+    SavedViewCreate,
+    SavedViewList,
+    SavedViewResponse,
     SpanDetail,
     ToolCallDetail,
+)
+from runledger_api.services.observe import (
+    RUN_STATUSES,
+    AccessGroupFilters,
+    can_view_payloads,
+    cursor_clause,
+    encode_cursor,
+    normalize_run_status,
+    resolve_access_group,
+    resolve_scope_workspace_ids,
+    run_access_clauses,
 )
 from runledger_api.services.runbooks import generate_runbook
 
@@ -66,7 +88,20 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 UserDep = Annotated[Any, Depends(get_current_user)]
 
-_ORG_FLOW_ROLES = {TenantRoleEnum.org_admin, TenantRoleEnum.org_manager}
+_PAYLOAD_KEYS = ("messages", "response")
+
+
+@dataclass
+class _RunOutcome:
+    outcome_type: str
+    success: bool
+
+
+def strip_payloads(metadata: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Span metadata without captured prompts/responses (they live in span_payloads)."""
+    if not metadata:
+        return metadata
+    return {k: v for k, v in metadata.items() if k not in _PAYLOAD_KEYS}
 
 
 def _duration_ms(started: datetime, ended: datetime | None) -> int | None:
@@ -79,61 +114,21 @@ async def _resolve_access_group_observe_filters(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     access_group_id: uuid.UUID,
-) -> dict[str, list[str]]:
-    group = (
-        await db.execute(
-            select(AccessGroup).where(
-                AccessGroup.id == access_group_id,
-                AccessGroup.workspace_id == workspace_id,
-                AccessGroup.is_active.is_(True),
-            )
-        )
-    ).scalar_one_or_none()
-    if group is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Access group not found")
+) -> AccessGroupFilters:
+    filters = await resolve_access_group(db, workspace_id, access_group_id)
+    assert filters is not None
+    return filters
 
-    dashboard_filters = (group.permissions or {}).get("dashboard_filters", {})
-    if not isinstance(dashboard_filters, dict):
-        dashboard_filters = {}
 
-    def _values(keys: list[str]) -> list[str]:
-        collected: list[str] = []
-        for key in keys:
-            raw = dashboard_filters.get(key)
-            if isinstance(raw, str) and raw.strip():
-                collected.append(raw.strip())
-            elif isinstance(raw, list):
-                for item in raw:
-                    if isinstance(item, str) and item.strip():
-                        collected.append(item.strip())
-        return collected
-
-    member_rows = (
-        await db.execute(
-            select(AccessGroupMember.user_id).where(AccessGroupMember.group_id == access_group_id)
-        )
-    ).scalars()
-
-    end_user_ids = [str(user_id) for user_id in member_rows]
-    end_user_ids.extend(_values(["end_user_id", "end_user_ids", "user_id", "user_ids"]))
-
-    def _unique(values: list[str]) -> list[str]:
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for value in values:
-            if value in seen:
-                continue
-            seen.add(value)
-            ordered.append(value)
-        return ordered
-
-    return {
-        "end_user_ids": _unique(end_user_ids),
-        "feature_tags": _unique(_values(["feature_tag", "feature_tags", "intent", "intents"])),
-        "models": _unique(_values(["model", "models"])),
-        "providers": _unique(_values(["provider", "providers"])),
-        "statuses": _unique(_values(["status", "statuses"])),
-    }
+def _run_lookup(
+    run_id: uuid.UUID, workspace_id: uuid.UUID, access: AccessGroupFilters | None
+) -> Any:
+    """SELECT for one run, honouring an access group (shared by detail/graph/governance)."""
+    return select(AgentRun).where(
+        AgentRun.id == run_id,
+        AgentRun.workspace_id == workspace_id,
+        *run_access_clauses(access, [workspace_id]),
+    )
 
 
 # ── List runs ─────────────────────────────────────────────────────────────────
@@ -143,7 +138,7 @@ def _apply_run_filters(
     stmt: Any,
     *,
     workspace_id: Any,
-    access_group_filters: dict[str, list[str]] | None,
+    access_group_filters: AccessGroupFilters | None,
     status_filter: str | None,
     feature_tag: str | None,
     end_user_id: str | None,
@@ -158,36 +153,13 @@ def _apply_run_filters(
     tool_name: str | None = None,
     security_event_only: bool = False,
 ) -> Any:
-    stmt = stmt.where(AgentRun.workspace_id == workspace_id)
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            stmt = stmt.where(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
-        if access_group_filters["feature_tags"]:
-            stmt = stmt.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
-        if access_group_filters["statuses"]:
-            stmt = stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
-        if access_group_filters["models"]:
-            model_sub = (
-                select(ProviderCall.run_id)
-                .where(
-                    ProviderCall.workspace_id == workspace_id,
-                    ProviderCall.model.in_(access_group_filters["models"]),
-                )
-                .distinct()
-            )
-            stmt = stmt.where(AgentRun.id.in_(model_sub))
-        if access_group_filters["providers"]:
-            provider_sub = (
-                select(ProviderCall.run_id)
-                .where(
-                    ProviderCall.workspace_id == workspace_id,
-                    ProviderCall.provider.in_(access_group_filters["providers"]),
-                )
-                .distinct()
-            )
-            stmt = stmt.where(AgentRun.id.in_(provider_sub))
-    if status_filter:
-        stmt = stmt.where(AgentRun.status == status_filter)
+    stmt = stmt.where(
+        AgentRun.workspace_id == workspace_id,
+        *run_access_clauses(access_group_filters, [workspace_id]),
+    )
+    run_status = normalize_run_status(status_filter)
+    if run_status:
+        stmt = stmt.where(AgentRun.status == run_status)
     if feature_tag:
         stmt = stmt.where(AgentRun.feature_tag == feature_tag)
     if end_user_id:
@@ -201,7 +173,10 @@ def _apply_run_filters(
     if model_filter:
         model_sub = (
             select(ProviderCall.run_id)
-            .where(ProviderCall.model.ilike(f"%{model_filter}%"))
+            .where(
+                ProviderCall.workspace_id == workspace_id,
+                ProviderCall.model.ilike(f"%{model_filter}%"),
+            )
             .distinct()
         )
         stmt = stmt.where(AgentRun.id.in_(model_sub))
@@ -325,38 +300,6 @@ def _cost_band(cost: Decimal) -> str:
     return "$0.10+"
 
 
-def _fallback_savings_category(
-    *,
-    cached_input_tokens: int,
-    total_tokens: int,
-    total_cost: Decimal,
-    model: str | None,
-    provider: str | None,
-    gateway_request: GatewayRequest | None,
-) -> tuple[Decimal, str | None, str | None]:
-    if cached_input_tokens > 0 and total_tokens > cached_input_tokens and total_cost > 0:
-        return (
-            total_cost * Decimal(cached_input_tokens) / Decimal(total_tokens - cached_input_tokens),
-            "cache_hits",
-            "Cached input tokens avoided repeated prompt cost.",
-        )
-    if gateway_request is not None and gateway_request.cache_hit:
-        return (
-            max(total_cost, Decimal("0.000001")),
-            "cache_hits",
-            "Gateway cache hit avoided a fresh provider call.",
-        )
-
-    text = f"{model or ''} {provider or ''}".lower()
-    if any(name in text for name in ("llama", "local", "ollama")) and total_cost > 0:
-        return (
-            total_cost * Decimal("0.25"),
-            "local_models",
-            "Local or self-hosted model lane reduced provider spend.",
-        )
-    return Decimal("0"), None, None
-
-
 def _duration_or_latency(run: AgentRun, primary_call: ProviderCall | None) -> int | None:
     duration = _duration_ms(run.started_at, run.ended_at)
     if duration is not None:
@@ -371,47 +314,7 @@ async def _flow_workspace_ids(
     user: Any,
     db: AsyncSession,
 ) -> list[uuid.UUID]:
-    if scope == "workspace":
-        return [workspace.id]
-
-    if user is None:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            "A dashboard user session is required for org or platform flow scope",
-        )
-
-    if scope == "org":
-        if not user.is_platform_admin:
-            tenant_user = (
-                await db.execute(
-                    select(TenantUser).where(
-                        TenantUser.user_id == user.id,
-                        TenantUser.tenant_id == workspace.tenant_id,
-                    )
-                )
-            ).scalar_one_or_none()
-            if tenant_user is None or tenant_user.role not in _ORG_FLOW_ROLES:
-                raise HTTPException(
-                    status.HTTP_403_FORBIDDEN,
-                    "Organization admin access required for org flow scope",
-                )
-        result = await db.execute(
-            select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
-        )
-        return list(result.scalars().all())
-
-    if scope == "platform":
-        if not user.is_platform_admin:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "Platform admin access required for platform flow scope",
-            )
-        result = await db.execute(select(Workspace.id))
-        return list(result.scalars().all())
-
-    raise HTTPException(
-        status.HTTP_422_UNPROCESSABLE_ENTITY, "scope must be workspace, org, or platform"
-    )
+    return await resolve_scope_workspace_ids(scope, workspace, user, db)
 
 
 def _first_metadata(spans: list[Span], keys: list[str]) -> str | None:
@@ -444,122 +347,300 @@ def _matching_gateway_request(
     return best[1] if best else None
 
 
-@router.get("", response_model=RunListResponse)
-async def list_runs(
-    workspace: WorkspaceDep,
-    db: DbDep,
-    limit: int = Query(50, ge=1, le=200),
-    cursor: str | None = Query(None, description="ISO timestamp — return runs started before this"),
-    status_filter: str | None = Query(None, alias="status"),
+@dataclass
+class RunFilterParams:
+    """The one run filter list, shared by list, export, stats and stream (review O-11)."""
+
+    status: str | None
+    feature_tag: str | None
+    end_user_id: str | None
+    search: str | None
+    from_dt: datetime | None
+    to_dt: datetime | None
+    model: str | None
+    min_cost: Decimal | None
+    max_cost: Decimal | None
+    access_group_id: uuid.UUID | None
+    api_key_id: uuid.UUID | None
+    tag: str | None
+    tool_name: str | None
+    security_event_only: bool
+
+
+def run_filter_params(
+    status_filter: str | None = Query(
+        None, alias="status", description="running, succeeded, failed or cancelled"
+    ),
     feature_tag: str | None = Query(None),
     end_user_id: str | None = Query(None),
     search: str | None = Query(None, description="Prefix match on run_id"),
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
-    model_filter: str | None = Query(
-        None, alias="model", description="Substring match on model name"
-    ),
+    model_filter: str | None = Query(None, alias="model", description="Substring of model"),
     min_cost: Decimal | None = Query(None, description="Minimum total cost (USD)"),
     max_cost: Decimal | None = Query(None, description="Maximum total cost (USD)"),
     access_group_id: uuid.UUID | None = Query(None),
     api_key_id: uuid.UUID | None = Query(None),
     tag: str | None = Query(None, description="Governance or request tag"),
-    tool_name: str | None = Query(None, description="Filter to runs that called a specific tool"),
-    security_event_only: bool = Query(False, description="Only runs with matching security events"),
-) -> RunListResponse:
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
-    # Total count query (without cursor/limit)
-    count_stmt = _apply_run_filters(
-        select(func.count()).select_from(AgentRun),
-        workspace_id=workspace.id,
-        access_group_filters=access_group_filters,
-        status_filter=status_filter,
+    tool_name: str | None = Query(None, description="Runs that called this tool"),
+    security_event_only: bool = Query(False, description="Only runs with security events"),
+) -> RunFilterParams:
+    normalize_run_status(status_filter)  # 422 on an unknown status (review O-10)
+    return RunFilterParams(
+        status=status_filter,
         feature_tag=feature_tag,
         end_user_id=end_user_id,
         search=search,
         from_dt=from_dt,
         to_dt=to_dt,
-        model_filter=model_filter,
+        model=model_filter,
         min_cost=min_cost,
         max_cost=max_cost,
+        access_group_id=access_group_id,
         api_key_id=api_key_id,
         tag=tag,
         tool_name=tool_name,
         security_event_only=security_event_only,
     )
-    total = (await db.execute(count_stmt)).scalar_one()
 
-    # Data query
-    stmt = _apply_run_filters(
-        select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit + 1),
+
+RunFiltersDep = Annotated[RunFilterParams, Depends(run_filter_params)]
+
+
+async def _filtered(stmt: Any, f: RunFilterParams, workspace: Workspace, db: AsyncSession) -> Any:
+    access = await resolve_access_group(db, workspace.id, f.access_group_id)
+    return _apply_run_filters(
+        stmt,
         workspace_id=workspace.id,
-        access_group_filters=access_group_filters,
-        status_filter=status_filter,
-        feature_tag=feature_tag,
-        end_user_id=end_user_id,
-        search=search,
-        from_dt=from_dt,
-        to_dt=to_dt,
-        model_filter=model_filter,
-        min_cost=min_cost,
-        max_cost=max_cost,
-        api_key_id=api_key_id,
-        tag=tag,
-        tool_name=tool_name,
-        security_event_only=security_event_only,
+        access_group_filters=access,
+        status_filter=f.status,
+        feature_tag=f.feature_tag,
+        end_user_id=f.end_user_id,
+        search=f.search,
+        from_dt=f.from_dt,
+        to_dt=f.to_dt,
+        model_filter=f.model,
+        min_cost=f.min_cost,
+        max_cost=f.max_cost,
+        api_key_id=f.api_key_id,
+        tag=f.tag,
+        tool_name=f.tool_name,
+        security_event_only=f.security_event_only,
+    )
+
+
+async def _primary_models(
+    db: AsyncSession, run_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, str | None]:
+    """Most expensive provider call's model per run."""
+    if not run_ids:
+        return {}
+    rows = await db.execute(
+        select(ProviderCall.run_id, ProviderCall.model)
+        .where(ProviderCall.run_id.in_(run_ids))
+        .order_by(ProviderCall.run_id, ProviderCall.cost_usd.desc().nulls_last())
+        .distinct(ProviderCall.run_id)
+    )
+    return {row.run_id: row.model for row in rows.all()}
+
+
+def _list_item(r: AgentRun, primary_model: str | None) -> RunListItem:
+    return RunListItem(
+        id=r.id,
+        api_key_id=r.api_key_id,
+        status=r.status,
+        end_user_id=r.end_user_id,
+        session_id=r.session_id,
+        feature_tag=r.feature_tag,
+        deployment_version=r.deployment_version,
+        total_cost_usd=r.total_cost_usd,
+        total_input_tokens=r.total_input_tokens,
+        total_output_tokens=r.total_output_tokens,
+        started_at=r.started_at,
+        ended_at=r.ended_at,
+        duration_ms=_duration_ms(r.started_at, r.ended_at),
+        primary_model=primary_model,
+    )
+
+
+@router.get("", response_model=RunListResponse)
+async def list_runs(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    filters: RunFiltersDep,
+    response: Response,
+    limit: int = Query(50, ge=1, le=200),
+    cursor: str | None = Query(None, description="Opaque cursor from next_cursor"),
+    include_total: bool = Query(
+        True, description="Set false to skip the COUNT (live views, deep paging)"
+    ),
+) -> RunListResponse:
+    """Runs, newest first, keyset-paged on (started_at, id) so ties are never skipped."""
+    total: int | None = None
+    if include_total:
+        count_stmt = await _filtered(
+            select(func.count()).select_from(AgentRun), filters, workspace, db
+        )
+        total = int((await db.execute(count_stmt)).scalar_one())
+        response.headers["X-Total-Count"] = str(total)
+
+    stmt = await _filtered(
+        select(AgentRun).order_by(AgentRun.started_at.desc(), AgentRun.id.desc()).limit(limit + 1),
+        filters,
+        workspace,
+        db,
     )
     if cursor:
-        cursor_dt = datetime.fromisoformat(cursor)
-        stmt = stmt.where(AgentRun.started_at < cursor_dt)
-
-    result = await db.execute(stmt)
-    runs = list(result.scalars().all())
-
-    # Determine next cursor
+        stmt = stmt.where(cursor_clause(cursor))
+    runs = list((await db.execute(stmt)).scalars().all())
     has_more = len(runs) > limit
-    if has_more:
-        runs = runs[:limit]
-    next_cursor = runs[-1].started_at.isoformat() if (has_more and runs) else None
+    runs = runs[:limit]
+    next_cursor = encode_cursor(runs[-1].started_at, runs[-1].id) if (has_more and runs) else None
+    models = await _primary_models(db, [r.id for r in runs])
+    return RunListResponse(
+        items=[_list_item(r, models.get(r.id)) for r in runs],
+        next_cursor=next_cursor,
+        total=total,
+    )
 
-    # Fetch primary model for each run (most expensive provider_call)
-    run_ids = [r.id for r in runs]
-    primary_models: dict[uuid.UUID, str | None] = {}
-    if run_ids:
-        pc_stmt = (
-            select(ProviderCall.run_id, ProviderCall.model)
-            .where(ProviderCall.run_id.in_(run_ids))
-            .order_by(ProviderCall.run_id, ProviderCall.cost_usd.desc().nulls_last())
-            .distinct(ProviderCall.run_id)
+
+# ── Aggregates for the Runs hero (review O-20) ────────────────────────────────
+
+
+@router.get("/stats", response_model=RunStatsResponse)
+async def run_stats(workspace: WorkspaceDep, db: DbDep, filters: RunFiltersDep) -> RunStatsResponse:
+    """Server-side aggregates over every run matching the filters, not a page sample."""
+    duration = sa.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+    stmt = await _filtered(
+        select(
+            func.count(AgentRun.id).label("total"),
+            func.count(case((AgentRun.status == RunStatusEnum.succeeded, 1))).label("succeeded"),
+            func.count(case((AgentRun.status == RunStatusEnum.failed, 1))).label("failed"),
+            func.count(case((AgentRun.status == RunStatusEnum.running, 1))).label("running"),
+            func.count(case((AgentRun.status == RunStatusEnum.cancelled, 1))).label("cancelled"),
+            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost"),
+            func.coalesce(func.sum(AgentRun.total_input_tokens), 0).label("inp"),
+            func.coalesce(func.sum(AgentRun.total_output_tokens), 0).label("out"),
+            func.avg(duration).label("avg_ms"),
+            func.percentile_cont(0.95).within_group(duration).label("p95_ms"),
+        ),
+        filters,
+        workspace,
+        db,
+    )
+    row = (await db.execute(stmt)).one()
+    finished = int(row.succeeded) + int(row.failed)
+    return RunStatsResponse(
+        total=int(row.total),
+        succeeded=int(row.succeeded),
+        failed=int(row.failed),
+        running=int(row.running),
+        cancelled=int(row.cancelled),
+        success_rate=(Decimal(int(row.succeeded)) / Decimal(finished)).quantize(Decimal("0.0001"))
+        if finished
+        else None,
+        total_cost_usd=Decimal(row.cost or 0),
+        avg_cost_usd=(Decimal(row.cost or 0) / int(row.total)) if row.total else None,
+        total_input_tokens=int(row.inp),
+        total_output_tokens=int(row.out),
+        avg_duration_ms=int(row.avg_ms) if row.avg_ms is not None else None,
+        p95_duration_ms=int(row.p95_ms) if row.p95_ms is not None else None,
+    )
+
+
+# ── Filter facets (review O-24) ───────────────────────────────────────────────
+
+
+@router.get("/facets", response_model=RunFacetsResponse)
+async def run_facets(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    days: int = Query(30, ge=1, le=365),
+) -> RunFacetsResponse:
+    """Distinct models, providers, workflows (feature tags) and statuses seen recently."""
+    since = datetime.now(UTC) - timedelta(days=days)
+
+    async def _distinct(col: Any, created: Any, ws_col: Any) -> list[str]:
+        rows = await db.execute(
+            select(col)
+            .where(ws_col == workspace.id, created >= since, col.is_not(None))
+            .group_by(col)
+            .order_by(func.count().desc())
+            .limit(200)
         )
-        pc_result = await db.execute(pc_stmt)
-        for row in pc_result.all():
-            primary_models[row.run_id] = row.model
+        return [str(v) for v in rows.scalars().all() if v]
 
-    items = [
-        RunListItem(
-            id=r.id,
-            api_key_id=r.api_key_id,
-            status=r.status,
-            end_user_id=r.end_user_id,
-            session_id=r.session_id,
-            feature_tag=r.feature_tag,
-            deployment_version=r.deployment_version,
-            total_cost_usd=r.total_cost_usd,
-            total_input_tokens=r.total_input_tokens,
-            total_output_tokens=r.total_output_tokens,
-            started_at=r.started_at,
-            ended_at=r.ended_at,
-            duration_ms=_duration_ms(r.started_at, r.ended_at),
-            primary_model=primary_models.get(r.id),
-        )
-        for r in runs
-    ]
+    return RunFacetsResponse(
+        models=await _distinct(
+            ProviderCall.model, ProviderCall.created_at, ProviderCall.workspace_id
+        ),
+        providers=await _distinct(
+            ProviderCall.provider, ProviderCall.created_at, ProviderCall.workspace_id
+        ),
+        feature_tags=await _distinct(
+            AgentRun.feature_tag, AgentRun.started_at, AgentRun.workspace_id
+        ),
+        statuses=list(RUN_STATUSES),
+    )
 
-    return RunListResponse(items=items, next_cursor=next_cursor, total=total)
+
+# ── Live stream over SSE (review O-07) ────────────────────────────────────────
+
+_STREAM_POLL_SECONDS = 2.0
+_STREAM_MAX_SECONDS = 300.0
+
+
+@router.get("/stream", response_model=None)
+async def stream_runs(
+    request: Request,
+    workspace: WorkspaceDep,
+    filters: RunFiltersDep,
+    since: datetime | None = Query(None, description="Only runs started after this instant"),
+    max_seconds: float = Query(_STREAM_MAX_SECONDS, ge=1, le=_STREAM_MAX_SECONDS),
+) -> StreamingResponse:
+    """Server-sent events with new and updated runs.
+
+    The server checks a small keyset window (no COUNT) every two seconds and emits
+    ``run`` events for runs that are new or whose status changed. The browser closes
+    the stream when the tab is hidden and reopens it with ``since`` when it returns.
+    Streams end after ``max_seconds``; EventSource reconnects on its own.
+    """
+    from runledger_api.core.db import AsyncSessionLocal  # noqa: PLC0415
+
+    start_from = since or datetime.now(UTC) - timedelta(minutes=5)
+
+    async def _events() -> AsyncIterator[str]:
+        seen: dict[uuid.UUID, str] = {}
+        deadline = asyncio.get_running_loop().time() + max_seconds
+        yield "retry: 3000\n\n"
+        while asyncio.get_running_loop().time() < deadline:
+            if await request.is_disconnected():
+                return
+            async with AsyncSessionLocal() as session:
+                stmt = await _filtered(
+                    select(AgentRun)
+                    .where(AgentRun.started_at >= start_from)
+                    .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
+                    .limit(100),
+                    filters,
+                    workspace,
+                    session,
+                )
+                runs = list((await session.execute(stmt)).scalars().all())
+                changed = [r for r in reversed(runs) if seen.get(r.id) != str(r.status)]
+                models = await _primary_models(session, [r.id for r in changed])
+            for r in changed:
+                seen[r.id] = str(r.status)
+                payload = _list_item(r, models.get(r.id)).model_dump_json()
+                yield f"event: run\nid: {r.id}\ndata: {payload}\n\n"
+            yield ": keep-alive\n\n"
+            await asyncio.sleep(_STREAM_POLL_SECONDS)
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ── Export runs as CSV ────────────────────────────────────────────────────────
@@ -569,60 +650,18 @@ async def list_runs(
 async def export_runs(
     workspace: WorkspaceDep,
     db: DbDep,
-    status_filter: str | None = Query(None, alias="status"),
-    feature_tag: str | None = Query(None),
-    end_user_id: str | None = Query(None),
-    search: str | None = Query(None),
-    from_dt: datetime | None = Query(None, alias="from"),
-    to_dt: datetime | None = Query(None, alias="to"),
-    model_filter: str | None = Query(None, alias="model"),
-    min_cost: Decimal | None = Query(None),
-    max_cost: Decimal | None = Query(None),
+    filters: RunFiltersDep,
     limit: int = Query(1000, ge=1, le=5000),
-    access_group_id: uuid.UUID | None = Query(None),
-    api_key_id: uuid.UUID | None = Query(None),
-    tag: str | None = Query(None),
-    tool_name: str | None = Query(None),
-    security_event_only: bool = Query(False),
 ) -> StreamingResponse:
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
+    """CSV of the runs matching exactly the list filters."""
+    stmt = await _filtered(
+        select(AgentRun).order_by(AgentRun.started_at.desc(), AgentRun.id.desc()).limit(limit),
+        filters,
+        workspace,
+        db,
     )
-    stmt = _apply_run_filters(
-        select(AgentRun).order_by(AgentRun.started_at.desc()).limit(limit),
-        workspace_id=workspace.id,
-        access_group_filters=access_group_filters,
-        status_filter=status_filter,
-        feature_tag=feature_tag,
-        end_user_id=end_user_id,
-        search=search,
-        from_dt=from_dt,
-        to_dt=to_dt,
-        model_filter=model_filter,
-        min_cost=min_cost,
-        max_cost=max_cost,
-        api_key_id=api_key_id,
-        tag=tag,
-        tool_name=tool_name,
-        security_event_only=security_event_only,
-    )
-    result = await db.execute(stmt)
-    runs = list(result.scalars().all())
-
-    # Fetch primary models
-    run_ids = [r.id for r in runs]
-    primary_models: dict[uuid.UUID, str | None] = {}
-    if run_ids:
-        pc_stmt = (
-            select(ProviderCall.run_id, ProviderCall.model)
-            .where(ProviderCall.run_id.in_(run_ids))
-            .order_by(ProviderCall.run_id, ProviderCall.cost_usd.desc().nulls_last())
-            .distinct(ProviderCall.run_id)
-        )
-        for row in (await db.execute(pc_stmt)).all():
-            primary_models[row.run_id] = row.model
+    runs = list((await db.execute(stmt)).scalars().all())
+    primary_models = await _primary_models(db, [r.id for r in runs])
 
     buf = io.StringIO()
     writer = csv.DictWriter(
@@ -662,8 +701,6 @@ async def export_runs(
                 "ended_at": r.ended_at.isoformat() if r.ended_at else "",
             }
         )
-
-    buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
@@ -727,40 +764,8 @@ async def get_run_flow(
         filters.append(AgentRun.api_key_id == api_key_id)
     if end_user_id is not None:
         filters.append(AgentRun.end_user_id == end_user_id)
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            filters.append(AgentRun.end_user_id.in_(access_group_filters["end_user_ids"]))
-        if access_group_filters["feature_tags"]:
-            filters.append(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
-        if access_group_filters["statuses"]:
-            filters.append(AgentRun.status.in_(access_group_filters["statuses"]))
-        if access_group_filters["models"]:
-            filters.append(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.model.in_(access_group_filters["models"]),
-                    )
-                    .distinct()
-                )
-            )
-        if access_group_filters["providers"]:
-            filters.append(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.provider.in_(access_group_filters["providers"]),
-                    )
-                    .distinct()
-                )
-            )
+    access = await resolve_access_group(db, workspace.id, access_group_id)
+    filters.extend(run_access_clauses(access, workspace_ids))
     if from_dt is not None:
         filters.append(AgentRun.started_at >= from_dt)
     if to_dt is not None:
@@ -801,9 +806,10 @@ async def get_run_flow(
     run_ids = [run.id for run in runs]
 
     primary_calls: dict[uuid.UUID, ProviderCall] = {}
+    savings_by_run: dict[uuid.UUID, Decimal] = {}
     spans_by_run: dict[uuid.UUID, list[Span]] = {run_id: [] for run_id in run_ids}
     tools_by_run: dict[uuid.UUID, list[ToolCall]] = {run_id: [] for run_id in run_ids}
-    outcomes_by_run: dict[uuid.UUID, OutcomeEvent] = {}
+    outcomes_by_run: dict[uuid.UUID, _RunOutcome] = {}
     gateway_requests: list[GatewayRequest] = []
     gateway_routes: dict[uuid.UUID, GatewayRoute] = {}
 
@@ -825,6 +831,10 @@ async def get_run_flow(
         )
         for call in provider_calls:
             primary_calls.setdefault(call.run_id, call)
+            if call.savings_usd is not None and call.savings_usd > 0:
+                savings_by_run[call.run_id] = (
+                    savings_by_run.get(call.run_id, Decimal("0")) + call.savings_usd
+                )
 
         for span in (
             await db.execute(select(Span).where(Span.run_id.in_(run_ids)).order_by(Span.started_at))
@@ -838,14 +848,20 @@ async def get_run_flow(
         ).scalars():
             tools_by_run.setdefault(tool.run_id, []).append(tool)
 
+        # One outcome per run, however many were recorded (review O-03/O-04): the
+        # latest type, and success when any recorded outcome succeeded.
         for outcome in (
             await db.execute(
-                select(OutcomeEvent)
-                .where(OutcomeEvent.run_id.in_(run_ids))
-                .order_by(OutcomeEvent.created_at.desc())
+                select(Outcome)
+                .where(Outcome.workspace_id.in_(workspace_ids), Outcome.run_id.in_(run_ids))
+                .order_by(Outcome.created_at.desc())
             )
         ).scalars():
-            outcomes_by_run.setdefault(outcome.run_id, outcome)
+            assert outcome.run_id is not None
+            agg = outcomes_by_run.setdefault(
+                outcome.run_id, _RunOutcome(outcome.outcome_type, False)
+            )
+            agg.success = agg.success or bool(outcome.success)
 
         min_started = min(run.started_at for run in runs) - timedelta(minutes=5)
         max_started = max(run.started_at for run in runs) + timedelta(minutes=5)
@@ -883,7 +899,7 @@ async def get_run_flow(
         spans = spans_by_run.get(run.id, [])
         tools = tools_by_run.get(run.id, [])
         primary_call = primary_calls.get(run.id)
-        run_outcome: OutcomeEvent | None = outcomes_by_run.get(run.id)
+        run_outcome = outcomes_by_run.get(run.id)
         gateway_request = _matching_gateway_request(run, primary_call, gateway_requests)
         route = (
             gateway_routes.get(gateway_request.route_id)
@@ -950,33 +966,11 @@ async def get_run_flow(
             else (gateway_request.model_used if gateway_request else None)
         )
         total_cost = run.total_cost_usd or Decimal("0")
-        total_tokens = input_tokens + output_tokens
-        savings = (
-            primary_call.savings_usd
-            if primary_call is not None and primary_call.savings_usd is not None
-            else Decimal("0")
-        )
+        # Recorded savings only (review O-13): the sum of what provider calls
+        # reported, never an estimate derived from tokens or the model name.
+        savings = savings_by_run.get(run.id, Decimal("0"))
         savings_category = primary_call.savings_category if primary_call is not None else None
         savings_reason = primary_call.savings_reason if primary_call is not None else None
-        if savings <= 0:
-            savings, savings_category, savings_reason = _fallback_savings_category(
-                cached_input_tokens=cached_input_tokens,
-                total_tokens=total_tokens,
-                total_cost=total_cost,
-                model=model,
-                provider=provider,
-                gateway_request=gateway_request,
-            )
-        elif not savings_category:
-            text = f"{model or ''} {provider or ''}".lower()
-            savings_category = (
-                "local_models"
-                if any(name in text for name in ("llama", "local", "ollama"))
-                else "smart_routing"
-            )
-            savings_reason = (
-                savings_reason or "RunLedger recorded realized savings for this provider call."
-            )
         route_label = (
             route.alias
             if route is not None
@@ -1001,7 +995,7 @@ async def get_run_flow(
                 provider=provider,
                 route=route_label,
                 outcome=(
-                    f"{run_outcome.event_type}: {'Success' if run_outcome.success else 'Miss'}"
+                    f"{run_outcome.outcome_type}: {'Success' if run_outcome.success else 'Miss'}"
                     if run_outcome is not None
                     else str(run.status)
                 ),
@@ -1041,6 +1035,172 @@ async def get_run_flow(
     )
 
 
+# ── Compare two runs (ENH) ────────────────────────────────────────────────────
+
+
+async def _compare_side(
+    db: AsyncSession, workspace_id: uuid.UUID, run_id: uuid.UUID
+) -> RunCompareSide:
+    run = (await db.execute(_run_lookup(run_id, workspace_id, None))).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Run {run_id} not found")
+    calls = list(
+        (await db.execute(select(ProviderCall).where(ProviderCall.run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    tools = list(
+        (await db.execute(select(ToolCall.tool_name).where(ToolCall.run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    span_count = (
+        await db.execute(select(func.count(Span.id)).where(Span.run_id == run_id))
+    ).scalar_one()
+    latencies = [c.latency_ms for c in calls if c.latency_ms is not None]
+    return RunCompareSide(
+        run=_list_item(run, max(calls, key=lambda c: c.cost_usd or 0).model if calls else None),
+        models=sorted({c.model for c in calls if c.model}),
+        provider_call_count=len(calls),
+        tool_call_count=len(tools),
+        tools=sorted(set(tools)),
+        span_count=int(span_count),
+        error_count=sum(1 for c in calls if c.status != "success"),
+        total_latency_ms=sum(latencies) if latencies else None,
+        cached_input_tokens=sum(c.cached_input_tokens or 0 for c in calls),
+        savings_usd=sum((c.savings_usd or Decimal(0) for c in calls), Decimal(0)),
+    )
+
+
+@router.get("/compare", response_model=RunCompareResponse)
+async def compare_runs(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    a: uuid.UUID = Query(..., description="First run id"),
+    b: uuid.UUID = Query(..., description="Second run id"),
+) -> RunCompareResponse:
+    """Side-by-side comparison of two runs with deltas (b minus a)."""
+    left = await _compare_side(db, workspace.id, a)
+    right = await _compare_side(db, workspace.id, b)
+
+    def _d(x: Any, y: Any) -> Decimal | None:
+        if x is None or y is None:
+            return None
+        return Decimal(str(y)) - Decimal(str(x))
+
+    return RunCompareResponse(
+        a=left,
+        b=right,
+        delta={
+            "cost_usd": _d(left.run.total_cost_usd, right.run.total_cost_usd),
+            "input_tokens": _d(left.run.total_input_tokens, right.run.total_input_tokens),
+            "output_tokens": _d(left.run.total_output_tokens, right.run.total_output_tokens),
+            "duration_ms": _d(left.run.duration_ms, right.run.duration_ms),
+            "provider_calls": _d(left.provider_call_count, right.provider_call_count),
+            "tool_calls": _d(left.tool_call_count, right.tool_call_count),
+        },
+    )
+
+
+# ── Saved views (ENH; per user, minimal until the W2-C preferences API) ───────
+
+UserSessionDep = Annotated[tuple[Workspace, User], Depends(require_user)]
+
+
+def _check_page(page: str) -> str:
+    if page not in SAVED_VIEW_PAGES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"page must be one of: {', '.join(SAVED_VIEW_PAGES)}",
+        )
+    return page
+
+
+@router.get("/saved-views", response_model=SavedViewList)
+async def list_saved_views(
+    ws_user: UserSessionDep, db: DbDep, page: str = Query("runs")
+) -> SavedViewList:
+    workspace, user = ws_user
+    rows = (
+        await db.execute(
+            select(SavedView)
+            .where(
+                SavedView.workspace_id == workspace.id,
+                SavedView.user_id == user.id,
+                SavedView.page == _check_page(page),
+            )
+            .order_by(SavedView.name)
+        )
+    ).scalars()
+    return SavedViewList(items=[SavedViewResponse.model_validate(v) for v in rows])
+
+
+@router.post("/saved-views", response_model=SavedViewResponse, status_code=status.HTTP_201_CREATED)
+async def create_saved_view(
+    body: SavedViewCreate, ws_user: UserSessionDep, db: DbDep
+) -> SavedViewResponse:
+    """Create, or replace the query of, the caller's view with this name."""
+    workspace, user = ws_user
+    _check_page(body.page)
+    view = (
+        await db.execute(
+            select(SavedView).where(
+                SavedView.workspace_id == workspace.id,
+                SavedView.user_id == user.id,
+                SavedView.page == body.page,
+                SavedView.name == body.name,
+            )
+        )
+    ).scalar_one_or_none()
+    if view is None:
+        view = SavedView(
+            workspace_id=workspace.id,
+            user_id=user.id,
+            page=body.page,
+            name=body.name,
+            query=body.query,
+        )
+        db.add(view)
+    else:
+        view.query = body.query
+        view.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(view)
+    return SavedViewResponse.model_validate(view)
+
+
+@router.put("/saved-views/{view_id}", response_model=SavedViewResponse)
+async def update_saved_view(
+    view_id: uuid.UUID, body: SavedViewCreate, ws_user: UserSessionDep, db: DbDep
+) -> SavedViewResponse:
+    workspace, user = ws_user
+    view = await db.get(SavedView, view_id)
+    if view is None or view.workspace_id != workspace.id or view.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Saved view not found")
+    view.page = _check_page(body.page)
+    view.name = body.name
+    view.query = body.query
+    view.updated_at = datetime.now(UTC)
+    try:
+        await db.commit()
+    except sa.exc.IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "A view with that name exists") from exc
+    await db.refresh(view)
+    return SavedViewResponse.model_validate(view)
+
+
+@router.delete("/saved-views/{view_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_saved_view(view_id: uuid.UUID, ws_user: UserSessionDep, db: DbDep) -> Response:
+    workspace, user = ws_user
+    view = await db.get(SavedView, view_id)
+    if view is None or view.workspace_id != workspace.id or view.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Saved view not found")
+    await db.delete(view)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 # ── Cancel a stuck run ────────────────────────────────────────────────────────
 
 
@@ -1067,22 +1227,7 @@ async def cancel_run(
     await db.commit()
     await db.refresh(run)
 
-    return RunListItem(
-        id=run.id,
-        api_key_id=run.api_key_id,
-        status=run.status,
-        end_user_id=run.end_user_id,
-        session_id=run.session_id,
-        feature_tag=run.feature_tag,
-        deployment_version=run.deployment_version,
-        total_cost_usd=run.total_cost_usd,
-        total_input_tokens=run.total_input_tokens,
-        total_output_tokens=run.total_output_tokens,
-        started_at=run.started_at,
-        ended_at=run.ended_at,
-        duration_ms=_duration_ms(run.started_at, run.ended_at),
-        primary_model=None,
-    )
+    return _list_item(run, None)
 
 
 # ── Run detail ────────────────────────────────────────────────────────────────
@@ -1091,50 +1236,15 @@ async def cancel_run(
 @router.get("/{run_id}", response_model=RunDetailResponse)
 async def get_run(
     run_id: uuid.UUID,
+    request: Request,
     workspace: WorkspaceDep,
     db: DbDep,
     access_group_id: uuid.UUID | None = Query(None),
 ) -> RunDetailResponse:
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
-    run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            run_stmt = run_stmt.where(
-                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
-            )
-        if access_group_filters["feature_tags"]:
-            run_stmt = run_stmt.where(
-                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
-            )
-        if access_group_filters["statuses"]:
-            run_stmt = run_stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
-        if access_group_filters["models"]:
-            run_stmt = run_stmt.where(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.model.in_(access_group_filters["models"]),
-                    )
-                    .distinct()
-                )
-            )
-        if access_group_filters["providers"]:
-            run_stmt = run_stmt.where(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.provider.in_(access_group_filters["providers"]),
-                    )
-                    .distinct()
-                )
-            )
-    run = (await db.execute(run_stmt)).scalar_one_or_none()
+    """Run detail. Captured prompts/responses appear once (``span_payloads``, plus the
+    first input/output) and only for callers allowed to read them (review O-05)."""
+    access = await resolve_access_group(db, workspace.id, access_group_id)
+    run = (await db.execute(_run_lookup(run_id, workspace.id, access))).scalar_one_or_none()
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
 
@@ -1153,23 +1263,28 @@ async def get_run(
     )
     tool_calls = list(tc_result.scalars().all())
 
-    # Extract payloads from span metadata (only present when capture policy is SAMPLED/FULL)
+    payload_access = await can_view_payloads(request, workspace, db)
     input_payload: list[dict[str, Any]] | None = None
     output_payload: Any | None = None
     span_payloads: dict[str, dict[str, Any]] = {}
-    for s in spans:
-        if s.span_metadata:
-            span_payload: dict[str, Any] = {}
-            if "messages" in s.span_metadata:
-                span_payload["input"] = s.span_metadata["messages"]
-                if input_payload is None:
-                    input_payload = s.span_metadata["messages"]
-            if "response" in s.span_metadata:
-                span_payload["output"] = s.span_metadata["response"]
-                if output_payload is None:
-                    output_payload = s.span_metadata["response"]
-            if span_payload:
-                span_payloads[str(s.id)] = span_payload
+    captured = False
+    for s_ in spans:
+        meta = s_.span_metadata or {}
+        if "messages" not in meta and "response" not in meta:
+            continue
+        captured = True
+        if not payload_access:
+            continue
+        span_payload: dict[str, Any] = {}
+        if "messages" in meta:
+            span_payload["input"] = meta["messages"]
+            if input_payload is None:
+                input_payload = meta["messages"]
+        if "response" in meta:
+            span_payload["output"] = meta["response"]
+            if output_payload is None:
+                output_payload = meta["response"]
+        span_payloads[str(s_.id)] = span_payload
 
     return RunDetailResponse(
         id=run.id,
@@ -1188,6 +1303,8 @@ async def get_run(
         input_payload=input_payload,
         output_payload=output_payload,
         span_payloads=span_payloads if span_payloads else None,
+        payloads_captured=captured,
+        payloads_redacted=captured and not payload_access,
         spans=[
             SpanDetail(
                 id=s.id,
@@ -1199,7 +1316,7 @@ async def get_run(
                 ended_at=s.ended_at,
                 status=s.status,
                 cost_usd=s.cost_usd,
-                metadata=s.span_metadata,
+                metadata=strip_payloads(s.span_metadata),
             )
             for s in spans
         ],
@@ -1245,22 +1362,8 @@ async def get_run_governance_context(
     db: DbDep,
     access_group_id: uuid.UUID | None = Query(None),
 ) -> RunGovernanceContextResponse:
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
-    run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            run_stmt = run_stmt.where(
-                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
-            )
-        if access_group_filters["feature_tags"]:
-            run_stmt = run_stmt.where(
-                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
-            )
-    run = (await db.execute(run_stmt)).scalar_one_or_none()
+    access = await resolve_access_group(db, workspace.id, access_group_id)
+    run = (await db.execute(_run_lookup(run_id, workspace.id, access))).scalar_one_or_none()
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
 
@@ -1486,46 +1589,8 @@ async def get_run_graph(
     db: DbDep,
     access_group_id: uuid.UUID | None = Query(None),
 ) -> RunGraphResponse:
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
-    run_stmt = select(AgentRun).where(AgentRun.id == run_id, AgentRun.workspace_id == workspace.id)
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            run_stmt = run_stmt.where(
-                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
-            )
-        if access_group_filters["feature_tags"]:
-            run_stmt = run_stmt.where(
-                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
-            )
-        if access_group_filters["statuses"]:
-            run_stmt = run_stmt.where(AgentRun.status.in_(access_group_filters["statuses"]))
-        if access_group_filters["models"]:
-            run_stmt = run_stmt.where(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.model.in_(access_group_filters["models"]),
-                    )
-                    .distinct()
-                )
-            )
-        if access_group_filters["providers"]:
-            run_stmt = run_stmt.where(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.provider.in_(access_group_filters["providers"]),
-                    )
-                    .distinct()
-                )
-            )
-    run = (await db.execute(run_stmt)).scalar_one_or_none()
+    access = await resolve_access_group(db, workspace.id, access_group_id)
+    run = (await db.execute(_run_lookup(run_id, workspace.id, access))).scalar_one_or_none()
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Run not found")
 
@@ -1590,7 +1655,7 @@ async def get_run_graph(
                     started_at=span.started_at,
                     ended_at=span.ended_at,
                     duration_ms=_duration_ms(span.started_at, span.ended_at),
-                    metadata=span.span_metadata,
+                    metadata=strip_payloads(span.span_metadata),
                 ),
             )
         )

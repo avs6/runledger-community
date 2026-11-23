@@ -18,6 +18,12 @@ class AnalyticsSummary(BaseModel):
     call_count: int
     prev_cost_usd: Decimal
     cost_delta_pct: Decimal | None  # None when prev_cost is zero
+    # Run success rate: succeeded / (succeeded + failed); None when no run finished.
+    success_rate: Decimal | None = None
+    succeeded_runs: int = 0
+    finished_runs: int = 0
+    total_savings_usd: Decimal = Decimal(0)
+    active_users: int = 0
 
 
 class SpendPoint(BaseModel):
@@ -30,6 +36,8 @@ class SpendPoint(BaseModel):
 
 class SpendOverTime(BaseModel):
     granularity: str
+    # "rollup+raw" when usage_hourly served the covered hours, otherwise "raw".
+    source: str = "raw"
     points: list[SpendPoint]
 
 
@@ -133,6 +141,11 @@ class ScopedSummary(BaseModel):
     top_intents: list[IntentCount]
     top_models: list[ModelSpend]
     cost_delta_pct: Decimal | None
+    success_rate: Decimal | None = None
+    succeeded_runs: int = 0
+    finished_runs: int = 0
+    prev_cost_usd: Decimal = Decimal(0)
+    allowed_scopes: list[str] = ["workspace"]
 
 
 # ── Phase 3: Savings analytics ───────────────────────────────────────────────
@@ -210,6 +223,7 @@ class RequestRecord(BaseModel):
     provider: str
     model: str
     intent: str | None
+    feature_tag: str | None = None
     end_user_id: str | None
     cost_usd: Decimal | None
     baseline_cost_usd: Decimal | None

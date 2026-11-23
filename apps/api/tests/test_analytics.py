@@ -34,6 +34,46 @@ def _list_result(rows: list[SimpleNamespace]) -> MagicMock:
     return result
 
 
+def _result(
+    rows: list[SimpleNamespace] | None = None,
+    one: SimpleNamespace | None = None,
+    scalar: object = None,
+) -> MagicMock:
+    """A result answering .all(), .one() and .scalar_one_or_none() (rollup watermark)."""
+    result = MagicMock()
+    result.all = MagicMock(return_value=rows or [])
+    result.one = MagicMock(return_value=one)
+    result.scalar_one_or_none = MagicMock(return_value=scalar)
+    return result
+
+
+def _calls_row(
+    cost: str, inp: int, out: int, runs: int, calls: int, users: int = 0
+) -> SimpleNamespace:
+    return _make_row(
+        cost=Decimal(cost),
+        savings=Decimal("0"),
+        inp=inp,
+        out=out,
+        runs=runs,
+        calls=calls,
+        users=users,
+    )
+
+
+def _runs_row(succeeded: int = 0, finished: int = 0, cost: str = "0") -> SimpleNamespace:
+    return _make_row(
+        cost=Decimal(cost), inp=0, out=0, succeeded=succeeded, finished=finished, users=0
+    )
+
+
+def _summary_side_effect(
+    cur: SimpleNamespace, prev: SimpleNamespace, runs: SimpleNamespace
+) -> list[MagicMock]:
+    # compute_summary: current calls, previous calls, current runs, previous runs.
+    return [_result(one=cur), _result(one=prev), _result(one=runs), _result(one=_runs_row())]
+
+
 # ── /analytics/summary ────────────────────────────────────────────────────────
 
 
@@ -42,14 +82,13 @@ async def test_summary_returns_aggregates(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    row = _make_row(
-        total_cost=Decimal("0.05"),
-        total_input=10000,
-        total_output=2000,
-        run_count=5,
-        call_count=12,
+    mock_db_session.execute = AsyncMock(
+        side_effect=_summary_side_effect(
+            _calls_row("0.05", 10000, 2000, 5, 12),
+            _calls_row("0", 0, 0, 0, 0),
+            _runs_row(succeeded=4, finished=5),
+        )
     )
-    mock_db_session.execute = AsyncMock(return_value=_agg_result(row))
 
     response = await authed_client.get("/analytics/summary")
 
@@ -60,6 +99,21 @@ async def test_summary_returns_aggregates(
     assert data["total_output_tokens"] == 2000
     assert data["run_count"] == 5
     assert data["call_count"] == 12
+    # Success rate comes from the API, over every finished run (review O-22).
+    assert data["success_rate"] == "0.8000"
+    assert data["finished_runs"] == 5
+
+
+@pytest.mark.asyncio
+async def test_summary_rejects_access_group_outside_workspace_scope(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    response = await authed_client.get(
+        "/analytics/summary",
+        params={"scope": "org", "access_group_id": "00000000-0000-0000-0000-000000000001"},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -67,14 +121,8 @@ async def test_summary_with_time_range(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    row = _make_row(
-        total_cost=Decimal("0"),
-        total_input=0,
-        total_output=0,
-        run_count=0,
-        call_count=0,
-    )
-    mock_db_session.execute = AsyncMock(return_value=_agg_result(row))
+    zero = _calls_row("0", 0, 0, 0, 0)
+    mock_db_session.execute = AsyncMock(side_effect=_summary_side_effect(zero, zero, _runs_row()))
 
     response = await authed_client.get(
         "/analytics/summary",
@@ -82,6 +130,7 @@ async def test_summary_with_time_range(
     )
 
     assert response.status_code == 200
+    assert response.json()["success_rate"] is None
 
 
 # ── /analytics/spend-over-time ────────────────────────────────────────────────
@@ -94,11 +143,18 @@ async def test_spend_over_time_daily(
 ) -> None:
     rows = [
         _make_row(
-            period=datetime(2026, 1, 1, tzinfo=UTC),
+            period=datetime(2026, 1, 1, 3, tzinfo=UTC),
             cost_usd=Decimal("0.01"),
             input_tokens=1000,
             output_tokens=200,
             call_count=3,
+        ),
+        _make_row(
+            period=datetime(2026, 1, 1, 9, tzinfo=UTC),
+            cost_usd=Decimal("0.01"),
+            input_tokens=500,
+            output_tokens=100,
+            call_count=1,
         ),
         _make_row(
             period=datetime(2026, 1, 2, tzinfo=UTC),
@@ -108,15 +164,61 @@ async def test_spend_over_time_daily(
             call_count=6,
         ),
     ]
-    mock_db_session.execute = AsyncMock(return_value=_list_result(rows))
+    # No rollup yet (watermark None) → raw hourly rows bucketed into days.
+    mock_db_session.execute = AsyncMock(side_effect=[_result(scalar=None), _result(rows=rows)])
 
     response = await authed_client.get("/analytics/spend-over-time?granularity=daily")
 
     assert response.status_code == 200
     data = response.json()
     assert data["granularity"] == "daily"
+    assert data["source"] == "raw"
     assert len(data["points"]) == 2
-    assert data["points"][0]["cost_usd"] == "0.01"
+    assert data["points"][0]["cost_usd"] == "0.02"
+    assert data["points"][0]["call_count"] == 4
+
+
+@pytest.mark.asyncio
+async def test_spend_over_time_uses_rollup_before_watermark(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    from datetime import timedelta
+
+    watermark_hour = now - timedelta(hours=3)
+    rollup_rows = [
+        _make_row(
+            period=watermark_hour,
+            cost_usd=Decimal("1.00"),
+            input_tokens=10,
+            output_tokens=5,
+            call_count=2,
+        )
+    ]
+    raw_rows = [
+        _make_row(
+            period=now,
+            cost_usd=Decimal("0.50"),
+            input_tokens=1,
+            output_tokens=1,
+            call_count=1,
+        )
+    ]
+    mock_db_session.execute = AsyncMock(
+        side_effect=[
+            _result(scalar=watermark_hour),
+            _result(rows=rollup_rows),
+            _result(rows=raw_rows),
+        ]
+    )
+
+    response = await authed_client.get("/analytics/spend-over-time?granularity=hourly")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "rollup+raw"
+    assert [p["cost_usd"] for p in data["points"]] == ["1.00", "0.50"]
 
 
 @pytest.mark.asyncio
@@ -124,7 +226,7 @@ async def test_spend_over_time_hourly(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(return_value=_list_result([]))
+    mock_db_session.execute = AsyncMock(return_value=_result(rows=[], scalar=None))
 
     response = await authed_client.get("/analytics/spend-over-time?granularity=hourly")
 
@@ -167,7 +269,7 @@ async def test_spend_by_model_returns_breakdown(
             call_count=4,
         ),
     ]
-    mock_db_session.execute = AsyncMock(return_value=_list_result(rows))
+    mock_db_session.execute = AsyncMock(side_effect=[_result(scalar=None), _result(rows=rows)])
 
     response = await authed_client.get("/analytics/spend-by-model")
 
@@ -184,7 +286,7 @@ async def test_spend_by_model_empty(
     authed_client: AsyncClient,
     mock_db_session: AsyncMock,
 ) -> None:
-    mock_db_session.execute = AsyncMock(return_value=_list_result([]))
+    mock_db_session.execute = AsyncMock(return_value=_result(rows=[], scalar=None))
     response = await authed_client.get("/analytics/spend-by-model")
     assert response.status_code == 200
     assert response.json()["items"] == []
@@ -300,26 +402,13 @@ async def test_summary_delta_computed(
     mock_db_session: AsyncMock,
 ) -> None:
     """cost_delta_pct is computed from current vs prior period."""
-    current_row = _make_row(
-        total_cost=Decimal("0.10"),
-        total_input=5000,
-        total_output=1000,
-        run_count=10,
-        call_count=20,
+    mock_db_session.execute = AsyncMock(
+        side_effect=_summary_side_effect(
+            _calls_row("0.10", 5000, 1000, 10, 20),
+            _calls_row("0.05", 2500, 500, 5, 10),
+            _runs_row(),
+        )
     )
-    prev_row = _make_row(
-        total_cost=Decimal("0.05"),
-        total_input=2500,
-        total_output=500,
-        run_count=5,
-        call_count=10,
-    )
-    current_result = MagicMock()
-    current_result.one = MagicMock(return_value=current_row)
-    prev_result = MagicMock()
-    prev_result.one = MagicMock(return_value=prev_row)
-
-    mock_db_session.execute = AsyncMock(side_effect=[current_result, prev_result])
 
     response = await authed_client.get("/analytics/summary")
 
@@ -336,26 +425,11 @@ async def test_summary_delta_none_when_prev_zero(
     mock_db_session: AsyncMock,
 ) -> None:
     """cost_delta_pct is None when prior period cost is zero."""
-    current_row = _make_row(
-        total_cost=Decimal("0.10"),
-        total_input=5000,
-        total_output=1000,
-        run_count=10,
-        call_count=20,
+    mock_db_session.execute = AsyncMock(
+        side_effect=_summary_side_effect(
+            _calls_row("0.10", 5000, 1000, 10, 20), _calls_row("0", 0, 0, 0, 0), _runs_row()
+        )
     )
-    prev_row = _make_row(
-        total_cost=Decimal("0"),
-        total_input=0,
-        total_output=0,
-        run_count=0,
-        call_count=0,
-    )
-    current_result = MagicMock()
-    current_result.one = MagicMock(return_value=current_row)
-    prev_result = MagicMock()
-    prev_result.one = MagicMock(return_value=prev_row)
-
-    mock_db_session.execute = AsyncMock(side_effect=[current_result, prev_result])
 
     response = await authed_client.get("/analytics/summary")
 

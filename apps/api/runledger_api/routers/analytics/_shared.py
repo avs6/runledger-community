@@ -28,7 +28,7 @@ from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.annotations import Annotation
 from runledger_api.models.billing import BillingPeriod, ChargebackRule
-from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall, Span, ToolCall
+from runledger_api.models.events import AgentRun, ProviderCall, Span, ToolCall
 from runledger_api.models.ledger import SecurityEvent
 from runledger_api.models.metering import UsageDaily
 from runledger_api.models.model_budgets import ModelBudget
@@ -100,6 +100,11 @@ from runledger_api.schemas.scores import (
     ScoreSummaryItem,
 )
 from runledger_api.services.billable import billable_cost_sum
+from runledger_api.services.observe import (
+    AccessGroupFilters,
+    resolve_access_group,
+    resolve_scope_workspace_ids,
+)
 
 # Provider calls carry no tool reference: spend "on tools" is the model spend of runs
 # that made at least one tool call.
@@ -132,61 +137,11 @@ async def _resolve_access_group_observe_filters(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     access_group_id: uuid.UUID,
-) -> dict[str, list[str]]:
-    group = (
-        await db.execute(
-            select(AccessGroup).where(
-                AccessGroup.id == access_group_id,
-                AccessGroup.workspace_id == workspace_id,
-                AccessGroup.is_active.is_(True),
-            )
-        )
-    ).scalar_one_or_none()
-    if group is None:
-        raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Access group not found")
-
-    dashboard_filters = (group.permissions or {}).get("dashboard_filters", {})
-    if not isinstance(dashboard_filters, dict):
-        dashboard_filters = {}
-
-    def _values(keys: list[str]) -> list[str]:
-        collected: list[str] = []
-        for key in keys:
-            raw = dashboard_filters.get(key)
-            if isinstance(raw, str) and raw.strip():
-                collected.append(raw.strip())
-            elif isinstance(raw, list):
-                for item in raw:
-                    if isinstance(item, str) and item.strip():
-                        collected.append(item.strip())
-        return collected
-
-    member_rows = (
-        await db.execute(
-            select(AccessGroupMember.user_id).where(AccessGroupMember.group_id == access_group_id)
-        )
-    ).scalars()
-
-    end_user_ids = [str(user_id) for user_id in member_rows]
-    end_user_ids.extend(_values(["end_user_id", "end_user_ids", "user_id", "user_ids"]))
-
-    def _unique(values: list[str]) -> list[str]:
-        seen: set[str] = set()
-        ordered: list[str] = []
-        for value in values:
-            if value in seen:
-                continue
-            seen.add(value)
-            ordered.append(value)
-        return ordered
-
-    return {
-        "end_user_ids": _unique(end_user_ids),
-        "feature_tags": _unique(_values(["feature_tag", "feature_tags", "intent", "intents"])),
-        "models": _unique(_values(["model", "models"])),
-        "providers": _unique(_values(["provider", "providers"])),
-        "statuses": _unique(_values(["status", "statuses"])),
-    }
+) -> AccessGroupFilters:
+    """Access-group dashboard filters (shared with runs and sessions: services.observe)."""
+    filters = await resolve_access_group(db, workspace_id, access_group_id)
+    assert filters is not None
+    return filters
 
 
 def _successful_run_filter(
@@ -233,8 +188,6 @@ _SCORE_REGRESSION_MIN_SAMPLES = 3
 
 # ── Phase 3: Scoped scope helpers ────────────────────────────────────────────
 
-_ORG_ADMIN_ROLES = {"org_admin", "admin"}
-
 
 async def _resolve_scoped_workspace_ids(
     scope: str,
@@ -242,45 +195,8 @@ async def _resolve_scoped_workspace_ids(
     user: Any,
     db: AsyncSession,
 ) -> list[uuid.UUID]:
-    if scope == "workspace":
-        return [workspace.id]
-
-    if user is None:
-        raise HTTPException(
-            http_status.HTTP_403_FORBIDDEN,
-            "User session required for org/platform scope",
-        )
-
-    if scope == "org":
-        if not user.is_platform_admin:
-            tu = (
-                await db.execute(
-                    select(TenantUser).where(
-                        TenantUser.user_id == user.id,
-                        TenantUser.tenant_id == workspace.tenant_id,
-                    )
-                )
-            ).scalar_one_or_none()
-            if tu is None or tu.role not in _ORG_ADMIN_ROLES:
-                raise HTTPException(
-                    http_status.HTTP_403_FORBIDDEN,
-                    "Org admin access required for org scope",
-                )
-        result = await db.execute(
-            select(Workspace.id).where(Workspace.tenant_id == workspace.tenant_id)
-        )
-        return list(result.scalars().all())
-
-    if scope == "platform":
-        if not user.is_platform_admin:
-            raise HTTPException(
-                http_status.HTTP_403_FORBIDDEN,
-                "Platform admin access required for platform scope",
-            )
-        result = await db.execute(select(Workspace.id))
-        return list(result.scalars().all())
-
-    raise HTTPException(http_status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid scope")
+    """One scope rule for every Observe endpoint (org admins/managers for org scope)."""
+    return await resolve_scope_workspace_ids(scope, workspace, user, db)
 
 
 # ── Optimization Simulator ────────────────────────────────────────────────────
@@ -410,7 +326,6 @@ __all__ = [
     "ModelSpend",
     "OptimizationOpportunitiesResponse",
     "OptimizationOpportunity",
-    "OutcomeEvent",
     "PageDep",
     "ProviderCall",
     "QUALITY_RISK_MAP",
@@ -462,7 +377,6 @@ __all__ = [
     "_DEFAULT_COHORT_DAYS",
     "_DEFAULT_LOOKBACK_DAYS",
     "_EXPORT_COLUMNS",
-    "_ORG_ADMIN_ROLES",
     "_REGRESSION_MIN_RUNS",
     "_REGRESSION_THRESHOLD",
     "_SCORE_REGRESSION_MIN_SAMPLES",

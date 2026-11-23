@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from runledger_api.services.observe import (
+    allowed_scopes,
+    call_access_clauses,
+    compute_summary,
+    resolve_access_group,
+    run_access_clauses,
+)
+
 from ._shared import *  # noqa: F403
 
 # ── Phase 3: Scoped summary ─────────────────────────────────────────────────
@@ -26,56 +34,19 @@ async def scoped_summary(
             "access_group_id is only supported for workspace scope",
         )
     ws_ids = await _resolve_scoped_workspace_ids(scope, workspace, user, db)
-    duration = t_to - t_from
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
+    access = await resolve_access_group(db, workspace.id, access_group_id)
+
+    # KPIs come from the one summary service; the previous period uses the same
+    # access-group filters (review O-06, O-14).
+    kpi = await compute_summary(db, workspace_ids=ws_ids, t_from=t_from, t_to=t_to, access=access)
 
     base_filter = [
         ProviderCall.workspace_id.in_(ws_ids),
         ProviderCall.created_at >= t_from,
         ProviderCall.created_at < t_to,
         ProviderCall.status == "success",
+        *call_access_clauses(access),
     ]
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            base_filter.append(ProviderCall.end_user_id.in_(access_group_filters["end_user_ids"]))
-        if access_group_filters["models"]:
-            base_filter.append(ProviderCall.model.in_(access_group_filters["models"]))
-        if access_group_filters["providers"]:
-            base_filter.append(ProviderCall.provider.in_(access_group_filters["providers"]))
-        if access_group_filters["statuses"]:
-            base_filter.append(ProviderCall.status.in_(access_group_filters["statuses"]))
-
-    agg = await db.execute(
-        select(
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
-            func.coalesce(func.sum(ProviderCall.savings_usd), Decimal(0)).label("savings"),
-            func.coalesce(func.sum(ProviderCall.input_tokens), 0).label("inp"),
-            func.coalesce(func.sum(ProviderCall.output_tokens), 0).label("out"),
-            func.count(ProviderCall.run_id.distinct()).label("runs"),
-            func.count(ProviderCall.id).label("calls"),
-            func.count(ProviderCall.end_user_id.distinct()).label("users"),
-        ).where(*base_filter)
-    )
-    row = agg.one()
-
-    prev_agg = await db.execute(
-        select(
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
-        ).where(
-            ProviderCall.workspace_id.in_(ws_ids),
-            ProviderCall.created_at >= t_from - duration,
-            ProviderCall.created_at < t_from,
-            ProviderCall.status == "success",
-        )
-    )
-    prev_cost = prev_agg.scalar_one()
-    cost_delta = None
-    if prev_cost and prev_cost > 0:
-        cost_delta = (row.cost - prev_cost) / prev_cost * Decimal(100)
 
     intent_rows = (
         await db.execute(
@@ -89,63 +60,13 @@ async def scoped_summary(
                 AgentRun.started_at >= t_from,
                 AgentRun.started_at < t_to,
                 AgentRun.intent.isnot(None),
+                *run_access_clauses(access, ws_ids),
             )
             .group_by(AgentRun.intent)
             .order_by(func.count(AgentRun.id).desc())
             .limit(10)
         )
     ).all()
-    if access_group_filters:
-        # Re-run the intent query with access-group-aware run filters.
-        intent_query = select(
-            AgentRun.intent,
-            func.count(AgentRun.id).label("cnt"),
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal(0)).label("cost"),
-        ).where(
-            AgentRun.workspace_id.in_(ws_ids),
-            AgentRun.started_at >= t_from,
-            AgentRun.started_at < t_to,
-            AgentRun.intent.isnot(None),
-        )
-        if access_group_filters["end_user_ids"]:
-            intent_query = intent_query.where(
-                AgentRun.end_user_id.in_(access_group_filters["end_user_ids"])
-            )
-        if access_group_filters["feature_tags"]:
-            intent_query = intent_query.where(
-                AgentRun.feature_tag.in_(access_group_filters["feature_tags"])
-            )
-        if access_group_filters["statuses"]:
-            intent_query = intent_query.where(AgentRun.status.in_(access_group_filters["statuses"]))
-        if access_group_filters["models"]:
-            intent_query = intent_query.where(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.model.in_(access_group_filters["models"]),
-                    )
-                    .distinct()
-                )
-            )
-        if access_group_filters["providers"]:
-            intent_query = intent_query.where(
-                AgentRun.id.in_(
-                    select(ProviderCall.run_id)
-                    .where(
-                        ProviderCall.workspace_id == workspace.id,
-                        ProviderCall.provider.in_(access_group_filters["providers"]),
-                    )
-                    .distinct()
-                )
-            )
-        intent_rows = (
-            await db.execute(
-                intent_query.group_by(AgentRun.intent)
-                .order_by(func.count(AgentRun.id).desc())
-                .limit(10)
-            )
-        ).all()
 
     model_rows = (
         await db.execute(
@@ -166,15 +87,20 @@ async def scoped_summary(
 
     return ScopedSummary(
         scope=scope,
-        total_cost_usd=row.cost,
-        total_savings_usd=row.savings,
-        total_input_tokens=row.inp,
-        total_output_tokens=row.out,
-        run_count=row.runs,
-        call_count=row.calls,
+        total_cost_usd=kpi.total_cost_usd,
+        total_savings_usd=kpi.total_savings_usd,
+        total_input_tokens=kpi.total_input_tokens,
+        total_output_tokens=kpi.total_output_tokens,
+        run_count=kpi.run_count,
+        call_count=kpi.call_count,
         workspace_count=len(ws_ids),
-        active_users=row.users,
-        avg_cost_per_run=row.cost / row.runs if row.runs > 0 else None,
+        active_users=kpi.active_users,
+        avg_cost_per_run=kpi.total_cost_usd / kpi.run_count if kpi.run_count > 0 else None,
+        success_rate=kpi.success_rate,
+        succeeded_runs=kpi.succeeded_runs,
+        finished_runs=kpi.finished_runs,
+        prev_cost_usd=kpi.prev_cost_usd,
+        allowed_scopes=await allowed_scopes(workspace, user, db),
         top_intents=[
             IntentCount(intent=r.intent, count=r.cnt, cost_usd=r.cost) for r in intent_rows
         ],
@@ -189,7 +115,7 @@ async def scoped_summary(
             )
             for r in model_rows
         ],
-        cost_delta_pct=cost_delta,
+        cost_delta_pct=kpi.cost_delta_pct,
     )
 
 

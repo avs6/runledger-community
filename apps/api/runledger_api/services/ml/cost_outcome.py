@@ -15,7 +15,8 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall
+from runledger_api.models.events import AgentRun, ProviderCall
+from runledger_api.models.outcomes import Outcome
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.schemas.ml import CostOutcomeResponse, CostPerOutcome, ParetoPoint
 
@@ -32,20 +33,20 @@ async def compute_cost_per_outcome(
     result = await db.execute(
         select(
             ProviderCall.model,
-            OutcomeEvent.event_type,
+            Outcome.outcome_type,
             func.coalesce(func.sum(ProviderCall.cost_usd), 0).label("total_cost"),
             func.count(func.distinct(AgentRun.id)).label("run_count"),
-            func.count().filter(OutcomeEvent.success.is_(True)).label("success_count"),
+            func.count().filter(Outcome.success.is_(True)).label("success_count"),
         )
         .select_from(ProviderCall)
         .join(AgentRun, ProviderCall.run_id == AgentRun.id)
-        .join(OutcomeEvent, OutcomeEvent.run_id == AgentRun.id)
+        .join(Outcome, (Outcome.run_id == AgentRun.id) & (Outcome.workspace_id == workspace_id))
         .where(
             ProviderCall.workspace_id == workspace_id,
             ProviderCall.created_at >= start,
             ProviderCall.created_at <= end,
         )
-        .group_by(ProviderCall.model, OutcomeEvent.event_type)
+        .group_by(ProviderCall.model, Outcome.outcome_type)
     )
     rows = result.all()
 
