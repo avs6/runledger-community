@@ -7,9 +7,12 @@ import Link from 'next/link'
 import {
   AlertCircle, AlertTriangle, BookOpen, ChevronDown, ChevronUp,
   Cpu, DollarSign, ExternalLink, FileJson, FileText, Info,
-  Network, Plus, Shield, Terminal, Wrench, X, Zap,
+  Network, Plus, Shield, Terminal, Trash2, Wrench, X, Zap,
 } from 'lucide-react'
-import { listRunbooks, generateRunbook, exportRunbook } from '@/lib/api'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useRole } from '@/components/rbac/useRole'
+import { routes } from '@/lib/routes'
+import { listRunbooks, generateRunbook, exportRunbook, deleteRunbook } from '@/lib/api'
 import type { RunbookResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 
@@ -36,6 +39,8 @@ function parseSummary(raw: Record<string, unknown>) {
 export default function RunbooksPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
+  const { canWrite } = useRole()
+  const { confirm, dialog } = useConfirm()
 
   const [runbooks, setRunbooks] = useState<RunbookResponse[]>([])
   const [total, setTotal] = useState(0)
@@ -89,6 +94,24 @@ export default function RunbooksPage() {
     } finally { setGenerating(false) }
   }
 
+  async function handleDelete(rb: RunbookResponse) {
+    const ok = await confirm({
+      title: 'Delete this runbook?',
+      description: 'The run is kept; you can regenerate the runbook from it later.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      await deleteRunbook(apiKey, rb.id)
+      setRunbooks((prev) => prev.filter((r) => r.id !== rb.id))
+      setTotal((prev) => Math.max(0, prev - 1))
+      toast.success('Runbook deleted')
+    } catch (err: unknown) {
+      toast.error((err as Error).message ?? 'Delete failed')
+    }
+  }
+
   async function handleExport(rb: RunbookResponse, format: 'markdown' | 'json') {
     try {
       const content = await exportRunbook(apiKey, rb.id, format)
@@ -108,6 +131,7 @@ export default function RunbooksPage() {
 
   return (
     <div className="space-y-3">
+      {dialog}
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
@@ -249,7 +273,13 @@ export default function RunbooksPage() {
                         className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                         <FileJson className="h-2.5 w-2.5" /> JSON
                       </button>
-                      <Link href={`/runs/${rb.run_id}`}
+                      {canWrite && (
+                        <button type="button" onClick={() => handleDelete(rb)} aria-label="Delete runbook"
+                          className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:bg-slate-800 dark:text-rose-300">
+                          <Trash2 className="h-2.5 w-2.5" /> Delete
+                        </button>
+                      )}
+                      <Link href={routes.runsRunId(rb.run_id)}
                         className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                         <ExternalLink className="h-2.5 w-2.5" /> View Run
                       </Link>
