@@ -19,7 +19,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -69,6 +69,37 @@ def _default_from(days: int = 30) -> datetime:
 
 def _default_to() -> datetime:
     return datetime.now(UTC)
+
+
+def _run_cost_subquery(workspace_id: uuid.UUID) -> Any:
+    """Billable-agnostic model cost per run, one row per run."""
+    return (
+        select(
+            ProviderCall.run_id.label("run_id"),
+            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal("0")).label("cost"),
+        )
+        .where(ProviderCall.workspace_id == workspace_id)
+        .group_by(ProviderCall.run_id)
+        .subquery()
+    )
+
+
+def _distinct_outcome_runs(
+    workspace_id: uuid.UUID, t_from: datetime, t_to: datetime, *group_cols: Any
+) -> Any:
+    """Distinct (group…, run_id) pairs, so a run with several outcomes is costed once
+    per group (review O-04)."""
+    return (
+        select(*group_cols, Outcome.run_id.label("run_id"))
+        .where(
+            Outcome.workspace_id == workspace_id,
+            Outcome.run_id.isnot(None),
+            Outcome.created_at >= t_from,
+            Outcome.created_at < t_to,
+        )
+        .distinct()
+        .subquery()
+    )
 
 
 # ── Submit outcome ─────────────────────────────────────────────────────────────
@@ -245,21 +276,16 @@ async def outcome_summary(
         r.outcome_type: int(r.success_count) for r in success_result.all()
     }
 
-    # Step 3: total cost per type via run_id join
+    # Step 3: total cost per type, each run counted once per type (review O-04)
+    pairs = _distinct_outcome_runs(workspace.id, t_from, t_to, Outcome.outcome_type)
+    run_cost = _run_cost_subquery(workspace.id)
     cost_sq = (
         select(
-            Outcome.outcome_type,
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal("0")).label("total_cost"),
+            pairs.c.outcome_type,
+            func.coalesce(func.sum(run_cost.c.cost), Decimal("0")).label("total_cost"),
         )
-        .join(ProviderCall, ProviderCall.run_id == Outcome.run_id)
-        .where(
-            Outcome.workspace_id == workspace.id,
-            ProviderCall.workspace_id == workspace.id,
-            Outcome.run_id.isnot(None),
-            Outcome.created_at >= t_from,
-            Outcome.created_at < t_to,
-        )
-        .group_by(Outcome.outcome_type)
+        .join(run_cost, run_cost.c.run_id == pairs.c.run_id)
+        .group_by(pairs.c.outcome_type)
     )
     cost_result = await db.execute(cost_sq)
     cost_map: dict[str, Decimal] = {
@@ -374,6 +400,7 @@ async def workflow_roi(
         .join(Outcome, Outcome.run_id == AgentRun.id)
         .where(
             Outcome.workspace_id == workspace.id,
+            AgentRun.workspace_id == workspace.id,
             Outcome.created_at >= t_from,
             Outcome.created_at < t_to,
             AgentRun.feature_tag.isnot(None),
@@ -410,24 +437,23 @@ async def workflow_roi(
         (r.feature_tag, r.outcome_type): int(r.success_count) for r in success_result.all()
     }
 
-    # Cost per (feature_tag, outcome_type)
+    # Cost per (feature_tag, outcome_type), each run counted once (review O-04)
+    pairs = _distinct_outcome_runs(workspace.id, t_from, t_to, Outcome.outcome_type)
+    run_cost = _run_cost_subquery(workspace.id)
     cost_stmt = (
         select(
             AgentRun.feature_tag,
-            Outcome.outcome_type,
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal("0")).label("total_cost"),
+            pairs.c.outcome_type,
+            func.coalesce(func.sum(run_cost.c.cost), Decimal("0")).label("total_cost"),
         )
-        .join(Outcome, Outcome.run_id == AgentRun.id)
-        .join(ProviderCall, ProviderCall.run_id == AgentRun.id)
+        .select_from(pairs)
+        .join(AgentRun, AgentRun.id == pairs.c.run_id)
+        .join(run_cost, run_cost.c.run_id == pairs.c.run_id)
         .where(
-            Outcome.workspace_id == workspace.id,
             AgentRun.workspace_id == workspace.id,
-            ProviderCall.workspace_id == workspace.id,
-            Outcome.created_at >= t_from,
-            Outcome.created_at < t_to,
             AgentRun.feature_tag.in_([r.feature_tag for r in rows]),
         )
-        .group_by(AgentRun.feature_tag, Outcome.outcome_type)
+        .group_by(AgentRun.feature_tag, pairs.c.outcome_type)
     )
     cost_result = await db.execute(cost_stmt)
     cost_map: dict[tuple[str | None, str], Decimal] = {
@@ -527,6 +553,7 @@ async def quality_outcome_correlation(
         .join(ScoreEvent, ScoreEvent.run_id == Outcome.run_id)
         .where(
             Outcome.workspace_id == workspace.id,
+            ScoreEvent.workspace_id == workspace.id,
             Outcome.run_id.isnot(None),
             Outcome.created_at >= t_from,
             Outcome.created_at < t_to,
