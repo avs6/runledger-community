@@ -10,7 +10,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { FlaskConical, Loader2, Play, Sparkles } from 'lucide-react'
+import { FlaskConical, Loader2, Pencil, Play, Sparkles } from 'lucide-react'
+import { ExperimentEditDialog } from './_components/ExperimentEditDialog'
 import { toast } from 'sonner'
 import { getEvalExperiment, recommendRouteFromExperiment, runEvalExperiment } from '@/lib/api'
 import type { EvalExperiment, ExperimentModelRow } from '@/types/api'
@@ -77,6 +78,7 @@ export default function ExperimentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<'run' | 'recommend' | null>(null)
   const { confirm, dialog } = useConfirm()
+  const [editing, setEditing] = useState(false)
 
   const load = useCallback(async () => {
     if (!apiKey || !experimentId) return
@@ -141,6 +143,10 @@ export default function ExperimentDetailPage() {
   return (
     <div className="space-y-6">
       {dialog}
+      {editing && exp ? (
+        <ExperimentEditDialog apiKey={apiKey} experiment={exp} onClose={() => setEditing(false)}
+          onSaved={(e) => { setExp(e); setEditing(false) }} />
+      ) : null}
       <PageHeader
         icon={FlaskConical}
         title={exp?.name ?? 'Experiment'}
@@ -152,6 +158,16 @@ export default function ExperimentDetailPage() {
         breadcrumbs={[{ label: 'Experiments', href: '/experiments' }, { label: exp?.name ?? '…' }]}
         actions={
           <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={!exp || exp.status === 'running'}
+              aria-label="Edit experiment"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
             <button
               type="button"
               onClick={run}
