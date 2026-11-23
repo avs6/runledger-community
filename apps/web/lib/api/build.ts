@@ -672,6 +672,31 @@ export async function getPlaygroundSessions(
   return apiFetch<import('@/types/api').PlaygroundSessionListResponse>(`/playground/sessions${query}`, apiKey)
 }
 
+export async function createPlaygroundSession(
+  apiKey: string,
+  data: { name?: string; system_prompt?: string; mode?: 'single' | 'conversation' | 'compare'; config?: Record<string, unknown> }
+): Promise<import('@/types/api').PlaygroundSessionResponse> {
+  return apiFetch<import('@/types/api').PlaygroundSessionResponse>('/playground/sessions', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updatePlaygroundSession(
+  apiKey: string,
+  id: string,
+  data: { name?: string; system_prompt?: string; is_favorite?: boolean; config?: Record<string, unknown> }
+): Promise<import('@/types/api').PlaygroundSessionResponse> {
+  return apiFetch<import('@/types/api').PlaygroundSessionResponse>(`/playground/sessions/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deletePlaygroundSession(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/playground/sessions/${id}`, apiKey, { method: 'DELETE' })
+}
+
 export async function getPlaygroundHistory(
   apiKey: string,
   params: { session_id?: string; model?: string; limit?: number; offset?: number } = {}

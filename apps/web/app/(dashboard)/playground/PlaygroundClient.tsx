@@ -9,7 +9,8 @@ import {
   Sparkles, Zap, AlertCircle, Terminal,
 } from 'lucide-react'
 import type { PlaygroundModel, PlaygroundRequestResponse, PlaygroundSessionResponse } from '@/types/api'
-import { comparePlaygroundModels, sendPlaygroundRequest } from '@/lib/api'
+import { comparePlaygroundModels, getPlaygroundHistory, sendPlaygroundRequest } from '@/lib/api'
+import { SessionsBar } from './_components/SessionsBar'
 import { EmptyState } from '@/components/ui/empty-state'
 import { routes } from '@/lib/routes'
 import { num } from '@/lib/utils'
@@ -84,6 +85,25 @@ export default function PlaygroundClient({
   const [historyTotal, setHistoryTotal] = useState(initialHistoryTotal)
   const [sending, setSending] = useState(false)
   const [histPage, setHistPage] = useState(0)
+  const [sessions, setSessions] = useState<PlaygroundSessionResponse[]>(initialSessions)
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+
+  async function selectSession(s: PlaygroundSessionResponse | null) {
+    setActiveSessionId(s?.id ?? null)
+    if (s?.system_prompt) {
+      setSystemPrompt(s.system_prompt)
+      setShowSystemPrompt(true)
+    }
+    if (!apiKey) return
+    try {
+      const h = await getPlaygroundHistory(apiKey, { session_id: s?.id, limit: 50 })
+      setHistory(h.requests)
+      setHistoryTotal(h.total)
+      setHistPage(0)
+    } catch {
+      // keep the current history if the filtered load fails
+    }
+  }
 
   const addCompareModel = useCallback(() => {
     if (compareModels.length < 5) {
@@ -114,6 +134,7 @@ export default function PlaygroundClient({
           model,
           user_prompt: userPrompt,
           system_prompt: systemPrompt || undefined,
+          session_id: activeSessionId ?? undefined,
           parameters,
         })
         setResults([{ model, response: data, loading: false, error: null }])
@@ -123,6 +144,7 @@ export default function PlaygroundClient({
         setResults(compareModels.map((m) => ({ model: m, response: null, loading: true, error: null })))
         const data = await comparePlaygroundModels(apiKey, {
           models: compareModels,
+          session_id: activeSessionId ?? undefined,
           user_prompt: userPrompt,
           system_prompt: systemPrompt || undefined,
           parameters,
@@ -182,7 +204,7 @@ export default function PlaygroundClient({
           { label: 'Total Cost', value: money(totalCost), accent: true },
           { label: 'Tokens Used', value: totalTokensAll.toLocaleString() },
           { label: 'Avg Latency', value: `${avgLatency.toFixed(0)}ms` },
-          { label: 'Sessions', value: initialSessions.length },
+          { label: 'Sessions', value: sessions.length },
           { label: 'Models', value: new Set(history.map(h => h.model)).size },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
@@ -202,6 +224,16 @@ export default function PlaygroundClient({
 
       {/* ── Mode + Input ───────────────────────────────── */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4 space-y-3">
+        {apiKey && (
+          <SessionsBar
+            apiKey={apiKey}
+            sessions={sessions}
+            activeId={activeSessionId}
+            systemPrompt={systemPrompt}
+            onSessionsChange={setSessions}
+            onSelect={(s) => void selectSession(s)}
+          />
+        )}
         <div className="flex items-center gap-2">
           <div className="flex gap-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-0.5">
             <button onClick={() => setMode('single')}
