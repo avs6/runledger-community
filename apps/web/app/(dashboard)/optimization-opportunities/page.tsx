@@ -11,96 +11,17 @@ import {
   PiggyBank, Play, RefreshCw, Route, ShieldCheck, Sparkles,
   TrendingDown, Zap,
 } from 'lucide-react'
-import { getRunFlow, simulateOptimization } from '@/lib/api'
-import type { RunFlowRecord, SimulationResult } from '@/types/api'
+import { applyFlywheelRecommendation, dismissFlywheelRecommendation, getOptimizationOpportunities, getPlaygroundModels, runFlywheel, simulateOptimization } from '@/lib/api'
+import type { OptimizationOpportunity, SimulationResult } from '@/types/api'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useRole } from '@/components/rbac/useRole'
 import { num } from '@/lib/utils'
 
 type ViewTab = 'opportunities' | 'simulator'
-type Risk = 'Low' | 'Medium' | 'High'
-type Recommendation = {
-  id: string; title: string; problem: string; evidence: string[]
-  action: string; projectedSavings: number; projectedSavingsPct: number
-  realizedSavings: number; risk: Risk; confidence: 'High' | 'Medium' | 'Directional'
-  href: string; cta: string; category: string
-}
 
-function parseMoney(v: string | null | undefined) { const n = Number.parseFloat(v ?? '0'); return Number.isFinite(n) ? n : 0 }
 function money(v: string | number) { const n = typeof v === 'string' ? parseFloat(v) : v; if (!Number.isFinite(n)) return '$0'; if (Math.abs(num(n)) >= 1) return `$${num(n).toFixed(2)}`; if (Math.abs(num(n)) >= 0.001) return `$${num(n).toFixed(4)}`; return `$${num(n).toFixed(6)}` }
 function pct(v: string | number | null) { if (v === null) return 'n/a'; const n = typeof v === 'string' ? parseFloat(v) : v; if (!Number.isFinite(n)) return 'n/a'; return `${num(n) >= 0 ? '+' : ''}${num(n).toFixed(1)}%` }
-function percent(v: number) { return Number.isFinite(v) ? `${num(v).toFixed(0)}%` : '0%' }
 
-function modelClass(item: RunFlowRecord) {
-  const t = `${item.primary_model ?? ''} ${item.provider ?? ''}`.toLowerCase()
-  if (t.includes('gpt') || t.includes('openai')) return 'GPT'
-  if (t.includes('claude') || t.includes('anthropic')) return 'Claude'
-  if (t.includes('gemini') || t.includes('google')) return 'Gemini'
-  if (t.includes('llama') || t.includes('local') || t.includes('ollama')) return 'Local'
-  if (t.includes('deepseek')) return 'DeepSeek'
-  return 'Other'
-}
-
-function taskIntent(item: RunFlowRecord) {
-  const f = `${item.prompt} ${item.skill} ${item.agent} ${item.feature_tag ?? ''} ${item.route}`.toLowerCase()
-  if (f.includes('doc') || f.includes('summar')) return 'Documentation / summarization'
-  if (f.includes('code') || f.includes('repo') || f.includes('pull request')) return 'Coding'
-  if (f.includes('search') || f.includes('research')) return 'Research'
-  if (f.includes('support') || f.includes('ticket')) return 'Support'
-  if (f.includes('reason') || f.includes('plan')) return 'Reasoning'
-  return item.feature_tag || item.skill || item.agent || 'General'
-}
-
-function totalSpend(items: RunFlowRecord[]) { return items.reduce((s, i) => s + parseMoney(i.total_cost_usd), 0) }
-function totalSavings(items: RunFlowRecord[], cats?: string[]) {
-  const allowed = cats ? new Set(cats) : null
-  return items.reduce((s, i) => { const c = i.savings_category; if (allowed && (!c || !allowed.has(c))) return s; return s + parseMoney(i.savings_usd) }, 0)
-}
-
-function generateRecommendations(items: RunFlowRecord[]): Recommendation[] {
-  const recs: Recommendation[] = []
-  const total = totalSpend(items)
-  const requests = items.length
-  const cached = items.filter((i) => i.cached_input_tokens > 0).length
-  const cacheRate = requests > 0 ? (cached / requests) * 100 : 0
-  const failures = items.filter((i) => !i.success)
-  const failureSpend = totalSpend(failures)
-  const localEligible = items.filter((i) => { const intent = taskIntent(i).toLowerCase(); return modelClass(i) !== 'Local' && (intent.includes('summar') || intent.includes('documentation') || intent.includes('support')) })
-  const localEligibleSpend = totalSpend(localEligible)
-  const gptDocs = items.filter((i) => modelClass(i) === 'GPT' && taskIntent(i).toLowerCase().includes('documentation'))
-  const gptDocsSpend = totalSpend(gptDocs)
-  const reasoningLike = items.filter((i) => { const t = `${i.primary_model ?? ''} ${i.route} ${i.prompt}`.toLowerCase(); return t.includes('reason') || t.includes('o3') || t.includes('o4') || t.includes('gpt-5') })
-  const reasoningSpend = totalSpend(reasoningLike)
-  const toolHeavy = items.filter((i) => i.tool && i.tool !== 'No tool')
-  const toolSpend = totalSpend(toolHeavy)
-  const slow = items.filter((i) => (i.latency_ms ?? 0) > 8000)
-  const slowSpend = totalSpend(slow)
-
-  if (cacheRate < 25 && requests >= 5) { const p = total * 0.18; recs.push({ id: 'cache-hit-rate', title: 'Raise cache hit rate on repeat traffic', problem: `Cache hit rate is ${percent(cacheRate)}, below the expected 35-45% for enterprise workflows.`, evidence: [`${cached.toLocaleString()} cached / ${requests.toLocaleString()} total`, `${money(total)} in scope`, 'Repeated prompts are strong cache candidates'], action: 'Enable exact/semantic cache on high-repeat routes.', projectedSavings: p, projectedSavingsPct: total > 0 ? (p / total) * 100 : 0, realizedSavings: totalSavings(items.filter((i) => i.cached_input_tokens > 0), ['cache_hits']), risk: 'Low', confidence: 'Medium', href: '/gateway', cta: 'Tune cache policy', category: 'Cache policy' }) }
-  if (gptDocsSpend > 0) { const p = gptDocsSpend * 0.45; recs.push({ id: 'docs-model-mismatch', title: 'Route documentation to a cheaper model', problem: 'Documentation requests use GPT-class routes where a smaller model suffices.', evidence: [`${gptDocs.length.toLocaleString()} doc requests on GPT`, `${money(gptDocsSpend)} spend`, 'Expected 35-45% unit-cost reduction'], action: 'Create a gateway experiment comparing GPT, Claude Sonnet, and local models.', projectedSavings: p, projectedSavingsPct: 45, realizedSavings: totalSavings(gptDocs, ['smart_routing', 'local_models']), risk: 'Medium', confidence: 'Directional', href: '/evaluation?tab=experiments', cta: 'Launch experiment', category: 'Model routing' }) }
-  if (localEligibleSpend > 0) { const p = localEligibleSpend * 0.35; recs.push({ id: 'local-model-lane', title: 'Move safe traffic to local models', problem: 'Repeatable low-risk traffic appears eligible for local model routing.', evidence: [`${localEligible.length.toLocaleString()} eligible requests`, `${money(localEligibleSpend)} spend`, 'Summarization/support is often low-risk'], action: 'Add a local-model route in approval mode, compare outcomes.', projectedSavings: p, projectedSavingsPct: 35, realizedSavings: totalSavings(localEligible, ['local_models']), risk: 'Medium', confidence: 'Directional', href: '/gateway', cta: 'Create local route', category: 'Local models' }) }
-  if (reasoningLike.length > Math.max(3, requests * 0.15)) { const p = reasoningSpend * 0.28; recs.push({ id: 'reasoning-overuse', title: 'Reduce unnecessary reasoning-model usage', problem: `${percent(requests > 0 ? (reasoningLike.length / requests) * 100 : 0)} of requests look reasoning-heavy.`, evidence: [`${reasoningLike.length.toLocaleString()} reasoning requests`, `${money(reasoningSpend)} spend`, 'Many workflows only need reasoning for planning'], action: 'Add a classifier route for planning/reasoning intents.', projectedSavings: p, projectedSavingsPct: 28, realizedSavings: totalSavings(reasoningLike, ['smart_routing', 'prompt_compression']), risk: 'Medium', confidence: 'Medium', href: '/gateway', cta: 'Review routes', category: 'Reasoning control' }) }
-  if (toolHeavy.length > Math.max(3, requests * 0.2)) { const p = toolSpend * 0.16; recs.push({ id: 'tool-overuse', title: 'Trim tool calls with MCP filtering', problem: 'High tool usage warrants filtering or skill routing.', evidence: [`${toolHeavy.length.toLocaleString()} tool requests`, `${money(toolSpend)} spend`, 'Tool filtering reduces latency and context'], action: 'Use MCP tool filtering per task class, measure cost deltas.', projectedSavings: p, projectedSavingsPct: 16, realizedSavings: totalSavings(toolHeavy, ['tool_optimization', 'prompt_compression', 'smart_routing']), risk: 'Low', confidence: 'Medium', href: '/mcp', cta: 'Open MCP tools', category: 'Tool optimization' }) }
-  if (slow.length > 0) { const p = slowSpend * 0.12; recs.push({ id: 'latency-outliers', title: 'Investigate latency outliers', problem: `${slow.length.toLocaleString()} requests crossed 8s latency.`, evidence: [`${money(slowSpend)} on slow requests`, 'High latency correlates with retries', 'Route-level fallback protects UX'], action: 'Compare slow routes against faster alternatives.', projectedSavings: p, projectedSavingsPct: 12, realizedSavings: totalSavings(slow, ['smart_routing', 'local_models']), risk: 'Low', confidence: 'Medium', href: '/model-usage', cta: 'Compare models', category: 'Latency' }) }
-  if (failures.length > 0) { const p = failureSpend * 0.5; recs.push({ id: 'failed-spend', title: 'Recover wasted spend from failures', problem: 'Failed requests still consume tokens and cost.', evidence: [`${failures.length.toLocaleString()} failed`, `${money(failureSpend)} wasted`, 'Failures should trigger fallback routing'], action: 'Add failure-aware fallback routing and alert on error spikes.', projectedSavings: p, projectedSavingsPct: 50, realizedSavings: totalSavings(failures), risk: 'Low', confidence: 'High', href: '/alert-rules', cta: 'Create alert', category: 'Reliability' }) }
-  return recs.sort((a, b) => b.projectedSavings - a.projectedSavings).slice(0, 8)
-}
-
-function riskCls(risk: Risk) {
-  if (risk === 'Low') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
-  if (risk === 'Medium') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
-  return 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'
-}
-
-const MODELS = [
-  { value: '', label: 'Any (all models)' },
-  { value: 'gpt-4o', label: 'GPT-4o' }, { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4.1', label: 'GPT-4.1' }, { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' }, { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
-  { value: 'gpt-5', label: 'GPT-5' }, { value: 'o3', label: 'o3' }, { value: 'o4-mini', label: 'o4-mini' },
-  { value: 'claude-sonnet-4', label: 'Claude Sonnet 4' }, { value: 'claude-opus-4', label: 'Claude Opus 4' }, { value: 'claude-haiku-3.5', label: 'Claude Haiku 3.5' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }, { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { value: 'deepseek-v3', label: 'DeepSeek V3' }, { value: 'deepseek-r1', label: 'DeepSeek R1' },
-  { value: 'llama-3.3-70b', label: 'Llama 3.3 70B' }, { value: 'llama-4-scout', label: 'Llama 4 Scout' }, { value: 'llama-4-maverick', label: 'Llama 4 Maverick' },
-  { value: 'qwen-3-235b', label: 'Qwen 3 235B' }, { value: 'local/ollama', label: 'Local / Ollama' },
-]
 const INTENTS = ['', 'reasoning', 'code_generation', 'search', 'translation', 'email', 'summarization', 'chat', 'planning', 'research', 'classification', 'vision', 'workflow']
 const RANGES = [{ value: '7d', label: '7 days' }, { value: '30d', label: '30 days' }, { value: '90d', label: '90 days' }]
 
@@ -132,10 +53,14 @@ export default function OptimizationPage() {
 
   // Shared postures
 
-  // Opportunities state
-  const [items, setItems] = useState<RunFlowRecord[]>([])
+  // Opportunities: pending Flywheel recommendations (one engine, review B-20)
+  const { canWrite } = useRole()
+  const { confirm, dialog } = useConfirm()
+  const [opps, setOpps] = useState<OptimizationOpportunity[]>([])
   const [oppsLoading, setOppsLoading] = useState(true)
-  const [range, setRange] = useState('30d')
+  const [oppsError, setOppsError] = useState<string | null>(null)
+  const [acting, setActing] = useState<string | null>(null)
+  const [targets, setTargets] = useState<string[]>([])
 
   // Simulator state
   const [currentModel, setCurrentModel] = useState('')
@@ -147,35 +72,81 @@ export default function OptimizationPage() {
   const [simRunning, setSimRunning] = useState(false)
   const [simResult, setSimResult] = useState<SimulationResult | null>(null)
 
-  useEffect(() => {
-    if (!apiKey) return
-  }, [apiKey])
-
   const loadOpps = useCallback(async () => {
     if (!apiKey) {
       setOppsLoading(false)
       return
     }
     setOppsLoading(true)
-    const win = rangeWindow(range)
     try {
-      const flow = await getRunFlow(apiKey, { scope: 'workspace', mode: 'workspace-app-agent-model-cost', metric: 'cost', limit: 1000, from: win.from, to: win.to })
-      setItems(flow.items)
-    } catch { toast.error('Failed to load optimization data') }
-    finally { setOppsLoading(false) }
-  }, [apiKey, range])
+      const res = await getOptimizationOpportunities(apiKey)
+      setOpps(res.items)
+      setOppsError(null)
+    } catch (err) {
+      setOppsError(err instanceof Error ? err.message : 'Failed to load opportunities')
+    } finally {
+      setOppsLoading(false)
+    }
+  }, [apiKey])
 
-  useEffect(() => { loadOpps() }, [loadOpps])
+  useEffect(() => { void loadOpps() }, [loadOpps])
+
+  useEffect(() => {
+    if (!apiKey) return
+    getPlaygroundModels(apiKey)
+      .then((m) => setTargets(Array.from(new Set(m.items.flatMap((a) => a.targets))).sort()))
+      .catch(() => setTargets([]))
+  }, [apiKey])
+
+  async function handleAnalyze() {
+    setActing('analyze')
+    try {
+      await runFlywheel(apiKey)
+      toast.success('Flywheel analysis finished')
+      await loadOpps()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Analysis failed')
+    } finally { setActing(null) }
+  }
+
+  async function handleApply(o: OptimizationOpportunity) {
+    if (!o.recommendation_id) return
+    const ok = await confirm({
+      title: o.applies_to_route ? `Apply to route alias "${o.segment_key}"?` : 'Acknowledge this recommendation?',
+      description: o.applies_to_route
+        ? `The alias's primary route is changed to ${JSON.stringify(o.proposed_config)}. The change is audited and can be rolled back from Gateway → Flywheel.`
+        : 'This segment is not an alias, so no route changes; the recommendation is marked applied.',
+      confirmLabel: 'Apply',
+    })
+    if (!ok) return
+    setActing(o.recommendation_id)
+    try {
+      await applyFlywheelRecommendation(apiKey, o.recommendation_id)
+      toast.success('Recommendation applied')
+      await loadOpps()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Apply failed')
+    } finally { setActing(null) }
+  }
+
+  async function handleDismiss(o: OptimizationOpportunity) {
+    if (!o.recommendation_id) return
+    setActing(o.recommendation_id)
+    try {
+      await dismissFlywheelRecommendation(apiKey, o.recommendation_id)
+      await loadOpps()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Dismiss failed')
+    } finally { setActing(null) }
+  }
 
   function handleTabChange(next: ViewTab) {
     setTab(next)
     router.replace(`/optimization-opportunities?tab=${next}`)
   }
 
-  const recommendations = generateRecommendations(items)
-  const totalProjected = recommendations.reduce((s, r) => s + r.projectedSavings, 0)
-  const measuredSavings = totalSavings(items)
-  const total = totalSpend(items)
+  const totalProjected = opps.reduce((s, o) => s + Number(o.potential_savings_usd || 0), 0)
+  const routeChanges = opps.filter((o) => o.applies_to_route).length
 
   const canRunSim = Boolean(apiKey) && (proposedModel || enableCache || enableCompression)
 
@@ -204,6 +175,7 @@ export default function OptimizationPage() {
 
   return (
     <div className="space-y-3">
+      {dialog}
       {/* ── Header ─────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -212,7 +184,7 @@ export default function OptimizationPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Optimization</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Rule-based recommendations and what-if simulations for cost, latency, and quality.</p>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Flywheel recommendations learned from your runs, cost and quality, applied to gateway routes with audit and rollback; plus what-if simulations priced from real pricing rows.</p>
           </div>
         </div>
         <div className="flex gap-1.5">
@@ -230,11 +202,9 @@ export default function OptimizationPage() {
       {/* ── KPI strip ──────────────────────────────────── */}
       <div className="grid grid-cols-8 gap-2">
         {[
-          { label: 'Opportunities', value: recommendations.length },
-          { label: 'Projected', value: money(totalProjected), accent: true },
-          { label: 'Measured', value: money(measuredSavings), accent: true },
-          { label: 'Scope Spend', value: money(total) },
-          { label: 'Requests', value: items.length.toLocaleString() },
+          { label: 'Opportunities', value: opps.length },
+          { label: 'Est. savings', value: money(totalProjected), accent: true },
+          { label: 'Route changes', value: routeChanges },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
@@ -249,7 +219,7 @@ export default function OptimizationPage() {
       {/* ── Tab bar ─────────────────────────────────────── */}
       <div className="flex gap-0.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-0.5">
         {([
-          { id: 'opportunities' as ViewTab, label: 'Opportunities', icon: <Lightbulb className="h-3.5 w-3.5" />, count: recommendations.length },
+          { id: 'opportunities' as ViewTab, label: 'Opportunities', icon: <Lightbulb className="h-3.5 w-3.5" />, count: opps.length },
           { id: 'simulator' as ViewTab, label: 'Simulator', icon: <FlaskConical className="h-3.5 w-3.5" /> },
         ]).map((t) => (
           <button key={t.id} onClick={() => handleTabChange(t.id)}
@@ -268,61 +238,53 @@ export default function OptimizationPage() {
       {tab === 'opportunities' && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500 dark:text-slate-400">Range:</span>
-            {RANGES.map((r) => (
-              <button key={r.value} onClick={() => setRange(r.value)}
-                className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition ${range === r.value ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
-                {r.label}
+            {canWrite && (
+              <button type="button" onClick={() => void handleAnalyze()} disabled={acting !== null}
+                className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                <RefreshCw className={`h-3 w-3 ${acting === 'analyze' ? 'animate-spin' : ''}`} /> Analyze now
               </button>
-            ))}
-            {oppsLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+            )}
+            {oppsLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" aria-label="Loading" />}
           </div>
 
-          {recommendations.length === 0 ? (
+          {oppsError ? (
+            <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+              {oppsError} <button type="button" onClick={() => void loadOpps()} className="ml-2 underline">Retry</button>
+            </div>
+          ) : opps.length === 0 && !oppsLoading ? (
             <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-900/60 p-10 text-center">
               <Sparkles className="mx-auto h-7 w-7 text-emerald-500" />
-              <h2 className="mt-3 text-sm font-bold text-slate-800 dark:text-white">No strong recommendations yet</h2>
-              <p className="mx-auto mt-1 max-w-lg text-xs text-slate-500">Send richer model, route, tool, cache, and outcome telemetry. Recommendations appear as usage patterns emerge.</p>
+              <h2 className="mt-3 text-sm font-bold text-slate-800 dark:text-white">No pending recommendations</h2>
+              <p className="mx-auto mt-1 max-w-lg text-xs text-slate-500">The Flywheel proposes a change when a cheaper configuration holds your quality bar on enough observed requests. Run an experiment and use &quot;Recommend route&quot;, or analyze now.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {recommendations.map((rec) => (
-                <div key={rec.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4">
+              {opps.map((o) => (
+                <div key={o.recommendation_id ?? o.description} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">{rec.category}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${riskCls(rec.risk)}`}>{rec.risk} risk</span>
-                        <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{rec.confidence}</span>
+                        <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">{o.optimization_type}</span>
+                        {o.confidence && <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{o.confidence} confidence</span>}
+                        {!o.applies_to_route && <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">advisory</span>}
                       </div>
-                      <h3 className="text-xs font-bold text-slate-900 dark:text-white">{rec.title}</h3>
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{rec.problem}</p>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {rec.evidence.map((e) => (
-                          <span key={e} className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-2 py-1 text-[10px] text-slate-600 dark:text-slate-300">{e}</span>
-                        ))}
-                      </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        {rec.risk === 'High' ? <AlertTriangle className="h-3 w-3 text-rose-500" /> : <ShieldCheck className="h-3 w-3 text-emerald-500" />}
-                        <span className="text-[10px] text-slate-600 dark:text-slate-300">{rec.action}</span>
-                      </div>
+                      <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">{o.description}</p>
+                      <p className="mt-1 text-[10px] text-slate-500">Current {JSON.stringify(o.current_config)} → proposed {JSON.stringify(o.proposed_config)}</p>
                     </div>
                     <div className="shrink-0 text-right space-y-1.5">
                       <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Projected</p>
-                        <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{money(rec.projectedSavings)}</p>
-                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">{percent(rec.projectedSavingsPct)} lift</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Est. savings</p>
+                        <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">{money(o.potential_savings_usd)}</p>
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">{pct(o.est_cost_delta_pct)} per request · {o.affected_calls} observed</p>
                       </div>
-                      <div className="rounded-lg border border-blue-200/60 dark:border-blue-800/40 bg-blue-50/40 dark:bg-blue-950/20 px-3 py-1.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">Measured</p>
-                        <p className="text-sm font-bold text-blue-700 dark:text-blue-300 tabular-nums">{money(rec.realizedSavings)}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <Link href={rec.href} className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">{rec.cta}</Link>
-                        <Link href={`/evaluation?tab=experiments&recommendation=${rec.id}`} className="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700">
-                          <Beaker className="h-3 w-3 inline mr-0.5" />Experiment
-                        </Link>
-                      </div>
+                      {canWrite && o.recommendation_id && (
+                        <div className="flex justify-end gap-1">
+                          <button type="button" onClick={() => void handleDismiss(o)} disabled={acting !== null}
+                            className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 disabled:opacity-50">Dismiss</button>
+                          <button type="button" onClick={() => void handleApply(o)} disabled={acting !== null}
+                            className="rounded-lg bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">Apply</button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -335,7 +297,7 @@ export default function OptimizationPage() {
               <Route className="mt-0.5 h-4 w-4 text-emerald-600" />
               <div>
                 <h3 className="text-xs font-bold text-slate-800 dark:text-white">How recommendations are generated</h3>
-                <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">Deterministic rules over request-flow telemetry: model mismatch, cache hit rate, reasoning-heavy routes, tool overuse, latency outliers, failed spend, and local-model eligibility.</p>
+                <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">The Flywheel groups observed runs by segment (alias, task class or outcome), compares the cost and quality of the configurations it has seen, and proposes the cheapest one that holds your minimum quality on enough samples. Experiments can add recommendations too. Applying an alias recommendation changes that alias&apos;s primary route; it is audited and can be rolled back.</p>
               </div>
             </div>
           </div>
@@ -355,14 +317,15 @@ export default function OptimizationPage() {
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Current model</label>
                 <select value={currentModel} onChange={e => setCurrentModel(e.target.value)} className={inputCls}>
-                  {MODELS.map(m => <option key={`c-${m.value}`} value={m.value}>{m.label}</option>)}
+                  <option value="">Any (all models)</option>
+                  {targets.map(m => <option key={`c-${m}`} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Proposed model *</label>
                 <select value={proposedModel} onChange={e => setProposedModel(e.target.value)} className={inputCls}>
                   <option value="">No change</option>
-                  {MODELS.filter(m => m.value).map(m => <option key={`p-${m.value}`} value={m.value}>{m.label}</option>)}
+                  {targets.map(m => <option key={`p-${m}`} value={m}>{m}</option>)}
                 </select>
               </div>
               <div>
