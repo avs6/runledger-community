@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookText, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { num } from '@/lib/utils'
 
 function SkeletonRows({ cols, rows = 3 }: { cols: number; rows?: number }) {
@@ -39,7 +40,8 @@ export default function PromptsPage() {
   // New prompt form state
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [defaultEnv, setDefaultEnv] = useState('production')
+  const [defaultEnv, setDefaultEnv] = useState('dev')
+  const { confirm: confirmDialog, dialog: confirmEl } = useConfirm()
   const [showForm, setShowForm] = useState(false)
 
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
@@ -74,7 +76,7 @@ export default function PromptsPage() {
       toast.success(`Prompt "${name}" created`)
       setName('')
       setDescription('')
-      setDefaultEnv('production')
+      setDefaultEnv('dev')
       setShowForm(false)
       await loadPrompts()
     } catch (err: unknown) {
@@ -86,7 +88,7 @@ export default function PromptsPage() {
   }
 
   async function handleDelete(promptName: string) {
-    if (!confirm(`Delete prompt "${promptName}" and all its versions?`)) return
+    if (!(await confirmDialog({ title: `Delete prompt "${promptName}"?`, description: 'All its versions are deleted. This cannot be undone.', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deletePrompt(apiKey, promptName)
       toast.success(`Prompt "${promptName}" deleted`)
@@ -98,6 +100,7 @@ export default function PromptsPage() {
 
   return (
     <div className="space-y-6 p-6">
+      {confirmEl}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Prompts</h1>
