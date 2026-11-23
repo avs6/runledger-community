@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { listEvalDatasets, createEvalDataset, deleteEvalDataset } from '@/lib/api'
 import type { EvalDataset, DatasetItem } from '@/types/api'
@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Plus, Trash2, X, TableProperties } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { num } from '@/lib/utils'
 
 const inputCls =
@@ -31,8 +32,9 @@ export default function DatasetsPage() {
   const [fetching, setFetching] = useState(false)
 
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
+  const { confirm: confirmDialog, dialog: confirmEl } = useConfirm()
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!apiKey) return
     setLoading(true)
     try {
@@ -43,13 +45,11 @@ export default function DatasetsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiKey])
 
   useEffect(() => {
-    if (apiKey) {
-      load()
-    }
-  }, [apiKey])
+    void load()
+  }, [load])
 
   function parseItems(text: string): DatasetItem[] {
     // Support CSV (input,expected_output) or JSON array
@@ -116,7 +116,13 @@ export default function DatasetsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this dataset?')) return
+    const ok = await confirmDialog({
+      title: 'Delete this dataset?',
+      description: 'Experiments that use it keep their results but can no longer be re-run.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
     try {
       await deleteEvalDataset(apiKey, id)
       setDatasets(prev => prev.filter(d => d.id !== id))
@@ -129,6 +135,7 @@ export default function DatasetsPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {confirmEl}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">

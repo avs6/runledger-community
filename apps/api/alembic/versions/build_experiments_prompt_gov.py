@@ -32,9 +32,7 @@ def upgrade() -> None:
     op.add_column("prompts", sa.Column("promotion_min_score", sa.Float, nullable=True))
     op.add_column("prompts", sa.Column("promotion_score_name", sa.Text, nullable=True))
     op.alter_column("prompt_versions", "environment", server_default="dev")
-    op.add_column(
-        "prompt_versions", sa.Column("approval_id", PGUUID(as_uuid=True), nullable=True)
-    )
+    op.add_column("prompt_versions", sa.Column("approval_id", PGUUID(as_uuid=True), nullable=True))
     op.create_unique_constraint(
         "uq_prompt_versions_approval_id", "prompt_versions", ["approval_id"]
     )
@@ -120,9 +118,7 @@ def upgrade() -> None:
     op.drop_table("replay_datasets")
 
     # ── Playground ───────────────────────────────────────────────────────────
-    op.add_column(
-        "playground_requests", sa.Column("run_id", PGUUID(as_uuid=True), nullable=True)
-    )
+    op.add_column("playground_requests", sa.Column("run_id", PGUUID(as_uuid=True), nullable=True))
 
 
 def downgrade() -> None:
