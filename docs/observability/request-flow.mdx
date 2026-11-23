@@ -26,9 +26,16 @@ The Request Flow dashboard renders an interactive Sankey diagram that traces eve
 | Tool | Any tool calls made during execution |
 | Result | Final outcome (success, error, timeout, etc.) |
 
-## FinOps budget context
+## Data rules
 
-Request Flow includes an inline Budget Context card showing the workspace's active budgets, breach count, 30-day spend, open billing periods, and chargeback rules. Cross-links drill through to Budgets, Budget Detail, Budget Overrides, Billing Periods, Billing Period Detail, and Chargeback so operators can correlate routing causality with spend attribution.
+- **Savings are recorded savings only**: the sum of `savings_usd` the run's provider calls
+  reported. Nothing is estimated from cached tokens or model names.
+- **Outcome** comes from the outcomes table (SDK, MCP, ingest and `POST /outcomes` all write
+  there); several outcomes on one run count once.
+- The chart samples the newest 500 runs (1000 in focus mode); when there are more, the page
+  says “Showing the newest N of M runs”.
+- Org and platform scopes need an org admin/manager or platform admin. A role that can't use a
+  scope gets the workspace view with a notice; any other API failure shows the error page.
 
 ## Related
 
