@@ -8,13 +8,14 @@ import { toast } from 'sonner'
 import {
   FlaskConical, Database, BookText, Plus, Trash2, Play,
   CheckCircle, Clock, XCircle, Loader2, Star, Beaker,
-  Network, ChevronDown, ChevronRight, Sparkles,
+  Network, ChevronDown, ChevronRight, Sparkles, Pencil,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { listEvalDatasets, createEvalDataset, listEvalExperiments, createEvalExperiment, runEvalExperiment, listPrompts, createPrompt, deletePrompt, listEvaluators, createEvaluator, deleteEvaluator, runEvaluator, getCostQuality, getBestValueModels } from '@/lib/api'
 import type { EvalDataset, EvalExperiment, DatasetItem, PromptResponse, EvaluatorResponse, CostQualityPoint, BestValueModel } from '@/types/api'
 import QualityScoresTab from '@/components/evaluation/QualityScoresTab'
+import { EvaluatorEditDialog } from './_components/EvaluatorEditDialog'
 import { num } from '@/lib/utils'
 
 type Tab = 'scores' | 'experiments' | 'datasets' | 'prompts' | 'evaluators'
@@ -476,8 +477,9 @@ function PromptsTab({
 
 function EvaluatorsTab({
   evaluators, costQuality, bestValue, loading,
-  onCreate, onDelete, onRun, canWrite,
+  onCreate, onDelete, onRun, onEdited, canWrite,
 }: {
+  onEdited: () => void
   evaluators: EvaluatorResponse[]
   costQuality: CostQualityPoint[]
   bestValue: BestValueModel[]
@@ -495,6 +497,10 @@ function EvaluatorsTab({
   const [type, setType] = useState<'rule' | 'llm_judge'>('rule')
   const [configText, setConfigText] = useState('{\n  "rules": []\n}')
   const [configError, setConfigError] = useState('')
+  const [editing, setEditing] = useState<EvaluatorResponse | null>(null)
+  const { data: evSession } = useSession()
+  const evApiKey = (evSession as { apiKey?: string } | null)?.apiKey ?? ''
+  const { confirm: confirmEv, dialog: confirmEvEl } = useConfirm()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -510,6 +516,11 @@ function EvaluatorsTab({
 
   return (
     <div className="space-y-3">
+      {confirmEvEl}
+      {editing && (
+        <EvaluatorEditDialog apiKey={evApiKey} evaluator={editing} onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); onEdited() }} />
+      )}
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500 dark:text-slate-400">Rule-based and LLM-judge evaluator pipelines.</p>
         {canWrite && (
@@ -586,7 +597,8 @@ function EvaluatorsTab({
                         {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
                       </button>
                     )}
-                    {canWrite && <button onClick={() => onDelete(ev.id)} className="rounded p-0.5 text-slate-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>}
+                    {canWrite && <button aria-label={`Edit evaluator ${ev.name}`} onClick={() => setEditing(ev)} className="rounded p-0.5 text-slate-400 hover:text-violet-600"><Pencil className="h-3 w-3" /></button>}
+                    {canWrite && <button aria-label={`Delete evaluator ${ev.name}`} onClick={async () => { if (await confirmEv({ title: `Delete evaluator "${ev.name}"?`, description: 'Scores it already created are kept.', confirmLabel: 'Delete', destructive: true })) await onDelete(ev.id) }} className="rounded p-0.5 text-slate-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>}
                   </div>
                 </td>
               </tr>
@@ -841,7 +853,7 @@ export default function EvaluationPage() {
         <PromptsTab prompts={prompts} loading={loading} onRefresh={refresh} canWrite={canWrite} />
       )}
       {tab === 'evaluators' && (
-        <EvaluatorsTab evaluators={evaluators} costQuality={costQuality} bestValue={bestValue} loading={loading} onCreate={handleCreateEvaluator} onDelete={handleDeleteEvaluator} onRun={handleRunEvaluator} canWrite={canWrite} />
+        <EvaluatorsTab evaluators={evaluators} costQuality={costQuality} bestValue={bestValue} loading={loading} onCreate={handleCreateEvaluator} onDelete={handleDeleteEvaluator} onRun={handleRunEvaluator} onEdited={() => void refresh()} canWrite={canWrite} />
       )}
     </div>
   )

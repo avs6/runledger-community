@@ -173,6 +173,17 @@ export async function createEvaluator(
   })
 }
 
+export async function updateEvaluator(
+  apiKey: string,
+  id: string,
+  data: { name?: string; description?: string | null; status?: 'active' | 'inactive'; config?: Record<string, unknown> }
+): Promise<import('@/types/api').EvaluatorResponse> {
+  return apiFetch<import('@/types/api').EvaluatorResponse>(`/evaluations/evaluators/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function deleteEvaluator(apiKey: string, id: string): Promise<void> {
   await apiFetch<void>(`/evaluations/evaluators/${id}`, apiKey, { method: 'DELETE' })
 }
