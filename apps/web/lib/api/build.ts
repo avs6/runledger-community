@@ -116,6 +116,19 @@ export async function getLatestVersion(
   )
 }
 
+/** Edit a version's content: creates a new version (versions are immutable). */
+export async function editVersion(
+  apiKey: string,
+  name: string,
+  version: number,
+  body: { content: string; commit_message?: string; environment?: string; approval_id?: string }
+): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompts/${encodeURIComponent(name)}/versions/${version}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function promoteVersion(
   apiKey: string,
   name: string,

@@ -4,14 +4,16 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getPrompt, listVersions, createVersion, promoteVersion, getPromptMetrics, getGithubConfig, pushToGithub, pullFromGithub } from '@/lib/api'
+import { getPrompt, listVersions, createVersion, editVersion, getPromptMetrics, getGithubConfig, pushToGithub, pullFromGithub } from '@/lib/api'
 import type { PromptResponse, PromptVersion, VersionMetrics, GithubConfig } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, GitBranch, Plus, ArrowUpCircle, Edit2, Upload, Download, X } from 'lucide-react'
+import { ArrowLeft, GitBranch, Plus, Edit2, Upload, Download, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
 import { num } from '@/lib/utils'
 import { RelatedPanel } from '@/components/context/RelatedPanel'
+import { PromotionPanel } from './_components/PromotionPanel'
+import { PromptDiffView } from './_components/PromptDiffView'
 
 const inputCls =
   'w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500'
@@ -39,45 +41,6 @@ function EnvBadge({ env }: { env: string }) {
   )
 }
 
-function SimpleDiff({ oldText, newText }: { oldText: string; newText: string }) {
-  const oldLines = oldText.split('\n')
-  const newLines = newText.split('\n')
-  const maxLen = Math.max(oldLines.length, newLines.length)
-
-  return (
-    <div className="grid grid-cols-2 gap-4 font-mono text-xs">
-      <div>
-        <p className="mb-1 text-gray-500 font-sans">Before</p>
-        <div className="rounded border border-gray-200 dark:border-gray-700 overflow-auto max-h-64 bg-gray-50 dark:bg-gray-900 p-2 space-y-px">
-          {Array.from({ length: maxLen }).map((_, i) => {
-            const line = oldLines[i] ?? ''
-            const changed = line !== (newLines[i] ?? '')
-            return (
-              <div key={i} className={`whitespace-pre-wrap leading-5 rounded px-1 ${changed ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' : 'text-gray-800 dark:text-gray-200'}`}>
-                {line || '\u00a0'}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <div>
-        <p className="mb-1 text-gray-500 font-sans">After</p>
-        <div className="rounded border border-gray-200 dark:border-gray-700 overflow-auto max-h-64 bg-gray-50 dark:bg-gray-900 p-2 space-y-px">
-          {Array.from({ length: maxLen }).map((_, i) => {
-            const line = newLines[i] ?? ''
-            const changed = line !== (oldLines[i] ?? '')
-            return (
-              <div key={i} className={`whitespace-pre-wrap leading-5 rounded px-1 ${changed ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : 'text-gray-800 dark:text-gray-200'}`}>
-                {line || '\u00a0'}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function PromptDetailPage({ params }: { params: { name: string } }) {
   const decodedName = decodeURIComponent(params.name)
   const { data: session } = useSession()
@@ -94,7 +57,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
   const [showVersionForm, setShowVersionForm] = useState(false)
   const [content, setContent] = useState('')
   const [commitMsg, setCommitMsg] = useState('')
-  const [versionEnv, setVersionEnv] = useState('production')
+  const [versionEnv, setVersionEnv] = useState('dev')
   const [modelHint, setModelHint] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -102,6 +65,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
   const [editingVersion, setEditingVersion] = useState<PromptVersion | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editMsg, setEditMsg] = useState('')
+  const [editEnv, setEditEnv] = useState('dev')
   const [editSaving, setEditSaving] = useState(false)
 
   // Diff viewer
@@ -172,21 +136,18 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
     setEditingVersion(v)
     setEditContent(v.content)
     setEditMsg(`Edit of v${v.version}`)
+    setEditEnv(v.environment === 'production' ? 'staging' : v.environment)
   }
 
   async function handleEditSave() {
     if (!editingVersion || !editContent.trim()) return
     setEditSaving(true)
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'}/prompts/${encodeURIComponent(decodedName)}/versions/${editingVersion.version}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ content: editContent.trim(), commit_message: editMsg.trim() || undefined }),
-        }
-      )
-      if (!res.ok) throw new Error(await res.text())
+      await editVersion(apiKey, decodedName, editingVersion.version, {
+        content: editContent.trim(),
+        commit_message: editMsg.trim() || undefined,
+        environment: editEnv,
+      })
       toast.success('New version created (auto-bumped)')
       setEditingVersion(null)
       await load()
@@ -194,19 +155,6 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
       toast.error(`Edit failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setEditSaving(false)
-    }
-  }
-
-  async function handlePromote(fromEnv: string) {
-    try {
-      await promoteVersion(apiKey, decodedName, {
-        source_environment: fromEnv,
-        target_environment: 'production',
-      })
-      toast.success(`Promoted ${fromEnv} → production`)
-      await load()
-    } catch (err: unknown) {
-      toast.error(`Promote failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -237,15 +185,13 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
     }
   }
 
-  const versionA = diffA !== null ? versions.find((v) => v.version === diffA) : null
-  const versionB = diffB !== null ? versions.find((v) => v.version === diffB) : null
   const metricsMap = new Map(metrics.map((m) => [m.version, m]))
 
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => router.push('/prompts')} className="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+        <button aria-label="Back to prompts" onClick={() => router.push('/prompts')} className="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
@@ -283,15 +229,6 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
           ))}
           {canWrite && (
             <button
-              onClick={() => handlePromote('staging')}
-              className="flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              <ArrowUpCircle className="h-4 w-4" />
-              Promote staging → prod
-            </button>
-          )}
-          {canWrite && (
-            <button
               onClick={() => setShowVersionForm((v) => !v)}
               className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
@@ -315,7 +252,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Edit v{editingVersion.version} → auto-bumps to new version
               </h2>
-              <button onClick={() => setEditingVersion(null)}><X className="h-5 w-5 text-gray-400" /></button>
+              <button aria-label="Close editor" onClick={() => setEditingVersion(null)}><X className="h-5 w-5 text-gray-400" /></button>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Content</label>
@@ -328,6 +265,14 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Commit message</label>
               <input className={inputCls} value={editMsg} onChange={e => setEditMsg(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Environment</label>
+              <select aria-label="Environment for the new version" className={inputCls} value={editEnv} onChange={e => setEditEnv(e.target.value)}>
+                <option value="dev">dev</option>
+                <option value="staging">staging</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-400">Production versions come from an approved promotion.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setEditingVersion(null)} className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 py-2 text-sm text-gray-600 dark:text-gray-300">Cancel</button>
@@ -372,11 +317,11 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Environment</label>
-                  <select value={versionEnv} onChange={(e) => setVersionEnv(e.target.value)} className={inputCls}>
-                    <option value="production">production</option>
-                    <option value="staging">staging</option>
+                  <select aria-label="Environment" value={versionEnv} onChange={(e) => setVersionEnv(e.target.value)} className={inputCls}>
                     <option value="dev">dev</option>
+                    <option value="staging">staging</option>
                   </select>
+                  <p className="mt-1 text-xs text-gray-400">Production needs an approved promotion.</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Model Hint</label>
@@ -439,6 +384,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
                               <button
                                 onClick={() => startEdit(v)}
                                 title="Edit (creates new version)"
+                                aria-label={`Edit version ${v.version}`}
                                 className="text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300"
                               >
                                 <Edit2 className="h-3.5 w-3.5" />
@@ -491,15 +437,18 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
           </Card>
         </div>
 
-        {/* Diff viewer */}
-        <div>
+        {/* Promotion + diff viewer */}
+        <div className="space-y-6">
+          {prompt && apiKey ? (
+            <PromotionPanel apiKey={apiKey} prompt={prompt} versions={versions} canWrite={canWrite} onChanged={load} />
+          ) : null}
           <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
             <CardHeader>
               <CardTitle className="text-base text-gray-900 dark:text-white">Diff Viewer</CardTitle>
             </CardHeader>
             <CardContent>
-              {versionA && versionB ? (
-                <SimpleDiff oldText={versionA.content} newText={versionB.content} />
+              {diffA !== null && diffB !== null ? (
+                <PromptDiffView apiKey={apiKey} name={decodedName} from={diffA} to={diffB} />
               ) : (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Select a &quot;before&quot; and &quot;after&quot; version from the history to compare them.
