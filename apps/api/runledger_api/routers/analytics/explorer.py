@@ -26,6 +26,7 @@ async def request_explorer(
     provider: Annotated[str | None, Query()] = None,
     intent: Annotated[str | None, Query()] = None,
     feature_tag: Annotated[str | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
     end_user_id: Annotated[str | None, Query()] = None,
     optimization: Annotated[str | None, Query()] = None,
     access_group_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -46,6 +47,8 @@ async def request_explorer(
         ProviderCall.created_at < t_to,
         *call_access_clauses(access),
     ]
+    if api_key_id is not None:
+        filters.append(ProviderCall.api_key_id == api_key_id)
     if model:
         filters.append(ProviderCall.model == model)
     if provider:

@@ -21,7 +21,10 @@ import {
   Wrench,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
+import SavedViewsMenu from '@/components/observe/SavedViewsMenu'
+import { SectionError } from '@/components/ui/async-card'
+import type { RunFacetsResponse } from '@/types/api'
+import { getRunFacets, getAccessGroupDashboard, getRequestExplorer, getRun, getRunGovernanceContext, getRunGraph, listGatewayRequests, listOutcomes } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatCost, formatDuration, formatTimestamp, formatTokens, truncateId, num } from '@/lib/utils'
 import type { GatewayRequestLog, OutcomeResponse, ProviderCallDetail, RequestRecord, RunDetailResponse, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
@@ -31,6 +34,7 @@ interface PageProps {
     run_id?: string
     q?: string
     status?: string
+    intent?: string
     feature_tag?: string
     end_user_id?: string
     model?: string
@@ -214,49 +218,55 @@ function RunList({ requests, selectedRunId, searchParams }: { requests: RequestR
   )
 }
 
-function FilterBar({ searchParams }: { searchParams: PageProps['searchParams'] }) {
+function FilterBar({ searchParams, facets }: { searchParams: PageProps['searchParams']; facets: RunFacetsResponse | null }) {
   const inputCls = "w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-500/30 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
   return (
     <form action="/request-explorer" className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/80">
       {searchParams.access_group_id && <input type="hidden" name="access_group_id" value={searchParams.access_group_id} />}
       <div className="flex flex-wrap items-end gap-2">
         <div className="w-40">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Search</label>
-          <input name="q" defaultValue={searchParams.q ?? ''} placeholder="Run ID, user, model..." className={inputCls} />
+          <label htmlFor="rx-q" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Search</label>
+          <input id="rx-q" name="q" defaultValue={searchParams.q ?? ''} placeholder="Run ID, user, model..." className={inputCls} />
         </div>
         <div className="w-24">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</label>
-          <select name="status" defaultValue={searchParams.status ?? ''} className={inputCls}>
+          <label htmlFor="rx-status" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</label>
+          <select id="rx-status" name="status" defaultValue={searchParams.status ?? ''} className={inputCls}>
             <option value="">Any</option>
             <option value="succeeded">Succeeded</option>
             <option value="failed">Failed</option>
-            <option value="running">Running</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="blocked">Blocked</option>
           </select>
         </div>
         <div className="w-28">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Intent</label>
-          <input name="feature_tag" defaultValue={searchParams.feature_tag ?? ''} placeholder="support-chat" className={inputCls} />
-        </div>
-        <div className="w-28">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Model</label>
-          <input name="model" defaultValue={searchParams.model ?? ''} placeholder="gpt, claude..." className={inputCls} />
-        </div>
-        <div className="w-28">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Provider</label>
-          <input name="provider" defaultValue={searchParams.provider ?? ''} placeholder="openai, anthropic..." className={inputCls} />
+          <label htmlFor="rx-feature-tag" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Workflow</label>
+          <input id="rx-feature-tag" name="feature_tag" list="rx-feature-tags" defaultValue={searchParams.feature_tag ?? ''} placeholder="support-chat" className={inputCls} />
+          <datalist id="rx-feature-tags">{facets?.feature_tags.map(t => <option key={t} value={t} />)}</datalist>
         </div>
         <div className="w-24">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tag</label>
-          <input name="tag" defaultValue={searchParams.tag ?? ''} placeholder="pci, prod..." className={inputCls} />
+          <label htmlFor="rx-intent" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Intent</label>
+          <input id="rx-intent" name="intent" defaultValue={searchParams.intent ?? ''} placeholder="classify" className={inputCls} />
         </div>
         <div className="w-28">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tool</label>
-          <input name="tool_name" defaultValue={searchParams.tool_name ?? ''} placeholder="browser.search" className={inputCls} />
+          <label htmlFor="rx-model" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Model</label>
+          <input id="rx-model" name="model" list="rx-models" defaultValue={searchParams.model ?? ''} placeholder="exact model" className={inputCls} />
+          <datalist id="rx-models">{facets?.models.map(m => <option key={m} value={m} />)}</datalist>
         </div>
         <div className="w-28">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">API Key</label>
-          <input name="api_key_id" defaultValue={searchParams.api_key_id ?? ''} placeholder="key_abc123..." className={inputCls} />
+          <label htmlFor="rx-provider" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Provider</label>
+          <input id="rx-provider" name="provider" list="rx-providers" defaultValue={searchParams.provider ?? ''} placeholder="openai" className={inputCls} />
+          <datalist id="rx-providers">{facets?.providers.map(m => <option key={m} value={m} />)}</datalist>
+        </div>
+        <div className="w-24">
+          <label htmlFor="rx-tag" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tag</label>
+          <input id="rx-tag" name="tag" defaultValue={searchParams.tag ?? ''} placeholder="pci, prod..." className={inputCls} />
+        </div>
+        <div className="w-28">
+          <label htmlFor="rx-tool_name" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tool</label>
+          <input id="rx-tool_name" name="tool_name" defaultValue={searchParams.tool_name ?? ''} placeholder="browser.search" className={inputCls} />
+        </div>
+        <div className="w-28">
+          <label htmlFor="rx-api_key_id" className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">API Key</label>
+          <input id="rx-api_key_id" name="api_key_id" defaultValue={searchParams.api_key_id ?? ''} placeholder="key_abc123..." className={inputCls} />
         </div>
         <label className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
           <input type="checkbox" name="security_event_only" value="true" defaultChecked={searchParams.security_event_only === 'true'} className="h-3 w-3" />
@@ -547,12 +557,17 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
     ? await getAccessGroupDashboard(session.apiKey, accessGroupId).catch(() => null)
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
+  // A failed load shows the error, not an empty list (review O-19).
   let requestExplorer: Awaited<ReturnType<typeof getRequestExplorer>>
+  let loadError: string | null = null
+  const facets = await getRunFacets(session.apiKey).catch(() => null)
   try {
     requestExplorer = await getRequestExplorer(session.apiKey, {
       q: searchParams.q,
       status: searchParams.status,
-      intent: searchParams.feature_tag,
+      intent: searchParams.intent,
+      feature_tag: searchParams.feature_tag,
+      api_key_id: searchParams.api_key_id,
       end_user_id: searchParams.end_user_id,
       model: searchParams.model,
       provider: searchParams.provider,
@@ -564,7 +579,8 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
       page: Number.isFinite(page) && page > 0 ? page : 1,
       page_size: 50,
     })
-  } catch {
+  } catch (err) {
+    loadError = err instanceof Error ? err.message : 'Request Explorer failed to load'
     requestExplorer = { items: [], total: 0, page: 1, page_size: 50 }
   }
   const selectedId = searchParams.run_id ?? requestExplorer.items[0]?.run_id ?? null
@@ -600,6 +616,7 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Debug individual AI requests — prompt, route, tools, cost, latency, cache, outcome.</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          <SavedViewsMenu page="explorer" />
           <Link href={accessGroupId ? `/analytics?scope=workspace&access_group_id=${encodeURIComponent(accessGroupId)}` : '/analytics'} className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
             Analytics <ArrowRight className="h-3 w-3" />
           </Link>
@@ -614,7 +631,10 @@ export default async function RequestExplorerPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <FilterBar searchParams={searchParams} />
+      <FilterBar searchParams={searchParams} facets={facets} />
+      {loadError && (
+        <SectionError message={loadError.includes('API 422') ? `Check the filters: ${loadError}` : loadError} />
+      )}
 
       {accessGroup && (
         <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2 text-xs text-blue-900 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-200">

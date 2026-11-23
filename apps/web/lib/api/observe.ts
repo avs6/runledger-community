@@ -667,6 +667,7 @@ export async function getRequestExplorer(
     provider?: string
     intent?: string
     feature_tag?: string
+    api_key_id?: string
     end_user_id?: string
     optimization?: string
     page?: number
@@ -686,6 +687,7 @@ export async function getRequestExplorer(
   if (params.provider) qs.provider = params.provider
   if (params.intent) qs.intent = params.intent
   if (params.feature_tag) qs.feature_tag = params.feature_tag
+  if (params.api_key_id) qs.api_key_id = params.api_key_id
   if (params.end_user_id) qs.end_user_id = params.end_user_id
   if (params.optimization) qs.optimization = params.optimization
   if (params.access_group_id) qs.access_group_id = params.access_group_id
