@@ -4,17 +4,36 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
 
 
 class DatasetItem(BaseModel):
-    input: str
+    """One test case. Eval items have ``input``; replay items carry the captured
+    ``messages`` of a recorded run (``run_id``)."""
+
+    input: str | None = None
+    messages: list[dict[str, Any]] | None = None
+    run_id: str | None = None
     expected_output: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _has_content(self) -> DatasetItem:
+        if not self.input and not self.messages:
+            raise ValueError("a dataset item needs 'input' or 'messages'")
+        return self
+
+
+class DatasetFromRuns(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    run_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=500)
+    # Use each run's recorded response as the expected output (regression replay).
+    use_output_as_expected: bool = False
 
 
 class EvalDatasetCreate(BaseModel):
@@ -51,39 +70,38 @@ class EvalDatasetList(BaseModel):
 # ── Experiment ────────────────────────────────────────────────────────────────
 
 
+ExperimentMode = Literal["eval", "replay"]
+
+
 class ExperimentModelConfig(BaseModel):
-    model: str
-    provider: str = "openai"
+    """A gateway route alias to run, with an optional label and sampling params."""
+
+    model: str = Field(..., min_length=1, max_length=255)
+    provider: str | None = None
     label: str | None = None
+    params: dict[str, Any] | None = None
 
 
 class EvalExperimentCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str | None = None
+    mode: ExperimentMode = "eval"
     dataset_id: uuid.UUID | None = None
     prompt_name: str | None = None
     prompt_version: int | None = None
     evaluator_ids: list[uuid.UUID] = Field(default_factory=list)
-    models: list[ExperimentModelConfig] = Field(default_factory=list)
+    models: list[ExperimentModelConfig] = Field(default_factory=list, max_length=6)
 
 
 class EvalExperimentUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = None
+    mode: ExperimentMode | None = None
     dataset_id: uuid.UUID | None = None
     prompt_name: str | None = None
     prompt_version: int | None = None
     evaluator_ids: list[uuid.UUID] | None = None
-    models: list[ExperimentModelConfig] | None = None
-
-
-class ModelResult(BaseModel):
-    model: str
-    provider: str
-    label: str | None
-    items_run: int
-    avg_score: float | None
-    score_breakdown: dict[str, float]
+    models: list[ExperimentModelConfig] | None = Field(None, max_length=6)
 
 
 class EvalExperimentResponse(BaseModel):
@@ -92,6 +110,7 @@ class EvalExperimentResponse(BaseModel):
     dataset_id: uuid.UUID | None
     name: str
     description: str | None
+    mode: str = "eval"
     prompt_name: str | None
     prompt_version: int | None
     evaluator_ids: list[Any]
@@ -110,6 +129,22 @@ class EvalExperimentResponse(BaseModel):
 
 class EvalExperimentList(BaseModel):
     items: list[EvalExperimentResponse]
+
+
+class RouteRecommendationRequest(BaseModel):
+    # How much score the candidate may lose against the baseline and still win on cost.
+    max_score_drop: float = Field(0.02, ge=0, le=1)
+
+
+class RouteRecommendationResponse(BaseModel):
+    recommendation_id: uuid.UUID
+    alias: str
+    current_model: str
+    proposed_model: str
+    current_quality: float | None
+    proposed_quality: float | None
+    est_cost_delta_pct: float | None
+    rationale: str
 
 
 # ── GitHub sync ───────────────────────────────────────────────────────────────

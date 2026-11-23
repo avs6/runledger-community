@@ -64,6 +64,7 @@ from runledger_api.schemas.agents import (
     WorkflowRunSummary,
     WorkflowRunSummaryListResponse,
 )
+from runledger_api.services.agent_memory import not_expired, open_value, seal_value
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -412,7 +413,7 @@ def _memory_to_response(m: AgentMemory) -> AgentMemoryResponse:
         workspace_id=m.workspace_id,
         agent_id=m.agent_id,
         key=m.key,
-        value=m.value,
+        value=open_value(m.value),
         memory_type=m.memory_type,
         metadata=m.metadata_ or {},
         size_bytes=m.size_bytes,
@@ -476,12 +477,57 @@ async def store_memory(
 
         expires_at = datetime.now(UTC) + timedelta(days=body.retention_days)
 
+    # Duplicate key: 409 unless the caller asked to upsert (review B-16).
+    existing = (
+        await db.execute(
+            select(AgentMemory).where(
+                AgentMemory.agent_id == agent_id,
+                AgentMemory.workspace_id == ws.id,
+                AgentMemory.key == body.key,
+            )
+        )
+    ).scalar_one_or_none()
+    if (
+        existing is not None
+        and existing.expires_at is not None
+        and existing.expires_at <= datetime.now(UTC)
+    ):
+        await db.delete(existing)
+        await db.flush()
+        existing = None
+    if existing is not None:
+        if not body.upsert:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Memory key '{body.key}' already exists; PUT to update or pass upsert=true",
+            )
+        existing.value = seal_value(body.value, has_pii)
+        existing.memory_type = body.memory_type
+        existing.metadata_ = body.metadata
+        existing.size_bytes = size_bytes
+        existing.has_pii = has_pii
+        existing.retention_days = body.retention_days
+        existing.expires_at = expires_at
+        existing.updated_at = datetime.now(UTC)
+        await _audit_log(
+            db,
+            ws.id,
+            agent_id,
+            "upsert",
+            memory_id=existing.id,
+            key=body.key,
+            details={"memory_type": body.memory_type, "size_bytes": size_bytes, "has_pii": has_pii},
+        )
+        await db.commit()
+        await db.refresh(existing)
+        return _memory_to_response(existing)
+
     mem = AgentMemory(
         id=uuid.uuid4(),
         workspace_id=ws.id,
         agent_id=agent_id,
         key=body.key,
-        value=body.value,
+        value=seal_value(body.value, has_pii),
         memory_type=body.memory_type,
         metadata_=body.metadata,
         size_bytes=size_bytes,
@@ -518,10 +564,10 @@ async def list_memories(
     offset: int = Query(0, ge=0),
 ) -> AgentMemoryListResponse:
     q = select(AgentMemory).where(
-        AgentMemory.agent_id == agent_id, AgentMemory.workspace_id == ws.id
+        AgentMemory.agent_id == agent_id, AgentMemory.workspace_id == ws.id, not_expired()
     )
     count_q = select(func.count(AgentMemory.id)).where(
-        AgentMemory.agent_id == agent_id, AgentMemory.workspace_id == ws.id
+        AgentMemory.agent_id == agent_id, AgentMemory.workspace_id == ws.id, not_expired()
     )
     if memory_type:
         q = q.where(AgentMemory.memory_type == memory_type)
@@ -565,9 +611,9 @@ async def update_memory(
 
     updates = body.model_dump(exclude_unset=True)
     if "value" in updates and updates["value"] is not None:
-        mem.value = updates["value"]
+        mem.has_pii = _detect_pii(updates["value"]) or _detect_pii(mem.key)
+        mem.value = seal_value(updates["value"], mem.has_pii)
         mem.size_bytes = len(updates["value"].encode("utf-8"))
-        mem.has_pii = _detect_pii(updates["value"])
     if "memory_type" in updates and updates["memory_type"] is not None:
         mem.memory_type = updates["memory_type"]
     if "metadata" in updates and updates["metadata"] is not None:
@@ -589,7 +635,8 @@ async def update_memory(
         "update",
         memory_id=mem.id,
         key=key,
-        details={k: str(v) for k, v in updates.items()},
+        # Never copy the value into the audit trail (it may hold PII).
+        details={k: str(v) for k, v in updates.items() if k != "value"},
     )
     await db.commit()
     await db.refresh(mem)
@@ -646,15 +693,17 @@ async def search_memories(
     q = select(AgentMemory).where(
         AgentMemory.agent_id == agent_id,
         AgentMemory.workspace_id == ws.id,
+        not_expired(),
     )
     if body.memory_type:
         q = q.where(AgentMemory.memory_type == body.memory_type)
 
+    # Encrypted (PII) values are matched by key only.
     pattern = f"%{body.query}%"
     q = q.where(
         sa.or_(
             AgentMemory.key.ilike(pattern),
-            AgentMemory.value.ilike(pattern),
+            sa.and_(~AgentMemory.value.startswith("enc::"), AgentMemory.value.ilike(pattern)),
         )
     )
     rows = (

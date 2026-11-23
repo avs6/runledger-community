@@ -16,8 +16,9 @@ from runledger_api.core.db import Base
 
 class EvalDataset(Base):
     """
-    A collection of test cases (input/expected_output pairs) used as experiment input.
-    Items are stored as JSONB: [{input, expected_output, metadata}]
+    A collection of test cases used as experiment input. Items are stored as JSONB:
+    eval items ``{input, expected_output, metadata}``; replay items (source="runs")
+    ``{run_id, messages, expected_output?, metadata}``.
     """
 
     __tablename__ = "eval_datasets"
@@ -60,6 +61,9 @@ class EvalExperiment(Base):
     )
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # eval: dataset inputs (+ linked prompt) per model; replay: captured run
+    # conversations per model. Both run through the gateway (review B-07, B-08).
+    mode: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="eval")
     # Linked prompt (by name + version from this workspace)
     prompt_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     prompt_version: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)

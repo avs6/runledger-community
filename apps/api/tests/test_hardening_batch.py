@@ -91,15 +91,15 @@ def test_privacy_mode_validated() -> None:
     assert CapturePolicyUpsert(privacy_mode="FULL").privacy_mode == "FULL"
 
 
-# ── B-06 replay worker registered ─────────────────────────────────────────────
-def test_replay_task_registered() -> None:
+# ── B-06/B-16 build worker registered (replay merged into experiments, B-07) ──
+def test_build_maintenance_task_registered() -> None:
     import importlib
 
     from runledger_api.core.celery_app import celery_app
 
     for module in celery_app.conf.include:
         importlib.import_module(module)
-    assert "replay.run_experiment" in celery_app.tasks
+    assert "build.purge_expired_memories" in celery_app.tasks
 
 
 # ── S-20 retention isolates policies ──────────────────────────────────────────

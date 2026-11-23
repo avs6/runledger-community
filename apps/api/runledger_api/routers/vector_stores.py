@@ -13,7 +13,8 @@ PUT    /vector-stores/{id}                      Update collection
 DELETE /vector-stores/{id}                      Delete (soft) collection
 GET    /vector-stores/{id}/stats                Collection cost/usage stats
 GET    /vector-stores/{id}/queries              Recent queries
-POST   /vector-stores/{id}/search-test          Test a search query
+POST   /vector-stores/{id}/search-test          Search the collection in Qdrant
+POST   /vector-stores/{id}/sync                 Refresh counts from Qdrant
 """
 
 from __future__ import annotations
@@ -41,9 +42,11 @@ from runledger_api.schemas.vector_stores import (
     VectorCollectionUpdate,
     VectorQueryListResponse,
     VectorQueryResponse,
+    VectorSearchResult,
     VectorSearchTestRequest,
     VectorSearchTestResponse,
 )
+from runledger_api.services import vector_search
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/vector-stores", tags=["vector-stores"])
@@ -318,6 +321,22 @@ async def list_queries(
 # ── Search Test ────────────────────────────────────────────────────────────
 
 
+async def _collection_or_404(
+    db: AsyncSession, collection_id: uuid.UUID, ws: Workspace
+) -> VectorStoreCollection:
+    coll = (
+        await db.execute(
+            select(VectorStoreCollection).where(
+                VectorStoreCollection.id == collection_id,
+                VectorStoreCollection.workspace_id == ws.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not coll:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
+    return coll
+
+
 @router.post(
     "/{collection_id}/search-test",
     response_model=VectorSearchTestResponse,
@@ -329,38 +348,80 @@ async def search_test(
     ws: WorkspaceDep,
     db: DbDep,
 ) -> VectorSearchTestResponse:
-    result = await db.execute(
-        select(VectorStoreCollection).where(
-            VectorStoreCollection.id == collection_id,
-            VectorStoreCollection.workspace_id == ws.id,
+    """Embed the query and search the collection in Qdrant (review B-19).
+
+    Returns 503 with the reason when Qdrant or the embedding service is not
+    reachable; nothing is recorded in that case, so counters stay honest.
+    """
+    coll = await _collection_or_404(db, collection_id, ws)
+    try:
+        hits, latency_ms = await vector_search.search(
+            coll.qdrant_collection,
+            body.query,
+            top_k=body.top_k,
+            threshold=float(body.threshold) if body.threshold is not None else None,
+        )
+    except vector_search.VectorSearchUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    results = [
+        VectorSearchResult(score=Decimal(str(round(h["score"], 6))), payload=h["payload"])
+        for h in hits
+    ]
+    best = max((r.score for r in results), default=None)
+    db.add(
+        VectorStoreQuery(
+            id=uuid.uuid4(),
+            workspace_id=ws.id,
+            collection_id=collection_id,
+            query_text=body.query,
+            top_k=body.top_k,
+            threshold=body.threshold,
+            result_count=len(results),
+            best_score=best,
+            latency_ms=latency_ms,
+            results=[r.model_dump(mode="json") for r in results],
         )
     )
-    coll = result.scalar_one_or_none()
-    if not coll:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Collection not found")
-
-    query_record = VectorStoreQuery(
-        id=uuid.uuid4(),
-        workspace_id=ws.id,
-        collection_id=collection_id,
-        query_text=body.query,
-        top_k=body.top_k,
-        threshold=body.threshold,
-        result_count=0,
-        latency_ms=0,
-    )
-    db.add(query_record)
-
     coll.total_queries += 1
     coll.last_queried_at = datetime.now(UTC)
     await db.commit()
-    await db.refresh(query_record)
 
     return VectorSearchTestResponse(
         query=body.query,
-        results=[],
-        result_count=0,
-        latency_ms=0,
+        results=results,
+        result_count=len(results),
+        latency_ms=latency_ms,
         embed_cost=Decimal("0"),
         query_cost=Decimal("0"),
     )
+
+
+@router.post(
+    "/{collection_id}/sync",
+    response_model=VectorCollectionResponse,
+    dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
+)
+async def sync_collection(
+    collection_id: uuid.UUID, ws: WorkspaceDep, db: DbDep
+) -> VectorCollectionResponse:
+    """Refresh document count, dimensions and status from Qdrant (review B-19)."""
+    coll = await _collection_or_404(db, collection_id, ws)
+    try:
+        info = await vector_search.collection_info(coll.qdrant_collection)
+    except vector_search.VectorSearchUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    coll.document_count = info["points_count"]
+    if info["dimensions"]:
+        coll.dimensions = info["dimensions"]
+    if info["distance"]:
+        coll.distance_metric = info["distance"]
+    coll.config = {
+        **(coll.config or {}),
+        "qdrant_status": info["status"],
+        "synced_at": datetime.now(UTC).isoformat(),
+    }
+    coll.updated_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(coll)
+    return _collection_to_response(coll)
