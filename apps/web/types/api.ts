@@ -591,16 +591,7 @@ export interface CohortList { items: CohortSummary[]; window_days: number }
 export interface AnomalyItem { end_user_id: string; detected_at: string; daily_spend: string; mean_spend: string; zscore: string; reason: string; created_at: string }
 export interface AnomalyList { items: AnomalyItem[] }
 
-// ── Phase 10 — Replay ─────────────────────────────────────────────────────────
-
-export interface ExperimentConfig { model: string; label?: string | null; prompt_name?: string | null; prompt_version?: number | null }
-export interface DatasetResponse { id: string; name: string; source: string; run_ids: string[]; run_count: number; created_at: string }
-export interface DatasetList { items: DatasetResponse[] }
-export interface ExperimentResponse { id: string; dataset_id: string; name: string; configs: ExperimentConfig[]; status: string; estimated_cost_usd: string | null; created_at: string }
-export interface ExperimentList { items: ExperimentResponse[] }
-export interface ConfigResult { model: string; label?: string | null; run_count: number; total_input_tokens: number; total_output_tokens: number; projected_cost_usd: string; avg_cost_per_run: string; pricing_found: boolean; prompt_name?: string | null; prompt_version?: number | null; prompt_content_preview?: string | null }
-export interface ConfigDelta { config_a: string; config_b: string; cost_delta_pct: string | null }
-export interface ExperimentResults { experiment_id: string; experiment_name: string; status: string; dataset_run_count: number; configs: ConfigResult[]; deltas: ConfigDelta[]; completed_at: string | null }
+// Replay Lab was merged into experiments (mode = "replay", review B-07); see EvalExperiment.
 
 // ── Phase 11 — Ledger ──────────────────────────────────────────────────────────
 
@@ -762,8 +753,56 @@ export interface PromptResponse {
   name: string
   description: string | null
   default_environment: string
+  promotion_min_score: number | null
+  promotion_score_name: string | null
   created_at: string
   updated_at: string
+}
+
+export interface PromotionApproval {
+  id: string
+  status: 'pending' | 'approved' | 'denied' | 'cancelled'
+  source_environment: string | null
+  version: number | null
+  requested_by: string | null
+  decided_by: string | null
+  decided_at: string | null
+  decision_note: string | null
+  used_by_version: number | null
+  created_at: string
+}
+
+export interface PromotionApprovalList {
+  items: PromotionApproval[]
+}
+
+export interface VersionScore {
+  version: number
+  score: number | null
+  source: 'experiment' | 'runs' | null
+  sample_size: number
+  min_score: number | null
+  passes_gate: boolean | null
+}
+
+export interface PromptDiffLine {
+  kind: 'context' | 'add' | 'remove' | 'hunk'
+  text: string
+  old_line: number | null
+  new_line: number | null
+}
+
+export interface PromptDiff {
+  name: string
+  from_version: number
+  to_version: number
+  from_environment: string
+  to_environment: string
+  added: number
+  removed: number
+  lines: PromptDiffLine[]
+  model_hint_changed: boolean
+  variables_changed: boolean
 }
 
 export interface PromptList {
@@ -779,6 +818,7 @@ export interface PromptVersion {
   commit_message: string | null
   environment: string
   model_hint: string | null
+  approval_id: string | null
   created_at: string
 }
 
@@ -1454,6 +1494,8 @@ export interface EvaluatorRunResult {
   evaluated: number
   scores_created: number
   errors: number
+  skipped: number
+  queued: boolean
 }
 
 // ── Cost-quality analytics ────────────────────────────────────────────────────
@@ -2325,9 +2367,11 @@ export interface KafkaTestResult {
 // ── Eval Experiments & Datasets ────────────────────────────────────────────────
 
 export interface DatasetItem {
-  input: string
-  expected_output: string | null
-  metadata: Record<string, unknown>
+  input?: string | null
+  messages?: Array<{ role: string; content: unknown }> | null
+  run_id?: string | null
+  expected_output?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface EvalDataset {
@@ -2348,8 +2392,84 @@ export interface EvalDatasetList {
 
 export interface ExperimentModelConfig {
   model: string
-  provider: string
-  label: string | null
+  provider?: string | null
+  label?: string | null
+  params?: Record<string, unknown> | null
+}
+
+export type ExperimentMode = 'eval' | 'replay'
+
+export interface ExperimentModelRow {
+  model: string
+  label: string
+  items_run: number
+  errors: number
+  avg_score: number | null
+  scored_items: number
+  expected_match_rate: number | null
+  avg_latency_ms: number | null
+  total_cost_usd: string | null
+  avg_cost_usd: string | null
+  input_tokens: number
+  output_tokens: number
+}
+
+export interface ExperimentItemOutput {
+  model: string
+  label: string
+  ok: boolean
+  text: string | null
+  error: string | null
+  latency_ms: number
+  cost_usd: string | null
+  run_id: string | null
+  score?: number
+  scores: Record<string, number | null>
+}
+
+export interface ExperimentResultsV2 {
+  mode: ExperimentMode
+  prompt_name: string | null
+  prompt_version: number | null
+  evaluators: string[]
+  summary: {
+    items: number
+    calls: number
+    errors: number
+    skipped: number
+    scored_items: number
+    avg_score: number | null
+    total_cost_usd: string
+    scores_created: number
+    via: string
+  }
+  models: ExperimentModelRow[]
+  deltas: Array<{
+    baseline: string
+    candidate: string
+    score_delta: number | null
+    cost_delta_pct: number | null
+    latency_delta_pct: number | null
+  }>
+  items: Array<{
+    index: number
+    input: string
+    expected_output: string | null
+    run_id: string | null
+    outputs: ExperimentItemOutput[]
+  }>
+  error?: string
+}
+
+export interface RouteRecommendationResult {
+  recommendation_id: string
+  alias: string
+  current_model: string
+  proposed_model: string
+  current_quality: number | null
+  proposed_quality: number | null
+  est_cost_delta_pct: number | null
+  rationale: string
 }
 
 export interface EvalExperiment {
@@ -2358,12 +2478,13 @@ export interface EvalExperiment {
   dataset_id: string | null
   name: string
   description: string | null
+  mode: ExperimentMode
   prompt_name: string | null
   prompt_version: number | null
   evaluator_ids: string[]
   models: ExperimentModelConfig[]
   status: 'pending' | 'running' | 'completed' | 'failed'
-  results: Record<string, unknown> | null
+  results: ExperimentResultsV2 | null
   run_count: number
   scores_created: number
   started_at: string | null
@@ -2454,6 +2575,16 @@ export interface OptimizationOpportunity {
   potential_savings_usd: string
   affected_calls: number
   description: string
+  /** Flywheel recommendation behind this item (review B-20). */
+  recommendation_id: string | null
+  segment_by: string | null
+  segment_key: string | null
+  kind: string | null
+  confidence: string | null
+  current_config: Record<string, unknown>
+  proposed_config: Record<string, unknown>
+  est_cost_delta_pct: number | null
+  applies_to_route: boolean
 }
 
 export interface OptimizationOpportunitiesResponse {
@@ -3700,7 +3831,18 @@ export interface PlaygroundRequestResponse {
   route_decision: string | null
   error: string | null
   gateway_request_id: string | null
+  run_id: string | null
   created_at: string
+}
+
+export interface PlaygroundModel {
+  alias: string
+  provider: string | null
+  targets: string[]
+}
+
+export interface PlaygroundModelList {
+  items: PlaygroundModel[]
 }
 
 export interface PlaygroundRequestListResponse {
@@ -3709,6 +3851,7 @@ export interface PlaygroundRequestListResponse {
 }
 
 export interface PlaygroundCompareResponse {
+  compare_group: string | null
   results: PlaygroundRequestResponse[]
 }
 

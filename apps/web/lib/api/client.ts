@@ -270,7 +270,7 @@ export async function exportRunbook(
   const API = typeof window === 'undefined'
     ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
     : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-  const res = await fetch(`${API}/runs/runbooks/${runbookId}/export?format=${format}`, {
+  const res = await fetch(`${API}/runbooks/${runbookId}/export?format=${format}`, {
     headers: { Authorization: `Bearer ${apiKey}` },
     cache: 'no-store',
   })
