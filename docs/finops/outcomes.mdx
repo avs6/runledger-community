@@ -25,6 +25,12 @@ rl.outcome("refund_resolved", True, run_id=run_id, value_usd=12.00)
 
 You can also use the UI form on the Outcomes page or call `POST /outcomes` directly.
 
+There is one outcomes table. Outcomes sent through ingest (`event_type: "outcome"` in
+`/ingest/v1/batch`, the SDK, and the MCP `runledger.record_outcome` tool) land in the same place as
+`POST /outcomes`, so all of them appear in the ledger, ROI, Request Flow and the Engineering funnel.
+An outcome may only reference a run of its own workspace. When a run has several outcomes, its
+cost is counted once per outcome type (and once per workflow × type), so ROI isn't inflated.
+
 ## Manage recorded outcomes
 
 RunLedger now supports the full lifecycle for recorded outcomes:
