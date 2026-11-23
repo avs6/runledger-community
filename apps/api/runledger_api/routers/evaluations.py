@@ -14,6 +14,11 @@ GET  /evaluations/evaluators/{id}      Get a single evaluator
 PUT  /evaluations/evaluators/{id}      Update an evaluator
 DELETE /evaluations/evaluators/{id}    Delete an evaluator
 POST /evaluations/evaluators/{id}/run  Trigger a batch evaluation run
+
+LLM judges are gateway-backed (review B-09): ``model`` must be a gateway route
+alias, the RunLedger key the judge uses is write-only (``gateway_api_key`` in,
+stored as an encrypted ``gateway_key_ref``, never returned), provider keys and
+``base_url`` are rejected, and creating or changing a judge needs a workspace admin.
 """
 
 from __future__ import annotations
@@ -22,12 +27,17 @@ import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_writer
+from runledger_api.core.deps import (
+    _session_owner,
+    get_current_workspace,
+    require_workspace_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.models.evaluators import Evaluator
@@ -42,6 +52,8 @@ from runledger_api.schemas.evaluators import (
     EvaluatorUpdate,
 )
 from runledger_api.schemas.scores import ScoreCreate, ScoreList, ScoreResponse
+from runledger_api.services import gateway_client
+from runledger_api.services.evaluators import normalize_judge_config, public_config
 
 router = APIRouter(
     prefix="/evaluations",
@@ -52,6 +64,47 @@ log = structlog.get_logger()
 
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+def _evaluator_response(ev: Evaluator) -> EvaluatorResponse:
+    resp = EvaluatorResponse.model_validate(ev)
+    resp.config = public_config(ev.type, ev.config or {})
+    return resp
+
+
+async def _require_admin_for_judge(
+    request: Request, db: AsyncSession, workspace: Workspace
+) -> None:
+    """Judges spend money through the gateway with a stored key: workspace admins only."""
+    api_key = getattr(request.state, "api_key", None)
+    user = getattr(request.state, "session_user", None)
+    if user is None and api_key is not None and api_key.is_session:
+        user = await _session_owner(api_key, db)
+    if user is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Creating or changing an LLM judge needs a workspace admin (dashboard session)",
+        )
+    await require_workspace_admin(workspace_user=(workspace, user), db=db)
+
+
+async def _validated_judge_config(
+    db: AsyncSession,
+    workspace_id: uuid.UUID,
+    config: dict,
+    existing: dict | None = None,
+) -> dict:
+    try:
+        cfg = normalize_judge_config(config, existing)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    aliases = {a["alias"] for a in await gateway_client.list_route_aliases(db, workspace_id)}
+    if cfg["model"] not in aliases:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Judge model '{cfg['model']}' is not an active gateway route alias in this workspace",
+        )
+    return cfg
 
 
 # ── Scores ────────────────────────────────────────────────────────────────────
@@ -172,23 +225,28 @@ async def list_scores(
 )
 async def create_evaluator(
     body: EvaluatorCreate,
+    request: Request,
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> EvaluatorResponse:
     """Create a new evaluator (llm_judge or rule)."""
+    config = dict(body.config)
+    if body.type == "llm_judge":
+        await _require_admin_for_judge(request, db, workspace)
+        config = await _validated_judge_config(db, workspace.id, config)
     ev = Evaluator(
         workspace_id=workspace.id,
         name=body.name,
         description=body.description,
         type=body.type,
-        config=body.config,
+        config=config,
     )
     db.add(ev)
     await db.flush()
     await db.commit()
     await db.refresh(ev)
     log.info("evaluator_created", workspace_id=str(workspace.id), name=body.name, type=body.type)
-    return EvaluatorResponse.model_validate(ev)
+    return _evaluator_response(ev)
 
 
 @router.get("/evaluators", response_model=EvaluatorList)
@@ -205,7 +263,7 @@ async def list_evaluators(
         stmt = stmt.where(Evaluator.status == status_filter)
     stmt = stmt.order_by(Evaluator.created_at.desc(), Evaluator.id)
     items = await paginate(db, stmt, page, response)
-    return EvaluatorList(items=[EvaluatorResponse.model_validate(e) for e in items])
+    return EvaluatorList(items=[_evaluator_response(e) for e in items])
 
 
 @router.get("/evaluators/{evaluator_id}", response_model=EvaluatorResponse)
@@ -224,7 +282,7 @@ async def get_evaluator(
     ev = result.scalar_one_or_none()
     if ev is None:
         raise HTTPException(status_code=404, detail="Evaluator not found")
-    return EvaluatorResponse.model_validate(ev)
+    return _evaluator_response(ev)
 
 
 @router.put(
@@ -235,6 +293,7 @@ async def get_evaluator(
 async def update_evaluator(
     evaluator_id: uuid.UUID,
     body: EvaluatorUpdate,
+    request: Request,
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> EvaluatorResponse:
@@ -254,13 +313,17 @@ async def update_evaluator(
     if body.description is not None:
         ev.description = body.description
     if body.config is not None:
-        ev.config = body.config
+        if ev.type == "llm_judge":
+            await _require_admin_for_judge(request, db, workspace)
+            ev.config = await _validated_judge_config(db, workspace.id, body.config, ev.config)
+        else:
+            ev.config = body.config
     if body.status is not None:
         ev.status = body.status
 
     await db.commit()
     await db.refresh(ev)
-    return EvaluatorResponse.model_validate(ev)
+    return _evaluator_response(ev)
 
 
 @router.delete(
@@ -295,14 +358,17 @@ async def delete_evaluator(
 async def run_evaluator(
     evaluator_id: uuid.UUID,
     body: EvaluatorRunRequest,
+    request: Request,
     workspace: WorkspaceDep,
     db: DbDep,
 ) -> EvaluatorRunResult:
     """
     Trigger a batch evaluation run.
 
-    Dispatches a Celery task asynchronously and returns immediately with a
-    placeholder result. The task processes runs in the background.
+    By default this queues a Celery task (judge calls use the evaluator's stored key
+    ref) and returns ``queued=true``. With ``wait=true`` it scores in the request,
+    sending judge calls through the gateway with the caller's key, and returns the
+    real counts.
     """
     # Verify evaluator belongs to this workspace
     result = await db.execute(
@@ -314,6 +380,18 @@ async def run_evaluator(
     ev = result.scalar_one_or_none()
     if ev is None:
         raise HTTPException(status_code=404, detail="Evaluator not found")
+
+    if body.wait:
+        from runledger_api.workers.evaluators import evaluate_batch
+
+        counts = await evaluate_batch(
+            db,
+            ev,
+            list(body.run_ids) if body.run_ids else None,
+            body.limit,
+            authorization=gateway_client.bearer_from_headers(request.headers),
+        )
+        return EvaluatorRunResult(evaluator_id=evaluator_id, queued=False, **counts)
 
     from runledger_api.workers.evaluators import batch_evaluate
 
@@ -331,4 +409,5 @@ async def run_evaluator(
         evaluated=0,
         scores_created=0,
         errors=0,
+        queued=True,
     )

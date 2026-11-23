@@ -2,19 +2,22 @@
 Evaluator runner logic.
 
 Supports two evaluator types:
-  - llm_judge: calls an OpenAI-compatible endpoint to score a run
+  - llm_judge: scores a run with a model called through the RunLedger gateway
   - rule:      applies field/op/value rules against AgentRun attributes
 """
 
 from __future__ import annotations
 
+import json
 import re
+import uuid
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-import httpx
 import structlog
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 log = structlog.get_logger()
 
@@ -114,80 +117,223 @@ def run_rule_evaluator(
 
 
 # ── LLM judge evaluator ───────────────────────────────────────────────────────
+#
+# The judge is gateway-backed (review B-09): it names a gateway route alias and
+# authenticates to gateway-rs with a RunLedger API key held as a secret ref, so
+# judge spend is governed, metered and budgeted like any other traffic. Provider
+# keys and free-form base URLs are rejected.
+
+# Config keys the API never stores or returns for an llm_judge.
+FORBIDDEN_JUDGE_KEYS = ("api_key", "base_url", "provider_api_key")
+# Write-only input field (raw RunLedger API key) and the stored secret ref.
+JUDGE_KEY_INPUT = "gateway_api_key"
+JUDGE_KEY_REF = "gateway_key_ref"
+
+
+def store_judge_secret(raw_key: str) -> str:
+    """Encrypt a judge key for storage. W1-A's ``core/secrets.py`` replaces this seam."""
+    from runledger_api.services.kafka_export import encrypt_secret_value  # noqa: PLC0415
+
+    return encrypt_secret_value(raw_key)
+
+
+def resolve_judge_secret(ref: str | None) -> str | None:
+    """Resolve a stored judge key ref (``enc::`` ciphertext or ``env://VAR``)."""
+    from runledger_api.services.kafka_export import resolve_secret_value  # noqa: PLC0415
+
+    return resolve_secret_value(ref) if ref else None
+
+
+def normalize_judge_config(
+    config: dict[str, Any], existing: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Validate an llm_judge config for storage; raise ValueError on bad input.
+
+    ``gateway_api_key`` (write-only) becomes an encrypted ``gateway_key_ref``;
+    ``gateway_key_ref`` may also be passed as ``env://VAR``. An update without a key
+    keeps the stored ref.
+    """
+    bad = [k for k in FORBIDDEN_JUDGE_KEYS if config.get(k)]
+    if bad:
+        raise ValueError(
+            "LLM judges run through the gateway: drop "
+            + ", ".join(bad)
+            + " and set 'model' to a gateway route alias"
+        )
+    if not str(config.get("model") or "").strip():
+        raise ValueError("llm_judge config needs 'model' (a gateway route alias)")
+    drop = (*FORBIDDEN_JUDGE_KEYS, JUDGE_KEY_INPUT, "gateway_key_set", "gateway_key_source")
+    out = {k: v for k, v in config.items() if k not in drop}
+    raw = config.get(JUDGE_KEY_INPUT)
+    ref = config.get(JUDGE_KEY_REF)
+    if raw:
+        out[JUDGE_KEY_REF] = store_judge_secret(str(raw))
+    elif isinstance(ref, str) and ref.lower().startswith("env://"):
+        out[JUDGE_KEY_REF] = ref
+    elif existing and existing.get(JUDGE_KEY_REF):
+        out[JUDGE_KEY_REF] = existing[JUDGE_KEY_REF]
+    else:
+        out.pop(JUDGE_KEY_REF, None)
+    return out
+
+
+def public_config(evaluator_type: str, config: dict[str, Any]) -> dict[str, Any]:
+    """Config as returned by the API: secrets masked, never echoed."""
+    if evaluator_type != "llm_judge":
+        return dict(config)
+    out = {k: v for k, v in config.items() if k not in (*FORBIDDEN_JUDGE_KEYS, JUDGE_KEY_REF)}
+    ref = config.get(JUDGE_KEY_REF)
+    out["gateway_key_set"] = bool(ref)
+    if not ref:
+        out["gateway_key_source"] = None
+    elif isinstance(ref, str) and ref.lower().startswith("env://"):
+        out["gateway_key_source"] = "env"
+    else:
+        out["gateway_key_source"] = "stored"
+    return out
+
+
+def payload_text(value: Any) -> str:
+    """Flatten a captured payload (messages, a response object, text) for a judge."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):  # chat messages
+        parts = []
+        for m in value:
+            if isinstance(m, dict):
+                parts.append(f"{m.get('role', 'user')}: {m.get('content', '')}")
+            else:
+                parts.append(str(m))
+        return "\n".join(parts)
+    if isinstance(value, dict):
+        choices = value.get("choices")
+        if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+            msg = choices[0].get("message") or {}
+            return str(msg.get("content") or "")
+        return json.dumps(value, default=str)
+    return str(value)
+
+
+async def load_run_payloads(
+    db: AsyncSession, run_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, dict[str, Any]]:
+    """Captured input/output for runs, from span metadata (review B-13).
+
+    Payloads exist only when the capture policy recorded them; runs without a
+    capture come back with ``None`` values so the judge skips them rather than
+    scoring an empty transcript.
+    """
+    from runledger_api.models.events import Span  # noqa: PLC0415
+
+    out: dict[uuid.UUID, dict[str, Any]] = {
+        rid: {"input_payload": None, "output_payload": None} for rid in run_ids
+    }
+    if not run_ids:
+        return out
+    rows = await db.execute(
+        select(Span.run_id, Span.span_metadata)
+        .where(Span.run_id.in_(run_ids), Span.span_metadata.isnot(None))
+        .order_by(Span.started_at)
+    )
+    for run_id, meta in rows.all():
+        if not isinstance(meta, dict):
+            continue
+        entry = out.setdefault(run_id, {"input_payload": None, "output_payload": None})
+        if entry["input_payload"] is None and meta.get("messages") is not None:
+            entry["input_payload"] = meta["messages"]
+        if entry["output_payload"] is None and meta.get("response") is not None:
+            entry["output_payload"] = meta["response"]
+    return out
 
 
 async def run_llm_judge(
     config: dict[str, Any],
     run: dict[str, Any],
+    *,
+    authorization: str | None = None,
 ) -> tuple[Decimal, dict[str, Any]]:
     """
-    Call an OpenAI-compatible API to score a run.
+    Score a run with an LLM judge sent through the gateway.
 
     config keys:
-      model          — model identifier (required)
-      api_key        — provider API key
-      base_url       — provider base URL (default: OpenAI)
-      prompt_template— jinja-style template with {{input}} / {{output}} / {{run_id}}
-      criteria       — natural-language scoring criteria
-      min_score      — minimum normalised score (default 0.0)
-      max_score      — maximum normalised score (default 1.0)
+      model           — gateway route alias (required)
+      gateway_key_ref — stored secret ref for the RunLedger key the judge uses
+      prompt_template — template with {{input}} / {{output}} / {{expected}} / {{run_id}}
+      criteria        — natural-language scoring criteria
+      min_score       — minimum normalised score (default 0.0)
+      max_score       — maximum normalised score (default 1.0)
+
+    ``authorization`` (a caller's ``Bearer`` header) is used for interactive runs;
+    background runs use the stored key ref.
     """
-    model: str = config.get("model", "gpt-4o-mini")
-    api_key: str = config.get("api_key", "")
-    base_url: str = config.get("base_url", "https://api.openai.com/v1")
+    from runledger_api.services import gateway_client  # noqa: PLC0415
+
+    model: str = str(config.get("model") or "")
+    if not model:
+        raise ValueError("llm_judge has no gateway route alias in 'model'")
     criteria: str = config.get("criteria", "Rate the quality of the AI agent response from 0 to 1.")
     min_score: float = float(config.get("min_score", 0.0))
     max_score: float = float(config.get("max_score", 1.0))
 
+    input_text = payload_text(run.get("input_payload"))[:4000]
+    output_text = payload_text(run.get("output_payload"))[:4000]
+    if not input_text and not output_text:
+        raise ValueError("No captured input/output for this run; the judge has nothing to score")
+
     prompt_template: str = config.get(
         "prompt_template",
-        "Run ID: {{run_id}}\nInput: {{input}}\nOutput: {{output}}\n\n"
+        "Run ID: {{run_id}}\nInput: {{input}}\nOutput: {{output}}\n"
+        "Expected (may be empty): {{expected}}\n\n"
         "Criteria: {{criteria}}\n\n"
         'Respond with a single JSON object: {"score": <float 0-1>, "reasoning": "<brief explanation>"}',
     )
-
-    # Substitute template variables
-    input_text = str(run.get("input_payload") or run.get("metadata") or "")[:2000]
-    output_text = str(run.get("output_payload") or "")[:2000]
     prompt = (
         prompt_template.replace("{{run_id}}", str(run.get("id", "")))
         .replace("{{input}}", input_text)
         .replace("{{output}}", output_text)
+        .replace("{{expected}}", str(run.get("expected_output") or ""))
         .replace("{{criteria}}", criteria)
     )
 
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    if authorization is None:
+        key = resolve_judge_secret(config.get(JUDGE_KEY_REF))
+        if not key:
+            raise ValueError(
+                "llm_judge has no gateway key; set gateway_api_key on the evaluator "
+                "(stored encrypted) or run it interactively"
+            )
+        authorization = f"Bearer {key}"
 
-    payload = {
-        "model": model,
-        "messages": [
+    result = await gateway_client.chat_completion(
+        authorization,
+        model=model,
+        messages=[
             {
                 "role": "system",
                 "content": "You are an AI quality evaluator. Always respond with valid JSON only.",
             },
             {"role": "user", "content": prompt},
         ],
-        "temperature": 0.0,
-        "max_tokens": 256,
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(f"{base_url}/chat/completions", json=payload, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-
-    content = data["choices"][0]["message"]["content"].strip()
-
-    # Extract JSON from the response
-    import json
+        params={"temperature": 0.0, "max_tokens": 256},
+        metadata={
+            "feature_tag": "evaluator",
+            "source": "evaluator.judge",
+            "judged_run_id": str(run.get("id", "")),
+        },
+        tags=["evaluator"],
+        timeout_s=60.0,
+    )
+    if not result.ok:
+        raise ValueError(
+            f"Judge call through the gateway failed [{result.status_code}]: {result.error}"
+        )
+    content = (result.text or "").strip()
 
     try:
-        # Try direct parse first
         parsed = json.loads(content)
     except json.JSONDecodeError:
-        # Try to find JSON block in response
         match = re.search(r"\{[^}]+\}", content, re.DOTALL)
         if match:
             parsed = json.loads(match.group())
@@ -195,16 +341,18 @@ async def run_llm_judge(
             raise ValueError(f"LLM judge returned non-JSON: {content[:200]}") from None
 
     raw_score = float(parsed.get("score", 0.5))
-    # Clamp to [0, 1] then scale to [min_score, max_score]
     raw_score = max(0.0, min(1.0, raw_score))
     scaled = min_score + raw_score * (max_score - min_score)
 
     evidence = {
         "model": model,
+        "model_used": result.model,
         "raw_score": raw_score,
         "reasoning": parsed.get("reasoning", ""),
-        "prompt_tokens": data.get("usage", {}).get("prompt_tokens"),
-        "completion_tokens": data.get("usage", {}).get("completion_tokens"),
+        "prompt_tokens": result.input_tokens,
+        "completion_tokens": result.output_tokens,
+        "via": "gateway",
+        "judge_request_ref": result.request_ref,
     }
 
     return Decimal(str(round(scaled, 4))), evidence
@@ -214,8 +362,10 @@ async def evaluate_run(
     evaluator_type: str,
     config: dict[str, Any],
     run: dict[str, Any],
+    *,
+    authorization: str | None = None,
 ) -> tuple[Decimal, dict[str, Any]]:
     """Dispatch to the correct evaluator type."""
     if evaluator_type == "llm_judge":
-        return await run_llm_judge(config, run)
+        return await run_llm_judge(config, run, authorization=authorization)
     return run_rule_evaluator(config, run)
