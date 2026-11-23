@@ -469,7 +469,7 @@ async def recommend_route(
     the cheapest model that holds the baseline score within ``max_score_drop``, or
     the best scorer. The recommendation proposes switching the baseline alias's
     primary route to the candidate's target model, and is applied (with audit and
-    rollback) through ``POST /flywheel/recommendations/{id}/apply``.
+    rollback) through ``POST /gateway/flywheel/recommendations/{id}/apply``.
     """
     exp = await _experiment_or_404(db, experiment_id, workspace)
     if exp.status != "completed" or not isinstance(exp.results, dict):

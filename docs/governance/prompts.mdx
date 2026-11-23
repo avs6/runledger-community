@@ -13,8 +13,12 @@ runtime — so a prompt change is auditable and reversible instead of a silent c
 ## Key features
 
 - **Versioning** — every edit is a new immutable version.
-- **Diff viewer** — compare any two versions.
-- **Promote-to-production** — pin the version your app fetches by name.
+- **Diff viewer** — a server-computed line diff between any two versions (`GET /prompts/{name}/diff?from=&to=`).
+- **Governed production** — new versions land in `dev`; every way into `production` (create, edit,
+  promote, GitHub pull) needs an approved `prompt_promote` approval for that prompt, and each approval
+  authorises exactly one production version.
+- **Score gate** — set `promotion_min_score` (0–1) and promotion is refused until the candidate version
+  scores at least that much, from its latest experiment or its scored runs.
 - **Variable substitution** — `{{variables}}` filled at fetch time.
 - **GitHub sync** — optionally back the registry with a repo.
 
@@ -27,6 +31,26 @@ flowchart LR
   app[App: fetch by name] --> promote
   promote --> render[Substitute variables] --> use[Use in call]
 ```
+
+## Promote to production
+
+```bash
+# 1. Ask for approval for the latest staging version (normal approvals queue,
+#    auto-approval policies and notifications apply)
+curl -X POST $API/prompts/support-reply/promotion-requests -H "Authorization: Bearer $KEY" \
+  -d '{"source_environment": "staging", "reason": "friendlier tone"}'
+# 2. An approver approves it in Approvals (or POST /approvals/{id}/approve)
+# 3. Promote with that approval
+curl -X POST $API/prompts/support-reply/promote -H "Authorization: Bearer $KEY" \
+  -d '{"source_environment": "staging", "target_environment": "production", "approval_id": "<id>"}'
+```
+
+Without an approval the API answers `403`; reusing an approval is `409`; an approval pinned to another
+version, or a candidate below the score gate, is `409` with the reason. `GET
+/prompts/{name}/promotion-requests` lists the approvals and the version each was used for, and `GET
+/prompts/{name}/versions/{v}/score` shows the score the gate checks. In the dashboard, the prompt page's
+**Promotion to production** panel does all of this. Set or clear the gate with `PATCH /prompts/{name}`
+(`promotion_min_score`, `promotion_score_name`, `clear_promotion_gate`).
 
 ## Fetch at runtime
 

@@ -1,6 +1,6 @@
 ---
 title: "API Playground"
-description: "Send requests through the RunLedger gateway, compare models side-by-side, and track prompt cost and latency."
+description: "Send requests through the RunLedger gateway to your route aliases, compare them side by side, and see each call as a recorded run."
 ---
 
 The API Playground lets you send requests through the RunLedger gateway interactively,
@@ -52,7 +52,7 @@ Session modes: `single`, `conversation`, `compare`.
 curl -X POST http://localhost:8201/playground/send \
   -H "Authorization: Bearer rl_..." \
   -d '{
-    "model": "gpt-4o",
+    "model": "smart",
     "user_prompt": "Explain quantum computing in one sentence.",
     "parameters": {"temperature": 0.7, "max_tokens": 100},
     "session_id": "optional-session-uuid"
@@ -62,11 +62,26 @@ curl -X POST http://localhost:8201/playground/send \
 The response includes `model`, `user_prompt`, `response_text`, `input_tokens`,
 `output_tokens`, `cost_usd`, `latency_ms`, `status`, and `route_decision`.
 
-<Note>
-Gateway integration is pending — requests are currently recorded with a stub response.
-Once wired, requests route through the full RunLedger gateway with caching, routing, and
-budget enforcement.
-</Note>
+Every send goes through gateway-rs with your API key, so routing, caching, budgets, guardrails and
+metering apply and the call is recorded as a run (`feature_tag=playground`); `run_id` links to it. When
+the gateway refuses a call (budget, guardrail, no route) the request is stored with `status=failed` and
+the gateway's reason in `error`.
+
+## Models
+
+`model` is a gateway route alias. `GET /playground/models` lists this workspace's active aliases with
+their target models; the dashboard's pickers use it.
+
+## Compare
+
+```bash
+curl -X POST http://localhost:8201/playground/compare \
+  -H "Authorization: Bearer rl_..." \
+  -d '{"models": ["smart", "fast"], "user_prompt": "Summarise our refund policy."}'
+```
+
+Sends the same prompt to 2–5 aliases in parallel and returns one result per alias with a shared
+`compare_group`; the dashboard shows them side by side with cost and latency deltas against the first.
 
 ## Compare models
 

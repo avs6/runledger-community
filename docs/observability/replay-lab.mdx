@@ -1,35 +1,39 @@
 ---
-title: "Replay Lab"
-description: "Replay past AI requests through alternate routes and compare cost, quality, latency, and token usage side by side."
+title: "Replay experiments"
+description: "Re-run the captured conversations of recorded runs against other route aliases, through the gateway, and compare quality, cost and latency."
 ---
 
-The Replay Lab lets you take real requests from production and replay them through different model configurations to find the optimal route. Compare cost, quality, tokens, and latency side by side, then promote the winning config as a Gateway route recommendation.
-
-## Key features
-
-- **Multi-config comparison** — replay the same requests through different models, providers, cache policies, and compression settings.
-- **Side-by-side results** — compare response quality, cost, tokens, latency, tool usage, and outcome score.
-- **Experiment creation** — replay results become experiments for further analysis.
-- **Route recommendations** — promote a winning config directly to a Gateway route recommendation.
-- **Cost delta analysis** — see percentage savings between configurations.
+Replay is a mode of [experiments](/governance/evaluations#experiments). The old Replay Lab only projected
+cost from token counts; replay experiments now send each captured conversation through the gateway again,
+once per route alias, and record real responses, cost and latency.
 
 ## Workflow
 
 ```mermaid
 flowchart LR
-  dataset[Select dataset of past requests] --> configs[Define alternate configs]
-  configs --> run[Run experiment]
-  run --> compare[Compare results side by side]
-  compare --> recommend[Promote winning config to route recommendation]
+  runs[Recorded runs with captured payloads] --> ds[POST /datasets/from-runs]
+  ds --> exp[Experiment mode=replay, 1..6 route aliases]
+  exp --> run[Run through the gateway]
+  run --> compare[Per-model score, cost, latency, deltas]
+  compare --> rec[Recommend route → Flywheel → apply]
 ```
+
+- Replays need the original messages, so only runs captured under a `SAMPLED`/`FULL` capture policy can
+  be added; others are reported and skipped.
+- Set `use_output_as_expected` when curating to score replies against the recorded answer (a regression
+  check).
+- `/replay` and `/replay/{id}` in the dashboard redirect to `/experiments?mode=replay` and
+  `/experiments/{id}`.
 
 ## Related
 
 <CardGroup cols={2}>
-  <Card title="Model scorecards" icon="trophy" href="/observability/model-scorecards">
-    Quality metrics that inform replay decisions.
+  <Card title="Evaluations & experiments" icon="flask" href="/governance/evaluations">
+    Datasets, evaluators and the eval mode.
   </Card>
-  <Card title="Optimization simulator" icon="flask" href="/observability/optimization-simulator">
-    What-if analysis without replaying real traffic.
+  <Card title="Optimization flywheel" icon="rotate" href="/optimization/flywheel">
+    Apply a recommended route with audit and rollback.
   </Card>
 </CardGroup>
+
+See [`examples/10_replay_experiment.py`](https://github.com/avs6/runledger-community/blob/master/examples/10_replay_experiment.py).

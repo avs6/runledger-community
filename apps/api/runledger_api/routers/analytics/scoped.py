@@ -301,7 +301,7 @@ async def optimization_opportunities(
     """Optimization opportunities from the Flywheel (review B-20).
 
     One engine: each item is a pending Flywheel recommendation learned from observed
-    cost and quality, applied with ``POST /flywheel/recommendations/{id}/apply``.
+    cost and quality, applied with ``POST /gateway/flywheel/recommendations/{id}/apply``.
     ``from``/``to`` are accepted for compatibility; the Flywheel's own lookback
     window applies.
     """

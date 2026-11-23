@@ -171,7 +171,7 @@ class OptimizationOpportunity(BaseModel):
     affected_calls: int
     description: str
     # Flywheel recommendation behind this opportunity (review B-20); apply it with
-    # POST /flywheel/recommendations/{recommendation_id}/apply.
+    # POST /gateway/flywheel/recommendations/{recommendation_id}/apply.
     recommendation_id: uuid.UUID | None = None
     segment_by: str | None = None
     segment_key: str | None = None

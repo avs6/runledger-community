@@ -9,7 +9,9 @@ RunLedger auto-generates runbooks for agent runs that are expensive, failed, or 
 
 - **Auto-generated summaries** — created for expensive, failed, or risky runs.
 - **Severity classification** — critical, warning, and info levels.
-- **Export** — download as markdown or JSON.
+- **Export** — `GET /runbooks/{id}/export?format=md|json` downloads Markdown or JSON.
+- **Get and delete** — `GET /runbooks`, `GET /runbooks/{id}` and `DELETE /runbooks/{id}`. Runbooks are
+  derived from a run (`POST /runs/{run_id}/runbook`), so there is no update: regenerate instead.
 - **Generate from run ID** — create a runbook for any specific run on demand.
 - **Linked navigation** — jump to the run in [Request Explorer](/observability/request-explorer) or view the full run detail.
 

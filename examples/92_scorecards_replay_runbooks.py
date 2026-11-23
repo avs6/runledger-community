@@ -7,6 +7,7 @@ that operators can pivot into from each surface.
 """
 
 import os
+
 import httpx
 
 BASE = os.getenv("RUNLEDGER_API_URL", "http://localhost:8201")
@@ -26,16 +27,17 @@ def main() -> None:
         print("  Drill-through: Workspaces, Model Usage, Evaluation Studio")
 
         # Replay lab — datasets and experiments
-        ds = c.get("/replay/datasets").json()
-        ex = c.get("/replay/experiments").json()
-        print(f"\n=== Replay Lab ===")
+        # Replay Lab was merged into experiments as mode=replay (review B-07)
+        ds = c.get("/datasets", params={"source": "runs"}).json()
+        ex = c.get("/experiments", params={"mode": "replay"}).json()
+        print("\n=== Replay experiments ===")
         print(f"  Datasets: {len(ds.get('items', []))}")
         print(f"  Experiments: {len(ex.get('items', []))}")
         print("  Drill-through: Model Gateway, Provider Profiles, Routes")
 
         # Runbooks — auto-generated post-mortems
-        rb = c.get("/runs/runbooks", params={"limit": 5}).json()
-        print(f"\n=== Runbooks ===")
+        rb = c.get("/runbooks", params={"limit": 5}).json()
+        print("\n=== Runbooks ===")
         print(f"  Total runbooks: {rb.get('total', 0)}")
         for item in rb.get("items", [])[:3]:
             print(f"    Run {item['run_id'][:8]}... severity={item['severity']}")

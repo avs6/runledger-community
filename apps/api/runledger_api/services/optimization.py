@@ -4,7 +4,7 @@ One optimization engine (review B-20).
 Optimization opportunities come from the Flywheel: per-segment recommendations
 learned from observed runs, cost and quality, each of which can be applied to a
 gateway route (with audit and rollback) through ``POST
-/flywheel/recommendations/{id}/apply``. This replaces the fixed 15/30/20% guesses
+/gateway/flywheel/recommendations/{id}/apply``. This replaces the fixed 15/30/20% guesses
 the analytics endpoint used and the second engine the page computed client-side.
 """
 
