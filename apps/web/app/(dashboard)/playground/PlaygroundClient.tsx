@@ -8,19 +8,11 @@ import {
   Settings2, SplitSquareHorizontal, X, ChevronDown,
   Sparkles, Zap, AlertCircle, Terminal,
 } from 'lucide-react'
-import type { PlaygroundRequestResponse, PlaygroundSessionResponse } from '@/types/api'
+import type { PlaygroundModel, PlaygroundRequestResponse, PlaygroundSessionResponse } from '@/types/api'
+import { comparePlaygroundModels, sendPlaygroundRequest } from '@/lib/api'
+import { EmptyState } from '@/components/ui/empty-state'
+import { routes } from '@/lib/routes'
 import { num } from '@/lib/utils'
-
-const POPULAR_MODELS = [
-  'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
-  'gpt-5', 'o3', 'o4-mini',
-  'claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-haiku-4-5-20251001',
-  'gemini-2.5-pro', 'gemini-2.5-flash',
-  'deepseek-v3', 'deepseek-r1',
-  'llama-3.3-70b-instruct', 'llama-4-scout', 'llama-4-maverick',
-  'mistral-large-latest', 'mistral-small-latest',
-  'qwen-3-235b',
-]
 
 function money(v: number | null | undefined) {
   if (!v) return '$0.00'
@@ -36,10 +28,29 @@ function statusCls(s: string) {
   return 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300'
 }
 
+/** Side-by-side deltas of a compared model against the first (baseline) column. */
+function CompareDelta({ base, other }: { base: PlaygroundRequestResponse; other: PlaygroundRequestResponse }) {
+  const delta = (a: number | null | undefined, b: number | null | undefined) => {
+    const x = Number(a ?? 0)
+    const y = Number(b ?? 0)
+    if (!y) return null
+    return ((x - y) / y) * 100
+  }
+  const fmt = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}%`)
+  const cost = delta(other.cost_usd, base.cost_usd)
+  const lat = delta(other.latency_ms, base.latency_ms)
+  const toks = delta(other.output_tokens, base.output_tokens)
+  return (
+    <p className="mb-2 text-[10px] text-slate-500" aria-label={`Compared with ${base.model}`}>
+      vs {base.model}: cost <span className={cost !== null && cost < 0 ? 'text-emerald-600' : ''}>{fmt(cost)}</span>, latency{' '}
+      <span className={lat !== null && lat < 0 ? 'text-emerald-600' : ''}>{fmt(lat)}</span>, output tokens {fmt(toks)}
+    </p>
+  )
+}
+
 type Mode = 'single' | 'compare'
 interface ResultCard { model: string; response: PlaygroundRequestResponse | null; loading: boolean; error: string | null }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 const inputCls = 'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500'
 const PAGE_SIZE = 20
 
@@ -47,7 +58,9 @@ export default function PlaygroundClient({
   initialSessions,
   initialHistory,
   initialHistoryTotal,
+  models,
 }: {
+  models: PlaygroundModel[]
   initialSessions: PlaygroundSessionResponse[]
   initialHistory: PlaygroundRequestResponse[]
   initialHistoryTotal: number
@@ -56,8 +69,10 @@ export default function PlaygroundClient({
   const apiKey = (session as Record<string, unknown> | null)?.apiKey as string | undefined
 
   const [mode, setMode] = useState<Mode>('single')
-  const [model, setModel] = useState('gpt-4o')
-  const [compareModels, setCompareModels] = useState<string[]>(['gpt-4o', 'claude-sonnet-4-20250514'])
+  // Model choices are this workspace's gateway route aliases (review ui-fixes #6).
+  const aliasNames = models.map((m) => m.alias)
+  const [model, setModel] = useState(aliasNames[0] ?? '')
+  const [compareModels, setCompareModels] = useState<string[]>(aliasNames.slice(0, 2))
   const [userPrompt, setUserPrompt] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [showSystemPrompt, setShowSystemPrompt] = useState(false)
@@ -72,10 +87,10 @@ export default function PlaygroundClient({
 
   const addCompareModel = useCallback(() => {
     if (compareModels.length < 5) {
-      const available = POPULAR_MODELS.filter((m) => !compareModels.includes(m))
-      setCompareModels([...compareModels, available[0] || 'gpt-4o'])
+      const available = aliasNames.filter((m) => !compareModels.includes(m))
+      if (available[0]) setCompareModels([...compareModels, available[0]])
     }
-  }, [compareModels])
+  }, [compareModels, aliasNames])
 
   const removeCompareModel = useCallback((idx: number) => {
     if (compareModels.length > 2) setCompareModels(compareModels.filter((_, i) => i !== idx))
@@ -92,27 +107,26 @@ export default function PlaygroundClient({
     if (temperature !== 0.7) params.temperature = temperature
     if (maxTokens !== 1024) params.max_tokens = maxTokens
     try {
+      const parameters = Object.keys(params).length > 0 ? params : undefined
       if (mode === 'single') {
         setResults([{ model, response: null, loading: true, error: null }])
-        const resp = await fetch(`${API_BASE}/playground/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, user_prompt: userPrompt, system_prompt: systemPrompt || undefined, parameters: Object.keys(params).length > 0 ? params : undefined }),
+        const data = await sendPlaygroundRequest(apiKey, {
+          model,
+          user_prompt: userPrompt,
+          system_prompt: systemPrompt || undefined,
+          parameters,
         })
-        if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`)
-        const data: PlaygroundRequestResponse = await resp.json()
         setResults([{ model, response: data, loading: false, error: null }])
         setHistory((prev) => [data, ...prev])
         setHistoryTotal((prev) => prev + 1)
       } else {
         setResults(compareModels.map((m) => ({ model: m, response: null, loading: true, error: null })))
-        const resp = await fetch(`${API_BASE}/playground/compare`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ models: compareModels, user_prompt: userPrompt, system_prompt: systemPrompt || undefined, parameters: Object.keys(params).length > 0 ? params : undefined }),
+        const data = await comparePlaygroundModels(apiKey, {
+          models: compareModels,
+          user_prompt: userPrompt,
+          system_prompt: systemPrompt || undefined,
+          parameters,
         })
-        if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`)
-        const data: { results: PlaygroundRequestResponse[] } = await resp.json()
         setResults(data.results.map((r) => ({ model: r.model, response: r, loading: false, error: null })))
         setHistory((prev) => [...data.results, ...prev])
         setHistoryTotal((prev) => prev + data.results.length)
@@ -146,7 +160,7 @@ export default function PlaygroundClient({
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">API Playground</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Send requests through the RunLedger gateway, compare models side-by-side, and track costs.</p>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Every request goes through the RunLedger gateway with your API key: routing, budgets, guardrails and metering apply, and each call is recorded as a run.</p>
           </div>
         </div>
         <div className="flex gap-1.5">
@@ -178,6 +192,14 @@ export default function PlaygroundClient({
         ))}
       </div>
 
+      {models.length === 0 && (
+        <EmptyState
+          title="No gateway routes yet"
+          description="The Playground sends requests to your gateway route aliases. Add a route, then come back."
+          action={<Link href="/gateway" className="text-sm font-medium text-indigo-600 hover:underline">Open Gateway</Link>}
+        />
+      )}
+
       {/* ── Mode + Input ───────────────────────────────── */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4 space-y-3">
         <div className="flex items-center gap-2">
@@ -193,19 +215,19 @@ export default function PlaygroundClient({
           </div>
           {mode === 'single' ? (
             <div className="relative flex-1 max-w-xs">
-              <select value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}>
-                {POPULAR_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+              <select aria-label="Route alias" value={model} onChange={(e) => setModel(e.target.value)} className={inputCls}>
+                {models.map((m) => <option key={m.alias} value={m.alias}>{m.alias} ({m.targets.join(', ')})</option>)}
               </select>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-1.5 flex-1">
               {compareModels.map((m, idx) => (
                 <div key={idx} className="flex items-center gap-0.5">
-                  <select value={m} onChange={(e) => updateCompareModel(idx, e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-violet-500">
-                    {POPULAR_MODELS.map((pm) => <option key={pm} value={pm}>{pm}</option>)}
+                  <select aria-label={`Compare route alias ${idx + 1}`} value={m} onChange={(e) => updateCompareModel(idx, e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-violet-500">
+                    {aliasNames.map((pm) => <option key={pm} value={pm}>{pm}</option>)}
                   </select>
                   {compareModels.length > 2 && (
-                    <button onClick={() => removeCompareModel(idx)} className="rounded p-0.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"><X className="h-3 w-3" /></button>
+                    <button aria-label={`Remove ${m} from comparison`} onClick={() => removeCompareModel(idx)} className="rounded p-0.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"><X className="h-3 w-3" /></button>
                   )}
                 </div>
               ))}
@@ -260,7 +282,7 @@ export default function PlaygroundClient({
             className={`${inputCls} resize-none pb-10`} />
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
             <span className="text-[9px] text-slate-400">{typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}+Enter</span>
-            <button onClick={handleSend} disabled={sending || !userPrompt.trim() || !apiKey}
+            <button onClick={handleSend} disabled={sending || !userPrompt.trim() || !apiKey || models.length === 0}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition disabled:opacity-40 ${mode === 'compare' ? 'bg-violet-600 hover:bg-violet-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
               {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : mode === 'compare' ? <SplitSquareHorizontal className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
               {sending ? 'Sending…' : mode === 'compare' ? 'Compare' : 'Send'}
@@ -282,9 +304,16 @@ export default function PlaygroundClient({
               {r.error && <div className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-700 dark:text-rose-300"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{r.error}</div>}
               {r.response && (
                 <>
-                  <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 mb-2">
-                    <p className="whitespace-pre-wrap text-xs text-slate-800 dark:text-slate-200 leading-relaxed max-h-60 overflow-y-auto">{r.response.response_text || 'No response text'}</p>
-                  </div>
+                  {r.response.error ? (
+                    <div className="mb-2 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{r.response.error}</div>
+                  ) : (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3 mb-2">
+                      <p className="whitespace-pre-wrap text-xs text-slate-800 dark:text-slate-200 leading-relaxed max-h-60 overflow-y-auto">{r.response.response_text || 'No response text'}</p>
+                    </div>
+                  )}
+                  {results.length > 1 && idx > 0 && results[0].response && (
+                    <CompareDelta base={results[0].response} other={r.response} />
+                  )}
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
                       { icon: <Coins className="h-3 w-3 text-emerald-500" />, value: money(r.response.cost_usd ? Number(r.response.cost_usd) : null), label: 'Cost' },
@@ -299,6 +328,11 @@ export default function PlaygroundClient({
                       </div>
                     ))}
                   </div>
+                  {r.response.run_id && (
+                    <Link href={routes.runsRunId(r.response.run_id)} className="mt-2 inline-block text-[10px] font-medium text-indigo-600 hover:underline">
+                      View recorded run
+                    </Link>
+                  )}
                 </>
               )}
             </div>
