@@ -28,6 +28,11 @@ OpenTelemetry senders use [OTLP](/otlp) instead. Use an API key with the `ingest
 - An event after `run_start` is applied only if its `run_id` belongs to your workspace.
 - Provider-call status uses `success` / `error`; `succeeded`, `failed` and similar values
   are normalized.
+- Each run is attributed to a [workflow](agentic/workflows) and, optionally, an agent.
+  `run_start` takes `workflow_id`, `workflow` (a workflow id, feature tag or name),
+  `agent_id` and `agent_name`; the `X-RunLedger-Workflow` header on `/events` and `/batch`
+  fills `workflow` for run starts that don't set one. Without them the run's `feature_tag`
+  decides. References are resolved inside your workspace only.
 
 ## Limits
 

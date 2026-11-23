@@ -53,4 +53,20 @@ describe('RunLedger task helpers', () => {
     expect(types).toContain('outcome')
     expect(types).toContain('run_end')
   })
+
+  it('withWorkflow attributes the run to a workflow and agent', async () => {
+    const { client, events } = makeClient()
+    const out = await client.withWorkflow('support-triage', async () => 'ok', { agentName: 'triage-bot' })
+    expect(out).toBe('ok')
+    const start = events.find((event) => event.event_type === 'run_start') as Record<string, unknown>
+    expect(start.workflow).toBe('support-triage')
+    expect(start.agent_name).toBe('triage-bot')
+  })
+
+  it('withWorkflow records a failed outcome and rethrows', async () => {
+    const { client, events } = makeClient()
+    await expect(client.withWorkflow('wf', async () => { throw new Error('x') })).rejects.toThrow('x')
+    const outcome = events.find((event) => event.event_type === 'outcome') as Record<string, unknown>
+    expect(outcome.success).toBe(false)
+  })
 })

@@ -373,9 +373,15 @@ async def _handle_traces(
     # Enqueue canonical events via Celery pipeline (lazy import to avoid circular)
     if all_events:
         try:
-            from runledger_api.routers.ingest import attribute_to_sending_key  # noqa: PLC0415
+            from runledger_api.routers.ingest import (
+                apply_workflow_header,  # noqa: PLC0415
+                attribute_to_sending_key,  # noqa: PLC0415
+            )
             from runledger_api.workers.pipeline import process_events_task  # noqa: PLC0415
 
+            # Workflow spine: a collector can set X-RunLedger-Workflow for a whole
+            # service; span attributes (runledger.workflow*) still win per trace.
+            apply_workflow_header(all_events, request.headers.get("x-runledger-workflow"))
             process_events_task.delay(
                 str(workspace.id), attribute_to_sending_key(request, all_events)
             )
@@ -487,9 +493,13 @@ async def _handle_logs(
     await db.commit()
     if events:
         try:
-            from runledger_api.routers.ingest import attribute_to_sending_key  # noqa: PLC0415
+            from runledger_api.routers.ingest import (
+                apply_workflow_header,  # noqa: PLC0415
+                attribute_to_sending_key,  # noqa: PLC0415
+            )
             from runledger_api.workers.pipeline import process_events_task  # noqa: PLC0415
 
+            apply_workflow_header(events, request.headers.get("x-runledger-workflow"))
             process_events_task.delay(str(workspace.id), attribute_to_sending_key(request, events))
         except Exception as exc:
             log.warning("otlp_pipeline_enqueue_failed", error=str(exc))

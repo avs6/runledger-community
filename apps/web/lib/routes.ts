@@ -92,6 +92,7 @@ export const STATIC_ROUTES = [
   '/vector-stores',
   '/verify-email',
   '/workflows',
+  '/workflows/new',
   '/workspace',
 ] as const
 

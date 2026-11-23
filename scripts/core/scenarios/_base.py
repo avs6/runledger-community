@@ -1381,44 +1381,22 @@ class Workspace:
         self,
         name: str,
         *,
+        feature_tag: str | None = None,
+        gateway_alias: str | None = None,
         description: str | None = None,
-        steps_schema: list[dict[str, Any]] | None = None,
+        owner: str | None = None,
     ) -> dict[str, Any]:
+        """Create a workflow linked to the traffic it owns (runs attribute by tag/alias)."""
         body: dict[str, Any] = {"name": name}
-        if description:
-            body["description"] = description
-        if steps_schema:
-            body["steps_schema"] = steps_schema
+        for key, value in (
+            ("feature_tag", feature_tag),
+            ("gateway_alias", gateway_alias),
+            ("description", description),
+            ("owner", owner),
+        ):
+            if value:
+                body[key] = value
         return self._post("/workflows", body, f"workflow '{name}'")
-
-    def create_workflow_run(
-        self,
-        workflow_id: str,
-        *,
-        agent_id: str | None = None,
-        trigger: str = "api",
-        input_data: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        body: dict[str, Any] = {"workflow_id": workflow_id, "trigger": trigger}
-        if agent_id:
-            body["agent_id"] = agent_id
-        if input_data:
-            body["input_data"] = input_data
-        return self._post(f"/workflows/{workflow_id}/runs", body, "workflow run")
-
-    def create_workflow_step(
-        self,
-        run_id: str,
-        step_index: int,
-        name: str,
-        step_type: str = "agent",
-        *,
-        model: str | None = None,
-    ) -> dict[str, Any]:
-        body: dict[str, Any] = {"step_index": step_index, "name": name, "step_type": step_type}
-        if model:
-            body["model"] = model
-        return self._post(f"/workflows/runs/{run_id}/steps", body, f"step '{name}'")
 
     def register_vector_collection(
         self,

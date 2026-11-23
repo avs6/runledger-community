@@ -4,7 +4,7 @@
 entity — its recent runs and spend, the budgets and policies that apply to it — so a page
 can open a "Related" drawer on demand instead of loading a dozen posture cards on mount.
 
-Entities: ``workspace`` (id ignored), ``workflow`` (feature tag), ``api_key``, ``route``
+Entities: ``workspace`` (id ignored), ``workflow`` (workflow id, or a feature tag), ``api_key``, ``route``
 (id), ``budget`` (id) and ``prompt`` (id).
 """
 
@@ -24,6 +24,7 @@ from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.ratelimit import analytics_rate_limit
 from runledger_api.core.redis import get_redis
+from runledger_api.models.agents import WorkflowDefinition
 from runledger_api.models.budgets import Budget
 from runledger_api.models.events import AgentRun, RunStatusEnum
 from runledger_api.models.gateway import GatewayRequest, GatewayRoute, RoutingPolicy
@@ -182,18 +183,51 @@ async def _workspace_context(db: AsyncSession, workspace: Workspace) -> EntityCo
     )
 
 
-async def _workflow_context(db: AsyncSession, ws: uuid.UUID, tag: str) -> EntityContext:
-    runs, cost, failed = await _run_stats(db, ws, AgentRun.feature_tag == tag)
-    budgets = await _budget_count(
-        db, ws, Budget.scope_type.in_(("workflow", "feature_tag")), Budget.scope_id == tag
+async def _workflow_context(db: AsyncSession, ws: uuid.UUID, ref: str) -> EntityContext:
+    """Workflow by id (``agent_runs.workflow_id``); a bare feature tag still works for
+    tags that no workflow is linked to yet."""
+    wf: WorkflowDefinition | None = None
+    try:
+        wf = await db.get(WorkflowDefinition, uuid.UUID(ref))
+    except ValueError:
+        wf = (
+            (
+                await db.execute(
+                    select(WorkflowDefinition).where(
+                        WorkflowDefinition.workspace_id == ws,
+                        WorkflowDefinition.feature_tag == ref,
+                        WorkflowDefinition.status != "archived",
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+    if wf is not None and wf.workspace_id != ws:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Workflow not found")
+    if wf is None:
+        try:
+            uuid.UUID(ref)
+        except ValueError:
+            pass
+        else:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Workflow not found")
+    tag = wf.feature_tag if wf is not None else ref
+    run_cond = AgentRun.workflow_id == wf.id if wf is not None else AgentRun.feature_tag == ref
+    runs, cost, failed = await _run_stats(db, ws, run_cond)
+    budgets = (
+        await _budget_count(db, ws, Budget.scope_type == "feature_tag", Budget.scope_id == tag)
+        if tag
+        else 0
     )
     success = f"{(runs - failed) / runs:.0%}" if runs else "—"
+    href = f"/workflows/{wf.id}" if wf is not None else f"/runs?feature_tag={ref}"
     return EntityContext(
         entity="workflow",
-        id=tag,
-        title=tag,
+        id=str(wf.id) if wf is not None else ref,
+        title=wf.name if wf is not None else ref,
         items=[
-            *_run_items(runs, cost, failed, f"/runs?feature_tag={tag}"),
+            *_run_items(runs, cost, failed, href),
             ContextItem(key="success_rate", label="Success rate", value=success),
             ContextItem(
                 key="cost_per_run",
@@ -201,7 +235,10 @@ async def _workflow_context(db: AsyncSession, ws: uuid.UUID, tag: str) -> Entity
                 value=_money(cost / runs) if runs else "—",
             ),
             ContextItem(
-                key="budgets", label="Budgets on this workflow", value=str(budgets), href="/budgets"
+                key="budgets",
+                label="Budgets on this workflow",
+                value=str(budgets),
+                href=f"/budgets?scope_type=feature_tag&scope_id={tag}" if tag else "/budgets",
             ),
         ],
     )

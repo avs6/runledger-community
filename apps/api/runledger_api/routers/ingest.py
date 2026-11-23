@@ -64,6 +64,33 @@ def attribute_to_sending_key(
     return events
 
 
+WorkflowHeader = Annotated[
+    str | None,
+    Header(
+        alias="X-RunLedger-Workflow",
+        max_length=255,
+        description="Workflow id, feature_tag or name for runs in this request "
+        "that don't name one themselves.",
+    ),
+]
+
+
+def apply_workflow_header(
+    events: list[dict[str, Any]], workflow: str | None
+) -> list[dict[str, Any]]:
+    """Stamp the X-RunLedger-Workflow header on run_start events without a workflow.
+
+    The pipeline resolves it inside the sending workspace, so a foreign id is ignored.
+    """
+    if workflow:
+        for event in events:
+            if event.get("event_type") == "run_start" and not (
+                event.get("workflow_id") or event.get("workflow")
+            ):
+                event["workflow"] = workflow.strip()[:255]
+    return events
+
+
 def _queue_events(workspace_id: str, events: list[dict[str, object]]) -> int:
     if not events:
         return 0
@@ -80,11 +107,15 @@ async def ingest_event(
     request: Request,
     workspace: WorkspaceDep,
     db: DbDep,
+    x_runledger_workflow: WorkflowHeader = None,
 ) -> dict[str, int]:
     """Ingest a single event. Returns 202 immediately; processing is async."""
     accepted = _queue_events(
         str(workspace.id),
-        attribute_to_sending_key(request, [event.model_dump(mode="json")]),  # type: ignore[arg-type]
+        apply_workflow_header(  # type: ignore[arg-type]
+            attribute_to_sending_key(request, [event.model_dump(mode="json")]),
+            x_runledger_workflow,
+        ),
     )
     log.debug("event_accepted", workspace_id=str(workspace.id), event_type=event.event_type)
     return {"accepted": accepted}
@@ -96,11 +127,15 @@ async def ingest_batch(
     request: Request,
     workspace: WorkspaceDep,
     db: DbDep,
+    x_runledger_workflow: WorkflowHeader = None,
 ) -> dict[str, int]:
     """Ingest a batch of events. Returns 202 immediately."""
     accepted = _queue_events(
         str(workspace.id),
-        attribute_to_sending_key(request, [e.model_dump(mode="json") for e in payload.events]),  # type: ignore[arg-type]
+        apply_workflow_header(  # type: ignore[arg-type]
+            attribute_to_sending_key(request, [e.model_dump(mode="json") for e in payload.events]),
+            x_runledger_workflow,
+        ),
     )
     log.debug("batch_accepted", workspace_id=str(workspace.id), count=accepted)
     return {"accepted": accepted}

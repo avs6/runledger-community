@@ -5,6 +5,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `rl.withWorkflow(workflow, fn, { agentName, agentId })`, and `workflow` / `agentName` /
+  `agentId` options on `withTask()`: runs are attributed to the workflow and agent.
+
+---
+
 ## [0.6.0]
 
 ### Changed

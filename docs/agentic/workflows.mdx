@@ -1,134 +1,130 @@
 ---
-title: "Workflow Runs & Steps"
-description: "Define multi-step agent workflows, track runs with per-step cost attribution, and monitor execution in real time."
+title: "Workflows"
+description: "The workflow is RunLedger's top-level object: link it to a feature tag or gateway alias and every run, cost, score, budget and policy for that work is attributed to it."
 ---
 
-RunLedger Workflows model the multi-step execution plans your agents follow. Define a
-workflow template once, then track every execution as a **run** with fine-grained per-step
-cost and latency attribution.
+A **workflow** names one piece of AI work, such as a support bot, a code reviewer or a
+nightly summarizer. Runs are attributed to it **at ingest**, so its runs, cost, latency and
+quality come from the same metering stream as the rest of RunLedger. Nothing is written by
+hand and nothing has to be "executed" by RunLedger.
 
-## Create a workflow
+Each run (`agent_runs` row) carries a `workflow_id`. `workflow_runs` is a read-only SQL
+view over those runs, kept for reporting tools.
 
-```bash
-curl -X POST http://localhost:8201/workflows \
-  -H "Authorization: Bearer rl_..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "customer-support-pipeline",
-    "description": "Triage → research → draft → review",
-    "steps_schema": [
-      {"name": "triage", "type": "agent", "model": "gpt-4o-mini"},
-      {"name": "research", "type": "tool", "tool": "search-api"},
-      {"name": "draft", "type": "agent", "model": "gpt-4o"},
-      {"name": "review", "type": "human"}
-    ]
-  }'
+## How runs find their workflow
+
+The first match wins, always inside the run's own workspace (an id from another workspace
+is ignored), and archived workflows never match:
+
+| Order | Source | How to send it |
+|---|---|---|
+| 1 | Explicit reference: workflow id, its `feature_tag` or its name | SDK `@rl.workflow("…")` / `rl.withWorkflow('…')`, `run_start.workflow` / `workflow_id`, the `X-RunLedger-Workflow` header on `/ingest/v1/*` and `/v1/traces`, OTLP attributes `runledger.workflow.id` or `runledger.workflow` |
+| 2 | The run's `feature_tag` | anything that already sets a feature tag (SDK context, OTLP `runledger.feature_tag`, gateway metadata) |
+| 3 | The gateway alias the request used | link the workflow to a route alias |
+
+When a workflow matches and the run has no feature tag, the run inherits the workflow's tag,
+so **feature-tag budgets, chargeback and analytics see the traffic too**. A workflow's
+budgets are simply `feature_tag` budgets on its tag; they are enforced wherever feature-tag
+budgets are (ingest counters, `/budgets/check`, the gateway preflight).
+
+Creating a workflow, changing its tag or alias, or restoring it links existing runs that
+have no workflow yet (`linked_runs` in the response). Explicit attribution is never
+overwritten.
+
+Agents are attributed the same way: `agent_name` / `agent_id` on `run_start`, the SDK's
+`agent=` argument, or the OTLP attributes `runledger.agent`, `runledger.agent.id` and
+`gen_ai.agent.name`.
+
+## Send traffic
+
+<CodeGroup>
+```python Python SDK
+from runledger_sdk import RunLedger
+
+rl = RunLedger.from_env()
+
+@rl.workflow("support-triage", agent="triage-bot")
+def triage(ticket):
+    ...  # model calls in here are attributed to the run; failures are recorded
 ```
 
-## List & manage workflows
+```ts TypeScript SDK
+import { RunLedger } from '@runledger/sdk'
 
-```bash
-# list all workflows
-curl http://localhost:8201/workflows?status=active \
-  -H "Authorization: Bearer rl_..."
-
-# filter by access group or API key identity
-curl "http://localhost:8201/workflows?access_group_id={group_id}" \
-  -H "Authorization: Bearer rl_..."
-curl "http://localhost:8201/workflows?api_key_id={key_id}" \
-  -H "Authorization: Bearer rl_..."
-
-# get workflow detail
-curl http://localhost:8201/workflows/{workflow_id} \
-  -H "Authorization: Bearer rl_..."
-
-# update
-curl -X PUT http://localhost:8201/workflows/{workflow_id} \
-  -H "Authorization: Bearer rl_..." \
-  -d '{"description": "Updated pipeline"}'
-
-# archive
-curl -X DELETE http://localhost:8201/workflows/{workflow_id} \
-  -H "Authorization: Bearer rl_..."
+const rl = RunLedger.fromEnv()
+await rl.withWorkflow('support-triage', async (task) => {
+  // model calls in here are attributed to the run
+}, { agentName: 'triage-bot' })
 ```
 
-### Identity filters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `access_group_id` | UUID | Show workflows with runs from this access group |
-| `api_key_id` | UUID | Show workflows with runs from this API key |
-
-The same filters apply to `GET /workflows/{id}/runs` to scope run listings by identity.
-
-## Start a workflow run
-
-Workflow runs carry API-key and access-group identity so results can be attributed and filtered.
-
-```bash
-curl -X POST http://localhost:8201/workflows/{workflow_id}/runs \
-  -H "Authorization: Bearer rl_..." \
-  -d '{
-    "agent_id": "...",
-    "api_key_id": "...",
-    "access_group_id": "...",
-    "trigger": "api",
-    "input_data": {"ticket_id": "T-1234"}
-  }'
+```bash Ingest API
+curl -X POST http://localhost:8201/ingest/v1/batch \
+  -H "Authorization: Bearer $RUNLEDGER_API_KEY" \
+  -H "X-RunLedger-Workflow: support-triage" \
+  -d @events.json
 ```
 
-## Track run progress
-
-```bash
-# list runs
-curl http://localhost:8201/workflows/{workflow_id}/runs \
-  -H "Authorization: Bearer rl_..."
-
-# get run detail (includes steps)
-curl http://localhost:8201/workflows/{workflow_id}/runs/{run_id} \
-  -H "Authorization: Bearer rl_..."
-
-# update run status
-curl -X PUT http://localhost:8201/workflows/{workflow_id}/runs/{run_id} \
-  -H "Authorization: Bearer rl_..." \
-  -d '{"status": "completed", "total_cost": 0.045}'
+```bash OpenTelemetry
+# per span or resource:  runledger.workflow = "support-triage"
+# per service, on the exporter:
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer $RUNLEDGER_API_KEY,X-RunLedger-Workflow=support-triage"
 ```
+</CodeGroup>
 
-## Record workflow steps
+`@rl.workflow` works on sync and async functions. With `agent_id=…` it first calls
+`GET /agents/{id}/envelope` and raises `RunLedgerBudgetExceededError` when the agent's
+monthly budget envelope is spent or the agent is paused or retired.
 
-```bash
-# add a step
-curl -X POST http://localhost:8201/workflows/runs/{run_id}/steps \
-  -H "Authorization: Bearer rl_..." \
-  -d '{
-    "step_index": 0,
-    "name": "triage",
-    "step_type": "agent",
-    "model": "gpt-4o-mini"
-  }'
+## API
 
-# update step with results
-curl -X PUT http://localhost:8201/workflows/runs/{run_id}/steps/{step_id} \
-  -H "Authorization: Bearer rl_..." \
-  -d '{"status": "completed", "cost": 0.002, "tokens": 450, "duration_ms": 1200}'
-```
+| Method | Path | What it does |
+|---|---|---|
+| `POST` | `/workflows` | Create. `name`, optional `feature_tag` (unique among live workflows; 409 otherwise), `gateway_alias` (must be an existing route; 422 otherwise), `owner`, `description` |
+| `GET` | `/workflows` | List with stats for the window: `status`, `q`, `feature_tag`, `api_key_id`, `days`, `sort`, `dir`, `limit`, `offset` (total in `X-Total-Count`) |
+| `GET` | `/workflows/{id}` | One workflow with stats |
+| `PUT` | `/workflows/{id}` | Edit, re-link, archive (`status: "archived"`) or restore (`status: "active"`) |
+| `DELETE` | `/workflows/{id}` | Archive. Workflows aren't hard-deleted: runs reference them, and an archived workflow stops matching new traffic |
+| `GET` | `/workflows/{id}/overview` | The Workflow page: health, budgets, evals, policies, agents |
+| `GET` | `/workflows/{id}/runs` | Runs attributed to it: `status`, `agent_id`, `api_key_id`, `days`, paging |
+| `GET` | `/workflows/{id}/cost` | Cost by step and by model for the window |
 
-Step types: `agent`, `model`, `tool`, `human`, `condition`, `parallel`.
+### Health card
 
-## Cost attribution
+`/overview` returns `health` for the window (`days`, default 30):
 
-```bash
-curl http://localhost:8201/workflows/{workflow_id}/cost \
-  -H "Authorization: Bearer rl_..."
-```
+- `cost_per_success`: total cost divided by succeeded runs
+- `p50_latency_ms`, `p95_latency_ms`: run duration percentiles
+- `success_rate`, `runs`, `succeeded`, `failed`
+- `avg_eval_score` and `eval_score_delta` (second half of the window minus the first),
+  from `score_events` on the workflow's runs
+- `trend`: per-day runs, cost and average score
 
-Returns per-step cost breakdown: `total_runs`, `total_cost`, `avg_cost_per_run`, and
-`cost_by_step` (each step's total cost, average cost, and invocation count).
+### Cost by step
 
----
+A step is a span name inside the workflow's runs. Its cost is the sum of the provider calls
+made under it, so `steps_cost` equals the runs' `total_cost` once metering has priced every
+call. There is no separate step ledger to drift.
 
-## Dashboard
+## In the app
 
-The **Workflows** page shows all workflow definitions with run counts, costs, and status.
-The **Workflow Runs** page lists executions with status badges, cost, duration, and
-drill-down to the step-by-step execution timeline.
+- **Workflows** is the landing page and the first item in the navigation. It lists
+  workflows with runs, success rate, cost per success, spend and p95 latency, with search,
+  a status filter and a stats window kept in the URL. Create, edit, archive and restore from
+  the list or the detail page.
+- **Guided setup** (`/workflows/new`) walks a first workflow through three steps: name it,
+  copy one snippet for the way the team sends traffic, then wait for the first attributed
+  run.
+- The **workflow page** shows the health card, the runs table (each row opens the run),
+  cost by step and by model, the feature-tag budgets with their spend, evaluator scores,
+  the controls that apply (routes on the linked alias, routing policy, guardrails, tool
+  policies) and the agents that ran in it.
+
+## Migrating from workflow runs and steps
+
+Before the `workflows_spine` migration, runs were posted by hand to
+`POST /workflows/{id}/runs` and `/workflows/runs/{id}/steps` with their own cost fields.
+Those endpoints are gone. The migration drops the record-only `workflow_runs` and
+`workflow_steps` tables (they were never connected to real traffic), links workflows to the
+`feature_tag` in their `config` when there was one, and back-fills `agent_runs.workflow_id`
+from feature tags. To keep reporting a workflow, set its feature tag and send traffic with
+that tag.

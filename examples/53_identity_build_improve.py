@@ -53,17 +53,7 @@ def main() -> None:
     print("=== Identity-scoped Build & Improve ===\n")
 
     if ACCESS_GROUP_ID:
-        print("--- Agents by access group ---")
-        agents = api_get(f"/agents?access_group_id={ACCESS_GROUP_ID}")
-        print(f"  Found {agents.get('total', 0)} agents for group {ACCESS_GROUP_ID}")
-        for a in agents.get("agents", [])[:3]:
-            print(f"    {a['name']} ({a['status']})")
-
-        print("\n--- Workflows by access group ---")
-        workflows = api_get(f"/workflows?access_group_id={ACCESS_GROUP_ID}")
-        print(f"  Found {workflows.get('total', 0)} workflows for group {ACCESS_GROUP_ID}")
-
-        print("\n--- Evaluations by access group ---")
+        print("--- Evaluations by access group ---")
         scores = api_get(f"/evaluations/scores?access_group_id={ACCESS_GROUP_ID}&limit=5")
         print(f"  Found {len(scores.get('items', []))} scores for group {ACCESS_GROUP_ID}")
 
@@ -72,9 +62,11 @@ def main() -> None:
         print(f"  Found {sessions.get('total', 0)} sessions for group {ACCESS_GROUP_ID}")
 
     if TARGET_API_KEY_ID:
-        print("\n--- Workflows by API key ---")
+        print("\n--- Workflows and agents with runs from this API key ---")
         workflows = api_get(f"/workflows?api_key_id={TARGET_API_KEY_ID}")
         print(f"  Found {workflows.get('total', 0)} workflows for key {TARGET_API_KEY_ID}")
+        agents = api_get(f"/agents?api_key_id={TARGET_API_KEY_ID}")
+        print(f"  Found {agents.get('total', 0)} agents for key {TARGET_API_KEY_ID}")
 
         print("\n--- Model scorecards by API key ---")
         scorecards = api_get(f"/analytics/model-scorecards?api_key_id={TARGET_API_KEY_ID}")

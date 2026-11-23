@@ -44,21 +44,31 @@ class AgentTelemetryHelper:
         deployment_version: str | None = None,
         metadata: dict[str, Any] | None = None,
         intent: str | None = None,
+        workflow: str | None = None,
+        agent_name: str | None = None,
+        agent_id: str | None = None,
     ) -> str:
+        """Start a run. ``workflow`` (id, feature_tag or name) and ``agent_name`` /
+        ``agent_id`` attribute the run; the server resolves them in your workspace."""
         resolved_run_id = self._current_run_id(run_id)
-        self._transport.enqueue(
-            {
-                "event_type": "run_start",
-                "run_id": resolved_run_id,
-                "end_user_id": end_user_id,
-                "session_id": session_id,
-                "feature_tag": feature_tag,
-                "deployment_version": deployment_version,
-                "started_at": datetime.now(UTC).isoformat(),
-                "metadata": metadata,
-                "intent": intent,
-            }
-        )
+        event: dict[str, Any] = {
+            "event_type": "run_start",
+            "run_id": resolved_run_id,
+            "end_user_id": end_user_id,
+            "session_id": session_id,
+            "feature_tag": feature_tag,
+            "deployment_version": deployment_version,
+            "started_at": datetime.now(UTC).isoformat(),
+            "metadata": metadata,
+            "intent": intent,
+        }
+        if workflow:
+            event["workflow"] = workflow
+        if agent_name:
+            event["agent_name"] = agent_name
+        if agent_id:
+            event["agent_id"] = agent_id
+        self._transport.enqueue(event)
         return resolved_run_id
 
     def record_span(
@@ -211,6 +221,17 @@ class AgentTelemetryHelper:
         resp = httpx.get(
             f"{self._client.base_url}/budgets/check",
             params=params,
+            headers=self._headers,
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        return cast("dict[str, Any]", resp.json())
+
+    def check_agent_envelope(self, agent_id: str) -> dict[str, Any]:
+        """``GET /agents/{id}/envelope``: ``allowed`` is false once the agent's monthly
+        budget envelope is spent or the agent is paused/retired."""
+        resp = httpx.get(
+            f"{self._client.base_url}/agents/{agent_id}/envelope",
             headers=self._headers,
             timeout=5.0,
         )

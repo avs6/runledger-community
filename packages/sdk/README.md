@@ -115,6 +115,24 @@ with rl.context(end_user_id="u_789", feature_tag="qa-agent") as run_id:
 rl.shutdown()
 ```
 
+## Workflows
+
+Attribute every call of a function to a RunLedger workflow (its id, feature tag or name).
+Each call is one run; exceptions are recorded as failed runs and re-raised. Works on sync
+and async functions.
+
+```python
+@rl.workflow("support-triage", agent="triage-bot")
+def triage(ticket): ...
+
+# With a registered agent id, its monthly budget envelope is checked first and
+# RunLedgerBudgetExceededError is raised when it is spent.
+@rl.workflow("support-triage", agent_id="...")
+async def triage_async(ticket): ...
+```
+
+`rl.task(name, workflow=..., agent=...)` does the same as a context manager.
+
 ## Context propagation
 
 ```python

@@ -311,6 +311,29 @@ def _extract_run_context(
     if val:
         out["feature_tag"] = str(val)
 
+    # Workflow spine (review top#4): explicit workflow / agent attribution. The
+    # pipeline resolves these inside the sending workspace (services/workflow_attribution).
+    val = all_attrs.get("runledger.workflow.id") or all_attrs.get("runledger.workflow_id")
+    if val:
+        out["workflow_id"] = str(val)
+    val = (
+        all_attrs.get("runledger.workflow")
+        or all_attrs.get("runledger.workflow.name")
+        or all_attrs.get("workflow.name")
+    )
+    if val:
+        out["workflow"] = str(val)[:255]
+    val = all_attrs.get("runledger.agent.id") or all_attrs.get("runledger.agent_id")
+    if val:
+        out["agent_id"] = str(val)
+    val = (
+        all_attrs.get("runledger.agent")
+        or all_attrs.get("runledger.agent.name")
+        or all_attrs.get("gen_ai.agent.name")
+    )
+    if val:
+        out["agent_name"] = str(val)[:255]
+
     val = (
         all_attrs.get("runledger.deployment_version")
         # service.version from resource is the natural deployment version signal

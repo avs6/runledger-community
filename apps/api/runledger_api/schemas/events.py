@@ -34,6 +34,12 @@ class RunStartEvent(BaseModel):
     started_at: datetime
     metadata: dict[str, Any] | None = None
     intent: Annotated[str, Field(max_length=64)] | None = None
+    # Workflow spine: explicit attribution (otherwise resolved from feature_tag).
+    # ``workflow`` takes a workflow id, its feature_tag or its name.
+    workflow_id: uuid.UUID | None = None
+    workflow: Str255 | None = None
+    agent_id: uuid.UUID | None = None
+    agent_name: Str255 | None = None
 
     _check_metadata = field_validator("metadata")(classmethod(lambda cls, v: _bounded_json(v)))
 

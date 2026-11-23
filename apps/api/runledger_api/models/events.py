@@ -46,6 +46,8 @@ class AgentRun(Base):
         sa.Index("ix_agent_runs_end_user", "workspace_id", "end_user_id"),
         sa.Index("ix_agent_runs_feature_tag", "workspace_id", "feature_tag"),
         sa.Index("ix_agent_runs_api_key", "workspace_id", "api_key_id"),
+        sa.Index("ix_agent_runs_workflow", "workspace_id", "workflow_id", "started_at"),
+        sa.Index("ix_agent_runs_agent", "workspace_id", "agent_id", "started_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -80,6 +82,16 @@ class AgentRun(Base):
     total_output_tokens: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
     run_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB, nullable=True)
     intent: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    # Workflow spine (migration workflows_spine): resolved at ingest, see
+    # services/workflow_attribution.py.
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        sa.ForeignKey("workflow_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), sa.ForeignKey("agents.id", ondelete="SET NULL"), nullable=True
+    )
 
     # OTLP source-provenance fields (migration 026)
     source_type: Mapped[str | None] = mapped_column(sa.Text, nullable=True)

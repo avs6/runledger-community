@@ -18,6 +18,13 @@ from runledger_api.services.budgets import (
 )
 from runledger_api.services.gateway_controls import rpm_subject
 from runledger_api.services.sessions import resolve_principal_user_id
+from runledger_api.services.workflow_attribution import (
+    AGENT_ID_KEYS,
+    AGENT_NAME_KEYS,
+    WORKFLOW_ID_KEYS,
+    WORKFLOW_REF_KEYS,
+    resolve_run_attribution,
+)
 
 from .gateway_shared import *
 
@@ -286,13 +293,26 @@ async def _record_canonical_gateway_run(
         run_metadata["shadow"] = True
         run_metadata["shadow_of_alias"] = shadow_of
     feature_tag = _feature_tag_from(metadata, body.request_tags)
+    # Workflow spine (W1-F): same resolver as every ingest path; never crosses workspaces.
+    attribution = await resolve_run_attribution(
+        db,
+        workspace_id,
+        workflow_id=_metadata_text(metadata, *WORKFLOW_ID_KEYS),
+        workflow=_metadata_text(metadata, *WORKFLOW_REF_KEYS),
+        feature_tag=feature_tag,
+        route_alias=route.alias,
+        agent_id=_metadata_text(metadata, *AGENT_ID_KEYS),
+        agent_name=_metadata_text(metadata, *AGENT_NAME_KEYS),
+    )
 
     run = AgentRun(
         workspace_id=workspace_id,
         api_key_id=body.api_key_id,
         end_user_id=body.end_user_id,
         session_id=_metadata_text(metadata, "runledger.session_id", "session_id", "session"),
-        feature_tag=feature_tag,
+        feature_tag=feature_tag or attribution.feature_tag,
+        workflow_id=attribution.workflow_id,
+        agent_id=attribution.agent_id,
         deployment_version=_metadata_text(
             metadata,
             "runledger.deployment_version",
