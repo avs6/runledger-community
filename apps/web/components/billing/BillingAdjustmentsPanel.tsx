@@ -8,6 +8,7 @@ import {
   deleteBillingAdjustment,
   updateBillingAdjustment,
 } from '@/lib/api'
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table'
 import type { BillingAdjustmentList, BillingAdjustment } from '@/types/api'
 
 interface Props {
@@ -206,49 +207,44 @@ export default function BillingAdjustmentsPanel({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-            <tr>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Type</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Amount</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Reference</th>
-              <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Description</th>
-              <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {items.length === 0 ? (
-              <tr className="bg-white dark:bg-slate-900">
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-500">No adjustments yet.</td>
-              </tr>
-            ) : (
-              items.map((item) => (
-                <tr key={item.id} className="bg-white dark:bg-slate-900">
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.adjustment_type}</td>
-                  <td className="px-4 py-3 font-mono text-slate-900 dark:text-white">{money(item.amount_usd)}</td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.reference_id || '--'}</td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.description || '--'}</td>
-                  <td className="px-4 py-3">
-                    {canEdit ? (
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => startEdit(item)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                          Edit
-                        </button>
-                        <button onClick={() => handleDelete(item.id)} className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30">
-                          Delete
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-right text-xs text-slate-500">Locked</div>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        label="Billing adjustments"
+        rows={items}
+        rowKey={(item) => item.id}
+        urlPrefix="adj_"
+        csvFileName="billing-adjustments.csv"
+        searchPlaceholder="Search adjustments"
+        emptyTitle="No adjustments yet"
+        columns={[
+          { key: 'adjustment_type', header: 'Type', sortable: true },
+          {
+            key: 'amount_usd',
+            header: 'Amount',
+            sortable: true,
+            value: (item) => Number(item.amount_usd),
+            render: (item) => <span className="font-mono">{money(item.amount_usd)}</span>,
+          },
+          { key: 'reference_id', header: 'Reference', render: (item) => item.reference_id || '--' },
+          { key: 'description', header: 'Description', render: (item) => item.description || '--' },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (item) =>
+              canEdit ? (
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => startEdit(item)} aria-label={`Edit ${item.adjustment_type} adjustment`} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => handleDelete(item.id)} aria-label={`Delete ${item.adjustment_type} adjustment`} className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30">
+                    Delete
+                  </button>
+                </div>
+              ) : (
+                <div className="text-right text-xs text-slate-500">Locked</div>
+              ),
+          },
+        ] satisfies DataTableColumn<BillingAdjustment>[]}
+      />
     </div>
       {dialog}
     </>

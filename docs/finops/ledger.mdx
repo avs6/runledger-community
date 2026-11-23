@@ -33,6 +33,7 @@ That makes Ledger a **closure workflow**, not a standalone daily operating page.
 - `GET /ledger/closure-summary`
 - `GET /ledger/snapshots`
 - `POST /ledger/snapshots/generate`
+- `POST /ledger/snapshots/{snapshot_date}/anchor`
 - `GET /ledger/verify/{snapshot_date}`
 
 ## Sealing and verification
@@ -54,8 +55,29 @@ that manifest and the previous snapshot's hash, so snapshots form a chain.
 | `not_found` | No snapshot for that day. |
 
 Moving cost between users, keys or workspaces is detected even when per-model totals are preserved.
-The signing key still lives (encrypted with `LEDGER_MASTER_KEY`) in the database it attests;
-anchoring the chain off-box is not implemented.
+
+## Off-box anchor
+
+The signing key lives (encrypted with `LEDGER_MASTER_KEY`) in the database the ledger attests, so
+someone with database access and the app secret could rewrite a call, its manifest entry and the
+signature together, and every in-database check would pass. To catch that, each sealed snapshot is
+**anchored** to the workspace's backup bucket (Settings → Backups, S3 or S3-compatible):
+
+- The anchor is `<prefix>/ledger-anchors/<workspace>/<date>.json` holding the snapshot's hash,
+  previous hash, manifest digest and entry count.
+- It is written with **S3 Object Lock in COMPLIANCE mode** (retained 400 days) when the bucket was
+  created with Object Lock; the anchor records the locked object version, and verification reads
+  exactly that version, so neither deleting it nor uploading a newer copy changes the result.
+  Buckets without Object Lock still get an anchor (`anchor_locked: false`), which a bucket admin
+  could overwrite.
+- Sealing anchors immediately; the daily `ledger.daily_snapshots` job retries snapshots of the last
+  30 days that aren't anchored yet; `POST /ledger/snapshots/{snapshot_date}/anchor` anchors one by
+  hand (409 without a backup target).
+- `GET /ledger/verify/{snapshot_date}` compares the snapshot with its anchor: `anchor_ok: false`
+  makes the status `tampered`; `anchor_ok: null` means it couldn't be checked (not anchored yet, or
+  the bucket is unreachable).
+
+The **Compliance** tab shows each snapshot's anchor state with an **Anchor** button for unanchored ones.
 
 ## Closure workflow
 

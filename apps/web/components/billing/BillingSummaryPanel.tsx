@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { BarChart3, Download, ReceiptText } from 'lucide-react'
 import { getBillingSummary, exportBilling } from '@/lib/api'
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table'
 import type { BillingPeriodSummary } from '@/types/api'
 
 function money(v: number | string) {
@@ -172,35 +173,28 @@ export default function BillingSummaryPanel({
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-                <tr>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Period</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Total Cost</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Billable</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Non-Billable</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Total Calls</th>
-                  <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Billable %</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {periods.map((p) => {
-                  const pct = Number(p.total_cost_usd) > 0 ? ((Number(p.billable_cost_usd) / Number(p.total_cost_usd)) * 100).toFixed(1) : '0.0'
-                  return (
-                    <tr key={p.period} className="bg-white dark:bg-slate-900">
-                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{p.period}</td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{money(p.total_cost_usd)}</td>
-                      <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{money(p.billable_cost_usd)}</td>
-                      <td className="px-4 py-3 text-amber-600 dark:text-amber-400">{money(p.non_billable_cost_usd)}</td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{p.total_calls.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{pct}%</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            label="Billing summary by month"
+            rows={periods}
+            rowKey={(p) => p.period}
+            urlPrefix="bs_"
+            searchable={false}
+            csvFileName="billing-summary.csv"
+            columns={[
+              { key: 'period', header: 'Period', sortable: true },
+              { key: 'total_cost_usd', header: 'Total Cost', sortable: true, value: (p) => Number(p.total_cost_usd), render: (p) => money(p.total_cost_usd) },
+              { key: 'billable_cost_usd', header: 'Billable', sortable: true, value: (p) => Number(p.billable_cost_usd), render: (p) => <span className="text-emerald-600 dark:text-emerald-400">{money(p.billable_cost_usd)}</span> },
+              { key: 'non_billable_cost_usd', header: 'Non-Billable', sortable: true, value: (p) => Number(p.non_billable_cost_usd), render: (p) => <span className="text-amber-600 dark:text-amber-400">{money(p.non_billable_cost_usd)}</span> },
+              { key: 'total_calls', header: 'Total Calls', sortable: true, render: (p) => p.total_calls.toLocaleString() },
+              {
+                key: 'billable_pct',
+                header: 'Billable %',
+                sortable: true,
+                value: (p) => (Number(p.total_cost_usd) > 0 ? (Number(p.billable_cost_usd) / Number(p.total_cost_usd)) * 100 : 0),
+                render: (p) => `${(Number(p.total_cost_usd) > 0 ? (Number(p.billable_cost_usd) / Number(p.total_cost_usd)) * 100 : 0).toFixed(1)}%`,
+              },
+            ] satisfies DataTableColumn<BillingPeriodSummary>[]}
+          />
         </>
       )}
     </div>
