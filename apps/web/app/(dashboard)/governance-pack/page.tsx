@@ -56,6 +56,8 @@ export default function GovernancePackPage() {
   const toDate = searchParams.get('to') ?? new Date().toISOString().slice(0, 10)
   const accessGroupId = searchParams.get('access_group_id') ?? ''
   const apiKeyId = searchParams.get('api_key_id') ?? ''
+  // Actor filters the audit-pack API supports (review S-27), kept in the URL.
+  const userId = searchParams.get('user_id') ?? ''
   const [pack, setPack] = useState<GovernanceAuditPack | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -71,6 +73,7 @@ export default function GovernancePackPage() {
   const setFromDate = (v: string) => setParam('from', v)
   const setToDate = (v: string) => setParam('to', v)
   const identity = {
+    user_id: userId.trim() || undefined,
     access_group_id: accessGroupId || undefined,
     api_key_id: apiKeyId || undefined,
   }
@@ -155,6 +158,10 @@ export default function GovernancePackPage() {
               <option value="">All</option>
               {keys.map((k) => <option key={k.id} value={k.id}>{k.name || k.key_prefix}</option>)}
             </select>
+          </div>
+          <div>
+            <label htmlFor="pack-user" className="mb-1 block text-xs font-medium text-slate-500">User id</label>
+            <input id="pack-user" value={userId} onChange={(e) => setParam('user_id', e.target.value)} placeholder="Any user" className={inputCls} />
           </div>
           <button
             onClick={handleGenerate}

@@ -27,6 +27,7 @@ Single entry point for the entire demo lifecycle:
     python scripts/run_demo.py verify-observe     # runs, explorer, flow, sessions, outcomes, live stream
     python scripts/run_demo.py verify-build       # prompts approvals, experiments + Playground via gateway, judge, runbooks, memory
     python scripts/run_demo.py verify-governance  # tool policy enforced end to end, approval holds, MCP, simulator
+    python scripts/run_demo.py verify-secrets     # write-only secrets, rotation, audit chain, approvals SoD
 
   ── Traffic & Agents ──────────────────────────────────────────
     python scripts/run_demo.py traffic            # generate agent traffic (batch mode)
@@ -154,6 +155,8 @@ def cmd_verify_build(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_build.py", getattr(args, "args", []))
 def cmd_verify_governance(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_governance.py", getattr(args, "args", []))
+def cmd_verify_secrets(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_secrets.py", getattr(args, "args", []))
 
 
 def cmd_all(args: argparse.Namespace) -> int:
@@ -456,6 +459,12 @@ def main() -> int:
     )
     p.add_argument("args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser(
+        "verify-secrets",
+        help="End-to-end check of write-only secrets, secret rotation, the audit chain and approvals SoD.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("mcp-validate", help="Validate MCP endpoint connectivity and tools.")
     p.add_argument("--endpoint", default=None)
     p.add_argument("--api-key", default=None)
@@ -487,6 +496,7 @@ def main() -> int:
         "verify-observe",
         "verify-build",
         "verify-governance",
+        "verify-secrets",
     }
     if len(sys.argv) > 1 and sys.argv[1] in passthrough:
         args = argparse.Namespace(command=sys.argv[1], args=sys.argv[2:])
@@ -512,6 +522,7 @@ def main() -> int:
         "verify-observe": cmd_verify_observe,
         "verify-build": cmd_verify_build,
         "verify-governance": cmd_verify_governance,
+        "verify-secrets": cmd_verify_secrets,
         "all": cmd_all,
         "traffic": cmd_traffic,
         "otlp-traffic": cmd_otlp_traffic,

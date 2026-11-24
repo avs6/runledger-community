@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_member, require_workspace_admin
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
+from runledger_api.core.secrets import mask_config, merge_config
 from runledger_api.models.access_groups import AccessGroup, AccessGroupMember
 from runledger_api.models.cache_config import ResponseCacheConfig
 from runledger_api.models.events import ToolCall
@@ -145,7 +146,8 @@ def _search_tool_to_response(tool: SearchTool, policy_count: int = 0) -> SearchT
         tool_type=tool.tool_type,
         endpoint_url=tool.endpoint_url,
         auth_type=tool.auth_type,
-        auth_config=tool.auth_config or {},
+        # Write-only secrets (review S-04): stored values come back as the mask.
+        auth_config=mask_config(tool.auth_config),
         rate_limit_rpm=tool.rate_limit_rpm,
         cost_per_query=tool.cost_per_query,
         is_active=tool.is_active,
@@ -620,7 +622,11 @@ async def update_search_tool(
     ).scalar_one_or_none()
     if not tool:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Search tool not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if data.get("auth_config") is not None:
+        # A masked secret means "keep the stored value"; the column encrypts the rest.
+        data["auth_config"] = merge_config(data["auth_config"], tool.auth_config)
+    for field, value in data.items():
         setattr(tool, field, value)
     tool.updated_at = datetime.now(UTC)
     await db.commit()

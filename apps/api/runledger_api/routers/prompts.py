@@ -294,7 +294,7 @@ async def list_prompts(
 def _decrypt_token(token_enc: str | None) -> str | None:
     """Decrypt stored token or fall back to env var."""
     if token_enc:
-        if token_enc.startswith("enc::"):
+        if token_enc.startswith(("enc::", "rlsec:")):
             return resolve_secret_value(token_enc)
         if token_enc.startswith("b64:"):  # legacy, written before encryption at rest
             return base64.b64decode(token_enc[4:]).decode()

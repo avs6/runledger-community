@@ -62,7 +62,7 @@ from runledger_api.schemas.agents import (
     AgentUpdate,
     RunSummaryListResponse,
 )
-from runledger_api.services.agent_memory import not_expired, open_value, seal_value
+from runledger_api.services.agent_memory import ENC_PREFIXES, not_expired, open_value, seal_value
 from runledger_api.services.agent_policy import evaluate_agent_policy
 
 log = structlog.get_logger()
@@ -746,7 +746,10 @@ async def search_memories(
     q = q.where(
         sa.or_(
             AgentMemory.key.ilike(pattern),
-            sa.and_(~AgentMemory.value.startswith("enc::"), AgentMemory.value.ilike(pattern)),
+            sa.and_(
+                *(~AgentMemory.value.startswith(prefix) for prefix in ENC_PREFIXES),
+                AgentMemory.value.ilike(pattern),
+            ),
         )
     )
     rows = (

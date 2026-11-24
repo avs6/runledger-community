@@ -1,9 +1,8 @@
 """
 Agent memory hygiene (review B-16): encryption at rest for PII, expiry purge.
 
-* Values flagged as PII are stored encrypted (``enc::`` Fernet, the same seam as
-  the other build-area secrets until W1-A's ``core/secrets.py`` lands) and
-  decrypted on read. Encrypted values are not substring-searchable: memory search
+* Values flagged as PII are stored encrypted with the shared secrets envelope
+  (``core/secrets.py``; legacy ``enc::`` values still decrypt) and decrypted on read. Encrypted values are not substring-searchable: memory search
   matches their key only.
 * Entries past ``expires_at`` are hidden from reads and deleted by the hourly
   ``build.purge_expired_memories`` task.
@@ -16,10 +15,12 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core import secrets
 from runledger_api.models.agents import AgentMemory
 from runledger_api.services.kafka_export import encrypt_secret_value, resolve_secret_value
 
-ENC_PREFIX = "enc::"
+# Stored-value prefixes that mean "encrypted": the current envelope and legacy Fernet.
+ENC_PREFIXES = (secrets.PREFIX, "enc::")
 
 
 def seal_value(value: str, has_pii: bool) -> str:
@@ -29,7 +30,7 @@ def seal_value(value: str, has_pii: bool) -> str:
 
 def open_value(stored: str) -> str:
     """Value as returned to an authorised caller."""
-    if stored.startswith(ENC_PREFIX):
+    if stored.startswith(ENC_PREFIXES):
         try:
             return resolve_secret_value(stored) or ""
         except ValueError:

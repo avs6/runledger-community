@@ -1,0 +1,61 @@
+---
+title: "Audit Log"
+description: "A hash-chained record of every sensitive change, with the actor on every event and filters by actor, API key, access group and time."
+---
+
+The audit log records sensitive changes in a workspace: approvals, budgets, guardrails, security settings,
+sign-in providers, secrets, API keys, members, retention, integrations and more.
+
+## What each event carries
+
+| Field | Meaning |
+|---|---|
+| `action` | `<resource>.<verb>`, e.g. `secret.rotated`, `approval.denied` |
+| `actor_type` | `user`, `session` (dashboard sign-in), `api_key`, `oidc`, `admin_secret`, `service` (gateway-rs, MCP gateway) or `system` (workers, migrations) |
+| `actor_label`, `actor_user_id`, `actor_api_key_prefix` | Who acted |
+| `target_type`, `target_id` | What changed |
+| `before`, `after` | The change (secret values are never included) |
+| `seq`, `prev_hash`, `hash` | Position in the workspace hash chain |
+
+The actor comes from the request's authentication, so every event has one even when the code that wrote
+it didn't pass it explicitly. Events are written in the same transaction as the change they describe.
+
+## Hash chain and verification
+
+Events form one chain per workspace (and one per org for org-level events). Each event's hash is
+SHA-256 over the event's canonical content plus the previous event's hash; appends to a chain are
+serialised with a Postgres advisory lock. Editing, deleting or re-ordering an event breaks the chain.
+
+`GET /audit/verify` recomputes the workspace chain and returns `ok`, the number of events checked and,
+on failure, the first broken position and why (`event content was modified`, `prev_hash does not match`,
+`missing event`). The Audit Log page runs it on load and shows the result and the head hash. Events that
+existed before the chain was introduced were chained in time order by the migration.
+
+## Filters
+
+`GET /audit/events` and `GET /audit/events/export` take the same filters; the page keeps them in the URL
+so a filtered view can be shared:
+
+| Parameter | Filter |
+|---|---|
+| `action` | Action prefix (`secret`, `approval.`) |
+| `actor` | Actor e-mail or label substring, key prefix, or a user id |
+| `actor_type` | One of the actor types above |
+| `api_key_prefix` | Events made with one API key |
+| `access_group_id` | Events by members of an access group |
+| `target_type`, `target_id` | One object's history (e.g. a secret's timeline) |
+| `from`, `to` | ISO timestamps |
+
+Lists send `X-Total-Count`. `GET /audit/actors` lists the actors seen in the workspace for the actor picker.
+The [audit pack](/governance/governance-audit-pack) takes `user_id`, `access_group_id` and `api_key_id`.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Security controls" icon="shield" href="/governance/security-controls">
+    Secrets, rotation and sign-in providers.
+  </Card>
+  <Card title="Approvals" icon="check" href="/governance/approvals">
+    Separation of duties and decisions.
+  </Card>
+</CardGroup>

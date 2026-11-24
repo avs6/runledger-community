@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core import secrets
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_org_admin, require_workspace_admin
 from runledger_api.core.ratelimit import management_rate_limit
@@ -43,13 +44,17 @@ from runledger_api.schemas.security import (
     OIDCProviderUpdate,
     RotateApiKeyRequest,
     RotateApiKeyResponse,
+    SecretInventoryResponse,
+    SecretRecordResponse,
+    SecretRewrapResponse,
+    SecretRotateRequest,
     WorkspaceSecuritySettingsResponse,
     WorkspaceSecuritySettingsUpdate,
 )
+from runledger_api.services import secrets_inventory
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.auth import generate_api_key
 from runledger_api.services.security import (
-    _encrypt_client_secret,
     evaluate_ip_acl,
     get_or_create_security_settings,
 )
@@ -95,6 +100,24 @@ async def _get_rotatable_key(
     return key
 
 
+def _oidc_out(item: OIDCProvider) -> OIDCProviderResponse:
+    out = OIDCProviderResponse.model_validate(item)
+    out.client_secret = secrets.mask(item.client_secret_encrypted)
+    return out
+
+
+def _oauth2_out(item: OAuth2Provider) -> OAuth2ProviderResponse:
+    out = OAuth2ProviderResponse.model_validate(item)
+    out.client_secret = secrets.mask(item.client_secret_encrypted)
+    return out
+
+
+def _ldap_out(item: LDAPProvider) -> LDAPProviderResponse:
+    out = LDAPProviderResponse.model_validate(item)
+    out.bind_password = secrets.mask(item.bind_password_encrypted)
+    return out
+
+
 @router.get("/settings", response_model=WorkspaceSecuritySettingsResponse)
 async def get_security_settings(auth: OrgAdminDep, db: DbDep) -> WorkspaceSecuritySettingsResponse:
     workspace = auth[0]
@@ -135,7 +158,7 @@ async def list_oidc_providers(auth: OrgAdminDep, db: DbDep) -> OIDCProviderList:
         .scalars()
         .all()
     )
-    return OIDCProviderList(items=[OIDCProviderResponse.model_validate(item) for item in items])
+    return OIDCProviderList(items=[_oidc_out(item) for item in items])
 
 
 @router.post(
@@ -148,8 +171,8 @@ async def create_oidc_provider(
 ) -> OIDCProviderResponse:
     workspace = auth[0]
     data = body.model_dump(exclude={"client_secret"})
-    if body.client_secret:
-        data["client_secret_encrypted"] = _encrypt_client_secret(body.client_secret)
+    if body.client_secret and not secrets.is_mask(body.client_secret):
+        data["client_secret_encrypted"] = body.client_secret  # encrypted by the column type
     data["tenant_id"] = workspace.tenant_id
     item = OIDCProvider(workspace_id=workspace.id, **data)
     db.add(item)
@@ -164,7 +187,7 @@ async def create_oidc_provider(
     )
     await db.commit()
     await db.refresh(item)
-    return OIDCProviderResponse.model_validate(item)
+    return _oidc_out(item)
 
 
 @router.put("/oidc-providers/{provider_id}", response_model=OIDCProviderResponse)
@@ -181,8 +204,10 @@ async def update_oidc_provider(
     updates = body.model_dump(exclude_none=True, exclude={"client_secret"})
     for field, value in updates.items():
         setattr(item, field, value)
-    if body.client_secret is not None:
-        item.client_secret_encrypted = _encrypt_client_secret(body.client_secret)
+    if body.client_secret is not None and not secrets.is_mask(body.client_secret):
+        item.client_secret_encrypted = (
+            body.client_secret
+        )  # encrypted by the column type; mask = keep
     item.updated_at = datetime.now(UTC)
     await emit_audit_event(
         db,
@@ -194,7 +219,7 @@ async def update_oidc_provider(
     )
     await db.commit()
     await db.refresh(item)
-    return OIDCProviderResponse.model_validate(item)
+    return _oidc_out(item)
 
 
 @router.delete("/oidc-providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -234,7 +259,7 @@ async def list_oauth2_providers(auth: OrgAdminDep, db: DbDep) -> OAuth2ProviderL
         .scalars()
         .all()
     )
-    return OAuth2ProviderList(items=[OAuth2ProviderResponse.model_validate(item) for item in items])
+    return OAuth2ProviderList(items=[_oauth2_out(item) for item in items])
 
 
 @router.post(
@@ -247,8 +272,8 @@ async def create_oauth2_provider(
 ) -> OAuth2ProviderResponse:
     workspace = auth[0]
     data = body.model_dump(exclude={"client_secret"})
-    if body.client_secret:
-        data["client_secret_encrypted"] = _encrypt_client_secret(body.client_secret)
+    if body.client_secret and not secrets.is_mask(body.client_secret):
+        data["client_secret_encrypted"] = body.client_secret  # encrypted by the column type
     data["tenant_id"] = workspace.tenant_id
     item = OAuth2Provider(workspace_id=workspace.id, **data)
     db.add(item)
@@ -263,7 +288,7 @@ async def create_oauth2_provider(
     )
     await db.commit()
     await db.refresh(item)
-    return OAuth2ProviderResponse.model_validate(item)
+    return _oauth2_out(item)
 
 
 @router.put("/oauth2-providers/{provider_id}", response_model=OAuth2ProviderResponse)
@@ -280,8 +305,10 @@ async def update_oauth2_provider(
     updates = body.model_dump(exclude_none=True, exclude={"client_secret"})
     for field, value in updates.items():
         setattr(item, field, value)
-    if body.client_secret is not None:
-        item.client_secret_encrypted = _encrypt_client_secret(body.client_secret)
+    if body.client_secret is not None and not secrets.is_mask(body.client_secret):
+        item.client_secret_encrypted = (
+            body.client_secret
+        )  # encrypted by the column type; mask = keep
     item.updated_at = datetime.now(UTC)
     await emit_audit_event(
         db,
@@ -293,7 +320,7 @@ async def update_oauth2_provider(
     )
     await db.commit()
     await db.refresh(item)
-    return OAuth2ProviderResponse.model_validate(item)
+    return _oauth2_out(item)
 
 
 @router.delete("/oauth2-providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -329,7 +356,7 @@ async def list_ldap_providers(auth: OrgAdminDep, db: DbDep) -> LDAPProviderList:
         .scalars()
         .all()
     )
-    return LDAPProviderList(items=[LDAPProviderResponse.model_validate(item) for item in items])
+    return LDAPProviderList(items=[_ldap_out(item) for item in items])
 
 
 @router.post(
@@ -342,8 +369,8 @@ async def create_ldap_provider(
 ) -> LDAPProviderResponse:
     workspace = auth[0]
     data = body.model_dump(exclude={"bind_password"})
-    if body.bind_password:
-        data["bind_password_encrypted"] = _encrypt_client_secret(body.bind_password)
+    if body.bind_password and not secrets.is_mask(body.bind_password):
+        data["bind_password_encrypted"] = body.bind_password  # encrypted by the column type
     data["tenant_id"] = workspace.tenant_id
     item = LDAPProvider(workspace_id=workspace.id, **data)
     db.add(item)
@@ -358,7 +385,7 @@ async def create_ldap_provider(
     )
     await db.commit()
     await db.refresh(item)
-    return LDAPProviderResponse.model_validate(item)
+    return _ldap_out(item)
 
 
 @router.put("/ldap-providers/{provider_id}", response_model=LDAPProviderResponse)
@@ -375,8 +402,10 @@ async def update_ldap_provider(
     updates = body.model_dump(exclude_none=True, exclude={"bind_password"})
     for field, value in updates.items():
         setattr(item, field, value)
-    if body.bind_password is not None:
-        item.bind_password_encrypted = _encrypt_client_secret(body.bind_password)
+    if body.bind_password is not None and not secrets.is_mask(body.bind_password):
+        item.bind_password_encrypted = (
+            body.bind_password
+        )  # encrypted by the column type; mask = keep
     item.updated_at = datetime.now(UTC)
     await emit_audit_event(
         db,
@@ -388,7 +417,7 @@ async def update_ldap_provider(
     )
     await db.commit()
     await db.refresh(item)
-    return LDAPProviderResponse.model_validate(item)
+    return _ldap_out(item)
 
 
 @router.delete("/ldap-providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -679,3 +708,146 @@ async def rotate_api_key(
         key=raw_key,
         expires_old_at=grace_expires_at,
     )
+
+
+# ── Secret inventory (ENH) ────────────────────────────────────────────────────
+#
+# Every stored credential, its age, the key that wraps it, a "rotate" action
+# (replace the value) and "re-wrap" (re-encrypt with the current master key).
+# The per-secret timeline is GET /audit/events?target_type=secret&target_id=<id>.
+
+SECRET_MAX_AGE_DAYS = 90
+SECRET_WARN_DAYS = 60
+
+
+def _secret_out(record: Any, fields: list[str]) -> SecretRecordResponse:
+    age = secrets_inventory.age_days(record)
+    if age >= SECRET_MAX_AGE_DAYS:
+        age_status = "stale"
+    elif age >= SECRET_WARN_DAYS:
+        age_status = "aging"
+    else:
+        age_status = "fresh"
+    return SecretRecordResponse(
+        id=record.id,
+        kind=record.kind,
+        label=record.label,
+        owner_table=record.owner_table,
+        owner_id=record.owner_id,
+        field=record.field,
+        key_id=record.key_id,
+        key_current=record.key_id == secrets.primary_key_id(),
+        fingerprint=record.fingerprint,
+        rotation_count=int(record.rotation_count or 0),
+        rotated_by_label=record.rotated_by_label,
+        created_at=record.created_at,
+        rotated_at=record.rotated_at,
+        age_days=age,
+        age_status=age_status,
+        fields=fields,
+    )
+
+
+async def _secret_fields(db: AsyncSession, record: Any) -> list[str]:
+    entry = secrets_inventory.KINDS.get(record.kind)
+    if entry is None or not entry.is_json:
+        return []
+    owner = await db.get(entry.model(), record.owner_id)
+    config = getattr(owner, entry.field, None) or {}
+    return sorted(k for k, v in config.items() if secrets.is_secret_key(k) and v)
+
+
+@router.get("/secrets", response_model=SecretInventoryResponse)
+async def list_secrets(auth: WorkspaceAdminDep, db: DbDep) -> SecretInventoryResponse:
+    """All stored secrets in this workspace, oldest rotation first."""
+    workspace = auth[0]
+    records = await secrets_inventory.list_records(db, workspace.id)
+    items = [_secret_out(r, await _secret_fields(db, r)) for r in records]
+    return SecretInventoryResponse(
+        items=items,
+        primary_key_id=secrets.primary_key_id(),
+        using_derived_key=secrets.using_derived_key(),
+        max_age_days=SECRET_MAX_AGE_DAYS,
+        warn_days=SECRET_WARN_DAYS,
+    )
+
+
+@router.get("/secrets/{secret_id}", response_model=SecretRecordResponse)
+async def get_secret(
+    secret_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep
+) -> SecretRecordResponse:
+    record = await secrets_inventory.get_record(db, auth[0].id, secret_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Secret not found")
+    return _secret_out(record, await _secret_fields(db, record))
+
+
+@router.post("/secrets/{secret_id}/rotate", response_model=SecretRecordResponse)
+async def rotate_secret(
+    secret_id: uuid.UUID,
+    body: SecretRotateRequest,
+    auth: WorkspaceAdminDep,
+    db: DbDep,
+) -> SecretRecordResponse:
+    """Replace a secret's value. The session hook records ``secret.rotated``."""
+    workspace = auth[0]
+    record = await secrets_inventory.get_record(db, workspace.id, secret_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Secret not found")
+    try:
+        await secrets_inventory.rotate_secret(db, record, value=body.value, values=body.values)
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    await db.flush()
+    await db.commit()
+    await db.refresh(record)
+    return _secret_out(record, await _secret_fields(db, record))
+
+
+@router.post("/secrets/{secret_id}/rewrap", response_model=SecretRecordResponse)
+async def rewrap_secret(
+    secret_id: uuid.UUID, auth: WorkspaceAdminDep, db: DbDep
+) -> SecretRecordResponse:
+    """Re-encrypt one secret with the current master key (value unchanged)."""
+    workspace = auth[0]
+    record = await secrets_inventory.get_record(db, workspace.id, secret_id)
+    if record is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Secret not found")
+    old_key = record.key_id
+    if await secrets_inventory.rewrap_secret(db, record):
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "secret.rewrapped",
+            target_type="secret",
+            target_id=str(record.id),
+            before={"key_id": old_key},
+            after={"key_id": record.key_id, "kind": record.kind, "label": record.label},
+        )
+    await db.commit()
+    await db.refresh(record)
+    return _secret_out(record, await _secret_fields(db, record))
+
+
+@router.post("/secrets/rewrap", response_model=SecretRewrapResponse)
+async def rewrap_all_secrets(auth: WorkspaceAdminDep, db: DbDep) -> SecretRewrapResponse:
+    """Re-encrypt every secret in this workspace not yet on the primary key."""
+    workspace = auth[0]
+    count = 0
+    for record in await secrets_inventory.list_records(db, workspace.id):
+        old_key = record.key_id
+        if await secrets_inventory.rewrap_secret(db, record):
+            count += 1
+            await emit_audit_event(
+                db,
+                workspace.id,
+                "secret.rewrapped",
+                target_type="secret",
+                target_id=str(record.id),
+                before={"key_id": old_key},
+                after={"key_id": record.key_id, "kind": record.kind, "label": record.label},
+            )
+    await db.commit()
+    return SecretRewrapResponse(rewrapped=count, primary_key_id=secrets.primary_key_id())

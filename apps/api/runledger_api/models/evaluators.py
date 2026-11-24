@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
+from runledger_api.core.secrets import EncryptedSecretsJSON
 
 
 class Evaluator(Base):
@@ -40,8 +40,9 @@ class Evaluator(Base):
     name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     type: Mapped[str] = mapped_column(sa.String(32), nullable=False, server_default="rule")
+    # api_key (and other secret keys) encrypted at rest (review B-09).
     config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
+        EncryptedSecretsJSON, nullable=False, server_default=sa.text("'{}'")
     )
     status: Mapped[str] = mapped_column(sa.String(16), nullable=False, server_default="active")
     last_run_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)

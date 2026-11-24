@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
+from runledger_api.core.secrets import EncryptedSecretsJSON
 
 
 class GatewayRoutingGroup(Base):
@@ -322,11 +323,12 @@ class GatewayPassThroughEndpoint(Base):
     )
     upstream_base_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
     auth_type: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    # Secret values are encrypted at rest (review G-05).
     auth_config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
+        EncryptedSecretsJSON, nullable=False, server_default=sa.text("'{}'")
     )
     header_config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
+        EncryptedSecretsJSON, nullable=False, server_default=sa.text("'{}'")
     )
     default_query: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")

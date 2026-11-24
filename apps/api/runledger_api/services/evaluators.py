@@ -131,17 +131,17 @@ JUDGE_KEY_REF = "gateway_key_ref"
 
 
 def store_judge_secret(raw_key: str) -> str:
-    """Encrypt a judge key for storage. W1-A's ``core/secrets.py`` replaces this seam."""
-    from runledger_api.services.kafka_export import encrypt_secret_value  # noqa: PLC0415
+    """Encrypt a judge key for storage with the shared secrets envelope."""
+    from runledger_api.core import secrets  # noqa: PLC0415
 
-    return encrypt_secret_value(raw_key)
+    return secrets.encrypt(raw_key)
 
 
 def resolve_judge_secret(ref: str | None) -> str | None:
-    """Resolve a stored judge key ref (``enc::`` ciphertext or ``env://VAR``)."""
-    from runledger_api.services.kafka_export import resolve_secret_value  # noqa: PLC0415
+    """Resolve a stored judge key ref (envelope or legacy ``enc::`` ciphertext, or ``env://VAR``)."""
+    from runledger_api.core import secrets  # noqa: PLC0415
 
-    return resolve_secret_value(ref) if ref else None
+    return secrets.resolve(ref) if ref else None
 
 
 def normalize_judge_config(

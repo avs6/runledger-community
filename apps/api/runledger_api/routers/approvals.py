@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -123,8 +123,40 @@ def _auto_policy_matches(
 
 
 def _requester_label(api_key: ApiKey) -> str | None:
-    """Best-effort identifier of who made the request."""
-    return api_key.created_by  # email for session keys, None for raw API keys
+    """Who made the request: the user's email for session keys, otherwise the
+    workload key (``api_key:<prefix>``) so separation of duties covers both."""
+    if api_key.created_by:
+        return api_key.created_by
+    prefix = getattr(api_key, "key_prefix", None)
+    return f"api_key:{prefix}" if prefix else None
+
+
+def _same_principal(a: str | None, b: str | None) -> bool:
+    return bool(a and b and a.strip().lower() == b.strip().lower())
+
+
+async def _load_for_decision(
+    db: AsyncSession, workspace_id: uuid.UUID, approval_id: uuid.UUID, verb: str
+) -> Approval:
+    """Load a pending approval with ``SELECT … FOR UPDATE`` (review S-15).
+
+    The row lock makes concurrent approve/deny/cancel calls serialise: the second
+    caller sees the first decision and gets 409 instead of both succeeding.
+    """
+    result = await db.execute(
+        select(Approval)
+        .where(Approval.id == approval_id, Approval.workspace_id == workspace_id)
+        .with_for_update()
+    )
+    approval = result.scalar_one_or_none()
+    if approval is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found")
+    if approval.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot {verb} an approval in '{approval.status}' status",
+        )
+    return approval
 
 
 async def _notify_approval_request(
@@ -258,6 +290,28 @@ async def create_approval(
     )
     db.add(approval)
     await db.flush()
+    # Audit in the same transaction as the change (review S-02).
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "approval.requested",
+        target_type="approval",
+        target_id=str(approval.id),
+        after={"request_type": approval.request_type, "requested_by": requested_by},
+    )
+    if matched_policy:
+        await emit_audit_event(
+            db,
+            workspace.id,
+            "approval.auto_approved",
+            target_type="approval",
+            target_id=str(approval.id),
+            after={
+                "request_type": approval.request_type,
+                "policy_id": str(matched_policy.id),
+                "policy_condition": matched_policy.condition,
+            },
+        )
     await db.commit()
     await db.refresh(approval)
 
@@ -289,18 +343,6 @@ async def create_approval(
     except Exception:
         log.exception("kafka_export.approval_requested_failed", approval_id=str(approval.id))
     if matched_policy:
-        await emit_audit_event(
-            db,
-            workspace.id,
-            "approval.auto_approved",
-            target_type="approval",
-            target_id=str(approval.id),
-            after={
-                "request_type": approval.request_type,
-                "policy_id": str(matched_policy.id),
-                "policy_condition": matched_policy.condition,
-            },
-        )
         try:
             await kafka_export.publish_event(
                 db,
@@ -375,8 +417,6 @@ async def create_auto_approval_policy(
     )
     db.add(policy)
     await db.flush()
-    await db.commit()
-    await db.refresh(policy)
     await emit_audit_event(
         db,
         workspace.id,
@@ -385,6 +425,8 @@ async def create_auto_approval_policy(
         target_id=str(policy.id),
         after={"request_type": policy.request_type, "condition": policy.condition},
     )
+    await db.commit()
+    await db.refresh(policy)
     return _auto_policy_to_response(policy)
 
 
@@ -409,8 +451,6 @@ async def update_auto_approval_policy(
         policy.request_type = body.request_type
     if body.condition is not None:
         policy.condition = body.condition.strip()
-    await db.commit()
-    await db.refresh(policy)
     await emit_audit_event(
         db,
         workspace.id,
@@ -419,6 +459,8 @@ async def update_auto_approval_policy(
         target_id=str(policy.id),
         after={"request_type": policy.request_type, "condition": policy.condition},
     )
+    await db.commit()
+    await db.refresh(policy)
     return _auto_policy_to_response(policy)
 
 
@@ -438,16 +480,16 @@ async def delete_auto_approval_policy(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Auto-approval policy not found"
         )
-    await db.delete(policy)
-    await db.commit()
     await emit_audit_event(
         db,
         workspace.id,
         "approval_policy.deleted",
         target_type="auto_approval_policy",
         target_id=str(policy_id),
-        after={"request_type": policy.request_type, "condition": policy.condition},
+        before={"request_type": policy.request_type, "condition": policy.condition},
     )
+    await db.delete(policy)
+    await db.commit()
 
 
 # ── List approvals ─────────────────────────────────────────────────────────────
@@ -457,6 +499,7 @@ async def delete_auto_approval_policy(
 async def list_approvals(
     auth: WorkspaceAdminDep,
     db: DbDep,
+    response: Response,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     request_type: Annotated[str | None, Query()] = None,
     requested_by: Annotated[str | None, Query()] = None,
@@ -511,6 +554,7 @@ async def list_approvals(
     stmt = stmt.order_by(Approval.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(stmt)
     items = result.scalars().all()
+    response.headers["X-Total-Count"] = str(total)  # pagination standard
 
     return ApprovalList(
         items=[ApprovalResponse.model_validate(a) for a in items],
@@ -586,34 +630,16 @@ async def approve_approval(
     api_key: ApiKeyDep,
     db: DbDep,
 ) -> ApprovalResponse:
-    """Approve a pending request. Requires workspace admin or higher."""
+    """Approve a pending request. Requires workspace admin or higher, and the
+    approver must not be the requester (separation of duties, review S-15/F-02)."""
     workspace = auth[0]
-    result = await db.execute(
-        select(Approval).where(
-            Approval.id == approval_id,
-            Approval.workspace_id == workspace.id,
-        )
-    )
-    approval = result.scalar_one_or_none()
-    if approval is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found")
-    if approval.status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot approve an approval in '{approval.status}' status",
-        )
+    approval = await _load_for_decision(db, workspace.id, approval_id, "approve")
     decider = _requester_label(api_key)
-    # Separation of duties for money movement: whoever requested a chargeback rule
-    # can't approve it (review F-02).
-    if (
-        approval.request_type == "chargeback_rule"
-        and approval.requested_by
-        and decider
-        and approval.requested_by.lower() == decider.lower()
-    ):
+    if _same_principal(approval.requested_by, decider):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="A chargeback rule must be approved by someone other than its requester",
+            detail="Separation of duties: a request must be approved by someone other "
+            "than its requester",
         )
 
     approval.status = "approved"
@@ -627,6 +653,15 @@ async def approve_approval(
     elif approval.request_type == "budget_increase":
         await _activate_budget_override(db, approval)
 
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "approval.approved",
+        target_type="approval",
+        target_id=str(approval.id),
+        before={"status": "pending", "requested_by": approval.requested_by},
+        after={"request_type": approval.request_type, "decided_by": approval.decided_by},
+    )
     await db.commit()
     await db.refresh(approval)
 
@@ -635,14 +670,6 @@ async def approve_approval(
         approval_id=str(approval.id),
         request_type=approval.request_type,
         decided_by=approval.decided_by,
-    )
-    await emit_audit_event(
-        db,
-        workspace.id,
-        "approval.approved",
-        target_type="approval",
-        target_id=str(approval.id),
-        after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
     try:
         await kafka_export.publish_event(
@@ -683,22 +710,9 @@ async def deny_approval(
     api_key: ApiKeyDep,
     db: DbDep,
 ) -> ApprovalResponse:
-    """Deny a pending request."""
+    """Deny a pending request (row-locked; review S-15)."""
     workspace = auth[0]
-    result = await db.execute(
-        select(Approval).where(
-            Approval.id == approval_id,
-            Approval.workspace_id == workspace.id,
-        )
-    )
-    approval = result.scalar_one_or_none()
-    if approval is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found")
-    if approval.status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot deny an approval in '{approval.status}' status",
-        )
+    approval = await _load_for_decision(db, workspace.id, approval_id, "deny")
 
     approval.status = "denied"
     approval.decided_by = _requester_label(api_key)
@@ -711,6 +725,15 @@ async def deny_approval(
     elif approval.request_type == "budget_increase":
         await _deny_budget_override(db, approval)
 
+    await emit_audit_event(
+        db,
+        workspace.id,
+        "approval.denied",
+        target_type="approval",
+        target_id=str(approval.id),
+        before={"status": "pending", "requested_by": approval.requested_by},
+        after={"request_type": approval.request_type, "decided_by": approval.decided_by},
+    )
     await db.commit()
     await db.refresh(approval)
 
@@ -719,14 +742,6 @@ async def deny_approval(
         approval_id=str(approval.id),
         request_type=approval.request_type,
         decided_by=approval.decided_by,
-    )
-    await emit_audit_event(
-        db,
-        workspace.id,
-        "approval.denied",
-        target_type="approval",
-        target_id=str(approval.id),
-        after={"request_type": approval.request_type, "decided_by": approval.decided_by},
     )
     try:
         await kafka_export.publish_event(
@@ -767,28 +782,11 @@ async def cancel_approval(
 ) -> ApprovalResponse:
     """Cancel a pending approval request (by the requester or an admin)."""
     workspace = auth[0]
-    result = await db.execute(
-        select(Approval).where(
-            Approval.id == approval_id,
-            Approval.workspace_id == workspace.id,
-        )
-    )
-    approval = result.scalar_one_or_none()
-    if approval is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found")
-    if approval.status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot cancel an approval in '{approval.status}' status",
-        )
+    approval = await _load_for_decision(db, workspace.id, approval_id, "cancel")
 
     approval.status = "cancelled"
     if approval.request_type == "budget_increase":
         await _cancel_budget_override(db, approval)
-    await db.commit()
-    await db.refresh(approval)
-
-    log.info("approval_cancelled", approval_id=str(approval.id))
     await emit_audit_event(
         db,
         workspace.id,
@@ -797,6 +795,10 @@ async def cancel_approval(
         target_id=str(approval.id),
         after={"request_type": approval.request_type},
     )
+    await db.commit()
+    await db.refresh(approval)
+
+    log.info("approval_cancelled", approval_id=str(approval.id))
     return ApprovalResponse.model_validate(approval)
 
 

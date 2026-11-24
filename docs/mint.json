@@ -120,6 +120,7 @@
         "governance/approvals",
         "governance/alerts",
         "governance/security-controls",
+        "governance/audit-log",
         "governance/retention",
         "governance/policy-dry-run",
         "governance/governance-audit-pack",

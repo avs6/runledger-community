@@ -78,6 +78,8 @@ export async function createOidcProvider(
     audience?: string | null
     discovery_url?: string | null
     jwks_uri?: string | null
+    client_id?: string | null
+    client_secret?: string | null
     claim_mappings?: Record<string, unknown>
     is_active?: boolean
   }
@@ -97,6 +99,8 @@ export async function updateOidcProvider(
     audience?: string | null
     discovery_url?: string | null
     jwks_uri?: string | null
+    client_id?: string | null
+    client_secret?: string | null
     claim_mappings?: Record<string, unknown> | null
     is_active?: boolean
   }

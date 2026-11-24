@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
+from runledger_api.core.secrets import EncryptedText
 
 
 class ScopeTypeEnum(enum.StrEnum):
@@ -124,7 +125,8 @@ class BudgetNotification(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     channel: Mapped[str] = mapped_column(sa.String(16), nullable=False)
-    destination_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    # Slack/webhook URLs carry their token in the path: encrypted at rest (F-15).
+    destination_url: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     events: Mapped[list[str]] = mapped_column(
         ARRAY(sa.Text), nullable=False, server_default=sa.text("'{}'")
     )

@@ -48,6 +48,13 @@ CONTROL_PLANE_URL = os.getenv("RUNLEDGER_CONTROL_PLANE_URL", "http://runledger-a
     "/"
 )
 ADMIN_SECRET = os.getenv("RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET", "")
+# Dedicated channel secret (review tr-security); the admin secret is a legacy fallback.
+MCP_INTERNAL_TOKEN = os.getenv("RUNLEDGER_MCP_INTERNAL_TOKEN", "")
+CONTROL_PLANE_AUTH = (
+    {"x-gateway-internal-token": MCP_INTERNAL_TOKEN}
+    if MCP_INTERNAL_TOKEN
+    else {"x-admin-secret": ADMIN_SECRET}
+)
 REQUIRE_AUTH = os.getenv("MCP_REQUIRE_AUTH", "true").lower() not in {"0", "false", "no"}
 # Backing services only accept calls that carry this token.
 INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "")
@@ -83,7 +90,7 @@ async def _workspace_for(ctx: Context | None) -> str:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
                 f"{CONTROL_PLANE_URL}/gateway/runtime/internal/resolve-api-key",
-                headers={"x-admin-secret": ADMIN_SECRET},
+                headers=CONTROL_PLANE_AUTH,
                 json={"raw_key": raw, "required_scope": "mcp"},
             )
     except httpx.HTTPError as exc:

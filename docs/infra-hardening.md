@@ -141,3 +141,28 @@ This is for local HTTPS demos, not production certificate management.
 docker compose up -d
 docker compose --profile streaming up -d
 ```
+
+
+## Internal endpoints and per-channel secrets
+
+- **Caddy** (`infra/Caddyfile`) answers 404 for `/gateway/runtime/internal/*` and `/internal/*` on the
+  public API host. gateway-rs and the MCP gateway reach the API over the compose network instead.
+- **Separate secrets per channel**: set `GATEWAY_INTERNAL_TOKEN` (gateway-rs) and `MCP_INTERNAL_TOKEN`
+  (MCP gateway). Once set, `ADMIN_SECRET` no longer authorizes the runtime channel, and the MCP token can
+  only resolve API keys. The optimization microservices keep their own `INTERNAL_SERVICE_TOKEN`.
+
+## Secrets at rest and logs
+
+- Stored credentials are encrypted with `SECRETS_MASTER_KEY` (Fernet) or AWS KMS envelope encryption
+  (`SECRETS_KMS_KEY_ID`); see [configuration](deployment/configuration.mdx#rotating-the-secrets-master-key).
+  The API never returns a stored secret: it sends `••••••••` and keeps the value when the mask is sent back.
+- API logs pass through a redaction processor (passwords, tokens, API keys, e-mails, IPs, payloads), and
+  SQL echo is off unless `SQL_ECHO=1`.
+
+## Row-level security
+
+Tenant tables carry a Postgres RLS policy keyed on the caller's org (and workspace, for workload keys).
+It only takes effect when the API connects as a non-superuser role; see
+[configuration](deployment/configuration.mdx#database-role-and-row-level-security).
+`apps/api/tests/test_security_pg.py` checks the policy and fuzzes every `GET /…/{id}` route with another
+workspace's ids against a real Postgres.

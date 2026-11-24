@@ -317,7 +317,10 @@ async def update_evaluator(
             await _require_admin_for_judge(request, db, workspace)
             ev.config = await _validated_judge_config(db, workspace.id, body.config, ev.config)
         else:
-            ev.config = body.config
+            # A masked secret means "keep the stored value" (review B-09).
+            from runledger_api.core.secrets import merge_config  # noqa: PLC0415
+
+            ev.config = merge_config(body.config, ev.config)
     if body.status is not None:
         ev.status = body.status
 

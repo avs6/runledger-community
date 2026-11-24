@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
+from runledger_api.core.secrets import EncryptedSecretsJSON
 
 
 class SearchTool(Base):
@@ -21,7 +22,7 @@ class SearchTool(Base):
     tool_type: Mapped[str] = mapped_column(String(50), nullable=False)
     endpoint_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     auth_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    auth_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    auth_config: Mapped[dict | None] = mapped_column(EncryptedSecretsJSON, nullable=True)
     rate_limit_rpm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_per_query: Mapped[Decimal] = mapped_column(Numeric(12, 6), server_default="0")
     is_active: Mapped[bool] = mapped_column(Boolean, server_default="true")

@@ -13,7 +13,14 @@ This page is the reference for the ones you'll actually touch.
 | `ENVIRONMENT` | `production` | `production` runs the startup validation below and never seeds a demo account. Set `development` for local work: it seeds `admin@runledger.local` / `runledger` (dev only) and skips the checks. |
 | `ALLOW_INSECURE_DEFAULTS` | `false` | Throwaway demos only: start in production even with the problems below (each is logged as a warning). |
 | `SECRET_KEY` | — | **Required.** 32+ random characters; signs tokens and encrypts the dashboard session cookie (`NEXTAUTH_SECRET` in compose). |
-| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/*` (including the one-time `/admin/bootstrap`) and the internal gateway/MCP endpoints that resolve API keys. |
+| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/*` (including the one-time `/admin/bootstrap`). Also accepted on `/gateway/runtime/internal/*` until `GATEWAY_INTERNAL_TOKEN` is set. |
+| `GATEWAY_INTERNAL_TOKEN` | empty | Dedicated secret for gateway-rs → API calls (`/gateway/runtime/internal/*`, sent as `x-gateway-internal-token`; gateway-rs reads it as `RUNLEDGER_GATEWAY_INTERNAL_TOKEN`). Once set, `ADMIN_SECRET` no longer works on that channel. Set `MCP_INTERNAL_TOKEN` at the same time. |
+| `MCP_INTERNAL_TOKEN` | empty | Dedicated secret the MCP gateway uses to resolve API keys (`RUNLEDGER_MCP_INTERNAL_TOKEN` in the mcp-gateway container). Valid only for key resolution. |
+| `SECRETS_MASTER_KEY` | key derived from `SECRET_KEY` | Comma-separated Fernet keys (or passphrases) that encrypt stored secrets: auth-provider client secrets, LDAP bind passwords, search and pass-through credentials, webhook URLs, evaluator keys, Kafka/backup/GitHub tokens and ledger keys. The first key encrypts; all decrypt. **Set it in production.** |
+| `SECRETS_KMS_KEY_ID` | empty | AWS KMS key id/ARN. When set, new secrets use envelope encryption (a KMS data key per 5 minutes; only the wrapped key is stored). |
+| `LEDGER_MASTER_KEY` | empty | Legacy. Still used to decrypt ledger keys written before secrets moved to `SECRETS_MASTER_KEY`. |
+| `LOG_REDACTION` | `on` | Masks passwords, tokens, API keys, e-mails, IPs and payload fields in API logs. `off` only for local debugging. |
+| `SQL_ECHO` | off | `1` echoes SQL with bound parameters (local debugging only; leaks data into logs). |
 | `DATABASE_URL` | in-compose Postgres | `postgresql+asyncpg://…` |
 | `REDIS_URL` | in-compose Redis | Queue + budget hot-path. Compose builds it from `REDIS_PASSWORD`. |
 | `REDIS_PASSWORD` | — | **Required by compose.** Redis always runs with `--requirepass`; use URL-safe characters (it is embedded in `REDIS_URL`). |
@@ -152,3 +159,33 @@ See [Helm deployment](/helm) and [Configuration reference in helm.md](/helm#valu
     Cluster values.
   </Card>
 </CardGroup>
+
+
+## Rotating the secrets master key
+
+1. Generate a key: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+2. Prepend it: `SECRETS_MASTER_KEY=<new>,<old>` and restart the API and workers.
+3. On **Security → Secrets**, click **Re-wrap** (or `POST /security/secrets/rewrap` per workspace). Each
+   re-wrap is audited as `secret.rewrapped`.
+4. When no secret shows an old key id, drop the old key from `SECRETS_MASTER_KEY`.
+
+## Database role and row-level security
+
+Migration `security_secrets_audit_rls` adds Postgres row-level security to tenant tables as a second line
+of defence behind the API's workspace filters. The API sets `app.tenant_id` (and, for workload API keys,
+`app.workspace_id`) on every transaction; rows from other orgs are then invisible and can't be written.
+
+Postgres never applies RLS to superusers or roles with `BYPASSRLS`, and the compose `POSTGRES_USER` is a
+superuser. To get the protection, run migrations as the owner but connect the API as a separate role:
+
+```sql
+CREATE ROLE runledger_app LOGIN PASSWORD '…' NOSUPERUSER NOBYPASSRLS;
+GRANT USAGE ON SCHEMA public TO runledger_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO runledger_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO runledger_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO runledger_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO runledger_app;
+```
+
+Then point the API's and workers' `DATABASE_URL` at `runledger_app`. Workers and internal calls set no
+tenant context, so the policy lets them through unchanged.
