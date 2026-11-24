@@ -11,8 +11,8 @@ from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
 from runledger_api.core.scopes import normalize_scopes
-from runledger_api.services.agent_policy import enforce_agent_policy_for_request
 from runledger_api.services import auto_tagging, tool_holds
+from runledger_api.services.agent_policy import enforce_agent_policy_for_request
 from runledger_api.services.budgets import (
     check_budget_throttle,
     check_provider_profile_budgets,

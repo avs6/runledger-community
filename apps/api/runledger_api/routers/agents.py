@@ -62,8 +62,8 @@ from runledger_api.schemas.agents import (
     AgentUpdate,
     RunSummaryListResponse,
 )
-from runledger_api.services.agent_policy import evaluate_agent_policy
 from runledger_api.services.agent_memory import not_expired, open_value, seal_value
+from runledger_api.services.agent_policy import evaluate_agent_policy
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/agents", tags=["agents"])

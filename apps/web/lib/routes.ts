@@ -80,6 +80,7 @@ export const STATIC_ROUTES = [
   '/response-cache',
   '/runbooks',
   '/runs',
+  '/runs/compare',
   '/search-tools',
   '/security',
   '/sessions',
