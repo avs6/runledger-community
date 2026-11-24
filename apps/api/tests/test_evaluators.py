@@ -24,6 +24,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
+from runledger_api.core import secrets
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ async def test_create_evaluator_llm_judge(
     assert "gateway_key_ref" not in body["config"]
     assert "rl_live_secret" not in resp.text
     stored = mock_db_session.add.call_args.args[0]
-    assert stored.config["gateway_key_ref"].startswith("enc::")
+    assert secrets.is_encrypted(stored.config["gateway_key_ref"])
 
 
 @pytest.mark.asyncio

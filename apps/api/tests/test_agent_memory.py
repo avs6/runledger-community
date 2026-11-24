@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
+from runledger_api.core import secrets
 
 
 @pytest.fixture(autouse=True)
@@ -154,7 +155,7 @@ async def test_store_memory_detects_pii(
     # Returned decrypted, stored encrypted (review B-16).
     assert resp.json()["value"] == "email is user@example.com"
     stored = mock_db_session.add.call_args_list[0].args[0]
-    assert stored.value.startswith("enc::")
+    assert secrets.is_encrypted(stored.value)
     assert "user@example.com" not in stored.value
 
 

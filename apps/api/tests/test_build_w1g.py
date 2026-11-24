@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from fastapi import HTTPException
+from runledger_api.core import secrets
 from runledger_api.services import gateway_client
 from runledger_api.services.gateway_client import GatewayCallResult
 
@@ -244,7 +245,7 @@ def test_judge_config_is_gateway_only_and_secret_write_only() -> None:
     with pytest.raises(ValueError):
         normalize_judge_config({})
     cfg = normalize_judge_config({"model": "fast", "gateway_api_key": "rl_secret"})
-    assert cfg["gateway_key_ref"].startswith("enc::")
+    assert secrets.is_encrypted(cfg["gateway_key_ref"])
     assert "gateway_api_key" not in cfg
     # Update without a key keeps the stored ref.
     kept = normalize_judge_config({"model": "fast", "criteria": "c"}, cfg)
