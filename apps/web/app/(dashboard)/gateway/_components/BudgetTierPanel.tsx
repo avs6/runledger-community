@@ -1,8 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { listApiKeys, listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey } from '@/lib/api'
+import { listApiKeys, listBudgetTiers, createBudgetTier, updateBudgetTier, deleteBudgetTier, assignTierToKey, apiErrorMessage } from '@/lib/api'
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { SectionError } from '@/components/ui/async-card'
 import type { ApiKeyResponse, BudgetTier } from '@/types/api'
 import { inputCls, parseCsvTags } from './shared'
 
@@ -17,16 +20,8 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
     is_default: false,
   }
   const [tiers, setTiers] = useState<BudgetTier[]>([])
-  const [tierQuery, setTierQuery] = useState('')
-  const [tierSort, setTierSort] = useState<'name' | 'spend' | 'keys'>('name')
-  const visibleTiers = useMemo(() => {
-    const q = tierQuery.trim().toLowerCase()
-    const list = q ? tiers.filter((t) => t.name.toLowerCase().includes(q)) : [...tiers]
-    if (tierSort === 'spend') list.sort((a, b) => Number(b.max_spend_usd ?? -1) - Number(a.max_spend_usd ?? -1))
-    else if (tierSort === 'keys') list.sort((a, b) => (b.key_count ?? 0) - (a.key_count ?? 0))
-    else list.sort((a, b) => a.name.localeCompare(b.name))
-    return list
-  }, [tiers, tierQuery, tierSort])
+  const [error, setError] = useState('')
+  const { confirm, dialog } = useConfirm()
   const [keys, setKeys] = useState<ApiKeyResponse[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState<string | null>(null)
@@ -36,6 +31,7 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
       const [tierData, keyData] = await Promise.all([
         listBudgetTiers(apiKey, { limit: 500 }),
@@ -43,8 +39,8 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
       ])
       setTiers(tierData.items)
       setKeys(keyData.filter((item) => !item.is_session))
-    } catch {
-      toast.error('Failed to load quota tiers')
+    } catch (err) {
+      setError(apiErrorMessage(err, "Couldn't load quota tiers"))
     } finally {
       setLoading(false)
     }
@@ -69,42 +65,48 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
     e.preventDefault()
     setSaving(true)
     try {
-      const body: {
-        name: string
-        max_spend_usd?: number
-        period_type?: string
-        rpm_limit?: number
-        tpm_limit?: number
-        allowed_models?: string[]
-        is_default?: boolean
-      } = {
+      // On edit an emptied field is sent as null, which clears that limit (G-20).
+      const clear = editId ? null : undefined
+      const body = {
         name: form.name.trim(),
         period_type: form.period_type,
         is_default: form.is_default,
+        max_spend_usd: form.max_spend_usd ? parseFloat(form.max_spend_usd) : clear,
+        rpm_limit: form.rpm_limit ? parseInt(form.rpm_limit, 10) : clear,
+        tpm_limit: form.tpm_limit ? parseInt(form.tpm_limit, 10) : clear,
+        allowed_models: form.allowed_models.trim() ? parseCsvTags(form.allowed_models) : clear,
       }
-      if (form.max_spend_usd) body.max_spend_usd = parseFloat(form.max_spend_usd)
-      if (form.rpm_limit) body.rpm_limit = parseInt(form.rpm_limit, 10)
-      if (form.tpm_limit) body.tpm_limit = parseInt(form.tpm_limit, 10)
-      if (form.allowed_models.trim()) body.allowed_models = parseCsvTags(form.allowed_models)
       if (editId) {
         await updateBudgetTier(apiKey, editId, body)
         toast.success('Budget tier updated')
       } else {
-        await createBudgetTier(apiKey, body)
+        await createBudgetTier(apiKey, {
+          ...body,
+          max_spend_usd: body.max_spend_usd ?? undefined,
+          rpm_limit: body.rpm_limit ?? undefined,
+          tpm_limit: body.tpm_limit ?? undefined,
+          allowed_models: body.allowed_models ?? undefined,
+        })
         toast.success('Budget tier created')
       }
       setForm(emptyForm)
       setEditId(null)
       await load()
-    } catch {
-      toast.error('Failed to save budget tier')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Failed to save budget tier'))
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleDelete(tierId: string) {
-    if (!confirm('Delete this budget tier?')) return
+  async function handleDelete(tier: BudgetTier) {
+    const tierId = tier.id
+    if (!(await confirm({
+      title: `Delete tier '${tier.name}'?`,
+      description: `${tier.key_count} key(s) lose this tier and fall back to the default tier, if any.`,
+      destructive: true,
+      confirmLabel: 'Delete',
+    }))) return
     try {
       await deleteBudgetTier(apiKey, tierId)
       setTiers((prev) => prev.filter((item) => item.id !== tierId))
@@ -130,19 +132,65 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
   }
 
   const tierNameById = Object.fromEntries(tiers.map((tier) => [tier.id, tier.name]))
+  const limit = (v: number | string | null | undefined) => (v == null ? '—' : String(v))
+  const tierColumns: DataTableColumn<BudgetTier>[] = [
+    {
+      key: 'name',
+      header: 'Tier',
+      sortable: true,
+      render: (t) => (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono">{t.name}</span>
+          {t.is_default && <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">default</span>}
+        </span>
+      ),
+    },
+    { key: 'rpm_limit', header: 'Req/min', sortable: true, value: (t) => t.rpm_limit ?? null, render: (t) => limit(t.rpm_limit) },
+    { key: 'tpm_limit', header: 'Tokens/min', sortable: true, value: (t) => t.tpm_limit ?? null, render: (t) => limit(t.tpm_limit) },
+    {
+      key: 'allowed_models',
+      header: 'Allowed models',
+      value: (t) => t.allowed_models?.join(' ') ?? '',
+      render: (t) => (t.allowed_models?.length ? t.allowed_models.join(', ') : <span className="text-slate-400">any</span>),
+    },
+    {
+      key: 'max_spend_usd',
+      header: 'Spend cap',
+      sortable: true,
+      value: (t) => (t.max_spend_usd != null ? Number(t.max_spend_usd) : null),
+      render: (t) => (t.max_spend_usd != null ? `$${Number(t.max_spend_usd).toFixed(2)} / ${t.period_type}` : '—'),
+    },
+    { key: 'key_count', header: 'Keys', sortable: true, value: (t) => t.key_count ?? 0 },
+    ...(canManage
+      ? [{
+          key: 'actions',
+          header: 'Actions',
+          value: () => '',
+          render: (t: BudgetTier) => (
+            <span className="flex gap-1.5">
+              <button type="button" aria-label={`Edit tier ${t.name}`} onClick={() => startEdit(t)} className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">Edit</button>
+              <button type="button" aria-label={`Delete tier ${t.name}`} onClick={() => void handleDelete(t)} className="rounded-md border border-rose-200 px-2 py-0.5 text-[11px] text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30">Delete</button>
+            </span>
+          ),
+        } satisfies DataTableColumn<BudgetTier>]
+      : []),
+  ]
 
   return (
     <section id="gateway-quota-tiers" className="space-y-4">
+      {dialog}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold dark:text-white">API Key Quota Tiers</h2>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Manage reusable RPM and TPM quota profiles here inside Gateway, then assign them directly to API keys.
+            Reusable per-key limits. The gateway enforces requests/min, tokens/min (estimated at request time) and allowed models
+            for every key on the tier; keys without a tier use the default tier. The spend cap is a FinOps limit.
           </p>
         </div>
         <button
           onClick={() => void load()}
           disabled={loading}
+          aria-label="Refresh quota tiers"
           className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           {loading ? 'Refreshing...' : 'Refresh'}
@@ -151,16 +199,16 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
 
       {canManage && (
         <form onSubmit={handleSubmit} className="grid gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Tier name" required />
-          <input value={form.max_spend_usd} onChange={(e) => setForm({ ...form, max_spend_usd: e.target.value })} className={inputCls} placeholder="Max spend USD" type="number" step="0.01" />
-          <select value={form.period_type} onChange={(e) => setForm({ ...form, period_type: e.target.value })} className={inputCls}>
+          <input aria-label="Tier name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder="Tier name" required />
+          <input value={form.max_spend_usd} onChange={(e) => setForm({ ...form, max_spend_usd: e.target.value })} className={inputCls} aria-label="Max spend in USD (empty for none)" placeholder="Max spend USD" type="number" step="0.01" />
+          <select aria-label="Spend cap period" value={form.period_type} onChange={(e) => setForm({ ...form, period_type: e.target.value })} className={inputCls}>
             <option value="daily">Daily</option>
             <option value="monthly">Monthly</option>
             <option value="total">Total</option>
           </select>
-          <input value={form.rpm_limit} onChange={(e) => setForm({ ...form, rpm_limit: e.target.value })} className={inputCls} placeholder="RPM limit" type="number" />
-          <input value={form.tpm_limit} onChange={(e) => setForm({ ...form, tpm_limit: e.target.value })} className={inputCls} placeholder="TPM limit" type="number" />
-          <input value={form.allowed_models} onChange={(e) => setForm({ ...form, allowed_models: e.target.value })} className={`${inputCls} lg:col-span-2`} placeholder="Allowed models (csv)" />
+          <input value={form.rpm_limit} onChange={(e) => setForm({ ...form, rpm_limit: e.target.value })} className={inputCls} aria-label="Requests per minute per key (empty for none)" placeholder="RPM limit" type="number" />
+          <input value={form.tpm_limit} onChange={(e) => setForm({ ...form, tpm_limit: e.target.value })} className={inputCls} aria-label="Tokens per minute per key (empty for none)" placeholder="TPM limit" type="number" />
+          <input value={form.allowed_models} onChange={(e) => setForm({ ...form, allowed_models: e.target.value })} className={`${inputCls} lg:col-span-2`} aria-label="Allowed model aliases, comma separated (empty for any)" placeholder="Allowed models (csv)" />
           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
             <input type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
             Default tier
@@ -178,77 +226,25 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
         </form>
       )}
 
-      {tiers.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            value={tierQuery}
-            onChange={(e) => setTierQuery(e.target.value)}
-            placeholder="Search tiers…"
-            className="min-w-[200px] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-          />
-          <select
-            value={tierSort}
-            onChange={(e) => setTierSort(e.target.value as typeof tierSort)}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-          >
-            <option value="name">Sort: name</option>
-            <option value="spend">Sort: spend cap</option>
-            <option value="keys">Sort: keys assigned</option>
-          </select>
-          <span className="text-xs text-slate-500 dark:text-slate-400">{visibleTiers.length} of {tiers.length}</span>
-        </div>
-      )}
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        {tiers.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-400 lg:col-span-2">
-            No quota tiers configured yet.
-          </div>
-        ) : visibleTiers.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-6 text-center text-sm text-slate-400 lg:col-span-2">
-            No tiers match &ldquo;{tierQuery}&rdquo;.
-          </div>
-        ) : visibleTiers.map((tier) => (
-          <div key={tier.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm dark:text-slate-100">{tier.name}</span>
-                  {tier.is_default && <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">default</span>}
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tier.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
-                    {tier.is_active ? 'active' : 'inactive'}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">rpm: {tier.rpm_limit ?? '—'}</span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">tpm: {tier.tpm_limit ?? '—'}</span>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">keys: {tier.key_count}</span>
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">spend: {tier.max_spend_usd != null ? `$${Number(tier.max_spend_usd).toFixed(2)}` : '—'}</span>
-                </div>
-                {tier.allowed_models?.length ? (
-                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{tier.allowed_models.join(', ')}</p>
-                ) : null}
-              </div>
-              {canManage && (
-                <div className="flex gap-2">
-                  <button onClick={() => startEdit(tier)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
-                    Edit
-                  </button>
-                  <button onClick={() => void handleDelete(tier.id)} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      {error && <SectionError message={error} onRetry={() => void load()} />}
+      <DataTable<BudgetTier>
+        label="API key quota tiers"
+        urlPrefix="tier"
+        rows={tiers}
+        rowKey={(t) => t.id}
+        pageSize={10}
+        searchPlaceholder="Search tiers…"
+        csvFileName="quota-tiers.csv"
+        emptyTitle="No quota tiers yet"
+        emptyDescription="Create a tier, then assign it to API keys below."
+        columns={tierColumns}
+      />
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/40 p-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold dark:text-white">Assign tiers to API keys</h3>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">API keys inherit RPM and TPM quotas from the selected tier.</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">A key gets the limits of the tier picked here; with no tier it gets the default tier.</p>
           </div>
         </div>
         <div className="mt-4 overflow-x-auto">
@@ -274,7 +270,8 @@ export function BudgetTierPanel({ apiKey, canManage }: { apiKey: string; canMana
                     <select
                       value={key.budget_tier_id ?? ''}
                       onChange={(e) => void handleAssign(key.id, e.target.value)}
-                      disabled={assigningKeyId === key.id}
+                      disabled={assigningKeyId === key.id || !canManage}
+                      aria-label={`Quota tier for ${key.name || key.key_prefix}`}
                       className={`${inputCls} min-w-[220px]`}
                     >
                       <option value="">No tier</option>
