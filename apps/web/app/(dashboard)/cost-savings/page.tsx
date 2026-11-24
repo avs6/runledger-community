@@ -15,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getBudgetRollup, getRunFlow } from '@/lib/api'
+import { getBudgetRollup, getRunFlow, getSavingsAnalytics } from '@/lib/api'
 import DashboardScopeBar from '@/components/dashboard/DashboardScopeBar'
 import { getDashboardWindow } from '@/lib/dashboard-window'
 import {
@@ -26,8 +26,9 @@ import {
   type HeatmapRow,
   type SavingsCategoryPoint,
 } from '@/components/dashboard/FinOpsCharts'
-import type { BudgetRollupResponse, BudgetRollupWorkspace, RunFlowRecord } from '@/types/api'
+import type { BudgetRollupResponse, BudgetRollupWorkspace, RunFlowRecord, SavingsResponse } from '@/types/api'
 import { num } from '@/lib/utils'
+import { seriesColor } from '@/lib/tokens'
 
 type FlowScope = 'workspace' | 'org' | 'platform'
 
@@ -44,32 +45,32 @@ const heatmapColumns = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const savingsMeta: Record<string, { name: string; color: string; note: string }> = {
   prompt_compression: {
     name: 'Prompt compression',
-    color: '#f59e0b',
+    color: seriesColor(0),
     note: 'Savings from reducing prompt token volume before the provider call.',
   },
   cache_hits: {
     name: 'Cache hits',
-    color: '#2563eb',
+    color: seriesColor(1),
     note: 'Savings from reused cached input tokens or gateway cache hits.',
   },
   smart_routing: {
     name: 'Smart routing',
-    color: '#7c3aed',
+    color: seriesColor(2),
     note: 'Savings from choosing a cheaper eligible model or route.',
   },
   local_models: {
     name: 'Local models',
-    color: '#059669',
+    color: seriesColor(3),
     note: 'Savings attributed to local or self-hosted model lanes.',
   },
   duplicate_detection: {
     name: 'Duplicate detection',
-    color: '#0f766e',
+    color: seriesColor(4),
     note: 'Savings from avoiding repeated work.',
   },
   tool_optimization: {
     name: 'Tool optimization',
-    color: '#0891b2',
+    color: seriesColor(5),
     note: 'Savings from fewer or cheaper tool hops.',
   },
 }
@@ -152,34 +153,25 @@ function buildRoiRows(items: RunFlowRecord[]): RoiRow[] {
   return Array.from(map.values()).sort((a, b) => b.spend - a.spend).slice(0, 12)
 }
 
-function buildSavings(items: RunFlowRecord[]): SavingsCategoryPoint[] {
-  const buckets = new Map<string, number>()
-  for (const item of items) {
-    const amount = parseMoney(item.savings_usd)
-    if (amount <= 0) continue
-    let category = item.savings_category
-    if (!category) {
-      const text = `${item.primary_model ?? ''} ${item.provider ?? ''}`.toLowerCase()
-      if (item.cached_input_tokens > 0) category = 'cache_hits'
-      else if (text.includes('llama') || text.includes('local') || text.includes('ollama')) category = 'local_models'
-      else category = 'smart_routing'
-    }
-    buckets.set(category, (buckets.get(category) ?? 0) + amount)
-  }
-
-  const total = items.reduce((sum, item) => sum + parseMoney(item.savings_usd), 0)
-  const categorized = Array.from(buckets.values()).reduce((sum, value) => sum + value, 0)
-  const uncategorized = Math.max(total - categorized, 0)
-  if (uncategorized > 0) {
-    buckets.set('smart_routing', (buckets.get('smart_routing') ?? 0) + uncategorized)
-  }
-
-  return Object.entries(savingsMeta).map(([key, meta]) => ({
+/**
+ * Savings by category from recorded savings only (review F-20): each call's
+ * savings_usd = baseline cost (the model/price it would have used) − actual cost,
+ * written when the gateway or SDK records it. Nothing is inferred from model names.
+ */
+function buildSavings(real: SavingsResponse | null): SavingsCategoryPoint[] {
+  const byCategory = new Map((real?.by_category ?? []).map((c) => [c.category, Number(c.savings_usd)]))
+  const known = Object.entries(savingsMeta).map(([key, meta]) => ({
     name: meta.name,
-    value: buckets.get(key) ?? 0,
+    value: byCategory.get(key) ?? 0,
     color: meta.color,
     note: meta.note,
   }))
+  const other = Array.from(byCategory.entries())
+    .filter(([key]) => !(key in savingsMeta))
+    .reduce((sum, [, v]) => sum + v, 0)
+  return other > 0
+    ? [...known, { name: 'Other', value: other, color: savingsMeta.smart_routing.color, note: 'Savings recorded under other categories.' }]
+    : known
 }
 
 function buildHeatmap(items: RunFlowRecord[]): HeatmapRow[] {
@@ -250,7 +242,7 @@ export default async function CostSavingsPage({
     : 'Workspace'
   const activeTab: TabId = TABS.some((t) => t.id === sp.tab) ? (sp.tab as TabId) : 'breakdown'
   const win = getDashboardWindow(sp.range ?? '30d')
-  const [flow, budgetRollup] = await Promise.all([
+  const [flow, budgetRollup, realSavings] = await Promise.all([
     getRunFlow(session.apiKey, {
       scope: selectedScope,
       mode: 'workspace-app-agent-model-cost',
@@ -259,17 +251,33 @@ export default async function CostSavingsPage({
       from: win.from,
       to: win.to,
     }),
-    getBudgetRollup(session.apiKey, selectedScope).catch(() => null as BudgetRollupResponse | null)])
+    getBudgetRollup(session.apiKey, selectedScope).catch(() => null as BudgetRollupResponse | null),
+    // Recorded savings for this workspace (the savings endpoint is workspace-scoped).
+    getSavingsAnalytics(session.apiKey, { from: win.from, to: win.to }).catch(
+      () => null as SavingsResponse | null
+    ),
+  ])
 
   const items = flow.items
   const requests = flow.total_runs || items.length
   const spend = items.reduce((sum, item) => sum + parseMoney(item.total_cost_usd), 0)
-  const saved = items.reduce((sum, item) => sum + parseMoney(item.savings_usd), 0)
-  const optimization = spend + saved > 0 ? (saved / (spend + saved)) * 100 : 0
+  // Workspace scope reads recorded totals from /analytics/savings; org/platform scope
+  // sums the recorded savings_usd of the runs in the flow sample.
+  const useReal = selectedScope === 'workspace' && realSavings !== null
+  const saved = useReal
+    ? Number(realSavings.total_savings_usd)
+    : items.reduce((sum, item) => sum + parseMoney(item.savings_usd), 0)
+  const baseline = useReal ? Number(realSavings.total_baseline_usd) : spend + saved
+  const optimization = useReal
+    ? Number(realSavings.savings_rate_pct ?? 0)
+    : baseline > 0
+      ? (saved / baseline) * 100
+      : 0
+  const enoughSavingsData = baseline > 0
   const costPerRequest = requests > 0 ? spend / requests : 0
   const breakdown = buildBreakdown(items, dimension)
   const roiRows = buildRoiRows(items)
-  const savings = buildSavings(items)
+  const savings = buildSavings(useReal ? realSavings : null)
   const heatmapRows = buildHeatmap(items)
   const recommendation = nextOptimization(roiRows)
   const budgetRows = budgetRollup?.workspaces ?? []
@@ -301,8 +309,8 @@ export default async function CostSavingsPage({
         <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {[
             { label: 'AI Spend', value: money(spend) },
-            { label: 'Saved', value: money(saved) },
-            { label: 'Optimization', value: percent(optimization) },
+            { label: 'Saved', value: enoughSavingsData ? money(saved) : 'Not enough data' },
+            { label: 'Optimization', value: enoughSavingsData ? percent(optimization) : '—' },
             { label: 'Requests', value: requests.toLocaleString() },
             { label: 'Cost/Req', value: money(costPerRequest) },
             { label: 'Dimension', value: dimension },
@@ -466,11 +474,20 @@ export default async function CostSavingsPage({
                 <TrendingDown className="h-4 w-4 text-emerald-500" /> Savings Attribution
               </h2>
               <p className="text-[11px] text-slate-500">
-                Uses realized savings category/reason codes when present, with telemetry fallback for older cached or local-model traffic.
+                Savings = baseline cost − actual cost, per call, recorded when a cache hit, cheaper route,
+                compression or local model served the request. Only recorded savings are shown.
               </p>
             </div>
           </div>
-          <SavingsAttributionCards data={savings} />
+          {!enoughSavingsData || !useReal ? (
+            <div role="status" className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              {selectedScope !== 'workspace'
+                ? 'Savings by category is available for the workspace scope.'
+                : 'Not enough data: no calls in this range recorded a baseline cost. Savings appear once traffic is served from the cache, a cheaper route, compression or a local model.'}
+            </div>
+          ) : (
+            <SavingsAttributionCards data={savings} />
+          )}
         </div>
       )}
 

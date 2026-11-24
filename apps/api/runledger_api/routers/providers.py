@@ -268,6 +268,7 @@ async def create_pricing(
         input_cost_per_1m=body.input_cost_per_1m,
         output_cost_per_1m=body.output_cost_per_1m,
         cached_input_cost_per_1m=body.cached_input_cost_per_1m,
+        cache_write_cost_per_1m=body.cache_write_cost_per_1m,
         tags=body.tags,
         display_name=body.display_name,
         effective_from=body.effective_from or datetime.now(UTC),
@@ -304,6 +305,7 @@ async def update_pricing(
             (body.input_cost_per_1m, pricing.input_cost_per_1m),
             (body.output_cost_per_1m, pricing.output_cost_per_1m),
             (body.cached_input_cost_per_1m, pricing.cached_input_cost_per_1m),
+            (body.cache_write_cost_per_1m, pricing.cache_write_cost_per_1m),
         )
     )
     if price_changed and pricing.effective_from <= now:
@@ -316,6 +318,7 @@ async def update_pricing(
             input_cost_per_1m=pricing.input_cost_per_1m,
             output_cost_per_1m=pricing.output_cost_per_1m,
             cached_input_cost_per_1m=pricing.cached_input_cost_per_1m,
+            cache_write_cost_per_1m=pricing.cache_write_cost_per_1m,
             tags=pricing.tags,
             display_name=pricing.display_name,
             effective_from=now,
@@ -340,6 +343,8 @@ async def update_pricing(
         pricing.output_cost_per_1m = body.output_cost_per_1m
     if body.cached_input_cost_per_1m is not None:
         pricing.cached_input_cost_per_1m = body.cached_input_cost_per_1m
+    if body.cache_write_cost_per_1m is not None:
+        pricing.cache_write_cost_per_1m = body.cache_write_cost_per_1m
     if body.tags is not None:
         pricing.tags = body.tags
     if body.display_name is not None:

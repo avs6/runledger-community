@@ -389,17 +389,20 @@ async def model_budget_utilization(
     t_from = _default_from()
     t_to = _default_to()
 
-    api_key_ids_result = await db.execute(
-        select(ApiKey.id).where(ApiKey.workspace_id == workspace.id)
-    )
-    api_key_ids = [row[0] for row in api_key_ids_result.fetchall()]
+    # Model budgets are budgets with scope_type="model" (review G-01, W1-D).
+    from runledger_api.models.budgets import Budget  # noqa: PLC0415
 
-    model_budgets_result = await db.execute(
-        select(ModelBudget).where(
-            ModelBudget.api_key_id.in_(api_key_ids) if api_key_ids else sa.literal(False)
+    model_budgets = (
+        (
+            await db.execute(
+                select(Budget).where(
+                    Budget.workspace_id == workspace.id, Budget.scope_type == "model"
+                )
+            )
         )
+        .scalars()
+        .all()
     )
-    model_budgets = model_budgets_result.scalars().all()
 
     model_spend_result = await db.execute(
         select(
@@ -418,9 +421,9 @@ async def model_budget_utilization(
         row.model: (float(row.spend), row.request_count) for row in model_spend_result.fetchall()
     }
 
-    budget_by_pattern: dict[str, ModelBudget] = {}
+    budget_by_pattern: dict[str, Any] = {}
     for mb in model_budgets:
-        budget_by_pattern[mb.model_pattern] = mb
+        budget_by_pattern[mb.scope_id or ""] = mb
 
     all_models = set(spend_by_model.keys()) | set(budget_by_pattern.keys())
     items: list[dict] = []
@@ -432,9 +435,7 @@ async def model_budget_utilization(
                 "model": model,
                 "spend_30d": spend_info[0],
                 "request_count": spend_info[1],
-                "budget_limit_usd": float(budget.max_spend_usd)
-                if budget and budget.max_spend_usd
-                else None,
+                "budget_limit_usd": float(budget.limit_usd) if budget else None,
                 "budget_action": budget.action if budget else None,
                 "period_type": budget.period_type if budget else None,
                 "is_active": budget.is_active if budget else False,

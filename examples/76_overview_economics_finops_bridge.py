@@ -2,8 +2,8 @@
 Example: Overview & Economics FinOps budget bridge.
 
 Demonstrates the overview-to-budget and model-usage-to-budget investigation flow:
-1. Fetch the overview FinOps budget posture (budgets, billing, spend, notifications)
-2. Fetch per-model budget utilization (spend vs. budget limit per model)
+1. Fetch the workspace budget rollup (budgets, limits, spend, breaches)
+2. Fetch per-model budget utilization (spend vs. model budgets, scope_type=model)
 3. Identify models exceeding or approaching budget limits
 4. Drill into budget detail and billing period context
 
@@ -14,7 +14,6 @@ Required env vars:
 
 from __future__ import annotations
 
-import json
 import os
 
 import requests
@@ -33,21 +32,14 @@ def get(path: str) -> dict:
 
 
 def main() -> None:
-    print("=== Overview FinOps Budget Posture ===\n")
+    print("=== Workspace Budget Rollup ===\n")
     ctx = get("/context?entity=workspace")
     print("  Workspace context: " + ", ".join(f"{i['label']}={i['value']}" for i in ctx["items"]))
-    print(f"  Active budgets: {bc['active_budgets']} / {bc['budgets']} total")
-    print(f"  Total limit:    ${bc['total_limit_usd']:.2f}")
-    print(f"  Breached:       {bc['breach_count']}")
-    print(f"  Overrides:      {bc['overrides']} ({bc['active_overrides']} active)")
-
-    print(f"\n  Spend (30d):    ${sc['total_spend_30d']:.2f}")
-    print(f"  Runs (30d):     {sc['total_runs_30d']}")
-
-    print(f"\n  Billing periods: {blc['billing_periods']} ({blc['open_billing_periods']} open)")
-    print(f"  Chargeback rules: {blc['chargeback_rules']}")
-
-    print(f"\n  Notifications:   {nc['active_notifications']} active / {nc['notifications']} total")
+    rollup = get("/budgets/rollup?scope=workspace")
+    print(f"  Active budgets: {rollup['active_budget_count']} / {rollup['budget_count']} total")
+    print(f"  Total limit:    ${float(rollup['limit_usd']):.2f}")
+    print(f"  Current spend:  ${float(rollup['current_spend_usd']):.2f}")
+    print(f"  Exceeded:       {rollup['exceeded_count']}  at risk: {rollup['at_risk_count']}")
 
     print("\n=== Model Budget Utilization ===\n")
     util = get("/analytics/model-budget-utilization")
@@ -83,7 +75,7 @@ def main() -> None:
     print("  /budgets?view=notifications — Budget notification endpoints")
     print("  /billing               — Billing periods and attribution")
     print("  /chargeback            — Chargeback attribution rules")
-    print("  /model-budgets         — Per-model budget controls")
+    print("  /budgets?scope_type=model — Model budgets (scope_type=model)")
     print("  /ledger                — Full ledger snapshots")
 
 

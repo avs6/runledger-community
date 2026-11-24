@@ -18,6 +18,12 @@ class LedgerSnapshotResponse(BaseModel):
     call_count: int
     hash: str
     key_id: str
+    prev_hash: str | None = None
+    entry_count: int | None = None
+    sealed_at: datetime | None = None
+    anchor_uri: str | None = None
+    anchored_at: datetime | None = None
+    anchor_locked: bool | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -29,10 +35,22 @@ class LedgerSnapshotList(BaseModel):
 
 class LedgerVerifyResult(BaseModel):
     snapshot_date: date
-    status: str  # "ok" | "tampered" | "not_found"
+    # ok | late_data | incomplete | tampered | unsealed_drift | not_found
+    status: str
     stored_hash: str | None
     computed_hash: str | None
     match: bool
+    sealed: bool = False
+    chain_ok: bool | None = None
+    entry_count: int | None = None
+    modified_rows: int = 0
+    missing_rows: int = 0
+    late_enriched_rows: int = 0
+    late_arrival_rows: int = 0
+    # Off-box anchor: True matches, False differs (tampering), None not checkable.
+    anchored: bool = False
+    anchor_ok: bool | None = None
+    detail: str | None = None
 
 
 class LedgerVerificationSummary(BaseModel):

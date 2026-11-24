@@ -269,6 +269,11 @@ celery_app.conf.update(
             "task": "budgets.expire_overrides",
             "schedule": 300.0,
         },
+        # Queued budget webhook / Slack deliveries with retry (review F-22).
+        "budget-notifications-deliver-60s": {
+            "task": "budgets.deliver_notifications",
+            "schedule": 60.0,
+        },
         "backups-scheduled-1h": {
             "task": "backups.run_scheduled",
             "schedule": crontab(minute=0),

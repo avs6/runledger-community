@@ -21,7 +21,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
   const requestedScopeId = Array.isArray(params.scope_id) ? params.scope_id[0] : params.scope_id
   const requestedCreate = Array.isArray(params.create) ? params.create[0] : params.create
   const initialTab =
-    requestedTab === 'overrides' || requestedTab === 'notifications'
+    requestedTab === 'overrides' || requestedTab === 'notifications' || requestedTab === 'holds'
       ? requestedTab
       : 'policies'
   const initialScopeType =
@@ -31,7 +31,8 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
     requestedScopeType === 'app' ||
     requestedScopeType === 'access_group' ||
     requestedScopeType === 'api_key' ||
-    requestedScopeType === 'provider_profile'
+    requestedScopeType === 'provider_profile' ||
+    requestedScopeType === 'model'
       ? requestedScopeType
       : undefined
 
@@ -91,12 +92,12 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
           <p className="mt-1.5 text-[11px] text-slate-500">Temporary exceptions live inside Budgets, not on a separate island.</p>
         </div>
         <Link
-          href="/gateway#gateway-model-quotas"
+          href="/budgets?scope_type=model"
           className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
         >
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Model Budgets</p>
-          <p className="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">Gateway</p>
-          <p className="mt-1.5 text-[11px] text-slate-500">Per-key model quotas remain owned by Gateway for runtime coherence.</p>
+          <p className="mt-1.5 text-xl font-bold text-slate-900 dark:text-white">Scope: Model</p>
+          <p className="mt-1.5 text-[11px] text-slate-500">Spend limits on a model or pattern, optionally for one key, enforced per route.</p>
         </Link>
       </div>
 
@@ -122,7 +123,7 @@ export default async function BudgetsPage({ searchParams }: PageProps) {
           { label: 'Billing', href: '/billing' },
           { label: 'Chargeback', href: '/chargeback' },
           { label: 'Gateway Tiers', href: '/gateway#gateway-quota-tiers' },
-          { label: 'Model Quotas', href: '/gateway#gateway-model-quotas' },
+          { label: 'Model Budgets', href: '/budgets?scope_type=model' },
           { label: 'Alert Rules', href: '/alert-rules' },
           { label: 'Tags', href: '/tags' },
           { label: 'Audit Log', href: '/audit' },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Play, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function BudgetNotificationsPanel({ initialItems, apiKey }: Props) {
+  const { confirm, dialog } = useConfirm()
   const [items, setItems] = useState(initialItems)
   const [showForm, setShowForm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -68,7 +70,7 @@ export default function BudgetNotificationsPanel({ initialItems, apiKey }: Props
   }
 
   async function handleDelete(item: NotificationResponse) {
-    if (!confirm('Delete this notification channel?')) return
+    if (!(await confirm({ title: 'Delete this notification channel?', description: 'Queued deliveries to it are dropped.', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deleteBudgetNotification(apiKey, item.id)
       setItems((current) => current.filter((entry) => entry.id !== item.id))
@@ -94,6 +96,7 @@ export default function BudgetNotificationsPanel({ initialItems, apiKey }: Props
   }
 
   return (
+    <>
     <div className="space-y-4">
       <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
@@ -235,5 +238,7 @@ export default function BudgetNotificationsPanel({ initialItems, apiKey }: Props
         </div>
       )}
     </div>
+      {dialog}
+    </>
   )
 }

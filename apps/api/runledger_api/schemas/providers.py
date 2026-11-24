@@ -13,6 +13,7 @@ class ProviderPricingCreate(BaseModel):
     input_cost_per_1m: Decimal = Field(..., ge=0)
     output_cost_per_1m: Decimal = Field(..., ge=0)
     cached_input_cost_per_1m: Decimal | None = Field(None, ge=0)
+    cache_write_cost_per_1m: Decimal | None = Field(None, ge=0)
     tags: list[str] = []
     display_name: str | None = None
     effective_from: datetime | None = None  # defaults to NOW() if omitted
@@ -22,6 +23,7 @@ class ProviderPricingUpdate(BaseModel):
     input_cost_per_1m: Decimal | None = Field(None, ge=0)
     output_cost_per_1m: Decimal | None = Field(None, ge=0)
     cached_input_cost_per_1m: Decimal | None = Field(None, ge=0)
+    cache_write_cost_per_1m: Decimal | None = Field(None, ge=0)
     tags: list[str] | None = None
     display_name: str | None = None
 
@@ -33,6 +35,7 @@ class ProviderPricingResponse(BaseModel):
     input_cost_per_1m: Decimal
     output_cost_per_1m: Decimal
     cached_input_cost_per_1m: Decimal | None
+    cache_write_cost_per_1m: Decimal | None = None
     tags: list[str] = []
     display_name: str | None = None
     effective_from: datetime

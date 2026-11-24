@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import type { Budget } from '@/types/api'
-import { createBudget, getAccessGroups, listApiKeys } from '@/lib/api'
+import type { Budget, BudgetSimulateResult } from '@/types/api'
+import { createBudget, getAccessGroups, listApiKeys, simulateBudget } from '@/lib/api'
 
 interface Props {
   apiKey: string
@@ -38,6 +38,9 @@ export default function CreateBudgetModal({
   const [downgradeModel, setDowngradeModel] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [keyFilter, setKeyFilter] = useState('')
+  const [simulation, setSimulation] = useState<BudgetSimulateResult | null>(null)
+  const [simulating, setSimulating] = useState(false)
 
   const [accessGroups, setAccessGroups] = useState<ScopeOption[]>([])
   const [apiKeys, setApiKeys] = useState<ScopeOption[]>([])
@@ -64,7 +67,7 @@ export default function CreateBudgetModal({
         .catch(() => {})
         .finally(() => setLoadingEntities(false))
     }
-    if (scopeType === 'api_key' && apiKeys.length === 0) {
+    if ((scopeType === 'api_key' || scopeType === 'model') && apiKeys.length === 0) {
       setLoadingEntities(true)
       listApiKeys(apiKey)
         .then((keys) => {
@@ -88,6 +91,7 @@ export default function CreateBudgetModal({
       const budget = await createBudget(apiKey, {
         scope_type: scopeType,
         scope_id: scopeType !== 'workspace' ? scopeId || null : null,
+        api_key_id: scopeType === 'model' ? keyFilter || null : null,
         period_type: periodType,
         limit_usd: parseFloat(limitUsd),
         action,
@@ -103,8 +107,74 @@ export default function CreateBudgetModal({
     }
   }
 
+  async function handleSimulate() {
+    setError(null)
+    setSimulation(null)
+    if (!limitUsd || Number(limitUsd) <= 0) {
+      setError('Enter a limit to simulate')
+      return
+    }
+    setSimulating(true)
+    try {
+      setSimulation(
+        await simulateBudget(apiKey, {
+          scope_type: scopeType,
+          scope_id: scopeType !== 'workspace' ? scopeId || null : null,
+          api_key_id: scopeType === 'model' ? keyFilter || null : null,
+          period_type: periodType,
+          limit_usd: parseFloat(limitUsd),
+          action,
+          days: 30,
+        })
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Simulation failed')
+    } finally {
+      setSimulating(false)
+    }
+  }
+
   const renderScopeIdInput = () => {
     if (scopeType === 'workspace') return null
+
+    if (scopeType === 'model') {
+      return (
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="budget-model-pattern" className={labelCls}>Model or pattern</label>
+            <input
+              id="budget-model-pattern"
+              type="text"
+              value={scopeId}
+              onChange={(e) => setScopeId(e.target.value)}
+              required
+              placeholder="gpt-4o or gpt-4*"
+              className={fieldCls}
+            />
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Exact model name, or a prefix ending in *. A route serving a model over this budget is
+              skipped; with no route left the gateway returns 429.
+            </p>
+          </div>
+          <div>
+            <label htmlFor="budget-key-filter" className={labelCls}>Only for API key (optional)</label>
+            <select
+              id="budget-key-filter"
+              value={keyFilter}
+              onChange={(e) => setKeyFilter(e.target.value)}
+              className={fieldCls}
+            >
+              <option value="">All keys</option>
+              {apiKeys.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )
+    }
 
     if (scopeType === 'access_group') {
       return (
@@ -188,7 +258,7 @@ export default function CreateBudgetModal({
             : scopeType === 'feature_tag'
               ? 'Feature tag'
               : scopeType === 'app'
-                ? 'App / workflow key'
+                ? 'Application ID'
                 : 'Provider profile ID'}
         </label>
         <input
@@ -201,9 +271,7 @@ export default function CreateBudgetModal({
               ? 'u_12345'
               : scopeType === 'feature_tag'
                 ? 'support-chat'
-                : scopeType === 'app'
-                  ? 'workflow:customer-support'
-                  : 'UUID'
+                : 'UUID'
           }
           className={fieldCls}
         />
@@ -221,7 +289,7 @@ export default function CreateBudgetModal({
       <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">New Budget</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -234,8 +302,9 @@ export default function CreateBudgetModal({
           )}
 
           <div>
-            <label className={labelCls}>Scope type</label>
+            <label htmlFor="budget-scope-type" className={labelCls}>Scope type</label>
             <select
+              id="budget-scope-type"
               value={scopeType}
               onChange={(e) => {
                 setScopeType(e.target.value as Budget['scope_type'])
@@ -250,23 +319,26 @@ export default function CreateBudgetModal({
               <option value="access_group">Access group</option>
               <option value="api_key">API key</option>
               <option value="provider_profile">Provider profile</option>
+              <option value="model">Model</option>
             </select>
           </div>
 
           {renderScopeIdInput()}
 
           <div>
-            <label className={labelCls}>Period</label>
-            <select value={periodType} onChange={(e) => setPeriodType(e.target.value)} className={fieldCls}>
+            <label htmlFor="budget-period" className={labelCls}>Period</label>
+            <select id="budget-period" value={periodType} onChange={(e) => setPeriodType(e.target.value)} className={fieldCls}>
               <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
               <option value="total">Total (lifetime)</option>
             </select>
           </div>
 
           <div>
-            <label className={labelCls}>Limit (USD)</label>
+            <label htmlFor="budget-limit" className={labelCls}>Limit (USD)</label>
             <input
+              id="budget-limit"
               type="number"
               step="0.01"
               min="0.01"
@@ -279,9 +351,9 @@ export default function CreateBudgetModal({
           </div>
 
           <div>
-            <label className={labelCls}>Action on breach</label>
-            <select value={action} onChange={(e) => setAction(e.target.value)} className={fieldCls}>
-              <option value="block">Block (return 402)</option>
+            <label htmlFor="budget-action" className={labelCls}>Action on breach</label>
+            <select id="budget-action" value={action} onChange={(e) => setAction(e.target.value)} className={fieldCls}>
+              <option value="block">Block (gateway returns 429)</option>
               <option value="notify">Notify only (allow call)</option>
               <option value="downgrade">Downgrade model</option>
               <option value="throttle">Throttle traffic</option>
@@ -305,7 +377,27 @@ export default function CreateBudgetModal({
             </div>
           )}
 
+          {simulation && (
+            <div role="status" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200">
+              <p className="font-medium">Last {simulation.days} days: {simulation.summary}</p>
+              <p className="mt-1 text-slate-500 dark:text-slate-400">
+                ${Number(simulation.total_spend_usd).toFixed(4)} over {simulation.total_calls} calls in scope
+                {simulation.first_breach_at
+                  ? `; first breach ${new Date(simulation.first_breach_at).toLocaleString()}`
+                  : ''}
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleSimulate}
+              disabled={simulating}
+              className="mr-auto rounded-md border border-indigo-200 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 disabled:opacity-60 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+            >
+              {simulating ? 'Simulating…' : 'Simulate last 30 days'}
+            </button>
             <button
               type="button"
               onClick={onClose}

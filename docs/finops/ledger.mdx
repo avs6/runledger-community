@@ -7,9 +7,9 @@ RunLedger's ledger is the compliance-close layer for FinOps. It is no longer bes
 
 ## What exists today
 
-- **Signed daily snapshots** - daily spend snapshots are signed with HMAC-SHA256.
-- **On-demand generation** - platform admins can generate the latest snapshot immediately.
-- **Integrity verification** - snapshots can be recomputed and verified against the stored hash.
+- **Sealed daily snapshots** - each UTC day is sealed once: totals, a per-call manifest and the previous snapshot's hash, signed with HMAC-SHA256 (per-workspace key). A sealed snapshot is never overwritten.
+- **On-demand sealing** - platform admins can seal yesterday (or a past `snapshot_date`) immediately; if the day is already sealed the existing snapshot is returned (200).
+- **Integrity verification** - verification checks the signature, the chain link and every sealed call against the live rows, so late data isn't mistaken for tampering.
 - **Closure summary** - the Compliance tab now shows ledger status together with latest billing close, chargeback evidence, backup evidence, and audit activity.
 - **Evidence chain links** - operators can jump from compliance closure into Billing, Chargeback, Audit Log, and Tool Registry.
 
@@ -33,7 +33,51 @@ That makes Ledger a **closure workflow**, not a standalone daily operating page.
 - `GET /ledger/closure-summary`
 - `GET /ledger/snapshots`
 - `POST /ledger/snapshots/generate`
+- `POST /ledger/snapshots/{snapshot_date}/anchor`
 - `GET /ledger/verify/{snapshot_date}`
+
+## Sealing and verification
+
+For every successful provider call of the day the snapshot stores a hash of the call's canonical
+fields (id, run, API key, end user, provider, model, token counts, status, time and cost) and the
+cost at sealing time (`ledger_snapshot_entries`). The signature covers the totals, the digest of
+that manifest and the previous snapshot's hash, so snapshots form a chain.
+
+`GET /ledger/verify/{snapshot_date}` returns one of:
+
+| `status` | Meaning |
+|---|---|
+| `ok` | Signature, chain and every sealed call match. |
+| `late_data` | Only honest late data: calls priced after sealing (`late_enriched_rows`) or recorded after sealing (`late_arrival_rows`). |
+| `incomplete` | Sealed calls no longer exist (`missing_rows`), e.g. removed by retention. |
+| `tampered` | The signature or chain link doesn't match, or a sealed call's user, key, model, tokens or cost changed (`modified_rows`). |
+| `unsealed_drift` | A legacy aggregate-only snapshot (sealed before this change) whose totals differ; it can't tell late data from tampering. |
+| `not_found` | No snapshot for that day. |
+
+Moving cost between users, keys or workspaces is detected even when per-model totals are preserved.
+
+## Off-box anchor
+
+The signing key lives (encrypted with `LEDGER_MASTER_KEY`) in the database the ledger attests, so
+someone with database access and the app secret could rewrite a call, its manifest entry and the
+signature together, and every in-database check would pass. To catch that, each sealed snapshot is
+**anchored** to the workspace's backup bucket (Settings → Backups, S3 or S3-compatible):
+
+- The anchor is `<prefix>/ledger-anchors/<workspace>/<date>.json` holding the snapshot's hash,
+  previous hash, manifest digest and entry count.
+- It is written with **S3 Object Lock in COMPLIANCE mode** (retained 400 days) when the bucket was
+  created with Object Lock; the anchor records the locked object version, and verification reads
+  exactly that version, so neither deleting it nor uploading a newer copy changes the result.
+  Buckets without Object Lock still get an anchor (`anchor_locked: false`), which a bucket admin
+  could overwrite.
+- Sealing anchors immediately; the daily `ledger.daily_snapshots` job retries snapshots of the last
+  30 days that aren't anchored yet; `POST /ledger/snapshots/{snapshot_date}/anchor` anchors one by
+  hand (409 without a backup target).
+- `GET /ledger/verify/{snapshot_date}` compares the snapshot with its anchor: `anchor_ok: false`
+  makes the status `tampered`; `anchor_ok: null` means it couldn't be checked (not anchored yet, or
+  the bucket is unreachable).
+
+The **Compliance** tab shows each snapshot's anchor state with an **Anchor** button for unanchored ones.
 
 ## Closure workflow
 

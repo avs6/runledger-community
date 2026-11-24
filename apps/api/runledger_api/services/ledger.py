@@ -23,7 +23,7 @@ from runledger_api.models.audit import AuditEvent
 from runledger_api.models.backup_ops import BackupSnapshot
 from runledger_api.models.billing import BillingPeriod
 from runledger_api.models.events import ProviderCall
-from runledger_api.models.ledger import LedgerKey, LedgerSnapshot
+from runledger_api.models.ledger import LedgerKey, LedgerSnapshot, LedgerSnapshotEntry
 from runledger_api.schemas.ledger import (
     LedgerBackupEvidenceSummary,
     LedgerChargebackSummary,
@@ -106,41 +106,50 @@ async def get_or_create_active_key(
 # ── Snapshot build ────────────────────────────────────────────────────────────
 
 
+def _day_range(d: date) -> tuple[datetime, datetime]:
+    """UTC ``[start, end)`` of a calendar day (index-friendly, timezone-independent)."""
+    start = datetime(d.year, d.month, d.day, tzinfo=UTC)
+    return start, start + timedelta(days=1)
+
+
+def _day_filters(workspace_id: uuid.UUID, snapshot_date: date) -> list[Any]:
+    start, end = _day_range(snapshot_date)
+    return [
+        ProviderCall.workspace_id == workspace_id,
+        ProviderCall.created_at >= start,
+        ProviderCall.created_at < end,
+        ProviderCall.status == "success",
+    ]
+
+
 async def build_daily_snapshot(
     db: AsyncSession,
     workspace_id: uuid.UUID,
     snapshot_date: date,
 ) -> dict[str, Any]:
-    """Query provider_calls for the given date and return a snapshot dict."""
-    # Total cost + call count
-    totals_result = await db.execute(
-        select(
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("total_cost"),
-            func.count(ProviderCall.id).label("call_count"),
-        ).where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) == snapshot_date,
-            ProviderCall.status == "success",
+    """Aggregate provider_calls for the given UTC day into a snapshot dict."""
+    filters = _day_filters(workspace_id, snapshot_date)
+    totals_row = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("total_cost"),
+                func.count(ProviderCall.id).label("call_count"),
+            ).where(*filters)
         )
-    )
-    totals_row = totals_result.one()
+    ).one()
     total_cost: Decimal = totals_row.total_cost or Decimal(0)
     call_count: int = totals_row.call_count or 0
 
-    # Per-model breakdown
-    model_result = await db.execute(
-        select(
-            ProviderCall.model,
-            func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+    model_rows = (
+        await db.execute(
+            select(
+                ProviderCall.model,
+                func.coalesce(func.sum(ProviderCall.cost_usd), Decimal(0)).label("cost"),
+            )
+            .where(*filters)
+            .group_by(ProviderCall.model)
         )
-        .where(
-            ProviderCall.workspace_id == workspace_id,
-            func.date(ProviderCall.created_at) == snapshot_date,
-            ProviderCall.status == "success",
-        )
-        .group_by(ProviderCall.model)
-    )
-    model_rows = model_result.all()
+    ).all()
     model_breakdown = {row.model: str(row.cost) for row in model_rows if row.model}
 
     return {
@@ -150,6 +159,153 @@ async def build_daily_snapshot(
         "call_count": call_count,
         "model_breakdown": model_breakdown,
     }
+
+
+# ── Sealing (review cd:M-02) ──────────────────────────────────────────────────
+#
+# A sealed snapshot stores, per provider call of the day, a hash of the call's
+# canonical fields (who, what, how many tokens, cost) and the cost at sealing time.
+# The snapshot signature covers the digest of that manifest and the previous
+# snapshot's hash, so snapshots form a chain. Verification compares the live rows
+# against the manifest instead of re-aggregating them: a call priced after sealing
+# (cost NULL → value) or a call that arrived late is reported as late data, not as
+# tampering; changing a sealed call's user, key, model, tokens or cost is tampering.
+
+_CANONICAL_FIELDS = (
+    "id",
+    "run_id",
+    "api_key_id",
+    "end_user_id",
+    "provider",
+    "model",
+    "input_tokens",
+    "output_tokens",
+    "cached_input_tokens",
+    "status",
+    "created_at",
+)
+
+
+def canonical_row_hash(row: Any, *, cost: Any = "__row__") -> str:
+    """SHA-256 of a provider call's canonical fields; ``cost`` overrides its cost."""
+    value = getattr(row, "cost_usd", None) if cost == "__row__" else cost
+    parts = []
+    for field in _CANONICAL_FIELDS:
+        v = getattr(row, field, None)
+        if isinstance(v, datetime):
+            v = v.astimezone(UTC).isoformat()
+        parts.append("" if v is None else str(v))
+    parts.append("" if value is None else str(Decimal(value).normalize()))
+    return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()
+
+
+def entries_digest(entries: list[tuple[str, str]]) -> str:
+    """Digest of a manifest: SHA-256 over sorted ``call_id:row_hash`` lines."""
+    body = "\n".join(f"{cid}:{h}" for cid, h in sorted(entries))
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def _signed_payload(
+    data: dict[str, Any], entries_root: str | None, entry_count: int | None, prev_hash: str | None
+) -> dict[str, Any]:
+    if entries_root is None:
+        return data  # legacy, aggregates only
+    return {
+        **data,
+        "entries_root": entries_root,
+        "entry_count": entry_count,
+        "prev_hash": prev_hash,
+    }
+
+
+def _snapshot_data(snap: LedgerSnapshot) -> dict[str, Any]:
+    return {
+        "workspace_id": str(snap.workspace_id),
+        "snapshot_date": str(snap.snapshot_date),
+        "total_cost_usd": str(snap.total_cost_usd),
+        "call_count": snap.call_count,
+        "model_breakdown": snap.model_breakdown or {},
+    }
+
+
+async def _day_calls(db: AsyncSession, workspace_id: uuid.UUID, snapshot_date: date) -> list[Any]:
+    cols = [getattr(ProviderCall, f) for f in _CANONICAL_FIELDS] + [ProviderCall.cost_usd]
+    return list(
+        (await db.execute(select(*cols).where(*_day_filters(workspace_id, snapshot_date)))).all()
+    )
+
+
+async def seal_snapshot(
+    db: AsyncSession, workspace_id: uuid.UUID, snapshot_date: date
+) -> tuple[LedgerSnapshot, bool]:
+    """Seal the day's snapshot; returns ``(snapshot, created)``.
+
+    Sealed snapshots are immutable: sealing a day that already has a snapshot
+    returns it unchanged, so history can't be re-signed through the API or worker.
+    Does not commit.
+    """
+    existing = (
+        await db.execute(
+            select(LedgerSnapshot).where(
+                LedgerSnapshot.workspace_id == workspace_id,
+                LedgerSnapshot.snapshot_date == snapshot_date,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing, False
+
+    data = await build_daily_snapshot(db, workspace_id, snapshot_date)
+    rows = await _day_calls(db, workspace_id, snapshot_date)
+    entries = [(str(r.id), canonical_row_hash(r)) for r in rows]
+    root = entries_digest(entries)
+    prev = (
+        await db.execute(
+            select(LedgerSnapshot.hash)
+            .where(
+                LedgerSnapshot.workspace_id == workspace_id,
+                LedgerSnapshot.snapshot_date < snapshot_date,
+            )
+            .order_by(LedgerSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    key = await get_or_create_active_key(db, workspace_id)
+    signature = compute_snapshot_hash(
+        _signed_payload(data, root, len(entries), prev), _decrypt_key(key.key_value)
+    )
+    snap = LedgerSnapshot(
+        workspace_id=workspace_id,
+        snapshot_date=snapshot_date,
+        total_cost_usd=Decimal(data["total_cost_usd"]),
+        model_breakdown=data["model_breakdown"],
+        call_count=data["call_count"],
+        hash=signature,
+        key_id=key.id,
+        prev_hash=prev,
+        entries_root=root,
+        entry_count=len(entries),
+        sealed_at=datetime.now(UTC),
+    )
+    db.add(snap)
+    await db.flush()
+    db.add_all(
+        LedgerSnapshotEntry(
+            snapshot_id=snap.id,
+            provider_call_id=r.id,
+            row_hash=h,
+            cost_usd=r.cost_usd,
+        )
+        for r, (_, h) in zip(rows, entries, strict=True)
+    )
+    await db.flush()
+    log.info(
+        "ledger_snapshot_sealed",
+        workspace_id=str(workspace_id),
+        snapshot_date=str(snapshot_date),
+        entries=len(entries),
+    )
+    return snap, True
 
 
 # ── Hash helpers ──────────────────────────────────────────────────────────────
@@ -170,15 +326,23 @@ async def verify_snapshot(
     workspace_id: uuid.UUID,
     snapshot_date: date,
 ) -> LedgerVerifyResult:
-    """Re-build snapshot data, re-compute hash, compare with stored."""
-    snap_result = await db.execute(
-        select(LedgerSnapshot).where(
-            LedgerSnapshot.workspace_id == workspace_id,
-            LedgerSnapshot.snapshot_date == snapshot_date,
-        )
-    )
-    snapshot = snap_result.scalar_one_or_none()
+    """Verify a snapshot.
 
+    Statuses: ``ok``; ``late_data`` (only calls priced or recorded after sealing);
+    ``incomplete`` (sealed calls no longer exist, e.g. retention); ``tampered`` (the
+    signature, the chain link or a sealed call's fields don't match);
+    ``unsealed_drift`` (a legacy aggregate-only snapshot no longer matches; it can't
+    tell late data from tampering); ``not_found``. An anchored snapshot is also
+    compared with its off-box anchor; a mismatch is tampering.
+    """
+    snapshot = (
+        await db.execute(
+            select(LedgerSnapshot).where(
+                LedgerSnapshot.workspace_id == workspace_id,
+                LedgerSnapshot.snapshot_date == snapshot_date,
+            )
+        )
+    ).scalar_one_or_none()
     if snapshot is None:
         return LedgerVerifyResult(
             snapshot_date=snapshot_date,
@@ -187,10 +351,9 @@ async def verify_snapshot(
             computed_hash=None,
             match=False,
         )
-
-    # Fetch the signing key
-    key_result = await db.execute(select(LedgerKey).where(LedgerKey.id == snapshot.key_id))
-    key = key_result.scalar_one_or_none()
+    key = (
+        await db.execute(select(LedgerKey).where(LedgerKey.id == snapshot.key_id))
+    ).scalar_one_or_none()
     if key is None:
         return LedgerVerifyResult(
             snapshot_date=snapshot_date,
@@ -198,27 +361,111 @@ async def verify_snapshot(
             stored_hash=snapshot.hash,
             computed_hash=None,
             match=False,
+            sealed=getattr(snapshot, "entries_root", None) is not None,
+            detail="Signing key is missing",
+        )
+    key_value = _decrypt_key(key.key_value)
+
+    if getattr(snapshot, "entries_root", None) is None:
+        live = await build_daily_snapshot(db, workspace_id, snapshot_date)
+        computed = compute_snapshot_hash(live, key_value)
+        match = computed == snapshot.hash
+        return LedgerVerifyResult(
+            snapshot_date=snapshot_date,
+            status="ok" if match else "unsealed_drift",
+            stored_hash=snapshot.hash,
+            computed_hash=computed,
+            match=match,
+            sealed=False,
+            detail=None
+            if match
+            else "Legacy snapshot without a sealed manifest: live totals differ, which may be "
+            "late enrichment or late data rather than tampering",
         )
 
-    # Re-build the snapshot data and re-compute hash
-    snapshot_data = await build_daily_snapshot(db, workspace_id, snapshot_date)
-    computed = compute_snapshot_hash(snapshot_data, _decrypt_key(key.key_value))
-    stored = snapshot.hash
-    match = computed == stored
+    entries = list(
+        (
+            await db.execute(
+                select(LedgerSnapshotEntry).where(LedgerSnapshotEntry.snapshot_id == snapshot.id)
+            )
+        ).scalars()
+    )
+    root = entries_digest([(str(e.provider_call_id), e.row_hash) for e in entries])
+    computed = compute_snapshot_hash(
+        _signed_payload(_snapshot_data(snapshot), root, len(entries), snapshot.prev_hash),
+        key_value,
+    )
+    signature_ok = computed == snapshot.hash and root == snapshot.entries_root
+    prev = (
+        await db.execute(
+            select(LedgerSnapshot.hash)
+            .where(
+                LedgerSnapshot.workspace_id == workspace_id,
+                LedgerSnapshot.snapshot_date < snapshot_date,
+            )
+            .order_by(LedgerSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    chain_ok = prev == snapshot.prev_hash
 
+    live = {str(r.id): r for r in await _day_calls(db, workspace_id, snapshot_date)}
+    sealed_ids = {str(e.provider_call_id) for e in entries}
+    modified = missing = late_enriched = 0
+    for e in entries:
+        row = live.get(str(e.provider_call_id))
+        if row is None:
+            missing += 1
+            continue
+        if canonical_row_hash(row) == e.row_hash:
+            continue
+        if e.cost_usd is None and canonical_row_hash(row, cost=None) == e.row_hash:
+            late_enriched += 1
+        else:
+            modified += 1
+    late_arrivals = len(set(live) - sealed_ids)
+
+    from runledger_api.services.ledger_anchor import check_anchor  # noqa: PLC0415
+
+    anchor_ok, anchor_detail = await check_anchor(db, snapshot)
+
+    if not signature_ok or not chain_ok or modified or anchor_ok is False:
+        status_ = "tampered"
+    elif missing:
+        status_ = "incomplete"
+    elif late_enriched or late_arrivals:
+        status_ = "late_data"
+    else:
+        status_ = "ok"
     log.info(
         "ledger_verify",
         workspace_id=str(workspace_id),
         snapshot_date=str(snapshot_date),
-        match=match,
+        status=status_,
     )
-
+    problems = []
+    if not signature_ok:
+        problems.append("signature or manifest does not match")
+    if not chain_ok:
+        problems.append("previous-snapshot link does not match")
+    if anchor_ok is False and anchor_detail:
+        problems.append(anchor_detail)
     return LedgerVerifyResult(
         snapshot_date=snapshot_date,
-        status="ok" if match else "tampered",
-        stored_hash=stored,
+        status=status_,
+        stored_hash=snapshot.hash,
         computed_hash=computed,
-        match=match,
+        match=signature_ok and chain_ok,
+        sealed=True,
+        chain_ok=chain_ok,
+        entry_count=len(entries),
+        modified_rows=modified,
+        missing_rows=missing,
+        late_enriched_rows=late_enriched,
+        late_arrival_rows=late_arrivals,
+        anchored=bool(getattr(snapshot, "anchor_uri", None)),
+        anchor_ok=anchor_ok,
+        detail="; ".join(problems) or None,
     )
 
 
@@ -262,9 +509,15 @@ async def get_ledger_closure_summary(
                 call_count=snap.call_count,
                 hash=snap.hash,
                 key_id=str(snap.key_id),
+                prev_hash=snap.prev_hash,
+                entry_count=snap.entry_count,
+                sealed_at=snap.sealed_at,
+                anchor_uri=getattr(snap, "anchor_uri", None),
+                anchored_at=getattr(snap, "anchored_at", None),
+                anchor_locked=getattr(snap, "anchor_locked", None),
                 created_at=snap.created_at,
             )
-        if result.status == "ok":
+        if result.status in {"ok", "late_data"}:
             ok_count += 1
         elif result.status == "tampered":
             tampered_count += 1
@@ -369,7 +622,7 @@ async def get_ledger_closure_summary(
     else:
         missing_evidence.append("ledger_snapshot")
 
-    if latest_status == "ok":
+    if latest_status in {"ok", "late_data"}:
         evidence_score += 1
     elif latest_snapshot_response is not None:
         missing_evidence.append("snapshot_verification")

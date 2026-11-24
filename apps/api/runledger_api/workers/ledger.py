@@ -4,8 +4,9 @@ Celery ledger workers for RunLedger.
 Workers
 -------
 daily_snapshots
-    For each workspace active yesterday, builds a HMAC-signed daily snapshot
-    and upserts it into ledger_snapshots. Runs at 1am UTC.
+    For each workspace active yesterday, seals a signed, chained daily snapshot
+    with a per-call manifest (services.ledger.seal_snapshot). Sealed snapshots are
+    never overwritten. Runs at 1am UTC.
 
 suspicious_sequences
     Detects bursts of >5 identical tool calls within 60 seconds per
@@ -19,19 +20,16 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import AgentRun, ProviderCall, ToolCall
-from runledger_api.models.ledger import LedgerSnapshot, SecurityEvent
-from runledger_api.services.ledger import (
-    build_daily_snapshot,
-    compute_snapshot_hash,
-    get_or_create_active_key,
-)
+from runledger_api.models.ledger import SecurityEvent
+from runledger_api.services.ledger import seal_snapshot
+from runledger_api.services.ledger_anchor import anchor_snapshot, retry_unanchored
 
 log = structlog.get_logger()
 
@@ -54,81 +52,48 @@ def daily_snapshots_worker() -> dict[str, int]:
 
 
 async def _run_daily_snapshots() -> dict[str, int]:
+    """Seal yesterday's snapshot for every workspace with calls that day (cd:M-02)."""
     factory = _make_session_factory()
     yesterday = (datetime.now(UTC) - timedelta(days=1)).date()
+    start = datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=UTC)
     snapshotted = 0
 
     async with factory() as session:
-        # Find workspaces active yesterday
-        ws_result = await session.execute(
-            select(ProviderCall.workspace_id)
-            .where(func.date(ProviderCall.created_at) == yesterday)
-            .distinct()
-        )
-        workspace_ids = [row[0] for row in ws_result.all()]
-
+        workspace_ids = [
+            row[0]
+            for row in (
+                await session.execute(
+                    select(ProviderCall.workspace_id)
+                    .where(
+                        ProviderCall.created_at >= start,
+                        ProviderCall.created_at < start + timedelta(days=1),
+                    )
+                    .distinct()
+                )
+            ).all()
+        ]
         for workspace_id in workspace_ids:
             try:
-                snapshot_data = await build_daily_snapshot(session, workspace_id, yesterday)
-                key = await get_or_create_active_key(session, workspace_id)
-                from runledger_api.services.ledger import _decrypt_key  # noqa: PLC0415
-
-                snapshot_hash = compute_snapshot_hash(snapshot_data, _decrypt_key(key.key_value))
-
-                from decimal import Decimal  # noqa: PLC0415
-
-                total_cost = Decimal(snapshot_data["total_cost_usd"])
-                call_count = snapshot_data["call_count"]
-                model_breakdown = snapshot_data["model_breakdown"]
-
-                existing_result = await session.execute(
-                    select(LedgerSnapshot).where(
-                        LedgerSnapshot.workspace_id == workspace_id,
-                        LedgerSnapshot.snapshot_date == yesterday,
-                    )
-                )
-                existing = existing_result.scalar_one_or_none()
-
-                if existing is not None:
-                    await session.execute(
-                        update(LedgerSnapshot)
-                        .where(LedgerSnapshot.id == existing.id)
-                        .values(
-                            total_cost_usd=total_cost,
-                            model_breakdown=model_breakdown,
-                            call_count=call_count,
-                            hash=snapshot_hash,
-                            key_id=key.id,
-                        )
-                    )
-                else:
-                    snap = LedgerSnapshot(
-                        workspace_id=workspace_id,
-                        snapshot_date=yesterday,
-                        total_cost_usd=total_cost,
-                        model_breakdown=model_breakdown,
-                        call_count=call_count,
-                        hash=snapshot_hash,
-                        key_id=key.id,
-                    )
-                    session.add(snap)
-
+                snap, created = await seal_snapshot(session, workspace_id, yesterday)
                 await session.commit()
-                snapshotted += 1
-                log.info(
-                    "ledger_snapshot_upserted",
-                    workspace_id=str(workspace_id),
-                    snapshot_date=str(yesterday),
-                )
+                snapshotted += int(created)
+                if await anchor_snapshot(session, snap) == "anchored":
+                    await session.commit()
             except Exception as exc:  # noqa: BLE001
-                log.error(
-                    "ledger_snapshot_error",
-                    workspace_id=str(workspace_id),
-                    error=str(exc),
-                )
+                log.error("ledger_snapshot_error", workspace_id=str(workspace_id), error=str(exc))
                 await session.rollback()
 
-    return {"workspaces_snapshotted": snapshotted}
+        # Anchor earlier snapshots that were sealed before a backup target existed or
+        # whose anchor write failed.
+        try:
+            anchored = await retry_unanchored(session)
+            await session.commit()
+        except Exception as exc:  # noqa: BLE001
+            log.error("ledger_anchor_retry_error", error=str(exc))
+            await session.rollback()
+            anchored = 0
+
+    return {"workspaces_snapshotted": snapshotted, "anchors_retried": anchored}
 
 
 # ── suspicious_sequences ──────────────────────────────────────────────────────

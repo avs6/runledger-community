@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
 import {
   apiErrorMessage,
@@ -14,6 +15,7 @@ import {
   previewSharedCostAllocation,
   updateSharedCostPolicy,
 } from '@/lib/api'
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table'
 import type { CostAllocation, CostCenter, SharedCostPolicy, SharedCostAllocationResult } from '@/types/api'
 
 function currentMonth(): string {
@@ -33,6 +35,7 @@ const EMPTY_ALLOCATIONS = JSON.stringify(
 )
 
 export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Props) {
+  const { confirm, dialog } = useConfirm()
   const [items, setItems] = useState<SharedCostPolicy[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -81,10 +84,11 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   }, [apiKey, month])
 
   async function handleApply(policy: SharedCostPolicy) {
-    const ok = window.confirm(
-      `Apply ${policy.name} to ${month} with a pool of USD ${poolUsd}? ` +
-        `This replaces any earlier split of this policy for ${month}.`,
-    )
+    const ok = await confirm({
+      title: `Apply ${policy.name} to ${month}?`,
+      description: `Pool of USD ${poolUsd}. This replaces any earlier split of this policy for ${month}.`,
+      confirmLabel: 'Apply',
+    })
     if (!ok) return
     try {
       const res = await applySharedCostPolicy(apiKey, policy.id, { period: month, pool_usd: poolUsd })
@@ -164,7 +168,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   }
 
   async function handleDelete(policyId: string) {
-    if (!window.confirm('Delete this shared-cost policy?')) return
+    if (!(await confirm({ title: 'Delete this shared-cost policy?', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deleteSharedCostPolicy(apiKey, policyId)
       toast.success('Shared-cost policy deleted')
@@ -187,6 +191,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
   }
 
   return (
+    <>
     <div className="grid gap-6 xl:grid-cols-[1.05fr_1.35fr]">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div>
@@ -295,66 +300,70 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800/60">
-              <tr>
-                <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Policy</th>
-                <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Formula</th>
-                <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Allocations</th>
-                <th className="px-4 py-3 font-medium text-slate-600 dark:text-slate-300">Status</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-600 dark:text-slate-300">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {loading ? (
-                <tr className="bg-white dark:bg-slate-900">
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-500">Loading policies...</td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr className="bg-white dark:bg-slate-900">
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-500">No shared-cost policies yet.</td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr key={item.id} className="bg-white dark:bg-slate-900">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 dark:text-white">{item.name}</div>
-                      <div className="text-xs text-slate-500">{item.description || 'No description'}</div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.formula_type}</td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{item.allocations.length}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
-                        {item.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => handlePreview(item.id)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                          Preview
-                        </button>
-                        <button
-                          onClick={() => handleApply(item)}
-                          disabled={!item.is_active}
-                          className="rounded-lg border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 dark:border-emerald-800 dark:text-emerald-300"
-                        >
-                          Apply to {month}
-                        </button>
-                        <button onClick={() => startEdit(item)} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                          Edit
-                        </button>
-                        <button onClick={() => handleDelete(item.id)} className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30">
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {loading ? (
+          <p className="rounded-2xl border border-slate-200 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-700">Loading policies...</p>
+        ) : (
+          <DataTable
+            label="Shared-cost policies"
+            rows={items}
+            rowKey={(item) => item.id}
+            urlPrefix="scp_"
+            csvFileName="shared-cost-policies.csv"
+            searchPlaceholder="Search policies"
+            emptyTitle="No shared-cost policies yet"
+            columns={[
+              {
+                key: 'name',
+                header: 'Policy',
+                sortable: true,
+                render: (item) => (
+                  <div>
+                    <div className="font-medium text-slate-900 dark:text-white">{item.name}</div>
+                    <div className="text-xs text-slate-500">{item.description || 'No description'}</div>
+                  </div>
+                ),
+              },
+              { key: 'formula_type', header: 'Formula', sortable: true },
+              { key: 'allocations', header: 'Allocations', value: (item) => item.allocations.length },
+              {
+                key: 'is_active',
+                header: 'Status',
+                value: (item) => (item.is_active ? 'Active' : 'Inactive'),
+                render: (item) => (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>
+                    {item.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                ),
+              },
+              {
+                key: 'actions',
+                header: 'Actions',
+                render: (item) => (
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => handlePreview(item.id)} aria-label={`Preview ${item.name}`} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApply(item)}
+                      disabled={!item.is_active}
+                      aria-label={`Apply ${item.name} to ${month}`}
+                      className="rounded-lg border border-emerald-300 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 dark:border-emerald-800 dark:text-emerald-300"
+                    >
+                      Apply to {month}
+                    </button>
+                    <button type="button" onClick={() => startEdit(item)} aria-label={`Edit ${item.name}`} className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => handleDelete(item.id)} aria-label={`Delete ${item.name}`} className="rounded-lg border border-rose-200 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-950/30">
+                      Delete
+                    </button>
+                  </div>
+                ),
+              },
+            ] satisfies DataTableColumn<SharedCostPolicy>[]}
+          />
+        )}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Applied to {month}</h3>
@@ -401,5 +410,7 @@ export default function SharedCostPoliciesPanel({ apiKey, defaultPoolUsd }: Prop
         ) : null}
       </div>
     </div>
+      {dialog}
+    </>
   )
 }

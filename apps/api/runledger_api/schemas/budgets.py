@@ -6,33 +6,41 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 # ── Budget ────────────────────────────────────────────────────────────────────
 
+SCOPE_PATTERN = "^(workspace|end_user|feature_tag|app|access_group|api_key|provider_profile|model)$"
+PERIOD_PATTERN = "^(daily|weekly|monthly|total)$"
+ACTION_PATTERN = "^(notify|block|downgrade|throttle|fallback)$"
+
 
 class BudgetCreate(BaseModel):
     scope_type: str = Field(
         ...,
-        pattern="^(workspace|end_user|feature_tag|app|access_group|api_key|provider_profile)$",
+        pattern=SCOPE_PATTERN,
     )
-    scope_id: str | None = None
-    period_type: str = Field(..., pattern="^(daily|monthly|total)$")
+    scope_id: str | None = Field(None, max_length=255)
+    # Optional key filter, only for scope_type=model ("this key's spend on gpt-4*").
+    api_key_id: str | None = None
+    period_type: str = Field(..., pattern=PERIOD_PATTERN)
     limit_usd: Decimal = Field(..., gt=0)
-    action: str = Field(..., pattern="^(notify|block|downgrade|throttle|fallback)$")
+    action: str = Field(..., pattern=ACTION_PATTERN)
     downgrade_to_model: str | None = None
 
 
 class BudgetUpdate(BaseModel):
     scope_type: str | None = Field(
         None,
-        pattern="^(workspace|end_user|feature_tag|app|access_group|api_key|provider_profile)$",
+        pattern=SCOPE_PATTERN,
     )
-    scope_id: str | None = None
-    period_type: str | None = Field(None, pattern="^(daily|monthly|total)$")
+    scope_id: str | None = Field(None, max_length=255)
+    api_key_id: str | None = None
+    period_type: str | None = Field(None, pattern=PERIOD_PATTERN)
     limit_usd: Decimal | None = Field(None, gt=0)
-    action: str | None = Field(None, pattern="^(notify|block|downgrade|throttle|fallback)$")
+    action: str | None = Field(None, pattern=ACTION_PATTERN)
     downgrade_to_model: str | None = None
     is_active: bool | None = None
 
@@ -42,6 +50,7 @@ class BudgetResponse(BaseModel):
     scope_type: str
     scope_id: str | None
     scope_display_name: str | None = None
+    api_key_id: str | None = None
     period_type: str
     limit_usd: Decimal
     action: str
@@ -104,6 +113,92 @@ class BudgetCheckResponse(BaseModel):
     downgrade_model: str | None = None
     throttled: bool = False
     fallback_model: str | None = None
+    # Why a request is refused when it isn't a budget row: "budget_tier:<name>" or
+    # "runaway_hold:run:<id>" / "runaway_hold:session:<id>".
+    reason: str | None = None
+
+
+# ── Runaway holds (review cd:B-09) ────────────────────────────────────────────
+
+
+class RunawayHoldCreate(BaseModel):
+    subject_type: str = Field(..., pattern="^(run|session)$")
+    subject_id: str = Field(..., min_length=1, max_length=255)
+    minutes: int = Field(60, ge=1, le=7 * 24 * 60)
+    reason: str = Field("manual", max_length=32)
+
+
+class RunawayHoldResponse(BaseModel):
+    id: str
+    subject_type: str
+    subject_id: str
+    reason: str
+    details: dict[str, Any]
+    created_at: datetime
+    expires_at: datetime
+    released_at: datetime | None
+    active: bool
+
+
+class RunawayHoldList(BaseModel):
+    items: list[RunawayHoldResponse]
+
+
+# ── Burn-down and simulation (ENH) ────────────────────────────────────────────
+
+
+class BudgetBurndownPoint(BaseModel):
+    date: str
+    spend_usd: Decimal
+    cumulative_usd: Decimal
+    forecast: bool = False
+
+
+class BudgetBurndownResponse(BaseModel):
+    budget_id: str
+    period_type: str
+    period_start: datetime | None
+    period_end: datetime | None
+    limit_usd: Decimal
+    current_spend_usd: Decimal
+    daily_run_rate_usd: Decimal
+    projected_period_spend_usd: Decimal | None
+    forecast_breach_date: str | None
+    already_breached: bool
+    points: list[BudgetBurndownPoint]
+
+
+class BudgetSimulateRequest(BaseModel):
+    scope_type: str = Field(..., pattern=SCOPE_PATTERN)
+    scope_id: str | None = Field(None, max_length=255)
+    api_key_id: str | None = None
+    period_type: str = Field(..., pattern=PERIOD_PATTERN)
+    limit_usd: Decimal = Field(..., gt=0)
+    action: str = Field("block", pattern=ACTION_PATTERN)
+    days: int = Field(30, ge=1, le=90)
+
+
+class BudgetSimulatePeriod(BaseModel):
+    period_key: str
+    spend_usd: Decimal
+    call_count: int
+    breached_at: datetime | None
+    affected_calls: int
+    affected_cost_usd: Decimal
+
+
+class BudgetSimulateResponse(BaseModel):
+    days: int
+    window_start: datetime
+    window_end: datetime
+    total_spend_usd: Decimal
+    total_calls: int
+    periods: list[BudgetSimulatePeriod]
+    breach_count: int
+    affected_calls: int
+    affected_cost_usd: Decimal
+    first_breach_at: datetime | None
+    summary: str
 
 
 # ── Breach ────────────────────────────────────────────────────────────────────

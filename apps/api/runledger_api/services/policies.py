@@ -273,18 +273,29 @@ async def evaluate_policy_check(
         end_user_id=body.end_user_id,
         feature_tag=body.feature_tag,
     )
+    # The five budget actions, as the gateway applies them (review cd:bud-actions):
+    # notify allows; block blocks; downgrade and fallback switch model; throttle
+    # allows but reports it (the gateway slows the caller to the throttle rate).
     if not budget_check.allowed:
         budget_action = budget_check.action
         budget_id = budget_check.budget_id
-        if budget_check.action == "downgrade":
+        if budget_check.action in {"downgrade", "fallback"}:
             decision = "downgrade"
             allowed = True
-            downgrade_model = budget_check.downgrade_model
-            reasons.append("Budget exceeded: downgrade required")
+            downgrade_model = budget_check.downgrade_model or budget_check.fallback_model
+            reasons.append(f"Budget exceeded: {budget_check.action} to {downgrade_model}")
         else:
             decision = "block"
             allowed = False
-            reasons.append("Budget exceeded: request blocked")
+            reasons.append(
+                f"Budget exceeded: request blocked ({budget_check.reason})"
+                if isinstance(getattr(budget_check, "reason", None), str)
+                else "Budget exceeded: request blocked"
+            )
+    elif getattr(budget_check, "throttled", False) is True:
+        budget_action = "throttle"
+        budget_id = budget_check.budget_id
+        reasons.append("Budget exceeded: requests are throttled")
 
     if body.tool_name:
         tool_policy = await _get_tool_policy(db, workspace_id, body.tool_name)

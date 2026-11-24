@@ -8,7 +8,7 @@ No live database or Redis required.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -20,7 +20,6 @@ from runledger_api.services.budgets import (
     _period_key,
     get_budget_spend,
     get_workspace_budgets_cached,
-    incr_budget_spend,
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -154,23 +153,35 @@ def test_matching_budgets_api_key_scope() -> None:
     assert result[0]["scope_id"] == "key_1"
 
 
-# ── incr_budget_spend ─────────────────────────────────────────────────────────
+# ── Durable spend read-through ────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_incr_budget_spend() -> None:
-    """INCRBYFLOAT is called with the correct key and value."""
+async def test_get_budget_spend_reads_postgres_on_cache_miss() -> None:
+    """cd:B-05: a Redis miss loads budget_spend from Postgres and re-caches it."""
     redis = AsyncMock()
-    redis.incrbyfloat = AsyncMock()
-    redis.expire = AsyncMock()
-
+    redis.get = AsyncMock(return_value=None)
+    redis.set = AsyncMock()
     budget_id = uuid.uuid4()
-    await incr_budget_spend(redis, budget_id, "daily", Decimal("0.05"))
+    with patch(
+        "runledger_api.services.budgets._db_load_spend", AsyncMock(return_value=Decimal("7.5"))
+    ):
+        spend = await get_budget_spend(redis, budget_id, "monthly", db=AsyncMock())
+    assert spend == Decimal("7.5")
+    key, value = redis.set.call_args.args
+    assert str(budget_id) in key and value == "7.5"
 
-    redis.incrbyfloat.assert_called_once()
-    call_args = redis.incrbyfloat.call_args
-    assert str(budget_id) in call_args[0][0]  # key contains budget_id
-    assert call_args[0][1] == pytest.approx(0.05)
+
+def test_period_keys_and_windows() -> None:
+    from runledger_api.services.budgets import _period_key, period_window
+
+    at = datetime(2026, 11, 22, 15, 30, tzinfo=UTC)  # a Sunday
+    assert _period_key("weekly", at) == "2026-W47"
+    start, end = period_window("weekly", at)
+    assert start == datetime(2026, 11, 16, tzinfo=UTC) and end == datetime(2026, 11, 23, tzinfo=UTC)
+    start, end = period_window("monthly", datetime(2026, 12, 5, tzinfo=UTC))
+    assert end == datetime(2027, 1, 1, tzinfo=UTC)
+    assert period_window("total", at) == (None, None)
 
 
 # ── get_budget_spend ──────────────────────────────────────────────────────────
@@ -425,71 +436,59 @@ async def test_breach_history_empty(
 
 
 @pytest.mark.asyncio
-async def test_runaway_protection_retry_storm() -> None:
-    """Runs with >20 calls in 2 min are cancelled."""
-    from runledger_api.workers.budgets import _run_runaway_protection
+async def test_runaway_protection_places_hold() -> None:
+    """cd:B-09: a retry storm creates a hold (which the gateway enforces) and queues
+    the runaway.detected notification instead of sending it inline."""
+    from runledger_api.workers import budgets as wb
 
-    run_id = uuid.uuid4()
     workspace_id = uuid.uuid4()
-    run = SimpleNamespace(
-        id=run_id,
-        workspace_id=workspace_id,
-        status="running",
-        started_at=datetime.now(UTC),
-    )
-
+    candidate = {
+        "workspace_id": workspace_id,
+        "subject_type": "session",
+        "subject_id": "loop-1",
+        "reason": "retry_storm",
+        "calls": 25,
+    }
     session = AsyncMock()
     session.add = MagicMock()
-
-    # Sequence: active_runs list, call_count=25, spike_count=0, notifications list
-    active_runs_result = MagicMock()
-    active_runs_result.scalars = MagicMock(
-        return_value=MagicMock(__iter__=MagicMock(return_value=iter([run])))
-    )
-
-    call_count_result = MagicMock()
-    call_count_result.scalar_one = MagicMock(return_value=25)
-
-    spike_count_result = MagicMock()
-    spike_count_result.scalar_one = MagicMock(return_value=0)
-
-    notif_result = MagicMock()
-    notif_result.scalars = MagicMock(
-        return_value=MagicMock(__iter__=MagicMock(return_value=iter([])))
-    )
-
-    update_result = MagicMock()  # result of update(AgentRun).values(status='cancelled')
-
-    session.execute = AsyncMock(
-        side_effect=[
-            active_runs_result,  # select active runs
-            call_count_result,  # count calls in last 2 min
-            spike_count_result,  # count token spike calls
-            update_result,  # update run status='cancelled'
-            notif_result,  # select notifications
-        ]
-    )
     session.__aenter__ = AsyncMock(return_value=session)
     session.__aexit__ = AsyncMock(return_value=False)
-    # factory is a sync callable that returns the async context manager (session)
-    factory_mock = MagicMock(return_value=session)
+    redis = AsyncMock()
+    with (
+        patch.object(wb, "_make_session_factory", return_value=MagicMock(return_value=session)),
+        patch.object(wb, "_make_redis", return_value=redis),
+        patch.object(wb, "detect_runaways", AsyncMock(return_value=[candidate])),
+        patch.object(
+            wb,
+            "place_hold",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    id=uuid.uuid4(), expires_at=datetime.now(UTC) + timedelta(minutes=30)
+                )
+            ),
+        ),
+        patch.object(wb, "queue_notifications", AsyncMock(return_value=1)) as queued,
+        patch.object(wb, "_email_admins", AsyncMock()),
+        patch.object(wb, "invalidate_runaway_holds_cache", AsyncMock()) as invalidated,
+    ):
+        result = await wb._run_runaway_protection()
+    assert result == {"held": 1}
+    assert queued.await_args.args[2] == "runaway.detected"
+    invalidated.assert_awaited_once()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_find_runaway_hold_matches_run_or_session() -> None:
+    from runledger_api.services.budgets import find_runaway_hold
 
     redis = AsyncMock()
-    redis.aclose = AsyncMock()
-
-    with (
-        patch(
-            "runledger_api.workers.budgets._make_session_factory",
-            return_value=factory_mock,
-        ),
-        patch(
-            "runledger_api.workers.budgets._make_redis",
-            return_value=redis,
-        ),
-    ):
-        result = await _run_runaway_protection()
-
-    assert result["cancelled"] == 1
+    redis.get = AsyncMock(return_value='["run:r1", "session:s1"]')
+    ws = uuid.uuid4()
+    assert await find_runaway_hold(redis, AsyncMock(), ws, run_id="r1") == "run:r1"
+    assert await find_runaway_hold(redis, AsyncMock(), ws, session_id="s1") == "session:s1"
+    assert await find_runaway_hold(redis, AsyncMock(), ws, run_id="r2", session_id="s2") is None
+    assert await find_runaway_hold(redis, AsyncMock(), ws) is None
 
 
 # ── send_notification_webhook ─────────────────────────────────────────────────

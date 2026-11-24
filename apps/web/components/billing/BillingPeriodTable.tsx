@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table'
+import { routes } from '@/lib/routes'
 import type { BillingPeriod } from '@/types/api'
 import {
   apiErrorMessage,
@@ -48,6 +51,7 @@ function money(value: string | null) {
 }
 
 export default function BillingPeriodTable({ items, apiKey, onClosed, accessGroupId }: Props) {
+  const { confirm, dialog } = useConfirm()
   const [loading, setLoading] = useState<string | null>(null)
   const router = useRouter()
   const accessGroupQuery = accessGroupId ? `?access_group_id=${encodeURIComponent(accessGroupId)}` : ''
@@ -58,17 +62,14 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
     try {
       // Confirm with the amount that will be frozen (review F-19).
       const preview = await getPeriodBreakdown(apiKey, id)
-      const ok = window.confirm(
-        `Close ${period.period_start} – ${period.period_end}?
-
-` +
+      const ok = await confirm({
+        title: `Close ${period.period_start} – ${period.period_end}?`,
+        description:
           `Gross ${money(preview.gross_cost_usd)} · adjustments ${money(preview.total_adjustments_usd)} · ` +
-          `net ${money(preview.net_cost_usd)}
-
-` +
-          'Closing freezes these numbers and signs them. Usage that arrives later will not change ' +
-          'this bill unless the period is reopened.',
-      )
+          `net ${money(preview.net_cost_usd)}. Closing freezes these numbers and signs them. Usage that ` +
+          'arrives later will not change this bill unless the period is reopened.',
+        confirmLabel: 'Close period',
+      })
       if (!ok) return
       await closeBillingPeriod(apiKey, id)
       onClosed?.(id)
@@ -100,7 +101,7 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
   }
 
   async function handleDelete(period: BillingPeriod) {
-    if (!window.confirm(`Delete the open period ${period.period_start} – ${period.period_end}?`)) return
+    if (!(await confirm({ title: `Delete the open period ${period.period_start} – ${period.period_end}?`, confirmLabel: 'Delete', destructive: true }))) return
     setLoading(`delete-${period.id}`)
     try {
       await deleteBillingPeriod(apiKey, period.id)
@@ -140,101 +141,126 @@ export default function BillingPeriodTable({ items, apiKey, onClosed, accessGrou
     }
   }
 
-  if (items.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-gray-200 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-        No billing periods yet. Create one to get started.
-      </p>
-    )
-  }
+  const range = (period: BillingPeriod) => `${period.period_start} – ${period.period_end}`
+
+  const columns: DataTableColumn<BillingPeriod>[] = [
+    {
+      key: 'period_start',
+      header: 'Period',
+      sortable: true,
+      value: (period) => period.period_start,
+      render: (period) => (
+        <div>
+          <Link
+            href={`${routes.billingPeriodId(period.id)}${accessGroupQuery}`}
+            className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+          >
+            {range(period)}
+          </Link>
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {period.currency}
+            {period.closed_at && period.status === 'closed'
+              ? ` · Closed ${new Date(period.closed_at).toLocaleString()}${period.closed_by ? ` by ${period.closed_by}` : ''}`
+              : ' · Open period'}
+            {period.reopened_at ? ` · Reopened: ${period.reopen_reason ?? ''}` : ''}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      render: (period) => <StatusBadge status={period.status} />,
+    },
+    {
+      key: 'total_cost_usd',
+      header: 'Gross',
+      sortable: true,
+      value: (period) => Number(period.total_cost_usd ?? 0),
+      render: (period) => <span className="font-mono">{money(period.total_cost_usd)}</span>,
+    },
+    {
+      key: 'net_cost_usd',
+      header: 'Net',
+      sortable: true,
+      value: (period) => Number(period.net_cost_usd ?? 0),
+      render: (period) => <span className="font-mono">{money(period.net_cost_usd)}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (period) => (
+        <div className="flex justify-end gap-2">
+          {period.status === 'open' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => handleClose(period)}
+                disabled={loading === `close-${period.id}`}
+                aria-label={`Close period ${range(period)}`}
+                className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {loading === `close-${period.id}` ? 'Closing...' : 'Close'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(period)}
+                disabled={loading === `delete-${period.id}`}
+                aria-label={`Delete period ${range(period)}`}
+                className="rounded border border-rose-300 px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-800 dark:text-rose-400"
+              >
+                Delete
+              </button>
+            </>
+          ) : period.status === 'closed' ? (
+            <button
+              type="button"
+              onClick={() => handleReopen(period)}
+              disabled={loading === `reopen-${period.id}`}
+              aria-label={`Reopen period ${range(period)}`}
+              className="rounded border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-800 dark:text-amber-300"
+            >
+              Reopen
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => handleExportCsv(period.id)}
+            disabled={loading === `csv-${period.id}`}
+            aria-label={`Export period ${range(period)} as CSV`}
+            className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExportJson(period.id)}
+            disabled={loading === `json-${period.id}`}
+            aria-label={`Export period ${range(period)} as signed JSON`}
+            className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            Signed JSON
+          </button>
+        </div>
+      ),
+    },
+  ]
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-800">
-          <tr>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Period</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-300">Status</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-300">Gross</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-300">Net</th>
-            <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-300">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-700 dark:bg-gray-800">
-          {items.map((period) => (
-            <tr key={period.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td className="px-4 py-3">
-                <Link
-                  href={`/billing/${period.id}${accessGroupQuery}`}
-                  className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-                >
-                  {period.period_start} - {period.period_end}
-                </Link>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {period.currency}
-                  {period.closed_at && period.status === 'closed'
-                    ? ` · Closed ${new Date(period.closed_at).toLocaleString()}${period.closed_by ? ` by ${period.closed_by}` : ''}`
-                    : ' · Open period'}
-                  {period.reopened_at ? ` · Reopened: ${period.reopen_reason ?? ''}` : ''}
-                </div>
-              </td>
-              <td className="px-4 py-3">
-                <StatusBadge status={period.status} />
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-gray-700 dark:text-gray-300">
-                {money(period.total_cost_usd)}
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-gray-700 dark:text-gray-300">
-                {money(period.net_cost_usd)}
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex justify-end gap-2">
-                  {period.status === 'open' ? (
-                    <>
-                      <button
-                        onClick={() => handleClose(period)}
-                        disabled={loading === `close-${period.id}`}
-                        className="rounded bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        {loading === `close-${period.id}` ? 'Closing...' : 'Close'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(period)}
-                        disabled={loading === `delete-${period.id}`}
-                        className="rounded border border-rose-300 px-2 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 dark:border-rose-800 dark:text-rose-400"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  ) : period.status === 'closed' ? (
-                    <button
-                      onClick={() => handleReopen(period)}
-                      disabled={loading === `reopen-${period.id}`}
-                      className="rounded border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-800 dark:text-amber-300"
-                    >
-                      Reopen
-                    </button>
-                  ) : null}
-                  <button
-                    onClick={() => handleExportCsv(period.id)}
-                    disabled={loading === `csv-${period.id}`}
-                    className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    CSV
-                  </button>
-                  <button
-                    onClick={() => handleExportJson(period.id)}
-                    disabled={loading === `json-${period.id}`}
-                    className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    Signed JSON
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <DataTable
+        label="Billing periods"
+        rows={items}
+        columns={columns}
+        rowKey={(period) => period.id}
+        urlPrefix="bp_"
+        searchPlaceholder="Search periods"
+        csvFileName="billing-periods.csv"
+        emptyTitle="No billing periods yet"
+        emptyDescription="Create one to get started."
+      />
+      {dialog}
+    </>
   )
 }

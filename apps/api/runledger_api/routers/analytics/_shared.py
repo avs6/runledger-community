@@ -31,7 +31,6 @@ from runledger_api.models.billing import BillingPeriod, ChargebackRule
 from runledger_api.models.events import AgentRun, OutcomeEvent, ProviderCall, Span, ToolCall
 from runledger_api.models.ledger import SecurityEvent
 from runledger_api.models.metering import UsageDaily
-from runledger_api.models.model_budgets import ModelBudget
 from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import ApiKey, TenantUser, Workspace
@@ -402,7 +401,6 @@ __all__ = [
     "LifecycleStage",
     "MODEL_COST_RATIOS",
     "MODEL_LATENCY_MS",
-    "ModelBudget",
     "ModelBudgetUtilization",
     "ModelCost",
     "ModelScorecard",

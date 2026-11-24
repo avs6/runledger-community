@@ -103,51 +103,128 @@ async def test_generate_snapshot(
     mock_db_session: AsyncMock,
     mock_workspace: SimpleNamespace,
 ) -> None:
+    """Generate seals yesterday (201); a sealed day is returned unchanged (200)."""
     key = _make_ledger_key(workspace_id=mock_workspace.id)
     snap = _make_snapshot(workspace_id=mock_workspace.id, key_id=key.id)
-
-    totals_row = SimpleNamespace(total_cost=Decimal("1.50"), call_count=10)
-    model_rows: list = []
-
-    def _execute_side_effect(*args, **kwargs):
-        call_count = mock_db_session.execute.call_count
-        if call_count == 1:
-            # build_daily_snapshot: totals
-            return _one_result(totals_row)
-        elif call_count == 2:
-            # build_daily_snapshot: model breakdown
-            return _row_result(model_rows)
-        elif call_count == 3:
-            # get_or_create_active_key
-            return _scalar_result(key)
-        elif call_count == 4:
-            # check existing snapshot
-            return _scalar_result(None)
-        else:
-            return _scalar_result(snap)
-
-    mock_db_session.execute = AsyncMock(side_effect=_execute_side_effect)
-    mock_db_session.flush = AsyncMock()
+    snap.call_count = 10
+    for attr, value in (("prev_hash", None), ("entry_count", 10), ("sealed_at", None)):
+        setattr(snap, attr, value)
     mock_db_session.commit = AsyncMock()
+    mock_db_session.refresh = AsyncMock()
+    with patch(
+        "runledger_api.routers.ledger.seal_snapshot",
+        AsyncMock(side_effect=[(snap, True), (snap, False)]),
+    ):
+        first = await authed_client.post("/ledger/snapshots/generate")
+        again = await authed_client.post("/ledger/snapshots/generate")
+    assert first.status_code == 201 and again.status_code == 200
+    assert first.json()["call_count"] == 10
+    assert first.json()["entry_count"] == 10
 
-    async def _mock_refresh(obj):
-        obj.id = snap.id
-        obj.created_at = snap.created_at
-        obj.workspace_id = mock_workspace.id
-        obj.snapshot_date = snap.snapshot_date
-        obj.total_cost_usd = Decimal("1.50")
-        obj.model_breakdown = {}
-        obj.call_count = 10
-        obj.hash = "deadbeef" * 8
-        obj.key_id = key.id
 
-    mock_db_session.refresh = _mock_refresh
+def test_canonical_hash_separates_late_enrichment_from_tampering() -> None:
+    """cd:M-02: pricing a call after sealing is distinguishable from editing it."""
+    from runledger_api.services.ledger import canonical_row_hash, entries_digest
 
-    resp = await authed_client.post("/ledger/snapshots/generate")
-    assert resp.status_code == 201
-    data = resp.json()
-    assert "hash" in data
-    assert data["call_count"] == 10
+    row = SimpleNamespace(
+        id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        api_key_id=None,
+        end_user_id="alice",
+        provider="openai",
+        model="gpt-4o",
+        input_tokens=100,
+        output_tokens=20,
+        cached_input_tokens=None,
+        status="success",
+        created_at=datetime(2026, 2, 27, 12, tzinfo=UTC),
+        cost_usd=None,
+    )
+    sealed = canonical_row_hash(row)
+    row.cost_usd = Decimal("0.0042")  # late enrichment
+    assert canonical_row_hash(row) != sealed
+    assert canonical_row_hash(row, cost=None) == sealed
+    row.end_user_id = "mallory"  # chargeback manipulation
+    assert canonical_row_hash(row, cost=None) != sealed
+    a, b = ("1", "x"), ("2", "y")
+    assert entries_digest([a, b]) == entries_digest([b, a])
+
+
+@pytest.mark.asyncio
+async def test_verify_sealed_snapshot_reports_late_data_not_tampering() -> None:
+    from runledger_api.services import ledger as ledger_svc
+
+    ws = uuid.uuid4()
+    day = date(2026, 2, 27)
+    key = _make_ledger_key(workspace_id=ws)
+    base = dict(
+        run_id=uuid.uuid4(),
+        api_key_id=None,
+        end_user_id="alice",
+        provider="openai",
+        model="gpt-4o",
+        input_tokens=10,
+        output_tokens=5,
+        cached_input_tokens=None,
+        status="success",
+        created_at=datetime(2026, 2, 27, 9, tzinfo=UTC),
+    )
+    priced_late = SimpleNamespace(id=uuid.uuid4(), cost_usd=None, **base)
+    stable = SimpleNamespace(id=uuid.uuid4(), cost_usd=Decimal("0.01"), **base)
+    entries = [
+        SimpleNamespace(
+            provider_call_id=r.id, row_hash=ledger_svc.canonical_row_hash(r), cost_usd=r.cost_usd
+        )
+        for r in (priced_late, stable)
+    ]
+    root = ledger_svc.entries_digest([(str(e.provider_call_id), e.row_hash) for e in entries])
+    snap = _make_snapshot(workspace_id=ws, snapshot_date=day, key_id=key.id)
+    snap.total_cost_usd = Decimal("0.01")
+    snap.call_count = 2
+    snap.model_breakdown = {"gpt-4o": "0.01"}
+    snap.prev_hash = None
+    snap.entries_root = root
+    snap.hash = ledger_svc.compute_snapshot_hash(
+        ledger_svc._signed_payload(ledger_svc._snapshot_data(snap), root, 2, None),
+        key.key_value,
+    )
+    live_late = SimpleNamespace(**{**vars(priced_late), "cost_usd": Decimal("0.02")})
+    newcomer = SimpleNamespace(**{**vars(stable), "id": uuid.uuid4()})
+
+    def _scalars(items: list) -> MagicMock:
+        result = MagicMock()
+        result.scalars.return_value = items
+        return result
+
+    db = AsyncMock()
+    db.execute = AsyncMock(
+        side_effect=[
+            _scalar_result(snap),
+            _scalar_result(key),
+            _scalars(entries),
+            _scalar_result(None),  # previous snapshot hash
+        ]
+    )
+    with patch.object(
+        ledger_svc, "_day_calls", AsyncMock(return_value=[live_late, stable, newcomer])
+    ):
+        result = await ledger_svc.verify_snapshot(db, ws, day)
+    assert result.status == "late_data", result
+    assert result.late_enriched_rows == 1 and result.late_arrival_rows == 1
+    assert result.modified_rows == 0 and result.match is True
+
+    tampered = SimpleNamespace(**{**vars(stable), "end_user_id": "mallory"})
+    db.execute = AsyncMock(
+        side_effect=[
+            _scalar_result(snap),
+            _scalar_result(key),
+            _scalars(entries),
+            _scalar_result(None),
+        ]
+    )
+    with patch.object(ledger_svc, "_day_calls", AsyncMock(return_value=[live_late, tampered])):
+        result = await ledger_svc.verify_snapshot(db, ws, day)
+    assert result.status == "tampered" and result.modified_rows == 1
 
 
 # ── test_verify_snapshot_ok ───────────────────────────────────────────────────
@@ -260,7 +337,8 @@ async def test_verify_snapshot_tampered(
     resp = await authed_client.get(f"/ledger/verify/{snap_date}")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["status"] == "tampered"
+    # A legacy (unsealed) snapshot can't tell tampering from late data (cd:M-02).
+    assert data["status"] == "unsealed_drift"
     assert data["match"] is False
 
 
@@ -372,3 +450,72 @@ async def test_security_events_list(
     resp = await authed_client.get("/tools/security-events")
     assert resp.status_code == 200
     assert resp.json() == {"items": []}
+
+
+# ── Off-box anchor (cd:M-02) ──────────────────────────────────────────────────
+
+
+def _sealed_snap(**kw: object) -> SimpleNamespace:
+    base = dict(
+        workspace_id=uuid.uuid4(),
+        snapshot_date=date(2026, 2, 27),
+        hash="h1",
+        prev_hash=None,
+        entries_root="r1",
+        entry_count=3,
+        key_id=uuid.uuid4(),
+        sealed_at=datetime(2026, 2, 28, 1, tzinfo=UTC),
+        anchor_uri=None,
+        anchored_at=None,
+        anchor_locked=None,
+    )
+    return SimpleNamespace(**{**base, **kw})
+
+
+@pytest.mark.asyncio
+async def test_anchor_writes_object_and_records_lock() -> None:
+    from runledger_api.services import ledger_anchor
+
+    snap = _sealed_snap()
+    target = SimpleNamespace(bucket="evidence", prefix="rl", workspace_id=snap.workspace_id)
+    db = AsyncMock()
+    with (
+        patch.object(ledger_anchor, "_target", AsyncMock(return_value=target)),
+        patch.object(ledger_anchor, "_put", MagicMock(return_value=(True, "v1"))) as put,
+    ):
+        assert await ledger_anchor.anchor_snapshot(db, snap) == "anchored"  # type: ignore[arg-type]
+        assert await ledger_anchor.anchor_snapshot(db, snap) == "already_anchored"  # type: ignore[arg-type]
+    key = put.call_args.args[1]
+    assert key == f"rl/ledger-anchors/{snap.workspace_id}/2026-02-27.json"
+    assert snap.anchor_uri == f"s3://evidence/{key}?versionId=v1" and snap.anchor_locked is True
+
+
+@pytest.mark.asyncio
+async def test_anchor_without_target_or_seal() -> None:
+    from runledger_api.services import ledger_anchor
+
+    with patch.object(ledger_anchor, "_target", AsyncMock(return_value=None)):
+        assert await ledger_anchor.anchor_snapshot(AsyncMock(), _sealed_snap()) == "no_target"  # type: ignore[arg-type]
+    assert (
+        await ledger_anchor.anchor_snapshot(AsyncMock(), _sealed_snap(entries_root=None))  # type: ignore[arg-type]
+        == "unsealed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_anchor_detects_resigned_snapshot() -> None:
+    """A DB admin re-signing a snapshot can't change what was written off-box."""
+    from runledger_api.services import ledger_anchor
+
+    snap = _sealed_snap(anchor_uri="s3://evidence/rl/ledger-anchors/x/2026-02-27.json?versionId=v9")
+    anchored = ledger_anchor.anchor_payload(snap)  # type: ignore[arg-type]
+    target = SimpleNamespace(bucket="evidence", prefix="rl")
+    with (
+        patch.object(ledger_anchor, "_target", AsyncMock(return_value=target)),
+        patch.object(ledger_anchor, "_get", MagicMock(return_value=anchored)) as get,
+    ):
+        assert await ledger_anchor.check_anchor(AsyncMock(), snap) == (True, None)  # type: ignore[arg-type]
+        snap.hash = "re-signed"
+        ok, detail = await ledger_anchor.check_anchor(AsyncMock(), snap)  # type: ignore[arg-type]
+    assert ok is False and "hash" in (detail or "")
+    assert get.call_args.args[1:] == ("rl/ledger-anchors/x/2026-02-27.json", "v9")

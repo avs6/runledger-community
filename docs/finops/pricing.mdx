@@ -9,7 +9,9 @@ a rate is a data change, not a code change.
 ## Key features
 
 - **Config-driven** — add a model by inserting a `provider_pricing` row.
-- **Input / output / cached rates** — per 1M tokens, with a cached-input discount.
+- **Input / output / cached / cache-write rates** — per 1M tokens, with a cached-input discount and an optional prompt-cache write rate (`cache_write_cost_per_1m`; without it cache writes are charged at the input rate).
+- **Cached-token edge cases** — cached tokens are normally a subset of input tokens (OpenAI); when a provider reports more cached than input tokens (Anthropic reports cache reads separately) all input tokens are billed and the cached ones are added at the cached rate. Negative counts are treated as 0.
+- **Cost caps use the same engine** — route daily/monthly cost caps price the route's tokens with `calculate_cost`, so a workspace price override applies to caps too.
 - **Time-effective** — rates carry an effective date, so historical calls are costed at the rate that was
   in force at call time.
 - **Workspace overrides** — a workspace can carry negotiated / contract pricing that takes precedence.

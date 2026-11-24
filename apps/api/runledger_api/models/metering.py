@@ -42,6 +42,11 @@ class ProviderPricing(Base):
     cached_input_cost_per_1m: Mapped[Decimal | None] = mapped_column(
         sa.Numeric(14, 8), nullable=True
     )
+    # Prompt-cache write rate (e.g. Anthropic cache creation). NULL: charged at the
+    # input rate (review F-25).
+    cache_write_cost_per_1m: Mapped[Decimal | None] = mapped_column(
+        sa.Numeric(14, 8), nullable=True
+    )
     effective_from: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=False)
     effective_to: Mapped[datetime | None] = mapped_column(
         sa.TIMESTAMP(timezone=True), nullable=True

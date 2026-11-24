@@ -10,7 +10,7 @@ The Cost & Savings page is the primary FinOps drilldown for optimization. It exp
 - **Spend versus saved** - actual observed spend alongside realized savings
 - **Optimization rate** - percent of spend avoided through optimization behavior
 - **Dimension breakdown** - workspace, workflow, application, user, agent, model, tool, or time
-- **Savings attribution** - cache hits, smart routing, local models, prompt compression, duplicate detection, and tool optimization
+- **Savings attribution** - recorded savings by category (cache hits, smart routing, local models, prompt compression, …) from `GET /analytics/savings`. Nothing is inferred from model names: a call contributes only when its `savings_usd` (baseline cost − actual cost) was recorded. With no baseline in the range the page says "Not enough data" instead of showing $0.
 - **Budget context** - workspace budget rollups alongside savings analysis
 - **Next target recommendation** - the highest-value optimization candidate in the current window
 

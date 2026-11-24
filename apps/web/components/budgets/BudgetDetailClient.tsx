@@ -7,7 +7,9 @@ import { toast } from 'sonner'
 import { ChevronLeft } from 'lucide-react'
 import { createBudgetOverride, revokeBudgetOverride, updateBudget } from '@/lib/api'
 import type { Breach, Budget, BudgetOverride } from '@/types/api'
-import BreachHistoryTable from './BreachHistoryTable'
+import BreachHistoryTable from './BreachHistoryTable'
+import BudgetBurndownChart from './BudgetBurndownChart'
+
 import { RelatedPanel } from '@/components/context/RelatedPanel'
 
 interface Props {
@@ -190,6 +192,8 @@ export default function BudgetDetailClient({
       </div>
 
 
+      <BudgetBurndownChart apiKey={apiKey} budgetId={budget.id} />
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <form
           onSubmit={handleSave}
@@ -221,6 +225,7 @@ export default function BudgetDetailClient({
                 <option value="access_group">Access group</option>
                 <option value="api_key">API key</option>
                 <option value="provider_profile">Provider profile</option>
+                <option value="model">Model</option>
               </select>
             </label>
 
@@ -257,6 +262,7 @@ export default function BudgetDetailClient({
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               >
                 <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
                 <option value="total">Total</option>
               </select>

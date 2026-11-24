@@ -37,35 +37,33 @@ curl -s -X PUT "http://localhost:8201/budget-tiers/assign/$KEY_ID?tier_id=$TIER_
   -H "Authorization: Bearer $KEY" | python -m json.tool
 ```
 
-## Model-Specific Budgets
+## Model Budgets
 
-Per-model spend and rate limits on individual API keys. Model patterns support
-trailing `*` wildcards (e.g., `deepseek-r1:*`).
+A model budget is a budget with `scope_type: model`. `scope_id` is a model name or a
+trailing-`*` pattern (e.g. `deepseek-r1:*`); `api_key_id` optionally narrows it to one key.
+The gateway skips a route whose model is over budget and returns 429 when no route is left.
 
 ```bash
-# Create a model budget
-curl -s -X POST http://localhost:8201/api-keys/$KEY_ID/model-budgets \
-  -H "Authorization: Bearer $KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model_pattern": "deepseek-r1:*",
-    "max_spend_usd": 25,
+# Create a model budget for one key
+curl -s -X POST http://localhost:8201/budgets   -H "Authorization: Bearer $KEY"   -H "Content-Type: application/json"   -d '{
+    "scope_type": "model",
+    "scope_id": "deepseek-r1:*",
+    "api_key_id": "'$KEY_ID'",
+    "limit_usd": 25,
     "period_type": "monthly",
-    "rpm_limit": 20,
-    "action": "throttle"
+    "action": "block"
   }' | python -m json.tool
 
 # List model budgets
-curl -s http://localhost:8201/api-keys/$KEY_ID/model-budgets \
-  -H "Authorization: Bearer $KEY" | python -m json.tool
+curl -s "http://localhost:8201/budgets?scope_type=model"   -H "Authorization: Bearer $KEY" | python -m json.tool
 ```
 
 ## Throttle & Fallback Enforcement
 
 Two enforcement modes beyond notify/block/downgrade:
 
-- **throttle** — allows the request but signals `throttled: true`
-- **fallback** — blocks the request and suggests a cheaper fallback model
+- **throttle** — the gateway admits `BUDGET_THROTTLE_RPM` requests per minute, then 429
+- **fallback** — the gateway reroutes to `downgrade_to_model` (like downgrade)
 
 ```bash
 curl -s -X POST http://localhost:8201/budgets \

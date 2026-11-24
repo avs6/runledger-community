@@ -23,6 +23,9 @@ asserts every control:
      (and a tampered copy doesn't).
  10. Reopen (reason required) and close again include the late usage; rotating the
      signing key keeps the old snapshot verifiable.
+ 11. Ledger: sealing yesterday twice returns the same signed snapshot,
+     verification never reports honest late data as tampering, and (with a backup
+     target) the snapshot is anchored off-box and verify matches the anchor.
 
 The org is deleted at the end (pass --keep to inspect it in the UI).
 
@@ -596,6 +599,36 @@ def run(args: argparse.Namespace) -> int:
         )
         check(old.json().get("valid") is True, "old export still verifies after rotation", old.text)
         _ = snapshot_sig
+
+        print("\n→ ledger seal (cd:M-02)")
+        first = api.call("POST", "/ledger/snapshots/generate", platform)
+        check(
+            first.status_code in (200, 201), "yesterday's ledger snapshot sealed", first.text[:200]
+        )
+        again = api.call("POST", "/ledger/snapshots/generate", platform)
+        check(
+            again.status_code == 200 and again.json().get("hash") == first.json().get("hash"),
+            "a sealed snapshot is immutable (re-generate returns it unchanged)",
+            again.status_code,
+        )
+        day = first.json().get("snapshot_date")
+        verdict = api.call("GET", f"/ledger/verify/{day}", platform).json()
+        check(
+            verdict.get("status") in {"ok", "late_data", "incomplete", "unsealed_drift"},
+            "honest late data is not reported as tampering",
+            verdict,
+        )
+        anchor = api.call("POST", f"/ledger/snapshots/{day}/anchor", platform)
+        if anchor.status_code == 409:
+            print("  · off-box anchor skipped (no backup target configured)")
+        else:
+            check(
+                anchor.status_code == 200 and bool(anchor.json().get("anchor_uri")),
+                "sealed snapshot anchored to the backup bucket",
+                anchor.text[:200],
+            )
+            anchored = api.call("GET", f"/ledger/verify/{day}", platform).json()
+            check(anchored.get("anchor_ok") is True, "verify matches the off-box anchor", anchored)
     finally:
         if not args.keep:
             api.call(

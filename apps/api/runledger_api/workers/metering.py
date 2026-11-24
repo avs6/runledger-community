@@ -37,7 +37,9 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from sqlalchemy import delete, or_, select, text, update
+from sqlalchemy import bindparam, delete, or_, select, text, update
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -87,7 +89,18 @@ async def _provider_call_cost(session: AsyncSession, pc: ProviderCall) -> Decima
         cached_input_tokens=pc.cached_input_tokens,
         at_time=pc.created_at,
         workspace_id=pc.workspace_id,
+        cache_write_tokens=_cache_write_tokens(pc),
     )
+
+
+def _cache_write_tokens(pc: ProviderCall) -> int | None:
+    """Prompt-cache write tokens from the call's usage details, if reported (F-25)."""
+    details = getattr(pc, "input_tokens_details", None) or {}
+    for key in ("cache_creation_input_tokens", "cache_write_tokens", "cache_creation_tokens"):
+        value = details.get(key) if isinstance(details, dict) else None
+        if isinstance(value, int | float) and value > 0:
+            return int(value)
+    return None
 
 
 async def _run_cost_enrichment() -> dict[str, int]:
@@ -119,6 +132,8 @@ async def _run_cost_enrichment() -> dict[str, int]:
             result = await session.execute(stmt)
             calls: list[ProviderCall] = list(result.scalars())
             unpriced: list[Any] = []
+            touched_runs: set[Any] = set()
+            touched_spans: set[Any] = set()
 
             for pc in calls:
                 cost = await _provider_call_cost(session, pc)
@@ -130,6 +145,9 @@ async def _run_cost_enrichment() -> dict[str, int]:
                     update(ProviderCall).where(ProviderCall.id == pc.id).values(cost_usd=cost)
                 )
                 enriched += 1
+                touched_runs.add(pc.run_id)
+                if pc.span_id is not None:
+                    touched_spans.add(pc.span_id)
 
                 # Count the newly priced call against every matching budget.
                 try:
@@ -169,17 +187,19 @@ async def _run_cost_enrichment() -> dict[str, int]:
         # Roll up costs to spans and runs after enriching.
         # Must use await here — we're already inside asyncio.run() from the
         # Celery task wrapper, so calling asyncio.run() again would fail.
-        await _rollup_span_and_run_costs()
+        await _rollup_span_and_run_costs(list(touched_runs), list(touched_spans))
 
     return {"enriched": enriched}
 
 
-async def _rollup_span_and_run_costs() -> None:
+async def _rollup_span_and_run_costs(run_ids: list[Any], span_ids: list[Any]) -> None:
     """
-    Update span.cost_usd and agent_run.total_cost_usd / total_tokens by
-    summing their child provider_calls.  Only touches rows where child costs
-    are now fully populated (all provider_calls for that span/run have cost_usd).
+    Update span.cost_usd and agent_run.total_cost_usd / total_tokens by summing
+    their child provider_calls, for the runs and spans whose calls were just priced
+    only (review F-22: the rollup used to rescan the whole provider_calls table).
     """
+    if not run_ids and not span_ids:
+        return
     factory = _make_session_factory()
     async with factory() as session:
         # Update spans
@@ -190,11 +210,12 @@ async def _rollup_span_and_run_costs() -> None:
                 FROM (
                     SELECT span_id, SUM(cost_usd) AS total
                     FROM provider_calls
-                    WHERE span_id IS NOT NULL AND cost_usd IS NOT NULL
+                    WHERE span_id = ANY(:span_ids) AND cost_usd IS NOT NULL
                     GROUP BY span_id
                 ) agg
                 WHERE s.id = agg.span_id
-            """)
+            """).bindparams(bindparam("span_ids", type_=ARRAY(PGUUID(as_uuid=True)))),
+            {"span_ids": span_ids},
         )
 
         # Update agent_runs
@@ -212,11 +233,12 @@ async def _rollup_span_and_run_costs() -> None:
                         SUM(input_tokens)   AS total_input,
                         SUM(output_tokens)  AS total_output
                     FROM provider_calls
-                    WHERE cost_usd IS NOT NULL
+                    WHERE run_id = ANY(:run_ids) AND cost_usd IS NOT NULL
                     GROUP BY run_id
                 ) agg
                 WHERE ar.id = agg.run_id
-            """)
+            """).bindparams(bindparam("run_ids", type_=ARRAY(PGUUID(as_uuid=True)))),
+            {"run_ids": run_ids},
         )
 
         await session.commit()
