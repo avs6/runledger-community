@@ -511,22 +511,31 @@ def main() -> None:
                 ws.store_agent_memory(agent_id, "user_prefs", '{"verbose": true}', "short_term")
                 ws.get_agent_memory_stats(agent_id)
 
-                wf = ws.create_workflow(
-                    f"{ws.name}-pipeline",
+                # Workflows are linked to traffic by feature tag; runs are real ingest
+                # traffic attributed at the pipeline (no hand-posted run records).
+                tag = f"{ws.name.lower().replace(' ', '-')}-pipeline"
+                ws.create_workflow(
+                    f"{ws.name} pipeline",
+                    feature_tag=tag,
                     description="Triage → research → draft",
-                    steps_schema=[
-                        {"name": "triage", "type": "agent", "model": "gpt-4o-mini"},
-                        {"name": "research", "type": "tool", "tool": "search-api"},
-                        {"name": "draft", "type": "agent", "model": "gpt-4o"},
-                    ],
+                    owner="platform-team",
                 )
-                wf_id = wf.get("id")
-                if wf_id:
-                    run = ws.create_workflow_run(wf_id, agent_id=agent_id, trigger="simulator")
-                    run_id = run.get("id")
-                    if run_id:
-                        ws.create_workflow_step(run_id, 0, "triage", "agent", model="gpt-4o-mini")
-                        ws.create_workflow_step(run_id, 1, "research", "tool")
+                ws.ingest_rich_runs(
+                    6,
+                    models=["gpt-4o-mini"],
+                    workflows=[
+                        {
+                            "feature": tag,
+                            "agent": f"{ws.name}-triage",
+                            "skill": "triage",
+                            "prompt_name": "pipeline",
+                        }
+                    ],
+                    users=[f"{tag}-user"],
+                    days=3,
+                    sessions=2,
+                    batch_runs=6,
+                )
 
             coll = ws.register_vector_collection(
                 f"{ws.name}-kb",

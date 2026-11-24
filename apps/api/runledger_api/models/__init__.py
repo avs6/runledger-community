@@ -6,7 +6,6 @@ from runledger_api.models.agents import (
     AgentMemoryAudit,
     WorkflowDefinition,
     WorkflowRun,
-    WorkflowStep,
 )
 from runledger_api.models.alerts import AlertFiring, AlertRule
 from runledger_api.models.annotations import Annotation
@@ -202,7 +201,6 @@ __all__ = [
     "AgentMemoryAudit",
     "WorkflowDefinition",
     "WorkflowRun",
-    "WorkflowStep",
     "Approval",
     "AutoApprovalPolicy",
     "BillingAdjustment",

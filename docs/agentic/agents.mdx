@@ -23,7 +23,10 @@ curl -X POST http://localhost:8201/agents \
 ```
 
 Fields: `name` (required), `description`, `agent_type` (`autonomous | semi_autonomous | workflow | chat`),
-`owner`, `default_model`, `default_tools`, `budget_envelope`, `policy_profile`, `status`, `config`.
+`owner`, `default_model`, `default_tools`, `budget_envelope`, `allowed_aliases`, `status`, `config`.
+Every entry in `allowed_aliases` must be an existing gateway route alias (422 otherwise).
+The old free-text `policy_profile` field was removed because nothing enforced it; its
+values were kept in `config.policy_profile_legacy`.
 
 ## List & filter
 
@@ -32,8 +35,8 @@ Fields: `name` (required), `description`, `agent_type` (`autonomous | semi_auton
 curl http://localhost:8201/agents?status=active \
   -H "Authorization: Bearer rl_..."
 
-# filter by access group or API key identity
-curl "http://localhost:8201/agents?access_group_id={group_id}" \
+# search by name, or agents with runs sent by an API key
+curl "http://localhost:8201/agents?q=triage" \
   -H "Authorization: Bearer rl_..."
 curl "http://localhost:8201/agents?api_key_id={key_id}" \
   -H "Authorization: Bearer rl_..."
@@ -47,10 +50,17 @@ curl http://localhost:8201/agents/{agent_id} \
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `access_group_id` | UUID | Show agents with runs from this access group |
-| `api_key_id` | UUID | Show agents with runs from this API key |
+| `q` | string | Name contains |
+| `api_key_id` | UUID | Agents with runs sent by this API key |
 
-The same filters apply to `GET /agents/{id}/runs` to scope run listings by identity.
+`GET /agents/{id}/runs` takes `status`, `workflow_id` and `api_key_id`.
+
+## How runs are attributed to an agent
+
+Runs carry `agent_runs.agent_id`, resolved at ingest inside your workspace from
+`agent_id` / `agent_name` on `run_start` (the SDK's `agent=` / `agent_id=`), or the OTLP
+attributes `runledger.agent.id`, `runledger.agent` and `gen_ai.agent.name`. Names match a
+non-retired agent exactly; ids from another workspace are ignored.
 
 ## Agent stats
 
@@ -59,8 +69,33 @@ curl http://localhost:8201/agents/{agent_id}/stats \
   -H "Authorization: Bearer rl_..."
 ```
 
-Returns `total_runs`, `completed_runs`, `failed_runs`, `total_cost`, `total_tokens`,
-`avg_duration_ms`, `success_rate`, `models_used`, `tools_used`.
+Computed from the runs attributed to the agent (optionally `?days=`): `total_runs`,
+`completed_runs`, `failed_runs`, `total_cost`, `total_tokens`, `avg_duration_ms`,
+`success_rate`, `last_run_at`, `models_used` (from provider calls), `tools_used` (from tool
+calls) and `envelope`.
+
+## Runtime policy
+
+Each agent's controls are enforced wherever its traffic starts:
+
+| Control | Refused when | Gateway response |
+|---|---|---|
+| `status` | the agent is `paused` or `retired` | 403 |
+| `allowed_aliases` | the request calls an alias not in the list (empty = any) | 403 |
+| `budget_envelope` | this month's attributed spend has reached the envelope | 429, `X-Cost-Cap-Reason: agent_envelope` |
+
+Every refusal carries `X-Agent-Policy-Reason` (`agent_inactive`, `alias_not_allowed` or
+`envelope_exhausted`).
+
+- **Gateway:** the preflight checks every request whose metadata names a registered agent
+  (`runledger.agent`, `gen_ai.agent.name`, `agent_name`, or `runledger.agent.id` /
+  `agent_id`), after budgets and before routing. Names prefer an active agent but also find
+  paused and retired ones, so those are refused rather than let through.
+- **SDK:** `@rl.workflow(..., agent_id=...)` and `rl.task(..., agent_id=...)` call
+  `GET /agents/{id}/preflight` first and raise `RunLedgerBudgetExceededError` on refusal.
+- **API:** `GET /agents/{id}/preflight?alias=smart` returns the same decision:
+  `allowed`, `reason_code`, `reason`, `envelope_usd`, `spent_usd`, `remaining_usd` and
+  `allowed_aliases`.
 
 ## Agent runs
 

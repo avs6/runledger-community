@@ -84,7 +84,6 @@ const observeNav = [
 
 const buildNav = [
   { href: '/agents', label: 'Agents', icon: Bot },
-  { href: '/workflows', label: 'Workflows', icon: GitBranch },
   { href: '/playground', label: 'Playground', icon: Play },
   { href: '/evaluation', label: 'Evaluation Studio', icon: FlaskConical },
   { href: '/optimization-opportunities', label: 'Optimization', icon: Lightbulb },
@@ -220,6 +219,8 @@ export default function Sidebar() {
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <nav className="flex flex-col gap-0.5">
+          {/* Workflow is the landing object (review W1-F): pinned above the sections. */}
+          <NavLink href="/workflows" label="Workflows" icon={GitBranch} />
           <Section id="observe" label="Observe">
             {observeNav.map(({ href, label, icon }) =>
               href === '/monitoring' ? (

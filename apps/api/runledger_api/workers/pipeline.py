@@ -49,6 +49,7 @@ from runledger_api.models.ingest_dead_letters import IngestDeadLetter
 from runledger_api.models.ledger import CapturePolicy
 from runledger_api.services import kafka_export
 from runledger_api.services.scrubbing import scrub_dict
+from runledger_api.services.workflow_attribution import attribution_from_event
 
 log = structlog.get_logger()
 
@@ -380,6 +381,8 @@ def _uuid(value: str | None) -> uuid.UUID | None:
 
 
 async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:
+    # Workflow spine: resolve workflow + agent inside this workspace (never across).
+    attribution = await attribution_from_event(session, uuid.UUID(workspace_id), e)
     stmt = insert(AgentRun).values(
         id=uuid.UUID(e["run_id"]),
         workspace_id=uuid.UUID(workspace_id),
@@ -387,7 +390,9 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
         api_key_id=_uuid(e.get("api_key_id")),
         end_user_id=e.get("end_user_id"),
         session_id=e.get("session_id"),
-        feature_tag=e.get("feature_tag"),
+        feature_tag=e.get("feature_tag") or attribution.feature_tag,
+        workflow_id=attribution.workflow_id,
+        agent_id=attribution.agent_id,
         deployment_version=e.get("deployment_version"),
         status=RunStatusEnum.running,
         started_at=_dt(e["started_at"]),
@@ -413,6 +418,8 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
             "intent": func.coalesce(AgentRun.intent, excluded.intent),
             "api_key_id": func.coalesce(AgentRun.api_key_id, excluded.api_key_id),
             "application_id": func.coalesce(AgentRun.application_id, excluded.application_id),
+            "workflow_id": func.coalesce(AgentRun.workflow_id, excluded.workflow_id),
+            "agent_id": func.coalesce(AgentRun.agent_id, excluded.agent_id),
         },
         where=AgentRun.workspace_id == excluded.workspace_id,
     )
@@ -427,7 +434,8 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
                 "trace_id": e.get("external_trace_id"),
                 "end_user_id": e.get("end_user_id"),
                 "session_id": e.get("session_id"),
-                "feature_tag": e.get("feature_tag"),
+                "feature_tag": e.get("feature_tag") or attribution.feature_tag,
+                "workflow_id": str(attribution.workflow_id) if attribution.workflow_id else None,
                 "deployment_version": e.get("deployment_version"),
                 "started_at": e.get("started_at"),
                 "source": e.get("source_type") or "runledger.ingest",

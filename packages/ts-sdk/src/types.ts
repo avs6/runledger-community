@@ -5,6 +5,10 @@ export interface RunStartEvent {
   run_id: string
   started_at: string
   agent_name?: string
+  agent_id?: string
+  /** Workflow id, feature_tag or name; resolved by the server in your workspace. */
+  workflow?: string
+  workflow_id?: string
   end_user_id?: string
   session_id?: string
   feature_tag?: string
@@ -136,4 +140,9 @@ export interface ContextOptions {
 export interface TaskOptions extends ContextOptions {
   intent?: string
   metadata?: Record<string, unknown>
+  /** Attribute the run to a workflow (id, feature_tag or name). */
+  workflow?: string
+  /** Attribute the run to a registered agent by name or id. */
+  agentName?: string
+  agentId?: string
 }

@@ -162,13 +162,19 @@ RunLedger parses spans using the following priority order:
 
 ### Run-context attributes
 
-Attach these to the root span (or resource) to link traces to sessions and users:
+Attach these to the root span (or resource) to link traces to sessions, users and
+workflows. A collector can also set the `X-RunLedger-Workflow` header for a whole service;
+span attributes win per trace:
 
 | Attribute | Aliases | Description |
 |-----------|---------|-------------|
 | `runledger.session_id` | `session.id`, `openinference.session_id` | User session |
 | `runledger.end_user_id` | `user.id`, `openinference.user_id`, `enduser.id` | End-user ID |
 | `runledger.feature_tag` | `tag.feature`, `feature_tag` | Product feature |
+| `runledger.workflow` | `runledger.workflow.name`, `workflow.name` | Workflow id, feature tag or name ([Workflows](agentic/workflows)) |
+| `runledger.workflow.id` | `runledger.workflow_id` | Workflow id |
+| `runledger.agent` | `runledger.agent.name`, `gen_ai.agent.name` | Registered agent name |
+| `runledger.agent.id` | `runledger.agent_id` | Registered agent id |
 | `runledger.deployment_version` | `service.version` (resource) | Deployment label |
 
 ### LLM span attributes

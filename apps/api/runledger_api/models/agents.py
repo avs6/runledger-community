@@ -1,4 +1,4 @@
-"""ORM models for agent registry and workflow run tracking."""
+"""ORM models for the agent registry, workflows and agent memory."""
 
 from __future__ import annotations
 
@@ -39,7 +39,11 @@ class Agent(Base):
     budget_envelope: Mapped[Decimal | None] = mapped_column(
         sa.Numeric(precision=12, scale=4), nullable=True
     )
-    policy_profile: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Gateway route aliases this agent may call; empty = any. Enforced with status and
+    # budget_envelope by services/agent_policy.py (gateway preflight + SDK).
+    allowed_aliases: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=sa.text("'[]'")
+    )
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
     config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'{}'")
@@ -53,8 +57,26 @@ class Agent(Base):
 
 
 class WorkflowDefinition(Base):
+    """A workflow: the product's top-level object.
+
+    Runs are attributed to a workflow at ingest (``agent_runs.workflow_id``), resolved
+    from an explicit id/name (SDK, ``X-RunLedger-Workflow`` header, OTLP
+    ``runledger.workflow*`` attributes), the run's ``feature_tag`` or the gateway alias
+    the request used. ``feature_tag`` is also the key budgets, chargeback and analytics
+    already scope by, so a workflow's budgets are ``feature_tag`` budgets on that tag.
+    """
+
     __tablename__ = "workflow_definitions"
-    __table_args__ = (sa.Index("ix_workflow_definitions_workspace", "workspace_id"),)
+    __table_args__ = (
+        sa.Index("ix_workflow_definitions_workspace", "workspace_id"),
+        sa.Index(
+            "uq_workflow_definitions_feature_tag",
+            "workspace_id",
+            "feature_tag",
+            unique=True,
+            postgresql_where=sa.text("feature_tag IS NOT NULL AND status <> 'archived'"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -62,6 +84,9 @@ class WorkflowDefinition(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    feature_tag: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
+    gateway_alias: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    owner: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     steps_schema: Mapped[list[dict[str, Any]]] = mapped_column(
         JSONB, nullable=False, server_default=sa.text("'[]'")
     )
@@ -78,89 +103,28 @@ class WorkflowDefinition(Base):
 
 
 class WorkflowRun(Base):
+    """Read-only view over ``agent_runs`` that carry a ``workflow_id`` (migration
+    ``workflows_spine``). Workflow runs are ordinary runs; there is no separate record
+    to create or update. Query ``AgentRun`` directly in new code."""
+
     __tablename__ = "workflow_runs"
-    __table_args__ = (
-        sa.Index("ix_workflow_runs_workspace", "workspace_id"),
-        sa.Index("ix_workflow_runs_workflow", "workflow_id"),
-    )
+    __table_args__ = {"info": {"is_view": True}}
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    workflow_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    parent_run_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        sa.ForeignKey("api_keys.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    access_group_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        sa.ForeignKey("access_groups.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    status: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'pending'")
-    )
-    total_cost: Mapped[Decimal] = mapped_column(
-        sa.Numeric(precision=12, scale=6), server_default=sa.text("0")
-    )
-    total_tokens: Mapped[int] = mapped_column(sa.BigInteger, server_default=sa.text("0"))
-    total_duration_ms: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
-    trigger: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    input_data: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
-    )
-    output_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
-    )
-
-
-class WorkflowStep(Base):
-    __tablename__ = "workflow_steps"
-    __table_args__ = (
-        sa.Index("ix_workflow_steps_run", "run_id"),
-        sa.Index("ix_workflow_steps_run_index", "run_id", "step_index"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    run_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    step_index: Mapped[int] = mapped_column(sa.Integer, nullable=False)
-    name: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    step_type: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'agent'")
-    )
-    agent_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
-    model: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    tool: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    status: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default=sa.text("'pending'")
-    )
-    cost: Mapped[Decimal] = mapped_column(
-        sa.Numeric(precision=12, scale=6), server_default=sa.text("0")
-    )
-    tokens: Mapped[int] = mapped_column(sa.BigInteger, server_default=sa.text("0"))
-    duration_ms: Mapped[int | None] = mapped_column(sa.BigInteger, nullable=True)
-    input_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    output_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(
-        sa.TIMESTAMP(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
+    workflow_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    parent_run_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    access_group_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    status: Mapped[str] = mapped_column(sa.Text)
+    total_cost: Mapped[Decimal] = mapped_column(sa.Numeric(14, 8))
+    total_tokens: Mapped[int] = mapped_column(sa.BigInteger)
+    total_duration_ms: Mapped[int | None] = mapped_column(sa.BigInteger)
+    trigger: Mapped[str | None] = mapped_column(sa.Text)
+    started_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(sa.TIMESTAMP(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(sa.TIMESTAMP(timezone=True))
 
 
 class AgentMemory(Base):

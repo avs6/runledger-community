@@ -360,6 +360,10 @@ class RunLedger:
         session_id: str | None = None,
         feature_tag: str | None = None,
         deployment_version: str | None = None,
+        workflow: str | None = None,
+        agent: str | None = None,
+        agent_id: str | None = None,
+        enforce_envelope: bool = True,
     ) -> object:
         """Return a high-level task wrapper context manager for manual instrumentation."""
         from runledger_sdk.task import RunLedgerTask  # noqa: PLC0415
@@ -373,6 +377,43 @@ class RunLedger:
             session_id=session_id,
             feature_tag=feature_tag,
             deployment_version=deployment_version,
+            workflow=workflow,
+            agent=agent,
+            agent_id=agent_id,
+            enforce_envelope=enforce_envelope,
+        )
+
+    def workflow(
+        self,
+        workflow: str,
+        *,
+        agent: str | None = None,
+        agent_id: str | None = None,
+        feature_tag: str | None = None,
+        enforce_envelope: bool = True,
+    ) -> Any:
+        """Decorator: every call of the function is one run of ``workflow``.
+
+        ``workflow`` is a workflow id, its feature_tag or its name. The run records
+        success or failure (exceptions re-raise); model calls made inside are
+        attributed to it. With ``agent_id`` the agent preflight runs first (status and
+        monthly budget envelope) and :class:`RunLedgerBudgetExceededError` is raised when
+        it refuses::
+
+            @rl.workflow("support-triage", agent="triage-bot")
+            def triage(ticket): ...
+
+        Works on sync and async functions.
+        """
+        from runledger_sdk.workflow import workflow_decorator  # noqa: PLC0415
+
+        return workflow_decorator(
+            self,
+            workflow,
+            agent=agent,
+            agent_id=agent_id,
+            feature_tag=feature_tag,
+            enforce_envelope=enforce_envelope,
         )
 
     def context(

@@ -1,249 +1,213 @@
-import { getServerSession } from 'next-auth'
+'use client'
+
+import { Suspense, useCallback, useState } from 'react'
 import Link from 'next/link'
-import {
-  ArrowRight, Bot, BrainCircuit, Cpu, DollarSign, FlaskConical,
-  GitBranch, Layers, Network, Plus, Route, Shield, Sparkles,
-  Terminal, Wrench, Zap,
-} from 'lucide-react'
-import { authOptions } from '@/lib/auth'
-import { num } from '@/lib/utils'
-import { getWorkflows } from '@/lib/api'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import { Archive, Pencil, Plus, RotateCcw, Route, Sparkles } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { DataTable, type DataTableColumn, type DataTableQuery } from '@/components/ui/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useRole } from '@/components/rbac/useRole'
+import { archiveWorkflow, getWorkflowsPage, updateWorkflow } from '@/lib/api'
+import { routes } from '@/lib/routes'
 import type { WorkflowDefinitionResponse } from '@/types/api'
+import { StatusBadge, WorkflowSheet, apiErrorMessage, money, ms, pct, relTime, useApiKey } from './_components/shared'
 
-const statusDot: Record<string, string> = {
-  active: 'bg-emerald-400 shadow-emerald-400/50',
-  archived: 'bg-slate-400 shadow-slate-400/30',
-}
+const WINDOWS = [7, 30, 90]
 
-const stepTypeConfig: Record<string, { color: string; icon: typeof Bot }> = {
-  model: { color: 'from-blue-500 to-cyan-400', icon: Cpu },
-  agent: { color: 'from-violet-500 to-purple-400', icon: BrainCircuit },
-  tool: { color: 'from-orange-500 to-amber-400', icon: Wrench },
-  conditional: { color: 'from-pink-500 to-rose-400', icon: GitBranch },
-  transform: { color: 'from-teal-500 to-emerald-400', icon: Sparkles },
-}
+function WorkflowsInner() {
+  const apiKey = useApiKey()
+  const { canWrite } = useRole()
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+  const status = params.get('status') ?? 'active'
+  const days = Number(params.get('days') ?? 30) || 30
+  const { confirm, dialog } = useConfirm()
+  const [editing, setEditing] = useState<WorkflowDefinitionResponse | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [version, setVersion] = useState(0)
+  const [empty, setEmpty] = useState(false)
 
-function WorkflowCard({ wf }: { wf: WorkflowDefinitionResponse }) {
-  const steps = wf.steps_schema ?? []
-  const stepCount = steps.length
+  const setParam = (key: string, value: string) => {
+    const next = new URLSearchParams(params.toString())
+    next.set(key, value)
+    next.delete('wf_page')
+    router.replace(`${pathname}?${next}`, { scroll: false })
+  }
+
+  const fetchPage = useCallback(
+    async (q: DataTableQuery) => {
+      if (!apiKey) return { items: [], total: 0 }
+      const page = await getWorkflowsPage(apiKey, {
+        status: status === 'all' ? undefined : status,
+        days,
+        q: q.q,
+        sort: q.sort,
+        dir: q.dir,
+        limit: q.limit,
+        offset: q.offset,
+      })
+      setEmpty(page.total === 0 && !q.q && status === 'active')
+      return page
+    },
+    [apiKey, status, days],
+  )
+
+  const onArchive = async (wf: WorkflowDefinitionResponse) => {
+    if (!apiKey) return
+    const ok = await confirm({
+      title: `Archive ${wf.name}?`,
+      description: 'New traffic stops matching this workflow. Its runs and history are kept, and you can restore it later.',
+      confirmLabel: 'Archive',
+      destructive: true,
+    })
+    if (!ok) return
+    try {
+      await archiveWorkflow(apiKey, wf.id)
+      toast.success(`${wf.name} archived`)
+      setVersion((v) => v + 1)
+    } catch (e) {
+      toast.error(apiErrorMessage(e))
+    }
+  }
+
+  const onRestore = async (wf: WorkflowDefinitionResponse) => {
+    if (!apiKey) return
+    try {
+      const saved = await updateWorkflow(apiKey, wf.id, { status: 'active' })
+      toast.success(`${wf.name} restored`, { description: saved.linked_runs ? `${saved.linked_runs} runs linked` : undefined })
+      setVersion((v) => v + 1)
+    } catch (e) {
+      toast.error(apiErrorMessage(e))
+    }
+  }
+
+  const columns: DataTableColumn<WorkflowDefinitionResponse>[] = [
+    {
+      key: 'name',
+      header: 'Workflow',
+      sortable: true,
+      render: (wf) => (
+        <div className="min-w-0">
+          <Link href={routes.workflowsWorkflowId(wf.id)} className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">{wf.name}</Link>
+          {wf.description && <p className="truncate text-[11px] text-slate-500">{wf.description}</p>}
+        </div>
+      ),
+    },
+    { key: 'feature_tag', header: 'Feature tag', render: (wf) => wf.feature_tag ? <code className="text-xs">{wf.feature_tag}</code> : <span className="text-xs text-status-warning">not linked</span> },
+    { key: 'gateway_alias', header: 'Gateway alias', defaultHidden: true, render: (wf) => wf.gateway_alias ? <code className="text-xs">{wf.gateway_alias}</code> : '—' },
+    { key: 'runs', header: `Runs (${days}d)`, value: (wf) => wf.stats?.runs ?? 0 },
+    { key: 'success', header: 'Success', value: (wf) => wf.stats?.success_rate ?? null, render: (wf) => pct(wf.stats?.success_rate) },
+    { key: 'cost_per_success', header: 'Cost / success', value: (wf) => Number(wf.stats?.cost_per_success ?? 0), render: (wf) => money(wf.stats?.cost_per_success) },
+    { key: 'cost', header: 'Spend', value: (wf) => Number(wf.stats?.total_cost_usd ?? 0), render: (wf) => money(wf.stats?.total_cost_usd) },
+    { key: 'p95', header: 'p95 latency', value: (wf) => wf.stats?.p95_latency_ms ?? null, render: (wf) => ms(wf.stats?.p95_latency_ms) },
+    { key: 'last_run', header: 'Last run', value: (wf) => wf.stats?.last_run_at ?? '', render: (wf) => relTime(wf.stats?.last_run_at) },
+    { key: 'owner', header: 'Owner', defaultHidden: true },
+    { key: 'status', header: 'Status', render: (wf) => <StatusBadge status={wf.status} /> },
+    { key: 'created_at', header: 'Created', sortable: true, defaultHidden: true, value: (wf) => wf.created_at, render: (wf) => new Date(wf.created_at).toLocaleDateString() },
+    {
+      key: 'actions',
+      header: 'Actions',
+      value: () => '',
+      render: (wf) =>
+        canWrite ? (
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <button type="button" aria-label={`Edit ${wf.name}`} title="Edit" onClick={() => { setEditing(wf); setSheetOpen(true) }} className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            {wf.status === 'archived' ? (
+              <button type="button" aria-label={`Restore ${wf.name}`} title="Restore" onClick={() => void onRestore(wf)} className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800">
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button type="button" aria-label={`Archive ${wf.name}`} title="Archive" onClick={() => void onArchive(wf)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40">
+                <Archive className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        ) : null,
+    },
+  ]
 
   return (
-    <Link
-      href={`/workflows/${wf.id}`}
-      className="group relative flex flex-col rounded-xl border border-slate-200/80 bg-white/90 p-4 shadow-sm transition-all hover:shadow-lg hover:shadow-cyan-500/10 dark:border-slate-700/60 dark:bg-slate-900/80 dark:hover:border-slate-600"
-    >
-      {/* Gradient accent */}
-      <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-violet-500" />
+    <div className="space-y-4">
+      {dialog}
+      <PageHeader
+        icon={Route}
+        title="Workflows"
+        description="Every unit of AI work you run: its runs, cost, quality, budgets and policies in one place."
+        actions={
+          canWrite ? (
+            <>
+              <Link href={'/workflows/new'} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                <Sparkles className="h-4 w-4" aria-hidden="true" /> Guided setup
+              </Link>
+              <button type="button" onClick={() => { setEditing(null); setSheetOpen(true) }} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+                <Plus className="h-4 w-4" aria-hidden="true" /> New workflow
+              </button>
+            </>
+          ) : undefined
+        }
+      />
 
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20">
-          <Route className="h-4.5 w-4.5 text-white" />
+      <div className="flex flex-wrap items-center gap-3">
+        <div role="group" aria-label="Status filter" className="flex gap-1">
+          {['active', 'archived', 'all'].map((s) => (
+            <button key={s} type="button" aria-pressed={status === s} onClick={() => setParam('status', s)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize ${status === s ? 'bg-indigo-600 text-white' : 'border border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>
+              {s}
+            </button>
+          ))}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate text-sm font-bold text-slate-950 dark:text-white">{wf.name}</h3>
-            <span className={`h-2 w-2 shrink-0 rounded-full shadow-sm ${statusDot[wf.status] ?? statusDot.active}`} title={wf.status} />
-          </div>
-          {wf.description && (
-            <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{wf.description}</p>
-          )}
-        </div>
+        <label className="flex items-center gap-1.5 text-xs text-slate-500">
+          Window
+          <select aria-label="Stats window" value={days} onChange={(e) => setParam('days', e.target.value)} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800">
+            {WINDOWS.map((d) => <option key={d} value={d}>{d} days</option>)}
+          </select>
+        </label>
       </div>
 
-      {/* Step pipeline visualization */}
-      {stepCount > 0 && (
-        <div className="mt-3 flex items-center gap-0.5 overflow-hidden">
-          {steps.slice(0, 6).map((step: { name?: string; type?: string; step_type?: string }, i: number) => {
-            const st = stepTypeConfig[(step.type ?? step.step_type ?? 'model')] ?? stepTypeConfig.model
-            const StepIcon = st.icon
-            return (
-              <div key={i} className="flex items-center gap-0.5">
-                <div className={`flex items-center gap-1 rounded-md bg-gradient-to-r ${st.color} px-1.5 py-0.5 shadow-sm`} title={step.name ?? `Step ${i + 1}`}>
-                  <StepIcon className="h-2.5 w-2.5 text-white" />
-                  <span className="max-w-[60px] truncate text-[9px] font-semibold text-white">{step.name ?? `Step ${i + 1}`}</span>
-                </div>
-                {i < Math.min(steps.length, 6) - 1 && <ArrowRight className="h-2.5 w-2.5 text-slate-300 dark:text-slate-600" />}
-              </div>
-            )
-          })}
-          {stepCount > 6 && <span className="text-[9px] font-semibold text-slate-400">+{stepCount - 6}</span>}
+      {empty ? (
+        <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+          <EmptyState
+            icon={Route}
+            title="Create your first workflow"
+            description="A workflow names a piece of AI work (a support bot, a code reviewer) and collects its runs, cost, quality and controls. Link it to a feature tag or a gateway alias and traffic is attributed automatically."
+            action={canWrite ? <Link href={'/workflows/new'} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"><Sparkles className="h-4 w-4" aria-hidden="true" /> Start guided setup</Link> : undefined}
+          />
         </div>
-      )}
-
-      <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2.5 text-[10px] text-slate-500 dark:border-slate-800">
-        <span className="flex items-center gap-0.5">
-          <Layers className="h-2.5 w-2.5 text-cyan-500" />
-          {stepCount} step{stepCount !== 1 ? 's' : ''}
-        </span>
-        <span className={`rounded-full px-1.5 py-px text-[9px] font-semibold ${
-          wf.status === 'active'
-            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-        }`}>{wf.status}</span>
-        <span className="ml-auto text-slate-400">
-          {new Date(wf.created_at).toLocaleDateString()}
-        </span>
+      ) : null}
+      <div className={empty ? 'hidden' : undefined}>
+        <DataTable
+          key={`${status}-${days}-${version}`}
+          label="Workflows"
+          urlPrefix="wf_"
+          columns={columns}
+          rowKey={(wf) => wf.id}
+          fetchPage={fetchPage}
+          searchPlaceholder="Search name or tag…"
+          csvFileName="workflows.csv"
+          emptyTitle="No workflows match"
+          emptyDescription="Try another status or search."
+          onRowClick={(wf) => router.push(routes.workflowsWorkflowId(wf.id))}
+        />
       </div>
-    </Link>
+
+      <WorkflowSheet open={sheetOpen} onOpenChange={setSheetOpen} workflow={editing} onSaved={(wf) => {
+        setVersion((v) => v + 1)
+        if (!editing) router.push(routes.workflowsWorkflowId(wf.id))
+      }} />
+    </div>
   )
 }
 
-export default async function WorkflowsPage() {
-  const session = await getServerSession(authOptions)
-  if (!session) return null
-
-  let workflows: WorkflowDefinitionResponse[] = []
-  let total = 0
-  try {
-    const data = await getWorkflows(session.apiKey, { limit: 100 })
-    workflows = data.workflows
-    total = data.total
-  } catch { /* API may not be reachable */ }
-
-  const activeCount = workflows.filter(w => w.status === 'active').length
-  const archivedCount = workflows.filter(w => w.status === 'archived').length
-  const totalSteps = workflows.reduce((s, w) => s + (w.steps_schema?.length ?? 0), 0)
-
+export default function WorkflowsPage() {
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/25">
-            <Route className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Workflows</h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Define multi-step pipelines, orchestrate agents and models.</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {[
-            { href: '/agents', label: 'Agents', icon: BrainCircuit },
-            { href: '/runs', label: 'Runs', icon: Zap },
-            { href: '/evaluation', label: 'Eval Studio', icon: FlaskConical },
-            { href: '/gateway', label: 'Gateway', icon: Network },
-          ].map(nav => (
-            <Link key={nav.label} href={nav.href} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              <nav.icon className="h-3 w-3" /> {nav.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* KPI hero strip */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
-        {[
-          { label: 'Total', value: total, icon: Route, color: 'text-cyan-600 dark:text-cyan-400' },
-          { label: 'Active', value: activeCount, icon: Zap, color: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Archived', value: archivedCount, icon: Shield, color: 'text-slate-500 dark:text-slate-400' },
-          { label: 'Total Steps', value: totalSteps, icon: Layers, color: 'text-blue-600 dark:text-blue-400' },
-        ].map(kpi => (
-          <div key={kpi.label} className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex items-center gap-1">
-              <kpi.icon className={`h-3 w-3 ${kpi.color}`} />
-              <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">{kpi.label}</span>
-            </div>
-            <p className="mt-1 text-base font-bold text-slate-950 dark:text-white">{kpi.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-2 lg:grid-cols-3">
-
-
-      </div>
-
-      {/* Workflow grid */}
-      {workflows.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {workflows.map(wf => <WorkflowCard key={wf.id} wf={wf} />)}
-        </div>
-      )}
-
-      {/* Registration guide — always visible */}
-      <div className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600">
-            <Plus className="h-3.5 w-3.5 text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-slate-900 dark:text-white">Create a Workflow</p>
-            <p className="text-[10px] text-slate-500">Define step-by-step pipelines and track every execution</p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">1. Define the Workflow</p>
-            <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-[11px] font-mono leading-relaxed text-green-400">{`curl -X POST /api/v1/workflows \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -d '{
-    "name": "customer-support",
-    "description": "Classify, route, respond",
-    "steps_schema": [
-      {"name": "classify", "step_type": "model",
-       "config": {"model": "gpt-4o-mini"}},
-      {"name": "route", "step_type": "conditional"},
-      {"name": "respond", "step_type": "agent",
-       "config": {"agent_id": "AGENT_ID"}}
-    ]
-  }'`}</pre>
-          </div>
-
-          <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">2. Start a Run</p>
-            <pre className="overflow-x-auto rounded-lg bg-slate-950 p-3 text-[11px] font-mono leading-relaxed text-green-400">{`curl -X POST /api/v1/workflows/{id}/runs \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -d '{
-    "trigger": "api",
-    "input_data": {
-      "message": "I need help with billing",
-      "customer_id": "cust_123"
-    }
-  }'
-
-# Each step reports back:
-POST /api/v1/workflows/{id}/runs/{run_id}/steps
-  {"step_index": 0, "status": "completed",
-   "output_data": {"category": "billing"}}`}</pre>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            { type: 'model', desc: 'LLM inference — classify, summarize, generate.', icon: Cpu, color: 'from-blue-500 to-cyan-400' },
-            { type: 'agent', desc: 'Delegate to a registered agent.', icon: BrainCircuit, color: 'from-violet-500 to-purple-400' },
-            { type: 'tool', desc: 'Execute a tool — API call, search, code.', icon: Wrench, color: 'from-orange-500 to-amber-400' },
-            { type: 'conditional', desc: 'Branch logic — route by output.', icon: GitBranch, color: 'from-pink-500 to-rose-400' },
-            { type: 'transform', desc: 'Map, filter, reshape data between steps.', icon: Sparkles, color: 'from-teal-500 to-emerald-400' },
-          ].map(t => (
-            <div key={t.type} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5 dark:border-slate-700 dark:bg-slate-800/60">
-              <div className="flex items-center gap-1.5">
-                <div className={`flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br ${t.color}`}>
-                  <t.icon className="h-3 w-3 text-white" />
-                </div>
-                <span className="text-[11px] font-bold text-slate-800 dark:text-white">{t.type}</span>
-              </div>
-              <p className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">{t.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3 text-[10px] dark:border-slate-800">
-          <span className="font-semibold text-slate-500">After defining:</span>
-          {[
-            { l: 'Track runs', href: '/runs' },
-            { l: 'View cost/step', href: '#' },
-            { l: 'Set budgets', href: '/budgets' },
-            { l: 'Evaluate quality', href: '/evaluation' },
-          ].map(tip => (
-            <Link key={tip.l} href={tip.href} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-medium text-blue-600 hover:border-blue-300 dark:border-slate-700 dark:bg-slate-800 dark:text-blue-400">
-              {tip.l}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
+    <Suspense fallback={null}>
+      <WorkflowsInner />
+    </Suspense>
   )
 }

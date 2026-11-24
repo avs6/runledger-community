@@ -132,6 +132,17 @@ const resp = await cohere.chat({
 })
 ```
 
+## Workflows
+
+```ts
+const reply = await rl.withWorkflow('support-triage', async (task) => {
+  // model calls here are attributed to one run of the workflow
+  return answer(ticket)
+}, { agentName: 'triage-bot' })
+```
+
+`withTask(name, { workflow, agentName, agentId }, fn)` takes the same options.
+
 ## Context
 
 ```typescript

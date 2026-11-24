@@ -3462,7 +3462,8 @@ export interface AgentResponse {
   default_model: string | null
   default_tools: string[]
   budget_envelope: number | null
-  policy_profile: string | null
+  /** Gateway route aliases the agent may call; empty = any. Enforced by the gateway and SDK. */
+  allowed_aliases: string[]
   status: string
   config: Record<string, unknown>
   created_at: string
@@ -3474,32 +3475,63 @@ export interface AgentListResponse {
   total: number
 }
 
+export interface AgentEnvelopeStatus {
+  agent_id: string
+  reason_code: 'agent_inactive' | 'alias_not_allowed' | 'envelope_exhausted' | null
+  allowed_aliases: string[]
+  envelope_usd: number | string | null
+  spent_usd: number | string
+  remaining_usd: number | string | null
+  period_start: string
+  allowed: boolean
+  reason: string | null
+}
+
 export interface AgentStats {
   agent_id: string
+  window_days: number | null
   total_runs: number
   completed_runs: number
   failed_runs: number
-  total_cost: number
+  total_cost: number | string
   total_tokens: number
   avg_duration_ms: number | null
   success_rate: number | null
   last_run_at: string | null
   models_used: string[]
   tools_used: string[]
+  envelope: AgentEnvelopeStatus | null
 }
 
-// ── Workflow Definitions & Runs ────────────────────────────────────────────
+// ── Workflows (runs are a view over agent_runs) ────────────────────────────
+
+export interface WorkflowStats {
+  window_days: number
+  runs: number
+  succeeded: number
+  failed: number
+  success_rate: number | null
+  total_cost_usd: number | string
+  cost_per_success: number | string | null
+  p95_latency_ms: number | null
+  last_run_at: string | null
+}
 
 export interface WorkflowDefinitionResponse {
   id: string
   workspace_id: string
   name: string
   description: string | null
-  steps_schema: Record<string, unknown>[]
-  status: string
+  feature_tag: string | null
+  gateway_alias: string | null
+  owner: string | null
+  steps_schema: Array<{ name?: string; type?: string; step_type?: string }>
+  status: 'active' | 'archived' | string
   config: Record<string, unknown>
   created_at: string
   updated_at: string
+  stats: WorkflowStats | null
+  linked_runs: number | null
 }
 
 export interface WorkflowDefinitionListResponse {
@@ -3507,92 +3539,96 @@ export interface WorkflowDefinitionListResponse {
   total: number
 }
 
-export interface WorkflowStepResponse {
+export interface WorkflowInput {
+  name?: string
+  description?: string | null
+  feature_tag?: string | null
+  gateway_alias?: string | null
+  owner?: string | null
+  status?: 'active' | 'archived'
+}
+
+export interface RunSummary {
   id: string
-  run_id: string
-  step_index: number
-  name: string
-  step_type: string
+  workflow_id: string | null
   agent_id: string | null
-  model: string | null
-  tool: string | null
   status: string
-  cost: number
-  tokens: number
+  feature_tag: string | null
+  end_user_id: string | null
+  api_key_id: string | null
+  source_type: string | null
+  total_cost_usd: number | string
+  total_tokens: number
   duration_ms: number | null
-  input_data: Record<string, unknown> | null
-  output_data: Record<string, unknown> | null
-  error: string | null
-  started_at: string | null
-  completed_at: string | null
-  created_at: string
+  started_at: string
+  ended_at: string | null
 }
 
-export interface WorkflowRunResponse {
-  id: string
-  workspace_id: string
-  workflow_id: string
-  agent_id: string | null
-  parent_run_id: string | null
-  status: string
-  total_cost: number
-  total_tokens: number
-  total_duration_ms: number | null
-  trigger: string | null
-  input_data: Record<string, unknown>
-  output_data: Record<string, unknown> | null
-  error: string | null
-  started_at: string | null
-  completed_at: string | null
-  created_at: string
-  steps: WorkflowStepResponse[]
-}
-
-export interface WorkflowRunListResponse {
-  runs: WorkflowRunResponse[]
-  total: number
-}
-
-export interface WorkflowRunSummary {
-  id: string
-  workspace_id: string
-  workflow_id: string
-  agent_id: string | null
-  parent_run_id: string | null
-  status: string
-  total_cost: number
-  total_tokens: number
-  total_duration_ms: number | null
-  trigger: string | null
-  error: string | null
-  started_at: string | null
-  completed_at: string | null
-  created_at: string
-}
-
-export interface WorkflowRunSummaryListResponse {
-  runs: WorkflowRunSummary[]
+export interface RunSummaryListResponse {
+  runs: RunSummary[]
   total: number
 }
 
 export interface StepCostBreakdown {
   step_name: string
   step_type: string
-  total_cost: number
-  avg_cost: number
+  total_cost: number | string
+  avg_cost: number | string
   invocation_count: number
+  total_tokens: number
+}
+
+export interface ModelCostBreakdown {
+  provider: string
+  model: string
+  calls: number
+  total_cost: number | string
+  total_tokens: number
 }
 
 export interface WorkflowCostAttribution {
   workflow_id: string
   workflow_name: string
+  window_days: number
   total_runs: number
-  total_cost: number
-  avg_cost_per_run: number
+  total_cost: number | string
+  avg_cost_per_run: number | string
+  steps_cost: number | string
   cost_by_step: StepCostBreakdown[]
+  cost_by_model: ModelCostBreakdown[]
 }
 
-// ── Agent Memory ──────────────────────────────────────────────────────────
+export interface WorkflowTrendPoint {
+  day: string
+  runs: number
+  cost_usd: number | string
+  avg_score: number | null
+  scores: number
+}
+
+export interface WorkflowHealth {
+  window_days: number
+  runs: number
+  succeeded: number
+  failed: number
+  success_rate: number | null
+  total_cost_usd: number | string
+  cost_per_success: number | string | null
+  p50_latency_ms: number | null
+  p95_latency_ms: number | null
+  avg_eval_score: number | null
+  eval_score_delta: number | null
+  trend: WorkflowTrendPoint[]
+}
+
+export interface WorkflowOverview {
+  workflow: WorkflowDefinitionResponse
+  health: WorkflowHealth
+  budgets: Array<{ id: string; scope_type: string; scope_id: string | null; period_type: string; limit_usd: number | string; action: string; spent_usd: number | string }>
+  evals: Array<{ name: string; avg_score: number; count: number }>
+  policies: Array<{ kind: string; name: string; detail: string; href: string | null }>
+  agents: Array<{ id: string; name: string; runs: number; total_cost_usd: number | string }>
+}
 
 export interface AgentMemoryResponse {
   id: string

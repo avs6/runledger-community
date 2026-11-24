@@ -5,7 +5,7 @@
 // are never a destination. SSO sign-in leaves the site, so the target is kept in
 // sessionStorage across the round trip.
 
-const DEFAULT_AFTER_LOGIN = '/dashboard'
+const DEFAULT_AFTER_LOGIN = '/workflows'
 const STORAGE_KEY = 'runledger.callbackUrl'
 const AUTH_PATHS = ['/login', '/auth/', '/forgot-password', '/reset-password', '/verify-email']
 

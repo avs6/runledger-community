@@ -11,8 +11,9 @@ GET    /agents                              List agents
 GET    /agents/{id}                         Get agent detail
 PUT    /agents/{id}                         Update agent
 DELETE /agents/{id}                         Retire agent
-GET    /agents/{id}/runs                    List agent runs
-GET    /agents/{id}/stats                   Agent cost/performance summary
+GET    /agents/{id}/runs                    Runs attributed to the agent (agent_runs)
+GET    /agents/{id}/stats                   Cost/performance from agent_runs + envelope
+GET    /agents/{id}/preflight               Agent policy check: status, alias allow-list, envelope
 
 POST   /agents/{id}/memory                  Store a memory
 GET    /agents/{id}/memory                  List memories
@@ -26,29 +27,27 @@ DELETE /agents/{id}/memory/{key}            Delete a memory
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
 import sqlalchemy as sa
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace, require_workspace_writer
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
-from runledger_api.models.agents import (
-    Agent,
-    AgentMemory,
-    AgentMemoryAudit,
-    WorkflowRun,
-    WorkflowStep,
-)
+from runledger_api.models.agents import Agent, AgentMemory, AgentMemoryAudit
+from runledger_api.models.events import AgentRun, ProviderCall, RunStatusEnum, ToolCall
+from runledger_api.models.gateway import GatewayRoute
 from runledger_api.models.tenant import Workspace
+from runledger_api.routers.workflows import _run_summary
 from runledger_api.schemas.agents import (
     AgentCreate,
+    AgentEnvelopeStatus,
     AgentListResponse,
     AgentMemoryAuditListResponse,
     AgentMemoryAuditResponse,
@@ -61,9 +60,9 @@ from runledger_api.schemas.agents import (
     AgentResponse,
     AgentStats,
     AgentUpdate,
-    WorkflowRunSummary,
-    WorkflowRunSummaryListResponse,
+    RunSummaryListResponse,
 )
+from runledger_api.services.agent_policy import evaluate_agent_policy
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -83,7 +82,7 @@ def _agent_to_response(a: Agent) -> AgentResponse:
         default_model=a.default_model,
         default_tools=a.default_tools or [],
         budget_envelope=a.budget_envelope,
-        policy_profile=a.policy_profile,
+        allowed_aliases=list(a.allowed_aliases or []),
         status=a.status,
         config=a.config or {},
         created_at=a.created_at,
@@ -101,6 +100,7 @@ def _agent_to_response(a: Agent) -> AgentResponse:
     dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def create_agent(body: AgentCreate, ws: WorkspaceDep, db: DbDep) -> AgentResponse:
+    await _validate_aliases(db, ws, body.allowed_aliases)
     agent = Agent(
         id=uuid.uuid4(),
         workspace_id=ws.id,
@@ -111,7 +111,7 @@ async def create_agent(body: AgentCreate, ws: WorkspaceDep, db: DbDep) -> AgentR
         default_model=body.default_model,
         default_tools=body.default_tools,
         budget_envelope=body.budget_envelope,
-        policy_profile=body.policy_profile,
+        allowed_aliases=body.allowed_aliases,
         status=body.status,
         config=body.config,
     )
@@ -131,8 +131,8 @@ async def list_agents(
     db: DbDep,
     agent_status: str | None = Query(None, alias="status"),
     agent_type: str | None = Query(None),
-    access_group_id: str | None = Query(None),
-    api_key_id: str | None = Query(None),
+    q_text: str | None = Query(None, alias="q", max_length=200),
+    api_key_id: uuid.UUID | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> AgentListResponse:
@@ -145,18 +145,16 @@ async def list_agents(
     if agent_type:
         q = q.where(Agent.agent_type == agent_type)
         count_q = count_q.where(Agent.agent_type == agent_type)
-    if access_group_id or api_key_id:
-        import uuid as _uuid
-
-        run_sub = select(WorkflowRun.agent_id).where(
-            WorkflowRun.workspace_id == ws.id,
-            WorkflowRun.agent_id.isnot(None),
+    if q_text:
+        like = f"%{q_text.strip()}%"
+        q = q.where(Agent.name.ilike(like))
+        count_q = count_q.where(Agent.name.ilike(like))
+    if api_key_id:
+        run_sub = (
+            select(AgentRun.agent_id)
+            .where(AgentRun.workspace_id == ws.id, AgentRun.api_key_id == api_key_id)
+            .distinct()
         )
-        if access_group_id:
-            run_sub = run_sub.where(WorkflowRun.access_group_id == _uuid.UUID(access_group_id))
-        if api_key_id:
-            run_sub = run_sub.where(WorkflowRun.api_key_id == _uuid.UUID(api_key_id))
-        run_sub = run_sub.distinct()
         q = q.where(Agent.id.in_(run_sub))
         count_q = count_q.where(Agent.id.in_(run_sub))
 
@@ -203,7 +201,12 @@ async def update_agent(
     if not agent:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent not found")
 
-    for field, val in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    if updates.get("allowed_aliases"):
+        await _validate_aliases(db, ws, updates["allowed_aliases"])
+    if "allowed_aliases" in updates and updates["allowed_aliases"] is None:
+        updates["allowed_aliases"] = []
+    for field, val in updates.items():
         setattr(agent, field, val)
     agent.updated_at = datetime.now(UTC)
 
@@ -234,75 +237,116 @@ async def retire_agent(agent_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None
 
 @router.get(
     "/{agent_id}/runs",
-    response_model=WorkflowRunSummaryListResponse,
+    response_model=RunSummaryListResponse,
     dependencies=[Depends(analytics_rate_limit)],
 )
 async def list_agent_runs(
     agent_id: uuid.UUID,
     ws: WorkspaceDep,
     db: DbDep,
+    response: Response,
     run_status: str | None = Query(None, alias="status"),
-    access_group_id: str | None = Query(None),
-    api_key_id: str | None = Query(None),
+    workflow_id: uuid.UUID | None = Query(None),
+    api_key_id: uuid.UUID | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-) -> WorkflowRunSummaryListResponse:
-    base = select(WorkflowRun).where(
-        WorkflowRun.agent_id == agent_id,
-        WorkflowRun.workspace_id == ws.id,
-    )
-    count_q = select(func.count(WorkflowRun.id)).where(
-        WorkflowRun.agent_id == agent_id,
-        WorkflowRun.workspace_id == ws.id,
-    )
+) -> RunSummaryListResponse:
+    """Runs attributed to this agent (``agent_runs.agent_id``, set at ingest)."""
+    await _agent_or_404(db, ws, agent_id)
+    conds: list[Any] = [AgentRun.workspace_id == ws.id, AgentRun.agent_id == agent_id]
     if run_status:
-        base = base.where(WorkflowRun.status == run_status)
-        count_q = count_q.where(WorkflowRun.status == run_status)
-    if access_group_id:
-        import uuid as _uuid
-
-        _ag = _uuid.UUID(access_group_id)
-        base = base.where(WorkflowRun.access_group_id == _ag)
-        count_q = count_q.where(WorkflowRun.access_group_id == _ag)
+        if run_status not in {s.value for s in RunStatusEnum}:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown run status")
+        conds.append(AgentRun.status == RunStatusEnum(run_status))
+    if workflow_id:
+        conds.append(AgentRun.workflow_id == workflow_id)
     if api_key_id:
-        import uuid as _uuid
-
-        _ak = _uuid.UUID(api_key_id)
-        base = base.where(WorkflowRun.api_key_id == _ak)
-        count_q = count_q.where(WorkflowRun.api_key_id == _ak)
-
-    total = (await db.execute(count_q)).scalar() or 0
+        conds.append(AgentRun.api_key_id == api_key_id)
+    total = int((await db.execute(select(func.count(AgentRun.id)).where(*conds))).scalar() or 0)
     rows = (
-        (await db.execute(base.order_by(WorkflowRun.created_at.desc()).offset(offset).limit(limit)))
+        (
+            await db.execute(
+                select(AgentRun)
+                .where(*conds)
+                .order_by(AgentRun.started_at.desc(), AgentRun.id)
+                .offset(offset)
+                .limit(limit)
+            )
+        )
         .scalars()
         .all()
     )
+    response.headers["X-Total-Count"] = str(total)
+    return RunSummaryListResponse(runs=[_run_summary(r) for r in rows], total=total)
 
-    return WorkflowRunSummaryListResponse(
-        runs=[
-            WorkflowRunSummary(
-                id=r.id,
-                workspace_id=r.workspace_id,
-                workflow_id=r.workflow_id,
-                agent_id=r.agent_id,
-                parent_run_id=r.parent_run_id,
-                status=r.status,
-                total_cost=r.total_cost,
-                total_tokens=r.total_tokens,
-                total_duration_ms=r.total_duration_ms,
-                trigger=r.trigger,
-                error=r.error,
-                started_at=r.started_at,
-                completed_at=r.completed_at,
-                created_at=r.created_at,
-            )
-            for r in rows
-        ],
-        total=total,
+
+# ── Agent Stats & envelope ─────────────────────────────────────────────────
+
+
+async def _agent_or_404(db: AsyncSession, ws: Workspace, agent_id: uuid.UUID) -> Agent:
+    agent = (
+        await db.execute(select(Agent).where(Agent.id == agent_id, Agent.workspace_id == ws.id))
+    ).scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent not found")
+    return agent
+
+
+async def envelope_status(
+    db: AsyncSession, agent: Agent, route_alias: str | None = None
+) -> AgentEnvelopeStatus:
+    """The agent preflight (status, alias allow-list, monthly envelope) as a response."""
+    d = await evaluate_agent_policy(db, agent, route_alias=route_alias)
+    return AgentEnvelopeStatus(
+        agent_id=d.agent_id,
+        envelope_usd=d.envelope_usd,
+        spent_usd=d.spent_usd,
+        remaining_usd=d.remaining_usd,
+        period_start=d.period_start,
+        allowed=d.allowed,
+        reason=d.reason,
+        reason_code=d.reason_code,  # type: ignore[arg-type]
+        allowed_aliases=d.allowed_aliases,
     )
 
 
-# ── Agent Stats ─────────────────────────────────────────────────────────────
+async def _validate_aliases(db: AsyncSession, ws: Workspace, aliases: list[str] | None) -> None:
+    """Every allowed alias must be a gateway route in this workspace (no dead entries)."""
+    if not aliases:
+        return
+    known = set(
+        (
+            await db.execute(
+                select(GatewayRoute.alias)
+                .where(GatewayRoute.workspace_id == ws.id, GatewayRoute.alias.in_(aliases))
+                .distinct()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    missing = sorted(set(aliases) - known)
+    if missing:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"No gateway route with alias {', '.join(repr(m) for m in missing)} in this workspace",
+        )
+
+
+@router.get(
+    "/{agent_id}/preflight",
+    response_model=AgentEnvelopeStatus,
+    dependencies=[Depends(analytics_rate_limit)],
+)
+async def get_agent_preflight(
+    agent_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
+    alias: str | None = Query(None, max_length=200, description="Route alias about to be called"),
+) -> AgentEnvelopeStatus:
+    """May this agent start a run (optionally on ``alias``)? Same decision the gateway
+    makes for agent-tagged requests; the SDK calls it before starting an agent's run."""
+    return await envelope_status(db, await _agent_or_404(db, ws, agent_id), alias)
 
 
 @router.get(
@@ -310,82 +354,81 @@ async def list_agent_runs(
     response_model=AgentStats,
     dependencies=[Depends(analytics_rate_limit)],
 )
-async def get_agent_stats(agent_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> AgentStats:
-    # Verify agent exists
-    agent = (
-        await db.execute(select(Agent).where(Agent.id == agent_id, Agent.workspace_id == ws.id))
-    ).scalar_one_or_none()
-    if not agent:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Agent not found")
-
-    # Aggregate run stats
+async def get_agent_stats(
+    agent_id: uuid.UUID,
+    ws: WorkspaceDep,
+    db: DbDep,
+    days: int | None = Query(None, ge=1, le=365),
+) -> AgentStats:
+    agent = await _agent_or_404(db, ws, agent_id)
+    conds: list[Any] = [AgentRun.workspace_id == ws.id, AgentRun.agent_id == agent_id]
+    if days:
+        conds.append(AgentRun.started_at >= datetime.now(UTC) - timedelta(days=days))
     agg = (
         await db.execute(
             select(
-                func.count(WorkflowRun.id).label("total_runs"),
-                func.count(WorkflowRun.id)
-                .filter(WorkflowRun.status == "completed")
+                func.count(AgentRun.id).label("total_runs"),
+                func.count(AgentRun.id)
+                .filter(AgentRun.status == RunStatusEnum.succeeded)
                 .label("completed"),
-                func.count(WorkflowRun.id).filter(WorkflowRun.status == "failed").label("failed"),
-                func.coalesce(func.sum(WorkflowRun.total_cost), 0).label("total_cost"),
-                func.coalesce(func.sum(WorkflowRun.total_tokens), 0).label("total_tokens"),
-                func.avg(WorkflowRun.total_duration_ms).label("avg_duration"),
-                func.max(WorkflowRun.created_at).label("last_run"),
-            ).where(
-                WorkflowRun.agent_id == agent_id,
-                WorkflowRun.workspace_id == ws.id,
-            )
+                func.count(AgentRun.id)
+                .filter(AgentRun.status == RunStatusEnum.failed)
+                .label("failed"),
+                func.coalesce(func.sum(AgentRun.total_cost_usd), 0).label("total_cost"),
+                func.coalesce(
+                    func.sum(
+                        func.coalesce(AgentRun.total_input_tokens, 0)
+                        + func.coalesce(AgentRun.total_output_tokens, 0)
+                    ),
+                    0,
+                ).label("total_tokens"),
+                func.avg(
+                    func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
+                ).label("avg_duration"),
+                func.max(AgentRun.started_at).label("last_run"),
+            ).where(*conds)
         )
     ).one()
-
     total_runs: int = agg.total_runs or 0
     completed: int = agg.completed or 0
-
-    # Models used (from steps)
-    models_q = (
+    models = (
         (
             await db.execute(
-                select(distinct(WorkflowStep.model))
-                .join(WorkflowRun, WorkflowStep.run_id == WorkflowRun.id)
-                .where(
-                    WorkflowRun.agent_id == agent_id,
-                    WorkflowRun.workspace_id == ws.id,
-                    WorkflowStep.model.isnot(None),
-                )
+                select(distinct(ProviderCall.model))
+                .join(AgentRun, AgentRun.id == ProviderCall.run_id)
+                .where(*conds)
+                .limit(50)
             )
         )
         .scalars()
         .all()
     )
-
-    tools_q = (
+    tools = (
         (
             await db.execute(
-                select(distinct(WorkflowStep.tool))
-                .join(WorkflowRun, WorkflowStep.run_id == WorkflowRun.id)
-                .where(
-                    WorkflowRun.agent_id == agent_id,
-                    WorkflowRun.workspace_id == ws.id,
-                    WorkflowStep.tool.isnot(None),
-                )
+                select(distinct(ToolCall.tool_name))
+                .join(AgentRun, AgentRun.id == ToolCall.run_id)
+                .where(*conds)
+                .limit(50)
             )
         )
         .scalars()
         .all()
     )
-
     return AgentStats(
         agent_id=agent_id,
+        window_days=days,
         total_runs=total_runs,
         completed_runs=completed,
         failed_runs=agg.failed or 0,
         total_cost=Decimal(str(agg.total_cost)),
-        total_tokens=agg.total_tokens or 0,
-        avg_duration_ms=float(agg.avg_duration) if agg.avg_duration else None,
+        total_tokens=int(agg.total_tokens or 0),
+        avg_duration_ms=float(agg.avg_duration) if agg.avg_duration is not None else None,
         success_rate=round(completed / total_runs, 4) if total_runs > 0 else None,
         last_run_at=agg.last_run,
-        models_used=list(models_q),
-        tools_used=list(tools_q),
+        models_used=[m for m in models if m],
+        tools_used=[t for t in tools if t],
+        envelope=await envelope_status(db, agent),
     )
 
 

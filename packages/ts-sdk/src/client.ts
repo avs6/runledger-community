@@ -165,6 +165,23 @@ export class RunLedger {
     return withTask(this._transport, name, options, this._defaultTaskMetadata, fn)
   }
 
+  /**
+   * Run `fn` as one run of a RunLedger workflow (id, feature_tag or name). Records
+   * success or failure and attributes model calls made inside to the workflow.
+   *
+   * @example
+   * ```ts
+   * const reply = await rl.withWorkflow('support-triage', async (task) => answer(ticket), { agentName: 'triage-bot' })
+   * ```
+   */
+  withWorkflow<T>(
+    workflow: string,
+    fn: (task: RunLedgerTask) => Promise<T> | T,
+    options: Omit<TaskOptions, 'workflow'> = {},
+  ): Promise<T> {
+    return withTask(this._transport, workflow, { ...options, workflow }, this._defaultTaskMetadata, fn)
+  }
+
   // ── Flush / shutdown ───────────────────────────────────────────────────────
 
   /** Flush all buffered events to the RunLedger API. */

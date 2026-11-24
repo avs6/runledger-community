@@ -11,6 +11,7 @@ from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
 from runledger_api.core.scopes import normalize_scopes
+from runledger_api.services.agent_policy import enforce_agent_policy_for_request
 from runledger_api.services.budgets import (
     check_budget_throttle,
     check_provider_profile_budgets,
@@ -26,6 +27,13 @@ from runledger_api.services.gateway_decision import (
 from runledger_api.services.gateway_hotpath import is_missing, request_memo, ttl_cache
 from runledger_api.services.gateway_prompts import apply_resolved_prompt, resolve_prompt_ref
 from runledger_api.services.sessions import resolve_principal_user_id
+from runledger_api.services.workflow_attribution import (
+    AGENT_ID_KEYS,
+    AGENT_NAME_KEYS,
+    WORKFLOW_ID_KEYS,
+    WORKFLOW_REF_KEYS,
+    resolve_run_attribution,
+)
 
 from .gateway_shared import *
 
@@ -377,13 +385,26 @@ async def _record_canonical_gateway_run(
     if prompt_info:
         run_metadata.update({k: v for k, v in prompt_info.items() if k.startswith("prompt_")})
     feature_tag = _feature_tag_from(metadata, body.request_tags)
+    # Workflow spine (W1-F): same resolver as every ingest path; never crosses workspaces.
+    attribution = await resolve_run_attribution(
+        db,
+        workspace_id,
+        workflow_id=_metadata_text(metadata, *WORKFLOW_ID_KEYS),
+        workflow=_metadata_text(metadata, *WORKFLOW_REF_KEYS),
+        feature_tag=feature_tag,
+        route_alias=route.alias,
+        agent_id=_metadata_text(metadata, *AGENT_ID_KEYS),
+        agent_name=_metadata_text(metadata, *AGENT_NAME_KEYS),
+    )
 
     run = AgentRun(
         workspace_id=workspace_id,
         api_key_id=body.api_key_id,
         end_user_id=body.end_user_id,
         session_id=_metadata_text(metadata, "runledger.session_id", "session_id", "session"),
-        feature_tag=feature_tag,
+        feature_tag=feature_tag or attribution.feature_tag,
+        workflow_id=attribution.workflow_id,
+        agent_id=attribution.agent_id,
         deployment_version=_metadata_text(
             metadata,
             "runledger.deployment_version",
@@ -839,6 +860,13 @@ async def _preflight(
         request_tags=request_tags,
         preferred_region=preferred_region,
     )
+    # Agent policy (W1-F, review B-14): status, alias allow-list and monthly envelope of
+    # the registered agent the request names; 403/429 when refused.
+    agent_note = await enforce_agent_policy_for_request(
+        db, workspace.id, metadata, route_alias=body.body.model
+    )
+    if agent_note:
+        budget_note = f"{budget_note}|{agent_note}" if budget_note else agent_note
 
     primary_route, primary_reason = await choose_route_for_alias(
         db,

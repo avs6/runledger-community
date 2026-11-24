@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function RootPage() {
   const session = await getServerSession(authOptions)
-  if (session) redirect('/dashboard')
+  // Workflows are the landing object: every run, cost and control hangs off one.
+  if (session) redirect('/workflows')
   redirect('/login')
 }

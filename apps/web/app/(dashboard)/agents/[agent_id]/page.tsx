@@ -1,205 +1,184 @@
-import { getServerSession } from 'next-auth'
+'use client'
+
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { authOptions } from '@/lib/auth'
-import { getAgent, getAgentStats, getAgentRuns } from '@/lib/api'
-import type { AgentResponse, AgentStats, WorkflowRunSummary } from '@/types/api'
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import { BrainCircuit, Database, Pencil, Trash2 } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { AsyncCard } from '@/components/ui/async-card'
+import { DataTable, type DataTableColumn, type DataTableQuery } from '@/components/ui/data-table'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useRole } from '@/components/rbac/useRole'
+import { getAgent, getAgentRunsPage, getAgentStats, retireAgent } from '@/lib/api'
+import { routes } from '@/lib/routes'
 import { num } from '@/lib/utils'
+import type { AgentResponse, AgentStats, RunSummary } from '@/types/api'
+import { StatusBadge, apiErrorMessage, money, ms, pct, relTime, useApiKey } from '../../workflows/_components/shared'
+import { AgentSheet } from '../_components/AgentSheet'
 
-function money(v: number | null | undefined) {
-  const n = num(v)
-  if (!n) return '$0.00'
-  if (num(n) >= 1) return `$${num(n).toFixed(2)}`
-  if (num(n) >= 0.001) return `$${num(n).toFixed(4)}`
-  return `$${num(n).toFixed(6)}`
-}
+const RUN_STATUSES = ['', 'succeeded', 'failed', 'running', 'cancelled']
 
-function compact(value: number) {
-  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
-}
+function AgentDetail() {
+  const { agent_id: id } = useParams<{ agent_id: string }>()
+  const apiKey = useApiKey()
+  const { canWrite } = useRole()
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+  const runStatus = params.get('run_status') ?? ''
+  const { confirm, dialog } = useConfirm()
+  const [agent, setAgent] = useState<AgentResponse | null>(null)
+  const [stats, setStats] = useState<AgentStats | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
+  const [editOpen, setEditOpen] = useState(false)
 
-function duration(ms: number | null | undefined) {
-  if (!ms) return '-'
-  if (ms < 1000) return `${ms}ms`
-  return `${(num(ms) / 1000).toFixed(1)}s`
-}
+  useEffect(() => {
+    if (!apiKey) return
+    let live = true
+    setLoading(true)
+    setError(null)
+    Promise.all([getAgent(apiKey, id), getAgentStats(apiKey, id)])
+      .then(([a, s]) => { if (live) { setAgent(a); setStats(s) } })
+      .catch((e) => { if (live) setError(apiErrorMessage(e)) })
+      .finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [apiKey, id, tick])
 
-const statusColors: Record<string, string> = {
-  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  running: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  pending: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-  failed: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  cancelled: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  paused: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  retired: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
-}
+  const fetchRuns = useCallback(
+    (q: DataTableQuery) => (apiKey ? getAgentRunsPage(apiKey, id, { limit: q.limit, offset: q.offset, status: runStatus || undefined }) : Promise.resolve({ items: [], total: 0 })),
+    [apiKey, id, runStatus],
+  )
 
-export default async function AgentDetailPage({ params }: { params: { agent_id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session) return null
-
-  let agent: AgentResponse | null = null
-  let stats: AgentStats | null = null
-  let runs: WorkflowRunSummary[] = []
-
-  try {
-    ;[agent, stats] = await Promise.all([
-      getAgent(session.apiKey, params.agent_id),
-      getAgentStats(session.apiKey, params.agent_id),
-    ])
-    const runsData = await getAgentRuns(session.apiKey, params.agent_id, { limit: 20 })
-    runs = runsData.runs
-  } catch {
-    return (
-      <div className="p-6">
-        <p className="text-xs text-slate-500">Agent not found or API unavailable.</p>
-        <Link href="/agents" className="mt-2 inline-block text-xs text-blue-600 hover:underline dark:text-blue-400">Back to Agents</Link>
-      </div>
-    )
+  const setRunStatus = (s: string) => {
+    const next = new URLSearchParams(params.toString())
+    if (s) next.set('run_status', s)
+    else next.delete('run_status')
+    next.delete('runs_page')
+    router.replace(`${pathname}?${next}`, { scroll: false })
   }
 
-  if (!agent) return null
+  const onRetire = async () => {
+    if (!apiKey || !agent) return
+    if (!(await confirm({ title: `Retire ${agent.name}?`, description: 'Its envelope check will refuse new runs. History is kept; reactivate it from Edit.', confirmLabel: 'Retire', destructive: true }))) return
+    try {
+      await retireAgent(apiKey, agent.id)
+      toast.success('Agent retired')
+      setTick((t) => t + 1)
+    } catch (e) {
+      toast.error(apiErrorMessage(e))
+    }
+  }
+
+  const env = stats?.envelope
+  const envUsed = env?.envelope_usd != null && num(env.envelope_usd) > 0 ? Math.min(100, (num(env.spent_usd) / num(env.envelope_usd)) * 100) : null
+
+  const columns: DataTableColumn<RunSummary>[] = [
+    { key: 'started_at', header: 'Started', value: (r) => r.started_at, render: (r) => <Link href={routes.runsRunId(r.id)} className="text-indigo-600 hover:underline dark:text-indigo-400">{new Date(r.started_at).toLocaleString()}</Link> },
+    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'workflow_id', header: 'Workflow', render: (r) => (r.workflow_id ? <Link href={routes.workflowsWorkflowId(r.workflow_id)} className="text-indigo-600 hover:underline">open</Link> : '—') },
+    { key: 'total_cost_usd', header: 'Cost', value: (r) => num(r.total_cost_usd), render: (r) => money(r.total_cost_usd) },
+    { key: 'duration_ms', header: 'Duration', value: (r) => r.duration_ms, render: (r) => ms(r.duration_ms) },
+    { key: 'total_tokens', header: 'Tokens', value: (r) => r.total_tokens, render: (r) => r.total_tokens.toLocaleString() },
+  ]
 
   return (
-    <div className="space-y-3">
-      {/* ── Header ───────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" /></svg>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <Link href="/agents" className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Agents</Link>
-              <span className="text-[10px] text-slate-300 dark:text-slate-600">/</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-slate-900 dark:text-white">{agent.name}</h1>
-              <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${statusColors[agent.status] || statusColors.pending}`}>{agent.status}</span>
-            </div>
-            {agent.description && <p className="text-xs text-slate-500 dark:text-slate-400">{agent.description}</p>}
-          </div>
-        </div>
-        <Link
-          href={`/agents/${params.agent_id}/memory`}
-          className="rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:from-blue-600 hover:to-indigo-700 transition-colors"
-        >
-          Memory →
-        </Link>
-      </div>
+    <div className="space-y-4">
+      {dialog}
+      <PageHeader
+        icon={BrainCircuit}
+        title={<span className="flex items-center gap-2">{agent?.name ?? 'Agent'} {agent && <StatusBadge status={agent.status} />}</span>}
+        description={agent?.description ?? (agent ? `${agent.agent_type}${agent.owner ? ` · owner ${agent.owner}` : ''}` : undefined)}
+        breadcrumbs={[{ label: 'Agents', href: '/agents' }, { label: agent?.name ?? '…' }]}
+        actions={
+          <>
+            <Link href={routes.agentsAgentIdMemory(id)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium dark:border-slate-700">
+              <Database className="h-3.5 w-3.5" aria-hidden="true" /> Memory
+            </Link>
+            {canWrite && agent && (
+              <>
+                <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium dark:border-slate-700">
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edit
+                </button>
+                {agent.status !== 'retired' && (
+                  <button type="button" onClick={() => void onRetire()} className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-600 dark:border-rose-900">
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Retire
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        }
+      />
 
-      {/* ── Agent meta chips ─────────────────────── */}
-      <div className="flex flex-wrap gap-1.5">
-        <span className="rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300">{agent.agent_type.replace('_', '-')}</span>
-        {agent.default_model && <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">{agent.default_model}</span>}
-        {agent.owner && <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">Owner: {agent.owner}</span>}
-        {agent.policy_profile && <span className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300">Policy: {agent.policy_profile}</span>}
-      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <AsyncCard title="Performance" description="From runs attributed to this agent" loading={loading && !stats} error={error} onRetry={() => setTick((t) => t + 1)}
+          empty={!!stats && stats.total_runs === 0} emptyTitle="No runs attributed yet" emptyDescription={`Send agent="${agent?.name ?? ''}" from the SDK, or gen_ai.agent.name in OTLP.`}>
+          {stats && (
+            <dl className="grid grid-cols-2 gap-2 text-xs">
+              <dt className="text-slate-500">Runs</dt><dd className="text-right font-semibold">{stats.total_runs}</dd>
+              <dt className="text-slate-500">Success rate</dt><dd className="text-right font-semibold">{pct(stats.success_rate)}</dd>
+              <dt className="text-slate-500">Total cost</dt><dd className="text-right font-semibold">{money(stats.total_cost)}</dd>
+              <dt className="text-slate-500">Avg duration</dt><dd className="text-right font-semibold">{ms(stats.avg_duration_ms)}</dd>
+              <dt className="text-slate-500">Last run</dt><dd className="text-right font-semibold">{relTime(stats.last_run_at)}</dd>
+            </dl>
+          )}
+        </AsyncCard>
 
-      {/* ── KPI strip ────────────────────────────── */}
-      {stats && (
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { label: 'Total Runs', value: String(stats.total_runs), sub: `${stats.completed_runs} ok · ${stats.failed_runs} fail` },
-            { label: 'Success Rate', value: stats.success_rate != null ? `${(num(stats.success_rate) * 100).toFixed(1)}%` : '-' },
-            { label: 'Total Cost', value: money(stats.total_cost), accent: true },
-            { label: 'Avg Duration', value: duration(stats.avg_duration_ms), sub: stats.last_run_at ? `Last: ${new Date(stats.last_run_at).toLocaleDateString()}` : '' },
-          ].map(({ label, value, sub, accent }) => (
-            <div key={label} className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-2.5 py-2 text-center">
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{label}</p>
-              <p className={`text-sm font-bold ${accent ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{value}</p>
-              {sub && <p className="text-[9px] text-slate-400 truncate">{sub}</p>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-
-
-      </div>
-
-      {/* ── Models & Tools ────────────────────────── */}
-      {stats && (stats.models_used.length > 0 || stats.tools_used.length > 0) && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {stats.models_used.length > 0 && (
-            <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Models Used</p>
-              <div className="flex flex-wrap gap-1">
-                {stats.models_used.map((m) => (
-                  <Link key={m} href={`/runs?model=${encodeURIComponent(m)}`} className="rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/40 transition-colors">{m}</Link>
-                ))}
-              </div>
+        <AsyncCard title="Runtime policy" description="Enforced by the gateway preflight and the SDK for this agent's traffic" loading={loading && !stats} error={error} onRetry={() => setTick((t) => t + 1)}>
+          {env && (
+            <div className="space-y-2 text-xs">
+              <p className="flex justify-between"><span>{money(env.spent_usd)} spent</span><span>{env.envelope_usd == null ? 'no envelope' : `of ${money(env.envelope_usd)}`}</span></p>
+              {envUsed !== null && (
+                <div className="h-1.5 rounded bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label={`Envelope used ${envUsed.toFixed(0)}%`} aria-valuenow={Math.round(envUsed)} aria-valuemin={0} aria-valuemax={100}>
+                  <div className={`h-1.5 rounded ${envUsed >= 100 ? 'bg-status-error' : envUsed >= 80 ? 'bg-status-warning' : 'bg-status-success'}`} style={{ width: `${envUsed}%` }} />
+                </div>
+              )}
+              <p>
+                Aliases:{' '}
+                {env.allowed_aliases.length ? env.allowed_aliases.map((a) => <code key={a} className="mr-1">{a}</code>) : 'any'}
+              </p>
+              <p className={env.allowed ? 'text-status-success' : 'text-status-error'}>{env.allowed ? 'New requests allowed' : `Requests refused: ${env.reason}`}</p>
             </div>
           )}
-          {stats.tools_used.length > 0 && (
-            <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Tools Used</p>
-              <div className="flex flex-wrap gap-1">
-                {stats.tools_used.map((t) => (
-                  <span key={t} className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300">{t}</span>
-                ))}
-              </div>
+        </AsyncCard>
+
+        <AsyncCard title="Models and tools" loading={loading && !stats} error={error} onRetry={() => setTick((t) => t + 1)}
+          empty={!!stats && stats.models_used.length + stats.tools_used.length === 0} emptyTitle="None recorded yet">
+          {stats && (
+            <div className="space-y-2 text-xs">
+              <div className="flex flex-wrap gap-1">{stats.models_used.map((m) => <span key={m} className="rounded-full bg-indigo-50 px-2 py-0.5 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">{m}</span>)}</div>
+              <div className="flex flex-wrap gap-1">{stats.tools_used.map((t) => <span key={t} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-slate-800 dark:text-slate-300">{t}</span>)}</div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── Recent Runs ──────────────────────────── */}
-      <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 overflow-hidden">
-        <div className="border-b border-slate-100 dark:border-slate-700/40 px-3 py-2 flex items-center justify-between">
-          <h2 className="text-xs font-semibold text-slate-900 dark:text-white">Recent Runs</h2>
-          <Link href={`/runs?agent=${params.agent_id}`} className="text-[10px] text-blue-600 hover:underline dark:text-blue-400">View all →</Link>
-        </div>
-        {runs.length === 0 ? (
-          <div className="py-8 text-center text-xs text-slate-400">No runs yet for this agent.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700/40 bg-slate-50/80 dark:bg-slate-800/60">
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Run ID</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Cost</th>
-                  <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Tokens</th>
-                  <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Duration</th>
-                  <th className="px-3 py-1.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100/60 dark:divide-slate-700/30">
-                {runs.map((run) => (
-                  <tr key={run.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="px-3 py-1.5">
-                      <Link href={`/runs/${run.id}`} className="font-mono text-blue-600 dark:text-blue-400 hover:underline">{run.id.slice(0, 8)}</Link>
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${statusColors[run.status] || statusColors.pending}`}>{run.status}</span>
-                    </td>
-                    <td className="px-3 py-1.5 text-right font-mono text-slate-600 dark:text-slate-400">{money(run.total_cost)}</td>
-                    <td className="px-3 py-1.5 text-right text-slate-600 dark:text-slate-400">{compact(run.total_tokens)}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-slate-600 dark:text-slate-400">{duration(run.total_duration_ms)}</td>
-                    <td className="px-3 py-1.5 text-right text-slate-500 whitespace-nowrap">{new Date(run.created_at).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </AsyncCard>
       </div>
 
-      {/* ── Quick nav ─────────────────────────────── */}
-      <div className="flex flex-wrap gap-1.5">
-        {[
-          { label: 'Agents', href: '/agents' },
-          { label: 'Runs', href: '/runs' },
-          { label: 'Analytics', href: '/analytics' },
-          { label: 'Guardrails', href: '/guardrails' },
-          { label: 'Budgets', href: '/budgets' },
-          { label: 'Evaluation', href: '/evaluation' },
-        ].map(({ label, href }) => (
-          <Link key={label} href={href} className="rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 text-[10px] font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800/40 transition-colors">{label}</Link>
-        ))}
-      </div>
+      <section aria-label="Agent runs" className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Runs</h2>
+          <label className="flex items-center gap-1.5 text-xs text-slate-500">
+            Status
+            <select aria-label="Run status filter" value={runStatus} onChange={(e) => setRunStatus(e.target.value)} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-700 dark:bg-slate-800">
+              {RUN_STATUSES.map((s) => <option key={s} value={s}>{s || 'all'}</option>)}
+            </select>
+          </label>
+        </div>
+        <DataTable key={runStatus} label="Agent runs" urlPrefix="runs_" columns={columns} rowKey={(r) => r.id} fetchPage={fetchRuns} searchable={false}
+          csvFileName={`agent-${id}-runs.csv`} emptyTitle="No runs" onRowClick={(r) => router.push(routes.runsRunId(r.id))} />
+      </section>
+
+      <AgentSheet open={editOpen} onOpenChange={setEditOpen} agent={agent} onSaved={(a) => { setAgent(a); setTick((t) => t + 1) }} />
     </div>
+  )
+}
+
+export default function AgentDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <AgentDetail />
+    </Suspense>
   )
 }

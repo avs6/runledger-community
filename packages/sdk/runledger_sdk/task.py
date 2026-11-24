@@ -20,8 +20,16 @@ class RunLedgerTask:
         session_id: str | None = None,
         feature_tag: str | None = None,
         deployment_version: str | None = None,
+        workflow: str | None = None,
+        agent: str | None = None,
+        agent_id: str | None = None,
+        enforce_envelope: bool = True,
     ) -> None:
         self._client = client
+        self.workflow = workflow
+        self.agent = agent
+        self.agent_id = agent_id
+        self.enforce_envelope = enforce_envelope
         self.name = name
         self.intent = intent
         self.metadata = metadata or {}
@@ -37,6 +45,17 @@ class RunLedgerTask:
         self._total_output_tokens = 0
 
     def __enter__(self) -> RunLedgerTask:
+        if self.agent_id and self.enforce_envelope:
+            from runledger_sdk.exceptions import (
+                RunLedgerBudgetExceededError,  # noqa: PLC0415
+            )
+
+            status = self._client.agent_helper().check_agent_preflight(self.agent_id)
+            if not status.get("allowed", True):
+                raise RunLedgerBudgetExceededError(
+                    f"agent:{self.agent_id}",
+                    str(status.get("reason") or "Agent policy refused the run"),
+                )
         default_metadata = getattr(self._client, "_default_task_metadata", {})
         merged_metadata = {**default_metadata, **self.metadata, "task": self.name}
         self.run_id = self._client.record_run_start(
@@ -46,6 +65,9 @@ class RunLedgerTask:
             deployment_version=self.deployment_version,
             metadata=merged_metadata,
             intent=self.intent,
+            workflow=self.workflow,
+            agent_name=self.agent,
+            agent_id=self.agent_id,
         )
         self._ctx = self._client.context(
             run_id=self.run_id,
@@ -173,15 +195,18 @@ class RunLedgerTask:
             success=success,
             labels=merged_labels or None,
             final_status=final_status,
+            # Only send totals this task tracked. Calls recorded elsewhere (helper,
+            # instrumented clients) are rolled up from provider calls by the server's
+            # metering; a hard-coded 0 here would claim the run was free (review B-18).
             total_cost_usd=total_cost_usd
             if total_cost_usd is not None
-            else str(self._total_cost_usd),
+            else (str(self._total_cost_usd) if self._total_cost_usd else None),
             total_input_tokens=total_input_tokens
             if total_input_tokens is not None
-            else self._total_input_tokens,
+            else (self._total_input_tokens or None),
             total_output_tokens=total_output_tokens
             if total_output_tokens is not None
-            else self._total_output_tokens,
+            else (self._total_output_tokens or None),
         )
         self._outcome_recorded = True
 

@@ -23,6 +23,7 @@ Single entry point for the entire demo lifecycle:
     python scripts/run_demo.py verify-platform    # health 503, system status, bootstrap, BFF, logout
     python scripts/run_demo.py verify-gateway-runtime  # in-process: decision trace, attribution, cache profile, pass-through, p50/p99
     python scripts/run_demo.py verify-gateway-admin  # role matrix, route/policy invariants, tiers, audit
+    python scripts/run_demo.py verify-workflows   # workflow attribution, page data, envelope, archive
 
   ── Traffic & Agents ──────────────────────────────────────────
     python scripts/run_demo.py traffic            # generate agent traffic (batch mode)
@@ -142,6 +143,8 @@ def cmd_verify_gateway_runtime(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_gateway_runtime.py", getattr(args, "args", []))
 def cmd_verify_gateway_admin(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_gateway_admin.py", getattr(args, "args", []))
+def cmd_verify_workflows(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_workflows.py", getattr(args, "args", []))
 
 
 def cmd_all(args: argparse.Namespace) -> int:
@@ -421,6 +424,12 @@ def main() -> int:
     )
     p.add_argument("args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser(
+        "verify-workflows",
+        help="Assert workflow attribution, page data, agent envelope and archive/restore.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("mcp-validate", help="Validate MCP endpoint connectivity and tools.")
     p.add_argument("--endpoint", default=None)
     p.add_argument("--api-key", default=None)
@@ -448,6 +457,7 @@ def main() -> int:
         "verify-platform",
         "verify-gateway-runtime",
         "verify-gateway-admin",
+        "verify-workflows",
     }
     if len(sys.argv) > 1 and sys.argv[1] in passthrough:
         args = argparse.Namespace(command=sys.argv[1], args=sys.argv[2:])
@@ -465,6 +475,7 @@ def main() -> int:
         "verify-ingestion": cmd_verify_ingestion,
         "verify-api-health": cmd_verify_api_health,
         "verify-billing": cmd_verify_billing,
+        "verify-workflows": cmd_verify_workflows,
         "verify-security": cmd_verify_security,
         "verify-platform": cmd_verify_platform,
         "verify-gateway-runtime": cmd_verify_gateway_runtime,

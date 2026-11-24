@@ -139,6 +139,9 @@ export async function withTask<T>(
       metadata: mergedMetadata,
       intent: options.intent,
     }
+    if (options.workflow) start.workflow = options.workflow
+    if (options.agentName) start.agent_name = options.agentName
+    if (options.agentId) start.agent_id = options.agentId
     transport.enqueue(start)
     const task = new RunLedgerTask(transport, runId, name)
     try {
