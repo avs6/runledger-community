@@ -101,7 +101,7 @@ def _run_with_tool_calls(feature: str, tool: str, calls: int) -> tuple[str, list
             {
                 "event_type": "tool_call",
                 # Distinct ids: content-identical events without one dedupe on ingest.
-                "event_id": str(uuid.uuid4()),
+                "tool_call_id": str(uuid.uuid4()),
                 "run_id": run_id,
                 "tool_name": tool,
                 "tool_type": "write",
