@@ -38,6 +38,10 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
 .flow .card{flex:1 1 200px}
 .note{border-left:3px solid var(--warn);background:var(--warn-bg);padding:10px 14px;border-radius:6px;margin:12px 0}
+.sb{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}.sb.ok{background:var(--ok-bg);color:var(--ok)}.sb.pt{background:var(--warn-bg);color:var(--warn)}
+.left{display:inline-block;width:100%;color:var(--warn);font-size:13px;margin-top:2px}
+li.done .left{text-decoration:none}
+p.legend{font-size:13px;color:var(--mute)}
 </style>
 </head>
 <body>
@@ -48,7 +52,7 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 <nav class="toc"><a href="#carry">Wave 1 carry-over</a><a href="#scope">Scope</a><a href="#rules">Ground rules</a><a href="#waves">Waves</a><a href="#w0">Wave 0</a><a href="#w1">Wave 1 streams</a><a href="#w2">Wave 2 UX</a><a href="#w3">Wave 3 integration</a><a href="#own">File ownership</a><a href="#prompt">Kick-off prompt</a><a href="#risks">Risks</a></nav>
 
 <div class="status"><b>Status (2026-11-22): Wave 0 is complete</b> on branch <code>review/base</code> (commits 7a3bd4d to 5b87364); Wave 1 streams cut from there. What changed for the streams:<ul style="margin:6px 0 0 18px"><li><b>0.3</b> All 129 <code>/analytics/*-posture</code> endpoints, their schemas, fetchers, page cards and 110 examples are gone. Related context is now <code>GET /context?entity=&amp;id=</code> plus the lazy <code>&lt;RelatedPanel&gt;</code> drawer (<code>components/context/RelatedPanel.tsx</code>). Don't reintroduce per-page context cards.</li><li><b>0.2</b> <code>routers/analytics/</code> is a package (<code>_shared</code>, <code>spend</code>, <code>users</code>, <code>economics</code>, <code>scores</code>, <code>scoped</code>, <code>explorer</code>, <code>optimization</code>; <code>__init__</code> fixes registration order). The Gateway page is <code>gateway/page.tsx</code> + <code>_components/useGatewayState.tsx</code> (state, via <code>useGateway()</code>) + one <code>*Tab.tsx</code> per tab and one file per panel. <code>lib/api/</code> has <code>client</code>, <code>observe</code>, <code>gateway</code>, <code>finops</code>, <code>governance</code>, <code>build</code>, <code>platform</code> behind an index barrel.</li><li><b>0.4</b> Kit in <code>components/ui</code>: <code>DataTable</code>, <code>useConfirm</code>/<code>ConfirmDialog</code>, <code>AsyncCard</code>/<code>SectionError</code>, <code>EmptyState</code>, <code>PageHeader</code>, <code>TimeRangePicker</code>; <code>apiFetchPage</code>; typed <code>lib/routes.ts</code>; Tailwind tokens (status, severity, scope, runtime) and <code>lib/tokens.ts</code>. ESLint warns on <code>confirm()</code> (48) and raw hex (328): clear them on the pages you own. Live reference: <code>/design-system</code>.</li><li><b>0.5</b> CI: lint, dead-link check (<code>npm run check:routes</code>), a11y report (266 issues), single Alembic head + up/down on Postgres, cargo fmt/clippy/test, helm lint, Docker builds, Playwright smoke (<code>npm run e2e</code>, passes locally).</li></ul>Earlier fixes: every code-deep gateway item plus S-01, S-02, S-12, S-13 and G-21 to G-26 are done (struck through below), so W1-B is small. Verified on review/base: 952 API tests, verify-security 108/108, api-health 171/171, org-access 82, budgets 11, billing 48, ingestion 39.</div>
-<div class="status"><b>Status (2026-11-24): Wave 1 is complete and merged to master.</b> All nine streams were integrated on <code>review/base</code> in the order A → I → D → B → C → F → E → G → H (A last, as it finished last) with one linear migration chain (<code>095 → finops_budget_spend → gateway_runtime_attribution → workflows_spine → observe_outcomes_views → build_experiments_prompt_gov → governance_tool_policy → security_secrets_audit_rls</code>). Verified on the rebuilt local stack: 1127 API tests, all 14 <code>verify-*</code> scripts, Playwright 5/5 (sidebar smoke + BFF), cargo test/fmt/clippy, tsc/eslint/check:routes. Integration fixes: <code>ledger.py</code> import, agent-memory envelope prefix, RLS on <code>outcomes</code>, runaway-hold actor, canonical ledger total, run-detail metadata, gateway-rs header array.</div>
+<div class="status"><b>Status (2026-11-24): Wave 1 is complete and merged to master.</b> All nine streams were integrated on <code>review/base</code> in the order I → D → B → C → F → E → G → H, then A (planned first, but it finished last) with one linear migration chain (<code>095 → finops_budget_spend → gateway_runtime_attribution → workflows_spine → observe_outcomes_views → build_experiments_prompt_gov → governance_tool_policy → security_secrets_audit_rls</code>). Verified on the rebuilt local stack: 1127 API tests, all 14 <code>verify-*</code> scripts, Playwright 5/5 (sidebar smoke + BFF), cargo test/fmt/clippy, tsc/eslint/check:routes. Integration fixes: <code>ledger.py</code> import, agent-memory envelope prefix, RLS on <code>outcomes</code>, runaway-hold actor, canonical ledger total, run-detail metadata, gateway-rs header array.</div>
 
 <h2 id="carry">Wave 1 carry-over (partial items reported by the streams)</h2>
 <p>Each stream's final report, collected by the integrator. These are open; Wave 2 or a follow-up should pick them up. Items marked <b>user</b> need the owner.</p>
@@ -74,11 +78,12 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 </tbody></table></div>
 
 <h2 id="scope">What's left</h2>
+<p>Before Wave 1 (2026-11-22) there were 105 open feature findings, 2 partly resolved code-deep items, 7 open code-deep items and about 75 open UI rows. After Wave 1:</p>
 <div class="grid">
-<div class="card stat"><b>105</b><span>open findings in the feature registers (O, B, G, S, F, P, A, I)</span></div>
-<div class="card stat"><b>2</b><span>partly resolved: cd:B-01 (model budgets), cd:S-05 (gateway-rs on the shared admin secret)</span></div>
-<div class="card stat"><b>7</b><span>open code-deep items: cd:B-05, cd:B-06, cd:B-09, cd:M-02, cd:M-03, cd:S-04, cd:S-06 (all cd:G gateway items are done)</span></div>
-<div class="card stat"><b>~75</b><span>open UI rows (ui-nav, ui-matrix, ui-fixes, tr-gui), plus themes, roadmap and legacy surfaces</span></div>
+<div class="card stat"><b>96</b><span>feature findings resolved in Wave 1 (A 9 · B 5 · C 10 · D 8 · E 20 · F 5 · G 15 · H 12 · I 12)</span></div>
+<div class="card stat"><b>6</b><span>feature findings partly resolved: S-02, G-02, G-18, O-16, P-06, I-28 (see <a href="#carry">carry-over</a>)</span></div>
+<div class="card stat"><b>0</b><span>open code-deep items: cd:B-01, B-05, B-06, B-09, M-02, M-03, S-04, S-06 resolved; cd:S-05 closes once <code>GATEWAY_INTERNAL_TOKEN</code> is set in a deployment</span></div>
+<div class="card stat"><b>~75</b><span>open UI rows (ui-nav, ui-matrix, ui-fixes, tr-gui), plus themes and legacy surfaces: Wave 2. Delivery items (A-23, G-27) and tagging the review: Wave 3</span></div>
 </div>
 <p class="note"><b>ID collision:</b> the code-deep register reuses prefixes (its <code>B-</code> = budget, <code>G-</code> = gateway, <code>S-</code> = security) that mean something else in the feature register. In this plan, code-deep items are written <code>cd:B-05</code> and so on. Agents must quote the section as well as the ID when reporting.</p>
 
@@ -94,13 +99,13 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 
 <h2 id="waves">Waves at a glance</h2>
 <div class="flow">
-<div class="card"><span class="tag w0">Wave 0 · serial</span><h3>Land and de-conflict</h3>Commit current work. Split the three hot files. Delete posture sprawl. Build shared UI primitives. <b>1–2 agents.</b></div>
-<div class="card"><span class="tag w1">Wave 1 · parallel</span><h3>Nine domain streams</h3>Each fixes every finding in its area, back end to UI, and adopts the new primitives on its own pages. <b>9 agents.</b></div>
-<div class="card"><span class="tag w2">Wave 2 · parallel</span><h3>UX enhancements</h3>Navigation redesign, merging duplicate pages, a11y, and the good-to-have features. <b>3–4 agents.</b></div>
+<div class="card"><span class="tag w0">Wave 0 · serial</span> <span class="sb ok">done</span><h3>Land and de-conflict</h3>Commit current work. Split the three hot files. Delete posture sprawl. Build shared UI primitives. <b>1–2 agents.</b></div>
+<div class="card"><span class="tag w1">Wave 1 · parallel</span> <span class="sb ok">done · 54 of 63 items, 9 partial</span><h3>Nine domain streams</h3>Each fixes every finding in its area, back end to UI, and adopts the new primitives on its own pages. <b>9 agents.</b></div>
+<div class="card"><span class="tag w2">Wave 2 · parallel</span> <span class="sb pt">next</span><h3>UX enhancements</h3>Navigation redesign, merging duplicate pages, a11y, and the good-to-have features. <b>3–4 agents.</b></div>
 <div class="card"><span class="tag w3">Wave 3 · serial</span><h3>Integrate and close out</h3>Merge, run E2E on Docker, consolidate docs and examples, tag the review. <b>1 agent.</b></div>
 </div>
 
-<h2 id="w0"><span class="tag w0">Wave 0</span> Foundation (must finish before Wave 1)</h2>
+<h2 id="w0"><span class="tag w0">Wave 0</span> Foundation (must finish before Wave 1) <span class="sb ok">complete</span></h2>
 <p>Most collisions would come from three giant files and posture cards that sit on almost every page. Removing those first is what makes nine parallel streams safe.</p>
 <table><thead><tr><th>Step</th><th>What</th><th>Covers</th></tr></thead><tbody>
 <tr class="done"><td>0.1</td><td>Commit the current uncommitted work on <code>docs/review-status-refresh</code> (pagination plus the hardening batch), merge to master, then branch <code>review/base</code>. Worktrees only see committed code.</td><td>—</td></tr>
@@ -110,109 +115,111 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 <tr class="done"><td>0.5</td><td><b>CI guard rails:</b> dead-link check against <code>lib/routes.ts</code>, Playwright smoke skeleton (log in, then open each nav item with no error toast), jsx-a11y lint as a warning, alembic upgrade on Postgres, docker build, helm lint, cargo test/clippy.</td><td>P-29, tr-quality, ui-broken CI check</td></tr>
 </tbody></table>
 
-<h2 id="w1"><span class="tag w1">Wave 1</span> Domain streams (nine in parallel)</h2>
+<h2 id="w1"><span class="tag w1">Wave 1</span> Domain streams (nine in parallel) <span class="sb ok">complete · merged to master</span></h2>
 <p>Each stream also: adopts <code>DataTable</code>/<code>ConfirmDialog</code>/<code>AsyncCard</code> on <b>its own pages</b>, replaces <code>confirm()</code> there, adds aria-labels to icon buttons, syncs filters to the URL, and updates its own docs, scripts and examples. Items tagged <span class="enh">ENH</span> are new good-to-have work.</p>
+<p class="legend"><span class="sb ok">done</span> struck through: resolved and verified on the integrated stack. <span class="sb pt">partial</span> not struck: what's left is in amber and in the <a href="#carry">carry-over table</a>. Status as of 2026-11-24, from each stream's final report and the integration run (1127 API tests, all 14 <code>verify-*</code> scripts, Playwright 5/5).</p>
 
-<details class="card stream" open><summary>W1-A · Security &amp; secrets <span class="ids">review/security</span></summary>
+<details class="card stream" open><summary>W1-A · Security &amp; secrets <span class="sb pt">5 done · 2 partial</span> <span class="ids">verify-secrets 30/30 · verify-security 108/108</span></summary>
 <ul class="items">
-<li><span class="ids">S-03 S-04 G-05 F-15 B-09 cd:M-03</span> One <code>core/secrets.py</code> (Fernet/KMS envelope) with a migration that encrypts existing auth-provider, LDAP, search-provider, pass-through, webhook and evaluator secrets. Secrets become write-only in the API and UI (masked, "replace" button).</li>
-<li><span class="ids">S-02 S-16 S-27</span> Emit audit before commit; actor on every event; hash-chained audit log; actor and pack filters in the Audit UI.</li>
-<li><span class="ids">S-15</span> Separation of duties on approvals and <code>FOR UPDATE</code> locking.</li>
+<li class="part"><span class="ids">S-03 S-04 G-05 F-15 B-09 cd:M-03</span> One <code>core/secrets.py</code> (Fernet/KMS envelope) with a migration that encrypts existing auth-provider, LDAP, search-provider, pass-through, webhook and evaluator secrets. Secrets become write-only in the API and UI (masked, "replace" button).<span class="left">Done: envelope, migration, write-only masking everywhere, ledger keys never fall back to ciphertext. Left: a "Replace" button on other streams' pages (they keep the stored value on a masked save). B-09's judge part was delivered by W1-G.</span></li>
+<li class="part"><span class="ids">S-02 S-16 S-27</span> Emit audit before commit; actor on every event; hash-chained audit log; actor and pack filters in the Audit UI.<span class="left">Done: S-16 (actor + per-workspace hash chain, <code>GET /audit/verify</code>), S-27 (Audit and audit-pack filters), S-02 for approvals. Left: S-02 in other routers (budgets, guardrails…), whose events are saved but in a separate commit.</span></li>
+<li class="done"><span class="ids">S-15</span> Separation of duties on approvals and <code>FOR UPDATE</code> locking.</li>
 <li class="done"><span class="ids">S-13 cd:G-18</span> IP ACL: use the rightmost untrusted XFF hop; honour priority and deny; fix the OIDC crash; key by workspace, not team.</li>
-<li><span class="ids">P-27</span> Structlog PII-redaction processor. <span class="ids">S-25</span> LDAP min_length and threadpool for sync calls.</li>
-<li><span class="ids">tr-security</span> Separate secret per internal channel (gateway-rs off the shared admin secret, cd:S-05); block <code>/internal</code> at Caddy; Postgres RLS defence in depth plus a cross-workspace fuzz test.</li>
-<li><span class="enh">ENH</span> Security page: secret-age and last-rotated badges, a "rotate" action, and an audit timeline per secret.</li>
+<li class="done"><span class="ids">P-27</span> Structlog PII-redaction processor. <span class="ids">S-25</span> LDAP min_length and threadpool for sync calls.</li>
+<li class="done"><span class="ids">tr-security</span> Separate secret per internal channel (gateway-rs off the shared admin secret, cd:S-05); block <code>/internal</code> at Caddy; Postgres RLS defence in depth plus a cross-workspace fuzz test.<span class="left">Deployment step for the owner: set <code>GATEWAY_INTERNAL_TOKEN</code>/<code>MCP_INTERNAL_TOKEN</code> and connect as a non-superuser role (RLS doesn't apply to superusers). Helm isn't wired for the new variables yet.</span></li>
+<li class="done"><span class="enh">ENH</span> Security page: secret-age and last-rotated badges, a "rotate" action, and an audit timeline per secret. <i>(Also added: OAuth2 and LDAP provider management in the UI.)</i></li>
 </ul></details>
 
-<details class="card stream"><summary>W1-B · Gateway runtime <span class="ids">review/gateway-runtime</span></summary>
+<details class="card stream"><summary>W1-B · Gateway runtime <span class="sb pt">7 done · 1 partial</span> <span class="ids">verify-gateway-runtime 36/36</span></summary>
 <ul class="items">
 <li class="done"><span class="ids">cd:G-09 cd:G-10 S-12</span> Guardrails and redaction before sidecars; redact non-streamed calls; record blocked-post-call runs before returning 451.</li>
 <li class="done"><span class="ids">cd:G-11 cd:G-12 cd:G-13 cd:G-14</span> Fallback on content-policy and context-window errors; fire-and-forget mirror; 429 with a reason instead of 502; per-user RPM counts only the route actually used, with a sliding window.</li>
 <li class="done"><span class="ids">cd:G-15 cd:G-17 cd:G-20 cd:G-21 cd:G-22</span> Real gateway_overhead_ms; no fake price for local models; per-request timeout overrides, no ORM mutation; correct Anthropic defaults; reqwest timeouts and backoff.</li>
-<li><span class="ids">G-15 <s class="idone">G-24</s></span> Pass-through gets governance preflight and no redirects; reserved slugs.</li>
-<li><span class="ids">G-19 O-12</span> Persist <code>run_id</code>, <code>api_key_id</code> and <code>workflow</code> on GatewayRequest and GuardrailEvent; drop the heuristic linkage.</li>
-<li><span class="ids">G-09</span> One cache profile with real hit/miss counters. <span class="ids">cd:gw-perf</span> All 10 perf rows; p50/p99 overhead benchmark in CI.</li>
-<li><span class="ids">B-23</span> Prompt-ref resolution in the gateway (<code>prompt: "name@prod"</code>).</li>
-<li><span class="enh">ENH</span> Response header <code>X-RunLedger-Decision</code> (route, cache, budget, guardrail) and a "why this route" panel on run detail.</li>
+<li class="done"><span class="ids">G-15 <s class="idone">G-24</s></span> Pass-through gets governance preflight and no redirects; reserved slugs.</li>
+<li class="done"><span class="ids">G-19 O-12</span> Persist <code>run_id</code>, <code>api_key_id</code> and <code>workflow</code> on GatewayRequest and GuardrailEvent; drop the heuristic linkage.</li>
+<li class="part"><span class="ids">G-09</span> One cache profile with real hit/miss counters. <span class="ids">cd:gw-perf</span> All 10 perf rows; p50/p99 overhead benchmark in CI.<span class="left">Done: G-09 (one profile per workspace, real counters), 14 SQL statements per preflight, pooled clients, the <code>gateway-bench</code> CI job. Left: Redis counters for cost caps (decisions are cached 5 s) and batched guardrail-event inserts.</span></li>
+<li class="done"><span class="ids">B-23</span> Prompt-ref resolution in the gateway (<code>prompt: "name@prod"</code>).</li>
+<li class="done"><span class="enh">ENH</span> Response header <code>X-RunLedger-Decision</code> (route, cache, budget, guardrail) and a "why this route" panel on run detail.</li>
 </ul></details>
 
-<details class="card stream"><summary>W1-C · Gateway admin &amp; UI <span class="ids">review/gateway-admin</span></summary>
+<details class="card stream"><summary>W1-C · Gateway admin &amp; UI <span class="sb pt">6 done · 2 partial</span> <span class="ids">verify-gateway-admin 31/31</span></summary>
 <ul class="items">
-<li><span class="ids">G-03 G-10</span> Flywheel apply: org admin only, with audit and rollback; audit every gateway, tier, quota, cache, pricing and flywheel mutation.</li>
-<li><span class="ids">G-02 G-20 <s class="idone">G-26</s></span> Tier rpm/tpm/allowed_models enforced per key (runtime hook supplied to W1-B as a cross-stream edit), or dropped; correct soft-delete; grouped counts; DataTable.</li>
-<li><span class="ids">G-06 G-16</span> Partner guardrail edit keeps untouched credentials; route edit merges fallback and routing config.</li>
-<li><span class="ids">G-08 <s class="idone">G-21</s> <s class="idone">G-25</s></span> Implement <code>/pricing/sync</code> or remove the button; versioned pricing, and block deletes that would orphan budgets; GET-by-id endpoints.</li>
-<li><span class="ids">G-11 G-12 G-13 <s class="idone">G-14</s></span> Alias invariants, policy ownership, policy_type validator, <code>ge=0</code> on costs.</li>
-<li><span class="ids">G-17 G-18 <s class="idone">G-22</s> <s class="idone">G-23</s></span> One role matrix; lazy tabs with React Query; violations debounce and a stats endpoint; per-section errors on Guardrails.</li>
-<li><span class="ids">ui-fixes #2</span> Label or hide decorative controls until they're enforced.</li>
-<li><span class="enh">ENH</span> Route "test request" button with a live preview of the chosen route, cost and latency; diff view before saving a route change.</li>
+<li class="done"><span class="ids">G-03 G-10</span> Flywheel apply: org admin only, with audit and rollback; audit every gateway, tier, quota, cache, pricing and flywheel mutation.</li>
+<li class="part"><span class="ids">G-02 G-20 <s class="idone">G-26</s></span> Tier rpm/tpm/allowed_models enforced per key (runtime hook supplied to W1-B as a cross-stream edit), or dropped; correct soft-delete; grouped counts; DataTable.<span class="left">Done: G-20, allowed_models/RPM/TPM enforced per key in preflight, tiers on DataTable. Left (G-02): the tier spend cap still uses the workspace default tier for every key; TPM counts a pre-call estimate.</span></li>
+<li class="done"><span class="ids">G-06 G-16</span> Partner guardrail edit keeps untouched credentials; route edit merges fallback and routing config.</li>
+<li class="done"><span class="ids">G-08 <s class="idone">G-21</s> <s class="idone">G-25</s></span> Implement <code>/pricing/sync</code> or remove the button; versioned pricing, and block deletes that would orphan budgets; GET-by-id endpoints.</li>
+<li class="done"><span class="ids">G-11 G-12 G-13 <s class="idone">G-14</s></span> Alias invariants, policy ownership, policy_type validator, <code>ge=0</code> on costs.</li>
+<li class="part"><span class="ids">G-17 G-18 <s class="idone">G-22</s> <s class="idone">G-23</s></span> One role matrix; lazy tabs with React Query; violations debounce and a stats endpoint; per-section errors on Guardrails.<span class="left">Done: G-17 (<code>core/role_matrix.py</code>, <code>GET /gateway/role-matrix</code>), lazy tabs with per-section errors. Left (G-18): React Query not adopted; the routes list isn't on DataTable.</span></li>
+<li class="done"><span class="ids">ui-fixes #2</span> Label or hide decorative controls until they're enforced.</li>
+<li class="done"><span class="enh">ENH</span> Route "test request" button with a live preview of the chosen route, cost and latency; diff view before saving a route change.</li>
 </ul></details>
 
-<details class="card stream"><summary>W1-D · Budgets, FinOps &amp; ledger <span class="ids">review/finops</span></summary>
+<details class="card stream"><summary>W1-D · Budgets, FinOps &amp; ledger <span class="sb ok">7 of 7 done</span> <span class="ids">verify-budgets 32/32 · verify-billing 51/51</span></summary>
 <ul class="items">
-<li><span class="ids">G-01 cd:B-01 top#2</span> Fold model budgets into budget scopes (<code>scope_type=model</code>), enforced in preflight; delete the separate entity.</li>
-<li><span class="ids">cd:B-05 cd:B-06 cd:B-09 cd:bud-actions</span> Durable Postgres <code>budget_spend</code> with Redis as cache; per-route tier fix; runaway protection that actually blocks; all 5 budget action rows.</li>
-<li><span class="ids">F-12 F-13 F-14</span> Scope validation and unique index; worker that activates scheduled overrides; workspace pricing in cost caps.</li>
-<li><span class="ids">F-20 F-22 F-25</span> Real savings in the UI; queued webhook delivery and scoped rollup; cached-token pricing edge cases.</li>
-<li><span class="ids">cd:M-02</span> Ledger verify against sealed snapshots, so late enrichment isn't reported as tampering.</li>
-<li><span class="ids">S-18 fa-remediation-billing</span> budget_* alert metrics computed; all 12 billing remediation rows.</li>
-<li><span class="enh">ENH</span> Budget burn-down chart with forecast-to-breach date, plus "simulate this budget against last 30 days".</li>
+<li class="done"><span class="ids">G-01 cd:B-01 top#2</span> Fold model budgets into budget scopes (<code>scope_type=model</code>), enforced in preflight; delete the separate entity.</li>
+<li class="done"><span class="ids">cd:B-05 cd:B-06 cd:B-09 cd:bud-actions</span> Durable Postgres <code>budget_spend</code> with Redis as cache; per-route tier fix; runaway protection that actually blocks; all 5 budget action rows.</li>
+<li class="done"><span class="ids">F-12 F-13 F-14</span> Scope validation and unique index; worker that activates scheduled overrides; workspace pricing in cost caps.</li>
+<li class="done"><span class="ids">F-20 F-22 F-25</span> Real savings in the UI; queued webhook delivery and scoped rollup; cached-token pricing edge cases.</li>
+<li class="done"><span class="ids">cd:M-02</span> Ledger verify against sealed snapshots, so late enrichment isn't reported as tampering. <i>(Also: off-box anchor in the backup bucket with S3 Object Lock.)</i></li>
+<li class="done"><span class="ids">S-18 fa-remediation-billing</span> budget_* alert metrics computed; all 12 billing remediation rows.</li>
+<li class="done"><span class="enh">ENH</span> Budget burn-down chart with forecast-to-breach date, plus "simulate this budget against last 30 days".</li>
 </ul></details>
 
-<details class="card stream"><summary>W1-E · Observability, runs &amp; analytics <span class="ids">review/observe</span></summary>
+<details class="card stream"><summary>W1-E · Observability, runs &amp; analytics <span class="sb pt">7 done · 1 partial</span> <span class="ids">verify-observe 33/33</span></summary>
 <ul class="items">
-<li><span class="ids">O-01 O-02 O-11 O-24</span> Explorer status and intent filters; export shares the filter list; model list loaded from data.</li>
-<li><span class="ids">O-03 O-04 O-13</span> One outcomes table, scoped joins aggregated per run; recorded savings only.</li>
-<li><span class="ids">O-05</span> Captured payloads gated by role and deduped.</li>
-<li><span class="ids">O-06 O-14 O-20 O-22</span> One summary service; scope and access group respected everywhere; success rate from the API.</li>
-<li><span class="ids">O-07</span> Live view over SSE, with no COUNT polling and pausing when the tab is hidden.</li>
-<li><span class="ids">O-10 O-15 O-16 O-17 O-18</span> Composite cursor with enum validation; session_id index; charts served from rollups; Model Usage from /spend-by-model; server-side monitoring ranges.</li>
-<li><span class="ids">O-19 O-23 O-26</span> Real error states (not 404 or empty); shared helpers; E2E scripts for flow, explorer and sessions.</li>
-<li><span class="enh">ENH</span> Saved views on Runs and Explorer, side-by-side compare of two runs, and a trace waterfall with copyable IDs.</li>
-</ul></details>
+<li class="done"><span class="ids">O-01 O-02 O-11 O-24</span> Explorer status and intent filters; export shares the filter list; model list loaded from data.</li>
+<li class="done"><span class="ids">O-03 O-04 O-13</span> One outcomes table, scoped joins aggregated per run; recorded savings only.</li>
+<li class="done"><span class="ids">O-05</span> Captured payloads gated by role and deduped.</li>
+<li class="done"><span class="ids">O-06 O-14 O-20 O-22</span> One summary service; scope and access group respected everywhere; success rate from the API.</li>
+<li class="done"><span class="ids">O-07</span> Live view over SSE, with no COUNT polling and pausing when the tab is hidden.</li>
+<li class="part"><span class="ids">O-10 O-15 O-16 O-17 O-18</span> Composite cursor with enum validation; session_id index; charts served from rollups; Model Usage from /spend-by-model; server-side monitoring ranges.<span class="left">Done: O-10, O-15, O-17, O-18. Left (O-16): Trends, Engineering and scoped top-models still read raw provider calls.</span></li>
+<li class="done"><span class="ids">O-19 O-23 O-26</span> Real error states (not 404 or empty); shared helpers; E2E scripts for flow, explorer and sessions.</li>
+<li class="done"><span class="enh">ENH</span> Saved views on Runs and Explorer, side-by-side compare of two runs, and a trace waterfall with copyable IDs.</li>
+</ul>
+<p class="left">Kit adoption: only Monitoring is on DataTable; Runs, Explorer and Sessions keep their own lists (filters are URL-synced). About 146 raw-hex warnings remain in chart files.</p></details>
 
-<details class="card stream"><summary>W1-F · Workflow spine <span class="ids">review/workflows</span></summary>
+<details class="card stream"><summary>W1-F · Workflow spine <span class="sb ok">5 of 5 done</span> <span class="ids">verify-workflows 29/29</span></summary>
 <ul class="items">
-<li><span class="ids">top#4 B-11 B-17 B-18</span> <code>workflow_id</code> on agent_runs, resolved from feature_tag, header or OTLP attribute; WorkflowRun becomes a view over runs; validate cross-workspace ids; step costs roll up.</li>
-<li><span class="ids">ui-fixes #5</span> Workflows full CRUD (create, edit, archive, link to feature_tag and gateway alias).</li>
-<li><span class="ids">roadmap 31–60</span> Workflow page = runs + cost + budgets + evals + policies; SDK decorator; OTLP attribute mapping.</li>
-<li><span class="ids">B-14 B-15</span> Agent stats from agent_runs; envelope enforced; fixed links and the <code>?agent=</code> filter.</li>
-<li><span class="enh">ENH</span> Make Workflow the landing object, with a workflow health card (cost per success, p95 latency, eval score trend) and a "first workflow" onboarding wizard.</li>
+<li class="done"><span class="ids">top#4 B-11 B-17 B-18</span> <code>workflow_id</code> on agent_runs, resolved from feature_tag, header or OTLP attribute; WorkflowRun becomes a view over runs; validate cross-workspace ids; step costs roll up.</li>
+<li class="done"><span class="ids">ui-fixes #5</span> Workflows full CRUD (create, edit, archive, link to feature_tag and gateway alias).</li>
+<li class="done"><span class="ids">roadmap 31–60</span> Workflow page = runs + cost + budgets + evals + policies; SDK decorator; OTLP attribute mapping.</li>
+<li class="done"><span class="ids">B-14 B-15</span> Agent stats from agent_runs; envelope enforced; fixed links and the <code>?agent=</code> filter. <i>(Agents' allowed aliases, status and monthly envelope are enforced in the gateway: 403/429 with <code>X-Agent-Policy-Reason</code>.)</i></li>
+<li class="done"><span class="enh">ENH</span> Make Workflow the landing object, with a workflow health card (cost per success, p95 latency, eval score trend) and a "first workflow" onboarding wizard.</li>
 </ul></details>
 
-<details class="card stream"><summary>W1-G · Build &amp; improve (prompts, evals, replay, playground) <span class="ids">review/build</span></summary>
+<details class="card stream"><summary>W1-G · Build &amp; improve (prompts, evals, replay, playground) <span class="sb ok">7 of 7 done</span> <span class="ids">verify-build 27/27</span></summary>
 <ul class="items">
-<li><span class="ids">B-02 B-03</span> Production prompt versions require an approval; Promote works through the approval flow in the UI.</li>
-<li><span class="ids">B-05 B-07 B-08 B-12</span> Route recommendations via Flywheel; one experiment system (merge eval and replay); experiments really run through the gateway; runbook export, get and delete.</li>
-<li><span class="ids">B-09 B-13 B-25</span> Gateway-backed judge with a secret ref; judge loads payloads; scorecard fixes.</li>
-<li><span class="ids">B-10 ui-fixes #6</span> Playground runs through the gateway; model lists from route aliases.</li>
-<li><span class="ids">B-16 B-19 B-20</span> Memory: 409 or upsert, expiry purge, encryption; Qdrant search-test or an honest label; one optimization engine with apply.</li>
-<li><span class="ids">B-24 B-26</span> UI for every remaining endpoint, or remove it; merge Pipeline Studio into Pipeline.</li>
-<li><span class="enh">ENH</span> Prompt diff viewer, a side-by-side model compare in Playground, and score-gated promotion.</li>
+<li class="done"><span class="ids">B-02 B-03</span> Production prompt versions require an approval; Promote works through the approval flow in the UI.</li>
+<li class="done"><span class="ids">B-05 B-07 B-08 B-12</span> Route recommendations via Flywheel; one experiment system (merge eval and replay); experiments really run through the gateway; runbook export, get and delete.</li>
+<li class="done"><span class="ids">B-09 B-13 B-25</span> Gateway-backed judge with a secret ref; judge loads payloads; scorecard fixes.</li>
+<li class="done"><span class="ids">B-10 ui-fixes #6</span> Playground runs through the gateway; model lists from route aliases.</li>
+<li class="done"><span class="ids">B-16 B-19 B-20</span> Memory: 409 or upsert, expiry purge, encryption; Qdrant search-test or an honest label; one optimization engine with apply.</li>
+<li class="done"><span class="ids">B-24 B-26</span> UI for every remaining endpoint, or remove it; merge Pipeline Studio into Pipeline.</li>
+<li class="done"><span class="enh">ENH</span> Prompt diff viewer, a side-by-side model compare in Playground, and score-gated promotion.</li>
 </ul></details>
 
-<details class="card stream"><summary>W1-H · Governance, tools &amp; capture <span class="ids">review/governance</span></summary>
+<details class="card stream"><summary>W1-H · Governance, tools &amp; capture <span class="sb pt">5 done · 1 partial</span> <span class="ids">verify-governance 24/24</span></summary>
 <ul class="items">
-<li><span class="ids">S-01 cd:S-04</span> Fix the MCP governed-call tuple crash; <code>/tools/call</code> really executes; real approval IDs; verified identity.</li>
-<li><span class="ids">S-06 S-07 S-08 S-23</span> Merge the four tool-control systems into ToolPolicy, enforced by the gateway; one evaluator for dry-run and runtime and for /tools/check vs /policies/check.</li>
-<li><span class="ids">S-09 S-11 S-19</span> Scoped capture resolved at ingest; one PII redactor; auto-tag rules applied at ingest and the gateway.</li>
-<li><span class="ids">S-21 S-24 S-26 S-28</span> Audit-pack lineage; decorative security settings enforced or removed; MCP confirms and real status; docs that don't overclaim.</li>
-<li><span class="ids">roadmap</span> Approvals as gateway holds.</li>
-<li><span class="enh">ENH</span> Policy simulator ("replay last 7 days against this policy") with an impact preview before saving.</li>
+<li class="done"><span class="ids">S-01 cd:S-04</span> Fix the MCP governed-call tuple crash; <code>/tools/call</code> really executes; real approval IDs; verified identity.</li>
+<li class="done"><span class="ids">S-06 S-07 S-08 S-23</span> Merge the four tool-control systems into ToolPolicy, enforced by the gateway; one evaluator for dry-run and runtime and for /tools/check vs /policies/check.</li>
+<li class="done"><span class="ids">S-09 S-11 S-19</span> Scoped capture resolved at ingest; one PII redactor; auto-tag rules applied at ingest and the gateway.</li>
+<li class="done"><span class="ids">S-21 S-24 S-26 S-28</span> Audit-pack lineage; decorative security settings enforced or removed; MCP confirms and real status; docs that don't overclaim.<span class="left">Plugins: only webhook plugins with a URL execute; other types are recorded as "skipped" rather than faked.</span></li>
+<li class="part"><span class="ids">roadmap</span> Approvals as gateway holds.<span class="left">Done: 202 + approval id for non-streamed requests and MCP calls, resume endpoint. Left: streamed responses can't be held (finalize runs after the stream is sent). The gateway-hold path of verify-governance hasn't been run (needs <code>--gateway-url</code> and <code>--alias</code>).</span></li>
+<li class="done"><span class="enh">ENH</span> Policy simulator ("replay last 7 days against this policy") with an impact preview before saving.</li>
 </ul></details>
 
-<details class="card stream"><summary>W1-I · Platform, infra &amp; auth <span class="ids">review/platform</span></summary>
+<details class="card stream"><summary>W1-I · Platform, infra &amp; auth <span class="sb pt">5 done · 2 partial</span> <span class="ids">verify-platform 24/24 · Playwright 5/5</span></summary>
 <ul class="items">
-<li><span class="ids">P-06 tr-security#1</span> BFF <code>/api/*</code> proxy with an httpOnly cookie, so the key is never in browser JS; server logout revokes; purge job.</li>
-<li><span class="ids">P-01 P-04 P-05 P-14</span> Dev-only seeding plus a bootstrap flow; Helm sets production; bind to localhost and require passwords; production validation on by default.</li>
-<li><span class="ids">P-11 P-12 P-17 P-19</span> Feature flags wired or removed; Celery limits, queues and prefork; sliding-window limiter keyed by key id; /health returns 503 when degraded.</li>
-<li><span class="ids">P-13 P-20 P-21 P-22 cd:S-06</span> CI-built immutable images; beat schedule on emptyDir or redbeat; network pg_dump; restore gated; no version skew.</li>
-<li><span class="ids">I-28</span> SDK publishing pipeline ready. <b>The user</b> creates the PyPI and npm accounts and runs the first publish.</li>
-<li><span class="ids">fa-remediation-ing fa-remediation-org</span> All open remediation rows.</li>
-<li><span class="enh">ENH</span> In-app system status page (workers, queues, backups, versions) for platform admins.</li>
+<li class="part"><span class="ids">P-06 tr-security#1</span> BFF <code>/api/*</code> proxy with an httpOnly cookie, so the key is never in browser JS; server logout revokes; purge job.<span class="left">Done: BFF proxy, httpOnly cookie, server-side logout, purge (Playwright proves the key never reaches JS). Left: session keys still live 7 days; no short-lived API-side tokens yet.</span></li>
+<li class="done"><span class="ids">P-01 P-04 P-05 P-14</span> Dev-only seeding plus a bootstrap flow; Helm sets production; bind to localhost and require passwords; production validation on by default.</li>
+<li class="done"><span class="ids">P-11 P-12 P-17 P-19</span> Feature flags wired or removed; Celery limits, queues and prefork; sliding-window limiter keyed by key id; /health returns 503 when degraded.</li>
+<li class="done"><span class="ids">P-13 P-20 P-21 P-22 cd:S-06</span> CI-built immutable images; beat schedule on emptyDir or redbeat; network pg_dump; restore gated; no version skew.<span class="left">Owner step: set <code>DOCKERHUB_USERNAME</code>/<code>DOCKERHUB_TOKEN</code> so CI pushes the images.</span></li>
+<li class="part"><span class="ids">I-28</span> SDK publishing pipeline ready. <b>The user</b> creates the PyPI and npm accounts and runs the first publish.<span class="left">Pipeline ready; nothing published. Owner: PyPI/npm accounts and <code>@runledger</code> org, trusted publisher, <code>NPM_TOKEN</code>, TS SDK licence (MIT vs Apache-2.0), first publish.</span></li>
+<li class="done"><span class="ids">fa-remediation-ing fa-remediation-org</span> All open remediation rows.</li>
+<li class="done"><span class="enh">ENH</span> In-app system status page (workers, queues, backups, versions) for platform admins.</li>
 </ul></details>
 
-<h2 id="w2"><span class="tag w2">Wave 2</span> UX &amp; usability (after Wave 1 merges)</h2>
+<h2 id="w2"><span class="tag w2">Wave 2</span> UX &amp; usability (next: Wave 1 is merged)</h2>
 <div class="grid">
 <div class="card"><h3>W2-A · Information architecture</h3>Six areas (Workflows · Runs · Gateway · Governance · FinOps · Admin) with tabs; nav entries for orphaned pages; merge duplicates (Runs/Sessions/Explorer, Model Usage/Scorecards/Engineering, MCP/MCP Registry, dataset views, Breakdown/Overview, AI Hub/Profiles/Routes); retire legacy surfaces and their hot-path residue (<span class="ids">fc-legacy, ui-nav, ui-fixes #7 #11 #12, tr-gui IA</span>). Breadcrumbs and redirects that keep the tab.</div>
 <div class="card"><h3>W2-B · Accessibility &amp; responsiveness</h3>jsx-a11y becomes an error; aria labels everywhere; focus order, keyboard reachability and contrast tokens; mobile layouts for tables; dark-mode parity; a WCAG 2.1 AA checklist and a VPAT draft (<span class="ids">tr-gui a11y, ui-matrix</span>).</div>
@@ -223,8 +230,8 @@ button.copy{position:absolute;top:6px;right:6px;font-size:12px;border:1px solid 
 
 <h2 id="w3"><span class="tag w3">Wave 3</span> Integration &amp; close-out (one agent)</h2>
 <ul>
-<li>Merge streams into <code>review/integration</code> in this order: A → I → D → B → C → F → E → G → H, then Wave 2. Re-chain migrations at each merge and run the full test suite after each one.</li>
-<li>Rebuild the local Docker stack; run <code>verify_api_health.py</code>, every <code>scripts/</code> E2E, and the Playwright smoke suite.</li>
+<li class="done">Merge streams into <code>review/integration</code> in this order: A → I → D → B → C → F → E → G → H, then Wave 2. Re-chain migrations at each merge and run the full test suite after each one.<span class="left">Wave 1 done on 2026-11-24: merged on <code>review/base</code> (A last), re-chained, fast-forwarded to master and pushed; stream branches and worktrees removed. Repeat for Wave 2.</span></li>
+<li>Rebuild the local Docker stack; run <code>verify_api_health.py</code>, every <code>scripts/</code> E2E, and the Playwright smoke suite.<span class="left">Done for Wave 1 (all 14 verify scripts, Playwright 5/5); the optional <code>--gateway-url</code> paths are still to run.</span></li>
 <li>Delivery (<span class="ids">tr-delivery, A-23, G-27, top</span>): docs describe real behaviour (budgets, architecture, latency); examples consolidated to about 25 journeys with no numbering collisions; scripts assert enforcement (budget blocks, tool policy blocks, routing tier); repo hygiene (<code>scratch/</code>, root <code>main.py</code>, <code>apps/api;C</code>, version drift, TODO_ITEMS).</li>
 <li>Tag every resolved row in <code>runledger-review.html</code> (single writer), re-run the tag-balance check, and add a final status banner.</li>
 <li>Open one PR per wave, or one integration PR, as the user prefers. Never deploy to the X230 unless asked.</li>
