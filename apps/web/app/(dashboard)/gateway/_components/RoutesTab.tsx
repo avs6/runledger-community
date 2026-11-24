@@ -3,6 +3,8 @@
 import { Network, Plus, Trash2, Pencil, ChevronUp } from 'lucide-react'
 import type { GatewayRoutingGroupStrategy } from '@/types/api'
 import { inputCls } from './shared'
+import { useSearchParams, usePathname, useRouter } from 'next/navigation'
+import { RouteTestPanel } from './RouteTestPanel'
 import { useGateway } from './useGatewayState'
 
 export function RoutesTab() {
@@ -138,8 +140,26 @@ export function RoutesTab() {
     handleToggleRoutingGroup,
     handleDeleteRoutingGroup,
   } = useGateway()
+  // Route search lives in the URL (?routeq=) so a filtered view can be shared.
+  const params = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
+  const routeQuery = params.get('routeq') ?? ''
+  const setRouteQuery = (value: string) => {
+    const next = new URLSearchParams(params.toString())
+    if (value) next.set('routeq', value)
+    else next.delete('routeq')
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
+  }
+  const needle = routeQuery.trim().toLowerCase()
+  const visibleRoutes = needle
+    ? gatewayRoutes.filter((r) =>
+        [r.alias, r.provider, r.target_model, r.region ?? '', r.routing_group_name ?? ''].some((v) => v.toLowerCase().includes(needle)),
+      )
+    : gatewayRoutes
   return (
   <div className="space-y-3">
+  <RouteTestPanel />
 
   <section className="space-y-4">
     <div className="flex items-center justify-between">
@@ -205,10 +225,10 @@ export function RoutesTab() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={() => beginGroupEdit(group)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+              <button aria-label="Edit" onClick={() => beginGroupEdit(group)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
-              <button onClick={() => void handleDeleteRoutingGroup(group.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+              <button aria-label="Delete" onClick={() => void handleDeleteRoutingGroup(group.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -626,11 +646,22 @@ export function RoutesTab() {
       </div>
     )}
 
+    <div className="flex items-center gap-2">
+      <input
+        type="search"
+        aria-label="Search routes by alias, provider, model, region or group"
+        placeholder="Search routes…"
+        value={routeQuery}
+        onChange={(e) => setRouteQuery(e.target.value)}
+        className={`${inputCls} max-w-xs`}
+      />
+      <span className="text-xs text-slate-500">{visibleRoutes.length} of {gatewayRoutes.length}</span>
+    </div>
     <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      {gatewayRoutes.length === 0 ? (
+      {visibleRoutes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 gap-2">
           <Network className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">No routes configured yet.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{gatewayRoutes.length === 0 ? 'No routes configured yet.' : 'No routes match this search.'}</p>
         </div>
       ) : (
         <table className="w-full text-sm">
@@ -645,7 +676,7 @@ export function RoutesTab() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            {gatewayRoutes.map((route) => (
+            {visibleRoutes.map((route) => (
               <>
               <tr key={route.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                 {(() => {
@@ -772,10 +803,10 @@ export function RoutesTab() {
                 {canManage && (
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => beginRouteEdit(route)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                      <button aria-label="Edit" onClick={() => beginRouteEdit(route)} className="rounded-lg p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => handleDeleteRoute(route.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      <button aria-label="Delete" onClick={() => handleDeleteRoute(route.id)} className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
