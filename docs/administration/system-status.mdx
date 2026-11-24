@@ -1,0 +1,42 @@
+---
+title: "System Status"
+description: "Platform admins: is every part of the deployment alive, on the same build, and keeping up? Workers, queues, beat, migrations, backups and versions on one page."
+---
+
+**Platform → System Status** (`/system-status`) is for platform admins. It refreshes every 30 seconds
+(paused while the tab is hidden) and reads `GET /system/status`.
+
+| Section | What it shows | Where it comes from |
+|---|---|---|
+| Health | Overall, database, Redis, migrations and Celery beat, plus API uptime | The same checks as `GET /health` |
+| Production configuration warnings | Insecure settings (default secrets, passwordless Redis, `*` CORS…) | The startup validation; empty in development |
+| Versions | The version and build of the API, beat and every live worker, and whether they **skew** | `RUNLEDGER_VERSION` / `RUNLEDGER_BUILD_SHA` baked into the image; workers and beat report theirs through heartbeats |
+| Database schema | Current Alembic revision vs this build's head | `alembic_version` and the migrations shipped in the image |
+| Workers | Each worker, the queues it consumed in the last 5 minutes, its build and last heartbeat | `platform.heartbeat`, which beat sends to every queue once a minute |
+| Queues | Waiting tasks in `ingest`, `celery` and `maintenance` | Redis list lengths |
+| Backups | Whether backups are enabled, the last successful run, and the five latest runs | `backup_runs` |
+
+## Health endpoints
+
+| Endpoint | Status codes | Use for |
+|---|---|---|
+| `GET /health` | `200` ok · `503` degraded | Uptime checks and load balancers. Degraded when the database or Redis is down, the schema is behind this build, or beat hasn't sent a heartbeat for 3 minutes (5-minute grace after the API starts). `HEALTH_REQUIRE_BEAT=false` ignores beat. |
+| `GET /health/ready` | `200` · `503` | Kubernetes readiness: database, Redis and schema at head. Beat isn't required, so a beat outage never drains the API. |
+| `GET /health/live` | always `200` | Liveness / restart policy. |
+| `GET /system/status` | `200` · `401` · `403` | This page (platform admins only). |
+
+## Version skew
+
+API, workers and beat must run the same build. Compose runs all of them from one image
+(`runledger-api:${RUNLEDGER_TAG}`) and the Helm chart from `image.repository:image.tag`, and CI tags
+images immutably (`sha-<git sha>` or the release version), so skew normally means a component wasn't
+restarted after an upgrade. Redeploy api, workers and beat together.
+
+## Verify
+
+```bash
+cd apps/api && uv run python ../../scripts/run_demo.py verify-platform
+```
+
+It asserts the health semantics, the status page's access control and contents, the bootstrap and
+demo-account rules, rate-limit headers, logout revocation and the dashboard BFF.

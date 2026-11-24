@@ -1805,7 +1805,9 @@ class Sim:
             },
             admin=True,
             label="bootstrap",
-            expect=(200, 201),
+            # 409: this stack already has a platform admin (bootstrap is one-time); sign
+            # in with the same credentials instead.
+            expect=(200, 201, 409),
         )
         self.platform_email = email
         self.platform_password = password

@@ -1,8 +1,8 @@
 /** Settings, org, users, admin, auth, API keys, access groups, AI hub, MCP registry, integrations and alerts. */
-import type { AlertFiring, AlertHistoryList, AlertRule, AlertRuleList, AdminWorkspaceResponse, ApiKeyCreateResponse, ApiKeyResponse, CapturePolicyScope, RetentionPreview, PiiTestResult, PlatformWebhookDefaults, PlatformWebhookDefaultsTestResult, ProviderPricingResponse, SlackTestResponse, TenantResponse, TenantStatus, EmailPreference, EmailLogList, OrgEmailFeatureStatus, OpsFeatureStatus, OpsFeatureFlagsResponse, OpsPolicyEvaluation, OpsQueueStatus, OpsStorageStatus, BackupRun, BackupRunList, BackupActionResult, BackupTargetConfig, BackupSnapshotList, OnboardingStatus } from '@/types/api'
+import type { AlertFiring, AlertHistoryList, AlertRule, AlertRuleList, ApiKeyCreateResponse, ApiKeyResponse, CapturePolicyScope, RetentionPreview, PiiTestResult, PlatformWebhookDefaults, PlatformWebhookDefaultsTestResult, SlackTestResponse, TenantResponse, TenantStatus, EmailPreference, EmailLogList, OrgEmailFeatureStatus, OpsFeatureStatus, OpsPolicyEvaluation, OpsQueueStatus, OpsStorageStatus, BackupRun, BackupRunList, BackupActionResult, BackupTargetConfig, BackupSnapshotList, OnboardingStatus, SystemStatus } from '@/types/api'
 import type { WarehouseDestination, WarehouseDestinationList, WarehouseDestinationCreate, WarehouseDestinationUpdate, ConnectionTestResult, ExportJob, ExportJobList } from '@/types/api'
 import type { KafkaExportConfig, KafkaExportConfigList, KafkaExportDeliveryList, KafkaTestResult } from '@/types/api'
-import { apiFetch, adminFetch, TimeWindow, _analyticsQs, OrgUser, HubAccessRequestResult, SessionKey, PendingInvitation } from './client'
+import { apiFetch, TimeWindow, _analyticsQs, OrgUser, HubAccessRequestResult, SessionKey, PendingInvitation } from './client'
 
 export async function getPlatformWebhookDefaults(apiKey: string): Promise<PlatformWebhookDefaults> {
   return apiFetch<PlatformWebhookDefaults>('/settings/webhooks/defaults', apiKey)
@@ -192,73 +192,8 @@ export async function testSlackWebhook(
   })
 }
 
-// ── Admin helpers (X-Admin-Secret) ────────────────────────────────────────────
-
-export async function listTenants(adminSecret: string): Promise<TenantResponse[]> {
-  return adminFetch<TenantResponse[]>('/admin/tenants', adminSecret)
-}
-
-export async function createTenant(
-  adminSecret: string,
-  body: { slug: string; name: string; plan?: string }
-): Promise<TenantResponse> {
-  return adminFetch<TenantResponse>('/admin/tenants', adminSecret, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
-export async function listAdminWorkspaces(
-  adminSecret: string,
-  tenantId: string
-): Promise<AdminWorkspaceResponse[]> {
-  return adminFetch<AdminWorkspaceResponse[]>(`/admin/tenants/${tenantId}/workspaces`, adminSecret)
-}
-
-export async function createAdminWorkspace(
-  adminSecret: string,
-  body: { tenant_id: string; name: string }
-): Promise<AdminWorkspaceResponse> {
-  return adminFetch<AdminWorkspaceResponse>('/admin/workspaces', adminSecret, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
-export async function createGlobalPricing(
-  adminSecret: string,
-  body: {
-    provider: string
-    model: string
-    input_cost_per_1m: string
-    output_cost_per_1m: string
-    cached_input_cost_per_1m?: string | null
-  }
-): Promise<ProviderPricingResponse> {
-  return adminFetch<ProviderPricingResponse>('/admin/global-pricing', adminSecret, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
-export async function updateGlobalPricing(
-  adminSecret: string,
-  pricingId: string,
-  body: {
-    input_cost_per_1m?: string
-    output_cost_per_1m?: string
-    cached_input_cost_per_1m?: string | null
-  }
-): Promise<ProviderPricingResponse> {
-  return adminFetch<ProviderPricingResponse>(`/admin/global-pricing/${pricingId}`, adminSecret, {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  })
-}
-
-export async function deleteGlobalPricing(adminSecret: string, pricingId: string): Promise<void> {
-  await adminFetch<void>(`/admin/global-pricing/${pricingId}`, adminSecret, { method: 'DELETE' })
-}
+// Admin-secret (X-Admin-Secret) helpers were removed: they had no callers, and the admin
+// secret must never reach the browser. Platform admins use their session (BFF) instead.
 
 // ── Phase 21A — Alert Rules ────────────────────────────────────────────────────
 
@@ -535,8 +470,9 @@ export async function getOpsStorageStatus(apiKey: string): Promise<OpsStorageSta
   return apiFetch<OpsStorageStatus>('/settings/ops/storage', apiKey)
 }
 
-export async function getOpsFeatureFlags(apiKey: string): Promise<OpsFeatureFlagsResponse> {
-  return apiFetch<OpsFeatureFlagsResponse>('/settings/ops/feature-flags', apiKey)
+/** Platform admins: workers, queues, beat, migrations, backups and versions. */
+export async function getSystemStatus(apiKey: string): Promise<SystemStatus> {
+  return apiFetch<SystemStatus>('/system/status', apiKey)
 }
 
 export async function getOpsPolicyEvaluation(apiKey: string): Promise<OpsPolicyEvaluation> {

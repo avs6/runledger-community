@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,9 +38,23 @@ class Settings(BaseSettings):
     trusted_proxies: str = ""
 
     # App
-    environment: str = "development"
+    # Production validation is on by default (review P-14): a deployment that forgets
+    # ENVIRONMENT gets the strict checks below, not dev mode. Local development and the
+    # test suite set ENVIRONMENT=development explicitly.
+    environment: str = "production"
+    # Escape hatch for throwaway demo stacks only: start in production mode even though
+    # known-default secrets are in use (each problem is still logged as a warning).
+    allow_insecure_defaults: bool = False
     log_level: str = "INFO"
     runledger_mode: str = "community"
+    # Build identity, baked into images by CI (RUNLEDGER_VERSION / RUNLEDGER_BUILD_SHA).
+    # The system status page compares it across api, workers and beat (cd:S-06).
+    runledger_version: str = "0.1.0"
+    runledger_build_sha: str = "dev"
+    # Dev-only demo admin (review P-01). Seeded only when ENVIRONMENT=development and
+    # SEED_DEV_ADMIN is true; never in production, where /admin/bootstrap or the
+    # dashboard's /setup page creates the first platform admin instead.
+    seed_dev_admin: bool = True
 
     # CORS — comma-separated list of allowed origins.
     # In production set CORS_ORIGINS=https://your-frontend.railway.app
@@ -81,8 +97,7 @@ class Settings(BaseSettings):
     compliance_export_storage_class: str = "STANDARD_IA"
     compliance_export_retention_days: int = 365
 
-    # Feature-flag and infra controls
-    feature_flags: str = ""
+    # Infra controls. (FEATURE_FLAGS was display-only and has been removed, review P-11.)
     abuse_protection_enabled: bool = True
     infra_policy_enforcement_mode: str = "advisory"
     deployment_profile: str = "core"
@@ -110,6 +125,9 @@ class Settings(BaseSettings):
 
     # ── Operational metrics ───────────────────────────────────────────────────
     metrics_token: str = ""
+    # /health reports "degraded" (503) when beat stops sending heartbeats. Turn off
+    # only for deployments that intentionally run without Celery beat.
+    health_require_beat: bool = True
     ingest_rate_limit_per_minute: int = 10000
 
     # ── Ingestion ─────────────────────────────────────────────────────────────
@@ -142,9 +160,21 @@ class Settings(BaseSettings):
     gateway_base_url_allowlist: str = ""
     # Signed ingest: max clock skew, and how long a nonce is remembered.
     ingest_signature_tolerance_seconds: int = 300
-    analytics_rate_limit_per_minute: int = 0
-    management_rate_limit_per_minute: int = 0
+    # Sliding-window limits per API key id (or client IP when unauthenticated), review
+    # P-17. On by default; 0 disables a tier.
+    analytics_rate_limit_per_minute: int = 1200
+    management_rate_limit_per_minute: int = 600
     system_rate_limit_per_minute: int = 600
+
+    # ── Celery (review P-12) ──────────────────────────────────────────────────
+    # Per-task limits: soft raises SoftTimeLimitExceeded inside the task, hard kills
+    # the worker child. Long-running maintenance tasks override these per task.
+    celery_task_soft_time_limit: int = 300
+    celery_task_time_limit: int = 360
+    # Redis broker: a task not acked within this many seconds is redelivered. Must
+    # exceed the longest task's hard limit (backups: backup_timeout_seconds).
+    celery_visibility_timeout: int = 7200
+    celery_worker_max_tasks_per_child: int = 500
 
     @property
     def is_development(self) -> bool:
@@ -173,13 +203,6 @@ class Settings(BaseSettings):
         return self.metrics_token or ""
 
     @property
-    def enabled_feature_flags(self) -> set[str]:
-        return {flag.strip() for flag in self.feature_flags.split(",") if flag.strip()}
-
-    def is_feature_enabled(self, flag: str) -> bool:
-        return flag in self.enabled_feature_flags
-
-    @property
     def redis_durability_mode(self) -> str:
         if self.redis_url.startswith("rediss://"):
             return "managed-tls"
@@ -188,32 +211,68 @@ class Settings(BaseSettings):
         return "ephemeral"
 
 
+# Demo admin seeded only in development (scripts/seed.py). Login refuses it elsewhere.
+DEV_SEED_ADMIN_EMAIL = "admin@runledger.local"
+
 _KNOWN_WEAK_DEFAULTS = {
     "dev-secret-key-change-in-production",
     "change-me-in-production-32chars",
     "change-me-to-a-random-32char-string",
     "runledger-admin",
+    "runledgerminio",
+    "runledger",
 }
 
 
-def _validate_production_secrets(s: Settings) -> None:
-    if s.environment == "development":
-        return
+def production_problems(s: Settings) -> list[str]:
+    """Insecure settings that must not reach a production deployment (review P-14,
+    technical review security #2). Empty in development."""
+    if s.is_development:
+        return []
     problems: list[str] = []
-    if s.secret_key in _KNOWN_WEAK_DEFAULTS:
-        problems.append("SECRET_KEY is a known default — set a real 32+ char random string")
-    if s.admin_secret in _KNOWN_WEAK_DEFAULTS:
-        problems.append("ADMIN_SECRET is a known default — set a real random string")
-    if s.database_url and "runledger:runledger@" in s.database_url:
+    if s.secret_key in _KNOWN_WEAK_DEFAULTS or len(s.secret_key) < 32:
+        problems.append("SECRET_KEY is a known default or shorter than 32 characters")
+    if s.admin_secret and (s.admin_secret in _KNOWN_WEAK_DEFAULTS or len(s.admin_secret) < 16):
+        problems.append("ADMIN_SECRET is a known default or shorter than 16 characters")
+    if s.database_url and ":runledger@" in s.database_url:
         problems.append(
             "DATABASE_URL uses the default password 'runledger' — change POSTGRES_PASSWORD"
         )
-    if problems:
-        import sys
+    if s.redis_url.startswith("redis://") and "@" not in s.redis_url:
+        problems.append("REDIS_URL has no password — set REDIS_PASSWORD (or use rediss://)")
+    origins = [o.strip() for o in s.cors_origins.split(",") if o.strip()]
+    if "*" in origins:
+        problems.append("CORS_ORIGINS must list explicit origins, not '*'")
+    if s.metrics_token and len(s.metrics_token) < 16:
+        problems.append("METRICS_TOKEN is shorter than 16 characters")
+    if s.backup_enabled:
+        secret = os.getenv("RUNLEDGER_BACKUP_SECRET_ACCESS_KEY", "")
+        if secret in _KNOWN_WEAK_DEFAULTS:
+            problems.append(
+                "BACKUP_ENABLED with the default object-store secret — set "
+                "RUNLEDGER_BACKUP_SECRET_ACCESS_KEY"
+            )
+    return problems
 
-        for p in problems:
-            print(f"SECURITY ERROR: {p}", file=sys.stderr)
-        raise SystemExit(1)
+
+def _validate_production_secrets(s: Settings) -> None:
+    problems = production_problems(s)
+    if not problems:
+        return
+    import sys  # noqa: PLC0415
+
+    level = "WARNING" if s.allow_insecure_defaults else "SECURITY ERROR"
+    for p in problems:
+        print(f"{level}: {p}", file=sys.stderr)
+    if s.allow_insecure_defaults:
+        return
+    print(
+        "Refusing to start in production with insecure settings. Fix the values above, "
+        "set ENVIRONMENT=development for local work, or ALLOW_INSECURE_DEFAULTS=true for "
+        "a throwaway demo.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 
 settings = Settings()

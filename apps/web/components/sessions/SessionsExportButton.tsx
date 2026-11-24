@@ -1,5 +1,6 @@
 'use client'
 
+import { API_URL } from '@/lib/api'
 import { useSession } from 'next-auth/react'
 import { Download } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,7 +18,7 @@ export default function SessionsExportButton({
       toast.error('Missing session API key')
       return
     }
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
+    const base = API_URL
     const url = `${base}/sessions/export${queryString ? `?${queryString}` : ''}`
     try {
       const response = await fetch(url, {

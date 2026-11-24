@@ -10,10 +10,17 @@ This page is the reference for the ones you'll actually touch.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `SECRET_KEY` | — | **Required.** 32-byte hex; signs tokens and the ledger. |
-| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/*` and the internal gateway/MCP endpoints that resolve API keys. |
+| `ENVIRONMENT` | `production` | `production` runs the startup validation below and never seeds a demo account. Set `development` for local work: it seeds `admin@runledger.local` / `runledger` (dev only) and skips the checks. |
+| `ALLOW_INSECURE_DEFAULTS` | `false` | Throwaway demos only: start in production even with the problems below (each is logged as a warning). |
+| `SECRET_KEY` | — | **Required.** 32+ random characters; signs tokens and encrypts the dashboard session cookie (`NEXTAUTH_SECRET` in compose). |
+| `ADMIN_SECRET` | falls back to `SECRET_KEY` | Guards `/admin/*` (including the one-time `/admin/bootstrap`) and the internal gateway/MCP endpoints that resolve API keys. |
 | `DATABASE_URL` | in-compose Postgres | `postgresql+asyncpg://…` |
-| `REDIS_URL` | in-compose Redis | Queue + budget hot-path. |
+| `REDIS_URL` | in-compose Redis | Queue + budget hot-path. Compose builds it from `REDIS_PASSWORD`. |
+| `REDIS_PASSWORD` | — | **Required by compose.** Redis always runs with `--requirepass`; use URL-safe characters (it is embedded in `REDIS_URL`). |
+| `RUNLEDGER_BACKUP_SECRET_ACCESS_KEY` | — | **Required by compose** (bundled MinIO has no default secret). |
+| `SEED_DEV_ADMIN` | `true` | Development only: set `false` to skip the demo admin. |
+| `HEALTH_REQUIRE_BEAT` | `true` | `/health` reports `degraded` (503) when Celery beat stops sending heartbeats. Disable only where beat intentionally doesn't run. |
+| `RUNLEDGER_VERSION` / `RUNLEDGER_BUILD_SHA` | baked into the image | Shown on System status; a mismatch between api, workers and beat is reported as version skew. |
 | `CORS_ORIGINS` | `http://localhost:3201` | Dashboard origin(s). |
 | `INTERNAL_SERVICE_TOKEN` | `ADMIN_SECRET` | Shared token every optimization microservice requires on non-health requests; the API, workers, MCP gateway and context compiler send it. |
 | `RUNLEDGER_INTERNAL_BIND` | `127.0.0.1` | Host address for internal ports (databases, queues, Letta, optimization microservices). Only the API, gateway, web, Caddy, MCP gateway and OTLP ports listen on all interfaces. |
@@ -34,6 +41,51 @@ This page is the reference for the ones you'll actually touch.
 | `EGRESS_PRIVATE_ALLOWLIST` | `runledger-redpanda` | Hosts that webhooks, Slack and Kafka may reach even on private addresses. |
 | `EGRESS_ALLOW_PRIVATE` | `false` | Allow tenant destinations on private/internal addresses (trusted networks only). |
 | `BUDGET_THROTTLE_RPM` | `10` | Requests per minute the gateway still admits for a `throttle` budget past its limit. |
+
+### Production validation
+
+Outside `ENVIRONMENT=development` the API, workers and beat refuse to start when any of these hold
+(the System status page lists the same problems):
+
+- `SECRET_KEY` is a known default or shorter than 32 characters
+- `ADMIN_SECRET` is a known default or shorter than 16 characters
+- `DATABASE_URL` uses the default password `runledger`
+- `REDIS_URL` has no password (use `redis://:<password>@…` or `rediss://`)
+- `CORS_ORIGINS` contains `*`
+- `METRICS_TOKEN` is set but shorter than 16 characters
+- `BACKUP_ENABLED=true` with the default object-store secret
+
+### Rate limits
+
+Sliding 60-second windows in Redis, keyed by API key id (anonymous callers by client IP resolved
+through `TRUSTED_PROXIES`). Responses carry `X-RateLimit-Limit-Requests`,
+`X-RateLimit-Remaining-Requests` and `X-RateLimit-Reset`; over the limit returns 429 with `Retry-After`.
+
+| Variable | Default | Applies to |
+|---|---|---|
+| `INGEST_RATE_LIMIT_PER_MINUTE` | `10000` | `/ingest/*` and OTLP |
+| `ANALYTICS_RATE_LIMIT_PER_MINUTE` | `1200` | analytics reads |
+| `MANAGEMENT_RATE_LIMIT_PER_MINUTE` | `600` | CRUD and settings |
+| `SYSTEM_RATE_LIMIT_PER_MINUTE` | `600` | `/admin/*` (with `ABUSE_PROTECTION_ENABLED`) |
+
+`0` disables a tier.
+
+### Celery workers and beat
+
+Three queues: `ingest` (event processing, `runledger-worker-ingest`), `celery` (enrichment, rollups,
+alerts, outbox) and `maintenance` (backups, retention, ML retraining, replay, batch evaluation).
+Workers run the prefork pool. Every task has a soft and hard time limit; long maintenance jobs have
+their own.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `WORKER_CONCURRENCY` / `INGEST_WORKER_CONCURRENCY` | `4` / `2` | Compose: prefork pool size of each worker. |
+| `CELERY_TASK_SOFT_TIME_LIMIT` / `CELERY_TASK_TIME_LIMIT` | `300` / `360` | Seconds, per task. |
+| `CELERY_VISIBILITY_TIMEOUT` | `7200` | Redis broker redelivery timeout; keep it above the longest task (`BACKUP_TIMEOUT_SECONDS`). |
+| `CELERY_WORKER_MAX_TASKS_PER_CHILD` | `500` | Recycle worker processes. |
+
+Daily and weekly jobs run on wall-clock crontab schedules, so a beat restart doesn't shift them.
+Beat keeps its schedule file on a volume (compose) or an `emptyDir` (Helm).
 
 Payload capture is **off by default** and is controlled by the SDK's `privacy_mode` argument (not a
 server env var) — see [Data retention](/governance/retention).

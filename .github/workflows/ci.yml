@@ -111,6 +111,8 @@ jobs:
           --health-cmd "pg_isready -U runledger" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://runledger:runledger@localhost:5432/runledger
+      # Throwaway CI database with the default password: run in development mode.
+      ENVIRONMENT: development
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -153,8 +155,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
-      - run: helm lint infra/helm/runledger
-      - run: helm template ci infra/helm/runledger > /dev/null
+      # ci/ci-values.yaml supplies placeholder secrets and pinned tags; the chart refuses
+      # to render without SECRET_KEY or with an image tag of "latest".
+      - run: helm lint infra/helm/runledger -f infra/helm/runledger/ci/ci-values.yaml
+      - run: helm template ci infra/helm/runledger -f infra/helm/runledger/ci/ci-values.yaml > /dev/null
+      - name: Chart refuses a mutable image tag
+        run: "! helm template ci infra/helm/runledger -f infra/helm/runledger/ci/ci-values.yaml --set image.tag=latest > /dev/null 2>&1"
 
   docker:
     name: Docker images build
@@ -197,6 +203,10 @@ jobs:
             echo "ADMIN_SECRET=ci-admin-secret-0123456789abcdef"
             echo "SECRET_KEY=ci-secret-key-0123456789abcdef0123456789"
             echo "NEXTAUTH_SECRET=ci-nextauth-secret-0123456789abcdef"
+            echo "REDIS_PASSWORD=ci-redis-password-0123456789"
+            echo "RUNLEDGER_BACKUP_SECRET_ACCESS_KEY=ci-minio-secret-0123456789"
+            # Development mode seeds the demo admin the smoke test signs in with.
+            echo "ENVIRONMENT=development"
           } > .env
       - name: Start the stack
         run: docker compose up -d --build runledger-postgres runledger-redis runledger-api runledger-web

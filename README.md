@@ -269,18 +269,22 @@ flowchart LR
 ```bash
 git clone https://github.com/avs6/runledger-community
 cd runledger-community
-cp .env.example .env
+cp .env.example .env   # fill in SECRET_KEY, ADMIN_SECRET, REDIS_PASSWORD, POSTGRES_PASSWORD and
+                       # RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: python -c "import secrets;print(secrets.token_urlsafe(32))"
 docker compose up -d
 ```
 
-Bootstrap the initial admin:
+Create the first platform admin at `http://localhost:3201/setup` (it asks for `ADMIN_SECRET`), or:
 
 ```bash
 curl -s -X POST http://localhost:8201/admin/bootstrap \
-  -H "X-Admin-Secret: runledger-admin" \
+  -H "X-Admin-Secret: $ADMIN_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
+  -d '{"email":"admin@example.com","password":"<12+ chars with a letter and a digit>","full_name":"Admin","org_name":"My Org"}'
 ```
+
+Bootstrap works once. Production has no default account; `ENVIRONMENT=development` seeds a local
+demo admin instead (see [Docker Compose](docs/deployment/docker-compose.mdx)).
 
 | URL | Purpose |
 |---|---|

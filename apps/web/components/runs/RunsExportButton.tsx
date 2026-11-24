@@ -1,12 +1,13 @@
 'use client'
 
+import { API_URL } from '@/lib/api'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Download, FileText, ChevronDown } from 'lucide-react'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
+const BASE_URL = API_URL // BFF proxy in the browser (review P-06)
 
 export default function RunsExportButton() {
   const { data: session } = useSession()

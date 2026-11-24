@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+
+# Production validation is on by default (review P-14); the suite runs in dev mode.
+os.environ.setdefault("ENVIRONMENT", "development")
+
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime

@@ -61,6 +61,7 @@ _PUBLIC = {
     "/gateway/passthrough/{slug}",  # API key checked in the handler
     "/gateway/passthrough/{slug}/{upstream_path:path}",
     "/auth/login",
+    "/auth/bootstrap-status",  # first-run check for the login/setup pages
     "/auth/verify-email",
     "/auth/resend-verification",
     "/auth/password-reset/request",

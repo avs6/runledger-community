@@ -185,14 +185,25 @@ async def test_metrics_plaintext_export(
 # ── Rate limit tests ───────────────────────────────────────────────────────────
 
 
+def _window(redis: AsyncMock, count: int | None = None, error: Exception | None = None) -> None:
+    """Make the sliding-window pipeline report ``count`` hits in the window."""
+    import time as _time
+
+    pipe = MagicMock()
+    if error is not None:
+        pipe.execute = AsyncMock(side_effect=error)
+    else:
+        pipe.execute = AsyncMock(return_value=[0, 1, count, [("m", _time.time())], True])
+    redis.pipeline = MagicMock(return_value=pipe)
+
+
 @pytest.mark.asyncio
 async def test_ingest_rate_limit_allows_under_limit(
     authed_client: AsyncClient,
     mock_redis_client: AsyncMock,
 ) -> None:
     """Under the 600/min ingest limit → request passes (202)."""
-    mock_redis_client.incr = AsyncMock(return_value=1)
-    mock_redis_client.expire = AsyncMock(return_value=True)
+    _window(mock_redis_client, 1)
 
     with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
         mock_task.delay = MagicMock()
@@ -219,8 +230,7 @@ async def test_ingest_rate_limit_blocks_over_limit(
     from runledger_api.core.config import settings
 
     monkeypatch.setattr(settings, "ingest_rate_limit_per_minute", 600)
-    mock_redis_client.incr = AsyncMock(return_value=601)
-    mock_redis_client.expire = AsyncMock(return_value=True)
+    _window(mock_redis_client, 601)
 
     resp = await authed_client.post(
         "/ingest/v1/events",
@@ -246,8 +256,7 @@ async def test_analytics_rate_limit_blocks(
     from runledger_api.core.config import settings
 
     monkeypatch.setattr(settings, "analytics_rate_limit_per_minute", 120)
-    mock_redis_client.incr = AsyncMock(return_value=121)
-    mock_redis_client.expire = AsyncMock(return_value=True)
+    _window(mock_redis_client, 121)
 
     resp = await authed_client.get(
         "/analytics/summary",
@@ -267,8 +276,7 @@ async def test_management_rate_limit_blocks(
     from runledger_api.core.config import settings
 
     monkeypatch.setattr(settings, "management_rate_limit_per_minute", 60)
-    mock_redis_client.incr = AsyncMock(return_value=61)
-    mock_redis_client.expire = AsyncMock(return_value=True)
+    _window(mock_redis_client, 61)
 
     resp = await authed_client.get(
         "/budgets",
@@ -284,7 +292,7 @@ async def test_rate_limit_fail_open(
     mock_redis_client: AsyncMock,
 ) -> None:
     """Redis error during rate limiting → request passes through (fail open, no 429)."""
-    mock_redis_client.incr = AsyncMock(side_effect=Exception("Redis unavailable"))
+    _window(mock_redis_client, error=Exception("Redis unavailable"))
 
     with patch("runledger_api.routers.ingest.process_events_task") as mock_task:
         mock_task.delay = MagicMock()

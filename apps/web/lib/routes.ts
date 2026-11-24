@@ -84,6 +84,8 @@ export const STATIC_ROUTES = [
   '/security',
   '/sessions',
   '/settings',
+  '/setup',
+  '/system-status',
   '/tags',
   '/team-models',
   '/tool-policies',

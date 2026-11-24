@@ -32,11 +32,17 @@ export default function LoginPage() {
   const [ldapProvider, setLdapProvider] = useState<AuthProvider | null>(null)
   const [ldapUsername, setLdapUsername] = useState('')
   const [ldapPassword, setLdapPassword] = useState('')
+  const [needsBootstrap, setNeedsBootstrap] = useState(false)
 
   useEffect(() => {
     fetch(`${API_URL}/auth/providers`)
       .then((res) => (res.ok ? res.json() : { providers: [] }))
       .then((data) => setSsoProviders(data.providers ?? []))
+      .catch(() => {})
+    // First run (review P-01): no platform admin exists yet, so point at /setup.
+    fetch('/api/setup', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setNeedsBootstrap(Boolean(data?.needs_bootstrap)))
       .catch(() => {})
   }, [])
 
@@ -197,6 +203,16 @@ export default function LoginPage() {
                   <RunLedgerMark size={34} />
                 </div>
               </div>
+
+              {needsBootstrap && (
+                <div role="status" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-200">
+                  This deployment has no administrator yet.{' '}
+                  <Link href="/setup" className="font-semibold underline">
+                    Create the first platform admin
+                  </Link>
+                  .
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1.5">

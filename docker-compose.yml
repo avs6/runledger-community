@@ -52,7 +52,12 @@ services:
     command:
       - sh
       - -c
-      - redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly ${RUNLEDGER_REDIS_APPENDONLY:-no} --appendfsync ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec} --save "${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}" ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
+      - redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly ${RUNLEDGER_REDIS_APPENDONLY:-no} --appendfsync ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec} --save "${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}" --requirepass "$$REDIS_PASSWORD"
+    # Redis always requires a password (review P-05); use URL-safe characters, it is
+    # embedded in REDIS_URL.
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     ports:
       - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
     volumes:
@@ -86,8 +91,9 @@ services:
     # profiles: removed — always starts
     command: server /data --console-address ":9001"
     environment:
+      # No default secret (review P-05): MinIO refuses to start until one is set.
       MINIO_ROOT_USER: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
-      MINIO_ROOT_PASSWORD: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      MINIO_ROOT_PASSWORD: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:?Set RUNLEDGER_BACKUP_SECRET_ACCESS_KEY in .env}
     ports:
       - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:9010:9000"
       - "${RUNLEDGER_INTERNAL_BIND:-127.0.0.1}:9011:9001"
@@ -173,6 +179,9 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        RUNLEDGER_VERSION: ${RUNLEDGER_VERSION:-0.1.0}
+        RUNLEDGER_BUILD_SHA: ${RUNLEDGER_BUILD_SHA:-local}
     container_name: runledger-api
     restart: unless-stopped
     ports:
@@ -183,10 +192,11 @@ services:
       TRUSTED_PROXIES: ${API_TRUSTED_PROXIES:-172.16.0.0/12}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
-      REDIS_URL: redis://runledger-redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      ALLOW_INSECURE_DEFAULTS: ${ALLOW_INSECURE_DEFAULTS:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Allow both hostnames the dashboard is commonly opened at. If you browse the UI
       # from another host (a LAN IP, a machine name), add it here (comma-separated).
@@ -220,7 +230,7 @@ services:
       RUNLEDGER_BACKUP_ENDPOINT_URL: ${RUNLEDGER_BACKUP_ENDPOINT_URL:-http://runledger-minio:9000}
       RUNLEDGER_BACKUP_REGION: ${RUNLEDGER_BACKUP_REGION:-us-east-1}
       RUNLEDGER_BACKUP_ACCESS_KEY_ID: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
-      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-}
       RUNLEDGER_BACKUP_FORCE_PATH_STYLE: ${RUNLEDGER_BACKUP_FORCE_PATH_STYLE:-true}
       OBJECT_LIFECYCLE_ENABLED: ${OBJECT_LIFECYCLE_ENABLED:-false}
       OBJECT_LIFECYCLE_DAYS: ${OBJECT_LIFECYCLE_DAYS:-90}
@@ -230,7 +240,6 @@ services:
       COMPLIANCE_EXPORT_PREFIX: ${COMPLIANCE_EXPORT_PREFIX:-compliance-exports}
       COMPLIANCE_EXPORT_STORAGE_CLASS: ${COMPLIANCE_EXPORT_STORAGE_CLASS:-STANDARD_IA}
       COMPLIANCE_EXPORT_RETENTION_DAYS: ${COMPLIANCE_EXPORT_RETENTION_DAYS:-365}
-      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
       ABUSE_PROTECTION_ENABLED: ${ABUSE_PROTECTION_ENABLED:-true}
       INFRA_POLICY_ENFORCEMENT_MODE: ${INFRA_POLICY_ENFORCEMENT_MODE:-advisory}
       DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-core}
@@ -239,8 +248,8 @@ services:
       REDIS_APPENDFSYNC: ${RUNLEDGER_REDIS_APPENDFSYNC:-everysec}
       RUNLEDGER_REDIS_SAVE: ${RUNLEDGER_REDIS_SAVE:-900 1 300 10 60 10000}
       INGEST_RATE_LIMIT_PER_MINUTE: ${INGEST_RATE_LIMIT_PER_MINUTE:-10000}
-      ANALYTICS_RATE_LIMIT_PER_MINUTE: ${ANALYTICS_RATE_LIMIT_PER_MINUTE:-0}
-      MANAGEMENT_RATE_LIMIT_PER_MINUTE: ${MANAGEMENT_RATE_LIMIT_PER_MINUTE:-0}
+      ANALYTICS_RATE_LIMIT_PER_MINUTE: ${ANALYTICS_RATE_LIMIT_PER_MINUTE:-1200}
+      MANAGEMENT_RATE_LIMIT_PER_MINUTE: ${MANAGEMENT_RATE_LIMIT_PER_MINUTE:-600}
       SYSTEM_RATE_LIMIT_PER_MINUTE: ${SYSTEM_RATE_LIMIT_PER_MINUTE:-600}
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -328,21 +337,27 @@ services:
   # ── Celery Worker (event pipeline, metering, rollups, optimizer jobs) ──────
 
   runledger-worker:
-    image: abijith13/runledger-worker:${RUNLEDGER_TAG:-v1beta1}
+    # Same image as the API (and beat), so api, workers and beat can't drift apart (cd:S-06).
+    image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        RUNLEDGER_VERSION: ${RUNLEDGER_VERSION:-0.1.0}
+        RUNLEDGER_BUILD_SHA: ${RUNLEDGER_BUILD_SHA:-local}
     container_name: runledger-worker
     restart: unless-stopped
-    # Default queue; ingest events are handled by runledger-worker-ingest.
-    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo -Q celery -n default@%h
+    # Default and maintenance queues; ingest events are handled by runledger-worker-ingest.
+    # Prefork with a bounded pool and per-task time limits (review P-12).
+    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=prefork --concurrency=${WORKER_CONCURRENCY:-4} -Q celery,maintenance -n default@%h
     environment:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
-      REDIS_URL: redis://runledger-redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      ALLOW_INSECURE_DEFAULTS: ${ALLOW_INSECURE_DEFAULTS:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
@@ -367,7 +382,7 @@ services:
       RUNLEDGER_BACKUP_ENDPOINT_URL: ${RUNLEDGER_BACKUP_ENDPOINT_URL:-http://runledger-minio:9000}
       RUNLEDGER_BACKUP_REGION: ${RUNLEDGER_BACKUP_REGION:-us-east-1}
       RUNLEDGER_BACKUP_ACCESS_KEY_ID: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
-      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-}
       RUNLEDGER_BACKUP_FORCE_PATH_STYLE: ${RUNLEDGER_BACKUP_FORCE_PATH_STYLE:-true}
       OBJECT_LIFECYCLE_ENABLED: ${OBJECT_LIFECYCLE_ENABLED:-false}
       OBJECT_LIFECYCLE_DAYS: ${OBJECT_LIFECYCLE_DAYS:-90}
@@ -377,7 +392,6 @@ services:
       COMPLIANCE_EXPORT_PREFIX: ${COMPLIANCE_EXPORT_PREFIX:-compliance-exports}
       COMPLIANCE_EXPORT_STORAGE_CLASS: ${COMPLIANCE_EXPORT_STORAGE_CLASS:-STANDARD_IA}
       COMPLIANCE_EXPORT_RETENTION_DAYS: ${COMPLIANCE_EXPORT_RETENTION_DAYS:-365}
-      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
       DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-core}
     volumes:
       - ./config:/app/config:ro
@@ -395,7 +409,7 @@ services:
     extends:
       service: runledger-worker
     container_name: runledger-worker-ingest
-    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=solo -Q ingest -n ingest@%h
+    command: celery -A runledger_api.core.celery_app worker --loglevel=info --pool=prefork --concurrency=${INGEST_WORKER_CONCURRENCY:-2} -Q ingest -n ingest@%h
     depends_on:
       runledger-postgres:
         condition: service_healthy
@@ -405,20 +419,26 @@ services:
   # ── Celery Beat (periodic tasks: rollups, alerts, health checks) ───────────
 
   runledger-beat:
-    image: abijith13/runledger-beat:${RUNLEDGER_TAG:-v1beta1}
+    # Same image as the API and workers (cd:S-06: beat once ran a 4-week-older build).
+    image: abijith13/runledger-api:${RUNLEDGER_TAG:-v1beta1}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        RUNLEDGER_VERSION: ${RUNLEDGER_VERSION:-0.1.0}
+        RUNLEDGER_BUILD_SHA: ${RUNLEDGER_BUILD_SHA:-local}
     container_name: runledger-beat
     restart: unless-stopped
-    command: celery -A runledger_api.core.celery_app beat --loglevel=info
+    # Schedule state on a named volume so restarts keep last-run times (review P-20).
+    command: celery -A runledger_api.core.celery_app beat --loglevel=info -s /var/lib/celery/celerybeat-schedule
     environment:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       DATABASE_URL: postgresql+asyncpg://runledger:${POSTGRES_PASSWORD:-runledger}@runledger-postgres:5432/runledger
-      REDIS_URL: redis://runledger-redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      ALLOW_INSECURE_DEFAULTS: ${ALLOW_INSECURE_DEFAULTS:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RUNLEDGER_MODE: ${RUNLEDGER_MODE:-oss}
       RUNLEDGER_LICENSE_KEY: ${RUNLEDGER_LICENSE_KEY:-}
@@ -430,7 +450,7 @@ services:
       RUNLEDGER_BACKUP_ENDPOINT_URL: ${RUNLEDGER_BACKUP_ENDPOINT_URL:-http://runledger-minio:9000}
       RUNLEDGER_BACKUP_REGION: ${RUNLEDGER_BACKUP_REGION:-us-east-1}
       RUNLEDGER_BACKUP_ACCESS_KEY_ID: ${RUNLEDGER_BACKUP_ACCESS_KEY_ID:-runledger}
-      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-runledgerminio}
+      RUNLEDGER_BACKUP_SECRET_ACCESS_KEY: ${RUNLEDGER_BACKUP_SECRET_ACCESS_KEY:-}
       RUNLEDGER_BACKUP_FORCE_PATH_STYLE: ${RUNLEDGER_BACKUP_FORCE_PATH_STYLE:-true}
       OBJECT_LIFECYCLE_ENABLED: ${OBJECT_LIFECYCLE_ENABLED:-false}
       OBJECT_LIFECYCLE_DAYS: ${OBJECT_LIFECYCLE_DAYS:-90}
@@ -440,10 +460,10 @@ services:
       COMPLIANCE_EXPORT_PREFIX: ${COMPLIANCE_EXPORT_PREFIX:-compliance-exports}
       COMPLIANCE_EXPORT_STORAGE_CLASS: ${COMPLIANCE_EXPORT_STORAGE_CLASS:-STANDARD_IA}
       COMPLIANCE_EXPORT_RETENTION_DAYS: ${COMPLIANCE_EXPORT_RETENTION_DAYS:-365}
-      FEATURE_FLAGS: ${FEATURE_FLAGS:-}
       DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-core}
     volumes:
       - ./config:/app/config:ro
+      - beat_data:/var/lib/celery
     depends_on:
       runledger-postgres:
         condition: service_healthy
@@ -813,6 +833,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  beat_data:
   qdrant_data:
   embedding_cache:
   minio_data:

@@ -49,13 +49,17 @@ Kafka broker for [Kafka export](/integrations/kafka-export).
 
 ## 3. Bootstrap the platform admin
 
+Open `http://localhost:3201/setup` and enter your `ADMIN_SECRET`, or call the API. It works once:
+after a platform admin exists, bootstrap returns 409. The password needs 12+ characters with a
+letter and a digit.
+
 ```bash
 curl -s -X POST http://localhost:8201/admin/bootstrap \
-  -H "X-Admin-Secret: runledger-admin" \
+  -H "X-Admin-Secret: $ADMIN_SECRET" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@example.com",
-    "password": "Admin123!",
+    "password": "Choose-a-l0ng-password",
     "full_name": "Platform Admin",
     "org_name": "My Org"
   }'
@@ -95,7 +99,7 @@ Click the button to open a pre-configured Codespace with the full stack running:
 The setup script automatically starts all services, runs migrations, and bootstraps the admin user.
 
 - Dashboard: **http://localhost:3201**
-- Login: `admin@example.com` / `Admin123!`
+- Login: `admin@example.com` / `Codespace-admin-1` (change it after signing in)
 
   </Tab>
   <Tab title="Railway (cloud)">

@@ -1,5 +1,14 @@
 import type { AuthOptions } from 'next-auth'
+import type { JWT } from 'next-auth/jwt'
 import CredentialsProvider from 'next-auth/providers/credentials'
+import { BFF_SESSION_KEY } from '@/lib/api/client'
+// Registers the server-side session-key resolver used by apiFetch in server components.
+import '@/lib/server-session'
+
+// BFF (review P-06): the workspace session key is stored only in the encrypted,
+// httpOnly NextAuth JWT cookie. The session object (what /api/auth/session returns and
+// what server pages hand to client components) carries BFF_SESSION_KEY instead, browser
+// calls go through /api/rl/*, and server code resolves the real key from the cookie.
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
 
@@ -49,6 +58,41 @@ async function fetchSessionInfo(apiKey: string): Promise<Record<string, unknown>
     return (await res.json()) as Record<string, unknown>
   } catch {
     return null
+  }
+}
+
+function applySessionInfo(token: JWT, info: Record<string, unknown>) {
+  token.workspaceId = info.workspace_id as string
+  token.workspaceName = info.workspace_name as string
+  token.tenantId = info.tenant_id as string
+  token.tenantName = (info.tenant_name as string) ?? ''
+  token.userId = info.user_id as string
+  token.fullName = (info.full_name as string | null) ?? null
+  token.isPlatformAdmin = (info.is_platform_admin as boolean) ?? false
+  token.tenantRole = (info.tenant_role as string | null) ?? null
+  token.workspaceRole = (info.workspace_role as string | null) ?? null
+  token.workspaceIds = (info.workspace_ids as string[]) ?? []
+  token.mustChangePassword = (info.must_change_password as boolean) ?? false
+}
+
+/** POST /auth/switch-workspace with the current key; the API revokes the old key. */
+async function switchWorkspace(apiKey: string, workspaceId: string): Promise<{ apiKey: string } | { error: string }> {
+  try {
+    const res = await fetch(`${API_URL}/auth/switch-workspace`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId }),
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      if (res.status === 401) return { error: 'session_expired' }
+      return { error: typeof body?.detail === 'string' ? body.detail : 'Could not switch workspace' }
+    }
+    const data = (await res.json()) as { api_key?: string }
+    return data.api_key ? { apiKey: data.api_key } : { error: 'Could not switch workspace' }
+  } catch {
+    return { error: 'Could not switch workspace' }
   }
 }
 
@@ -194,34 +238,30 @@ export const authOptions: AuthOptions = {
         token.workspaceIds = u.workspaceIds as string[]
         token.mustChangePassword = (u.mustChangePassword as boolean) ?? false
       }
-      // session update(): used after switching workspace ({ apiKey }) or after a
-      // password change ({ refresh: true }). Only the API key is taken from the
-      // client; everything else is re-read from GET /auth/me with that key.
+      // session update(), driven by the client:
+      //   { switchWorkspaceId } → switch workspace here, server-side, with the current key;
+      //                           the new key never leaves the server.
+      //   { refresh: true }     → re-read roles after a password change or invite accept.
+      // Roles and workspace are always re-read from GET /auth/me, never taken from the client.
       if (trigger === 'update' && session) {
         const s = session as Record<string, unknown>
-        const candidateKey = (s.apiKey as string | undefined) ?? (token.apiKey as string | undefined)
-        if (candidateKey && (s.apiKey || s.refresh)) {
-          const info = await fetchSessionInfo(candidateKey)
-          if (info) {
-            token.apiKey = candidateKey
-            token.workspaceId = info.workspace_id as string
-            token.workspaceName = info.workspace_name as string
-            token.tenantId = info.tenant_id as string
-            token.tenantName = (info.tenant_name as string) ?? ''
-            token.userId = info.user_id as string
-            token.fullName = (info.full_name as string | null) ?? null
-            token.isPlatformAdmin = (info.is_platform_admin as boolean) ?? false
-            token.tenantRole = (info.tenant_role as string | null) ?? null
-            token.workspaceRole = (info.workspace_role as string | null) ?? null
-            token.workspaceIds = (info.workspace_ids as string[]) ?? []
-            token.mustChangePassword = (info.must_change_password as boolean) ?? false
-          }
+        token.switchError = null
+        if (typeof s.switchWorkspaceId === 'string' && token.apiKey) {
+          const switched = await switchWorkspace(token.apiKey, s.switchWorkspaceId)
+          if ('apiKey' in switched) token.apiKey = switched.apiKey
+          else token.switchError = switched.error
+        }
+        if (token.apiKey && (s.switchWorkspaceId || s.refresh)) {
+          const info = await fetchSessionInfo(token.apiKey)
+          if (info) applySessionInfo(token, info)
         }
       }
       return token
     },
     async session({ session, token }) {
-      session.apiKey = token.apiKey as string
+      // Never the real key: the browser only ever sees the placeholder.
+      session.apiKey = token.apiKey ? BFF_SESSION_KEY : ''
+      session.switchError = (token.switchError as string | null | undefined) ?? null
       session.workspaceId = token.workspaceId as string
       session.workspaceName = token.workspaceName as string
       session.tenantId = token.tenantId as string
@@ -236,6 +276,23 @@ export const authOptions: AuthOptions = {
       return session
     },
   },
+  events: {
+    // Server logout revokes the session key, even if the browser never calls the API
+    // itself (review P-06). Best effort: sign-out completes locally either way.
+    async signOut({ token }) {
+      const key = (token as JWT | null)?.apiKey
+      if (!key) return
+      try {
+        await fetch(`${API_URL}/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}` },
+          cache: 'no-store',
+        })
+      } catch {
+        /* the daily purge job removes it after expiry */
+      }
+    },
+  },
   pages: {
     signIn: '/login',
   },
@@ -248,7 +305,10 @@ export const authOptions: AuthOptions = {
 
 declare module 'next-auth' {
   interface Session {
+    /** Always BFF_SESSION_KEY (or '' when signed out) — never the real session key. */
     apiKey: string
+    /** Set when the last workspace switch failed ('session_expired' or a message). */
+    switchError: string | null
     workspaceId: string
     workspaceName: string
     tenantId: string
@@ -266,6 +326,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     apiKey?: string
+    switchError?: string | null
     workspaceId?: string
     workspaceName?: string
     tenantId?: string

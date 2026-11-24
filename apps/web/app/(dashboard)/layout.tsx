@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
+import { getSessionApiKey } from '@/lib/server-session'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
 import SessionProvider from '@/components/layout/SessionProvider'
@@ -39,7 +40,9 @@ export default async function DashboardLayout({
 
   // If the stored API key is stale (DB was wiped / key was revoked),
   // clear the session cookie by signing out and send to login.
-  const valid = await isApiKeyValid(session.apiKey)
+  // session.apiKey is only the BFF placeholder; the real key comes from the cookie.
+  const apiKey = await getSessionApiKey()
+  const valid = apiKey ? await isApiKeyValid(apiKey) : false
   if (!valid) redirect('/api/auth/signout?callbackUrl=/login')
 
   return (

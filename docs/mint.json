@@ -59,6 +59,7 @@
         "administration/api-keys",
         "administration/mcp-registry",
         "administration/ai-hub",
+        "administration/system-status",
         "governance/rbac"
       ]
     },

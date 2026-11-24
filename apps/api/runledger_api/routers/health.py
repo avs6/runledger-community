@@ -1,18 +1,28 @@
 from datetime import UTC, datetime
 from email.utils import format_datetime
-from typing import Any, Literal
+from typing import Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy import func, select, text
+from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.config import settings
 from runledger_api.core.db import get_db
+from runledger_api.core.deps import require_platform_admin
 from runledger_api.core.redis import get_redis
 from runledger_api.models.events import AgentRun, ProviderCall
 from runledger_api.models.gateway import GatewayRequest
 from runledger_api.services.ops import get_queue_depths
+from runledger_api.services.system_status import (
+    STARTED_AT,
+    check_db,
+    check_redis,
+    health_snapshot,
+    migration_state,
+    system_status,
+)
 
 try:
     from redis.asyncio import Redis
@@ -22,7 +32,7 @@ except ImportError:
 log = structlog.get_logger()
 
 router = APIRouter(tags=["system"])
-_STARTED_AT = datetime.now(UTC)
+_STARTED_AT = STARTED_AT
 
 
 def _require_metrics_token(authorization: str | None) -> None:
@@ -49,28 +59,15 @@ def _require_metrics_token(authorization: str | None) -> None:
 async def health_check(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
-) -> dict[str, Literal["ok", "error", "degraded"]]:
-    result: dict[str, Literal["ok", "error", "degraded"]] = {
-        "status": "ok",
-        "db": "ok",
-        "redis": "ok",
-    }
-
-    try:
-        await db.execute(text("SELECT 1"))
-    except Exception as exc:
-        log.warning("db_health_check_failed", error=str(exc))
-        result["db"] = "error"
-        result["status"] = "degraded"
-
-    try:
-        await redis.ping()
-    except Exception as exc:
-        log.warning("redis_health_check_failed", error=str(exc))
-        result["redis"] = "error"
-        result["status"] = "degraded"
-
-    return result
+) -> JSONResponse:
+    """Overall health. 503 when degraded (review P-19): the database or Redis is down,
+    the database is behind this build's migrations, or Celery beat stopped sending
+    heartbeats. Load balancers and uptime checks can rely on the status code."""
+    healthy, body = await health_snapshot(db, redis)
+    return JSONResponse(
+        body,
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
 
 
 @router.get("/health/live")
@@ -84,33 +81,33 @@ async def readiness(
     db: AsyncSession = Depends(get_db),
     redis: Redis = Depends(get_redis),
 ) -> dict[str, Any]:
-    """Returns 200 if both DB and Redis are reachable, else HTTP 503."""
-    db_ok = True
-    redis_ok = True
+    """Ready to take traffic: DB and Redis reachable and the schema not behind this
+    build (a pod started before its migration job finished stays out of rotation).
+    Beat is not required for readiness, so a beat outage never drains the API."""
+    db_state = await check_db(db)
+    redis_state = await check_redis(redis)
+    migrations = await migration_state(db) if db_state == "ok" else {"status": "unknown"}
+    body = {
+        "status": "ok",
+        "db": db_state,
+        "redis": redis_state,
+        "migrations": migrations["status"],
+    }
+    if db_state != "ok" or redis_state != "ok" or migrations["status"] == "behind":
+        body["status"] = "degraded"
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=body)
+    return body
 
-    try:
-        await db.execute(text("SELECT 1"))
-    except Exception as exc:
-        log.warning("readiness_db_failed", error=str(exc))
-        db_ok = False
 
-    try:
-        await redis.ping()
-    except Exception as exc:
-        log.warning("readiness_redis_failed", error=str(exc))
-        redis_ok = False
-
-    if not db_ok or not redis_ok:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "status": "degraded",
-                "db": "ok" if db_ok else "error",
-                "redis": "ok" if redis_ok else "error",
-            },
-        )
-
-    return {"status": "ok", "db": "ok", "redis": "ok"}
+@router.get("/system/status")
+async def get_system_status(
+    _auth: Annotated[tuple[Any, ...], Depends(require_platform_admin)],
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+) -> dict[str, Any]:
+    """Platform admins: workers, queues, beat, migrations, backups and the build each
+    component runs (version skew), plus production configuration warnings."""
+    return await system_status(db, redis)
 
 
 @router.get("/metrics", include_in_schema=False)
@@ -122,7 +119,7 @@ async def metrics(
     """
     Prometheus-style plaintext metrics for infrastructure scraping.
 
-    Protected by a bearer token via METRICS_TOKEN (or ADMIN_SECRET fallback).
+    Protected by a bearer token via METRICS_TOKEN (no admin-secret fallback).
     """
     _require_metrics_token(authorization)
 

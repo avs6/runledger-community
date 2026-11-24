@@ -7,7 +7,9 @@ Two modes, one chart:
 - **Self-hosted / dev** — leave the stores in-cluster; a single `helm install` brings up everything (including optional in-cluster Postgres + Redis), no external dependencies.
 - **Production / HA** — set each store `external: true` with a managed URL; the stateless services still autoscale in-cluster. See [ha.md](./ha.md) for the scaling model.
 
-The optimization microservice images are published to `docker.io/abijith13/runledger-<svc>` by the `Build & Push Images` workflow; override `optimization.imageRegistry` / `optimization.imageTag` to use your own registry.
+Every image (api, web, gateway-rs and the optimization microservices) is built and pushed to `docker.io/abijith13/runledger-<name>` by the `Build & Push Images` workflow with immutable tags: `sha-<git sha>` on every build and `<version>` for a `v*` tag. Nothing is tagged `latest`; the chart uses its `appVersion` unless you pin `image.tag`, and refuses `latest`. Override `optimization.imageRegistry` / `optimization.imageTag` to use your own registry.
+
+Celery beat keeps its schedule file on an `emptyDir` (`--schedule=/var/lib/celery/celerybeat-schedule`); daily jobs use crontab schedules, so a rescheduled beat pod doesn't shift them. The chart fails to render without `secrets.secretKey` (or `secrets.existingSecret`). `ci/ci-values.yaml` shows the minimum values.
 
 ## Prerequisites
 
@@ -191,8 +193,11 @@ Import the dashboard JSON from `docs/grafana-dashboard.json` (see [ha.md](./ha.m
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `image.repository` | `ghcr.io/avs6/runledger-api` | API + worker image |
-| `image.tag` | `latest` | Image tag |
+| `environment` | `production` | `ENVIRONMENT` for api/worker/beat: production runs the startup validation (refuses default secrets, passwordless Redis, `*` CORS) and seeds no demo account |
+| `image.repository` | `docker.io/abijith13/runledger-api` | API, worker and beat image (one image, so they can't skew) |
+| `image.tag` | `""` (chart `appVersion`) | Immutable tag from CI: a release version or `sha-<git sha>`. `latest` is refused at render time |
+| `webImage.repository` / `webImage.tag` | `docker.io/abijith13/runledger-web` / `""` | Dashboard image, same tag rules |
+| `worker.concurrency` / `worker.queues` | `4` / `celery,maintenance,ingest` | Prefork pool size and the Celery queues the worker Deployment consumes |
 | `api.replicaCount` | `2` | API pod count |
 | `worker.replicaCount` | `2` | Worker pod count |
 | `beat.replicaCount` | `1` | Beat pod count — **always 1** |
@@ -210,3 +215,4 @@ Import the dashboard JSON from `docs/grafana-dashboard.json` (see [ha.md](./ha.m
 | `optimizationServices.<svc>.autoscaling.enabled` | `true` | HPA for a stateless optimization service |
 | `stores.<store>.external` | `false` | Use a managed URL instead of an in-cluster StatefulSet |
 | `postgres.inCluster` / `redis.inCluster` | `false` | Run control-plane Postgres / Redis in-cluster (self-host) |
+| `redis.password` | `""` | Required when `redis.inCluster=true`; Redis runs with `--requirepass` |

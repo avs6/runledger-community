@@ -26,7 +26,6 @@ import type {
   BackupRun,
   BackupSnapshot,
   BackupTargetConfig,
-  OpsFeatureFlagsResponse,
   OpsFeatureStatus,
   OpsPolicyEvaluation,
   OpsQueueStatusItem,
@@ -43,7 +42,6 @@ import {
   testBackupConnection,
   updateBackupConfig,
   getBackupStatus,
-  getOpsFeatureFlags,
   getOpsPolicyEvaluation,
   getOpsQueueStatus,
   getOpsStorageStatus,
@@ -129,7 +127,6 @@ export default function SettingsPage() {
   const [opsQueues, setOpsQueues] = useState<OpsQueueStatusItem[]>([])
   const [opsQueueSummary, setOpsQueueSummary] = useState<{ total_depth: number; busy_queues: number } | null>(null)
   const [opsStorage, setOpsStorage] = useState<OpsStorageStatus | null>(null)
-  const [opsFeatureFlags, setOpsFeatureFlags] = useState<OpsFeatureFlagsResponse | null>(null)
   const [opsPolicy, setOpsPolicy] = useState<OpsPolicyEvaluation | null>(null)
   const [platformWebhookDefaults, setPlatformWebhookDefaults] = useState<PlatformWebhookDefaults | null>(null)
   const [platformWebhookTestResult, setPlatformWebhookTestResult] = useState<PlatformWebhookDefaultsTestResult | null>(null)
@@ -200,7 +197,7 @@ export default function SettingsPage() {
     setBackupAttempted(true)
     setLoadingBackup(true)
     try {
-      const [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, featureFlags, policyEval] = await Promise.allSettled([
+      const [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, policyEval] = await Promise.allSettled([
         getOpsFeatureStatus(apiKey),
         getBackupHistory(apiKey, 20),
         getBackupConfig(apiKey),
@@ -208,7 +205,6 @@ export default function SettingsPage() {
         getBackupStatus(apiKey),
         getOpsQueueStatus(apiKey),
         getOpsStorageStatus(apiKey),
-        getOpsFeatureFlags(apiKey),
         getOpsPolicyEvaluation(apiKey),
       ])
       if (status.status === 'fulfilled') setOpsStatus(status.value)
@@ -221,9 +217,8 @@ export default function SettingsPage() {
         setOpsQueueSummary({ total_depth: queueStatus.value.total_depth, busy_queues: queueStatus.value.busy_queues })
       }
       if (storageStatus.status === 'fulfilled') setOpsStorage(storageStatus.value)
-      if (featureFlags.status === 'fulfilled') setOpsFeatureFlags(featureFlags.value)
       if (policyEval.status === 'fulfilled') setOpsPolicy(policyEval.value)
-      const loadedAny = [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, featureFlags, policyEval].some(
+      const loadedAny = [status, history, config, snapshotList, backupHealth, queueStatus, storageStatus, policyEval].some(
         (result) => result.status === 'fulfilled'
       )
       if (!loadedAny) throw new Error('Failed to load backup and operations data')
@@ -956,25 +951,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {opsFeatureFlags && (
-                    <div className="mt-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Feature flags</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {opsFeatureFlags.items.map((flag) => (
-                          <span
-                            key={flag.name}
-                            className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
-                              flag.enabled
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-                            }`}
-                          >
-                            {flag.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-950/40">

@@ -32,7 +32,7 @@ spec:
         - name: web
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          image: "{{ .Values.webImage.repository }}:{{ .Values.webImage.tag }}"
+          image: "{{ .Values.webImage.repository }}:{{ include "runledger.imageTag" (list . .Values.webImage.tag) }}"
           imagePullPolicy: {{ .Values.webImage.pullPolicy }}
           ports:
             - name: http

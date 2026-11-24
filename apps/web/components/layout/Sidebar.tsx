@@ -308,6 +308,7 @@ export default function Sidebar() {
           <Section id="platform" label="Platform">
             {isPlatformAdmin && <NavLink href="/global-dashboard" label="Global Dashboard" icon={Landmark} />}
             {isPlatformAdmin && <NavLink href="/organizations" label="All Organizations" icon={Landmark} />}
+            {isPlatformAdmin && <NavLink href="/system-status" label="System Status" icon={Activity} />}
             {canAccessSettings && <NavLink href="/settings" label="Settings" icon={Settings} />}
             <NavLink href="/api-docs" label="API Explorer" icon={Code2} />
             <NavLink href="/help" label="Help Hub" icon={HelpCircle} />

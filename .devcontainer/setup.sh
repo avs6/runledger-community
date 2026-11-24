@@ -13,13 +13,13 @@ uv run alembic upgrade head
 
 echo "==> Bootstrapping platform admin..."
 curl -s -X POST http://localhost:8201/admin/bootstrap \
-  -H "X-Admin-Secret: runledger-admin" \
+  -H "X-Admin-Secret: ${ADMIN_SECRET:?set ADMIN_SECRET}" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"Demo"}' \
+  -d '{"email":"admin@example.com","password":"Codespace-admin-1","full_name":"Admin","org_name":"Demo"}' \
   || echo "(bootstrap already done or API not ready yet — run manually)"
 
 echo ""
 echo "==> RunLedger is ready!"
 echo "    Dashboard: http://localhost:3201"
 echo "    API docs:  http://localhost:8201/docs"
-echo "    Login:     admin@example.com / Admin123!"
+echo "    Login:     admin@example.com / Codespace-admin-1 (change it after signing in)"

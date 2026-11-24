@@ -35,7 +35,7 @@ spec:
         - name: worker
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ include "runledger.imageTag" (list . .Values.image.tag) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - celery
@@ -43,9 +43,10 @@ spec:
             - runledger_api.core.celery_app
             - worker
             - --loglevel=info
-            - --concurrency=4
+            - --pool=prefork
+            - --concurrency={{ .Values.worker.concurrency | default 4 }}
             - -Q
-            - celery,priority,low,ingest
+            - {{ .Values.worker.queues | default "celery,maintenance,ingest" | quote }}
           env:
             {{- include "runledger.commonEnv" . | nindent 12 }}
           resources:

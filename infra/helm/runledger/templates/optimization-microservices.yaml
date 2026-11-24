@@ -45,7 +45,7 @@ spec:
         {{- toYaml $root.Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ $name }}
-          image: "{{ $root.Values.optimization.imageRegistry }}/{{ $svc.image }}:{{ $root.Values.optimization.imageTag }}"
+          image: "{{ $root.Values.optimization.imageRegistry }}/{{ $svc.image }}:{{ include "runledger.imageTag" (list $root $root.Values.optimization.imageTag) }}"
           imagePullPolicy: {{ $root.Values.optimization.pullPolicy }}
           ports:
             - name: http

@@ -13,8 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   getAnalyticsSummary, getSpendOverTime, getSpendByModel,
-  getSpendByFeature, getRuns,
-} from '@/lib/api'
+  getSpendByFeature, getRuns, API_URL } from '@/lib/api'
 import type {
   AnalyticsSummary, SpendOverTime, SpendByModel,
   SpendByFeature, RunListItem,
@@ -1221,7 +1220,7 @@ export default function AnalyticsBreakdownClient({ embedded, initialPreset = '24
     if (!apiKey) return
     const win = presetWindow(preset)
     const qs = new URLSearchParams({ format, from: win.from, to: win.to })
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'
+    const base = API_URL
     const url = `${base}/analytics/export?${qs}`
     try {
       const r = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } })

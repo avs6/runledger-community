@@ -1,0 +1,14 @@
+# Values CI renders the chart with (helm lint / helm template). Placeholders only.
+environment: production
+image:
+  tag: "0.1.0"
+webImage:
+  tag: "0.1.0"
+externalDatabase:
+  url: postgresql+asyncpg://runledger:ci-placeholder-password@postgres:5432/runledger
+externalRedis:
+  url: redis://:ci-placeholder-password@redis:6379/0
+secrets:
+  secretKey: ci-placeholder-secret-key-0123456789abcdef
+  adminSecret: ci-placeholder-admin-secret
+  nextauthSecret: ci-placeholder-nextauth-secret-0123456789

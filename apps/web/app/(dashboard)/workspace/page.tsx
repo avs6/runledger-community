@@ -1,5 +1,6 @@
 'use client'
 
+import { API_URL } from '@/lib/api'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
@@ -9,7 +10,7 @@ import {
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
+const apiBase = API_URL // BFF proxy in the browser (review P-06)
 
 interface Workspace {
   id: string

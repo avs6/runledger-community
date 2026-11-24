@@ -42,17 +42,16 @@ def _make_engine_and_factory() -> tuple[Any, async_sessionmaker[AsyncSession]]:
 
 
 def _default_backup_command() -> str:
-    script = REPO_ROOT / "scripts" / "localai" / "localai_s3_backup.py"
-    if script.exists():
-        return subprocess.list2cmdline([sys.executable, str(script), "backup"])
-    return ""
+    # Network pg_dump from inside the API/worker image (review P-21).
+    return subprocess.list2cmdline(
+        [sys.executable, "-m", "runledger_api.services.pg_backup", "backup"]
+    )
 
 
 def _default_backup_helper_command(action: str) -> str:
-    script = REPO_ROOT / "scripts" / "localai" / "localai_s3_backup.py"
-    if script.exists():
-        return subprocess.list2cmdline([sys.executable, str(script), action])
-    return ""
+    return subprocess.list2cmdline(
+        [sys.executable, "-m", "runledger_api.services.pg_backup", action]
+    )
 
 
 def resolve_backup_command() -> str:
@@ -65,7 +64,7 @@ def resolve_backup_target(config: BackupTargetConfig | None = None) -> str | Non
     if settings.backup_target.strip():
         return settings.backup_target.strip()
     if _default_backup_command():
-        return "localai-s3://runledger-backups"
+        return f"s3://{settings.runledger_localai_s3_bucket}"
     return None
 
 
