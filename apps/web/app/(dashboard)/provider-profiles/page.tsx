@@ -1,5 +1,6 @@
 'use client'
 
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import Link from 'next/link'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
@@ -23,6 +24,7 @@ interface EditState {
 }
 
 export default function ProviderProfilesPage() {
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
   const { isOrgAdmin, isPlatformAdmin } = useRole()
@@ -177,7 +179,7 @@ export default function ProviderProfilesPage() {
 
   async function handleReprice(provider: string, model: string) {
     if (!apiKey) return
-    if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich?`)) return
+    if (!(await confirm({ title: `Re-price ${provider}/${model}?`, description: 'Stored costs for these calls are cleared and recomputed with current prices.', confirmLabel: 'Re-price' }))) return
     try {
       const result = await repriceProvider(apiKey, { provider, model })
       toast.success(`Reprice queued — ${result.reset} calls reset`)
@@ -187,7 +189,7 @@ export default function ProviderProfilesPage() {
   }
 
   async function handleDeletePricing(pricingId: string) {
-    if (!confirm('Delete this pricing profile?')) return
+    if (!(await confirm({ title: 'Retire this price?', description: 'Calls already priced keep their cost; budgets that use it block the delete.', destructive: true, confirmLabel: 'Retire' }))) return
     try {
       await deleteProviderPricing(apiKey!, pricingId)
       setPricing((prev) => prev.filter((p) => p.id !== pricingId))
@@ -223,6 +225,7 @@ export default function ProviderProfilesPage() {
 
   return (
     <div className="space-y-3">
+      {confirmDialog}
       {/* ── Header ───────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

@@ -1,5 +1,6 @@
 'use client'
 
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { listApiKeys, listModelBudgets, createModelBudget, updateModelBudget, deleteModelBudget } from '@/lib/api'
@@ -7,6 +8,7 @@ import type { ApiKeyResponse, ModelBudget } from '@/types/api'
 import { inputCls } from './shared'
 
 export function ModelQuotaPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const emptyForm = {
     model_pattern: '',
     max_spend_usd: '',
@@ -109,7 +111,7 @@ export function ModelQuotaPanel({ apiKey, canManage }: { apiKey: string; canMana
   }
 
   async function handleDelete(budgetId: string) {
-    if (!selectedKeyId || !confirm('Delete this model quota?')) return
+    if (!selectedKeyId || !(await confirm({ title: 'Delete this model quota?', destructive: true, confirmLabel: 'Delete' }))) return
     try {
       await deleteModelBudget(apiKey, selectedKeyId, budgetId)
       setItems((prev) => prev.filter((item) => item.id !== budgetId))
@@ -123,6 +125,7 @@ export function ModelQuotaPanel({ apiKey, canManage }: { apiKey: string; canMana
 
   return (
     <section id="gateway-model-quotas" className="space-y-4">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold dark:text-white">Per-Model Quotas

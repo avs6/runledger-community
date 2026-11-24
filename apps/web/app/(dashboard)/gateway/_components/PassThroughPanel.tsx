@@ -1,5 +1,6 @@
 'use client'
 
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useEffect, useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { listGatewayPassThroughEndpoints, createGatewayPassThroughEndpoint, updateGatewayPassThroughEndpoint, deleteGatewayPassThroughEndpoint, testGatewayPassThroughEndpoint, listGatewayPassThroughStats } from '@/lib/api'
@@ -7,6 +8,7 @@ import type { GatewayPassThroughEndpoint, GatewayPassThroughEndpointStats, Gatew
 import { inputCls, PassThroughEditState } from './shared'
 
 export function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canManage: boolean }) {
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [items, setItems] = useState<GatewayPassThroughEndpoint[]>([])
   const [stats, setStats] = useState<Record<string, GatewayPassThroughEndpointStats>>({})
   const [testingId, setTestingId] = useState<string | null>(null)
@@ -100,7 +102,7 @@ export function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canMan
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this pass-through endpoint?')) return
+    if (!(await confirm({ title: 'Delete this pass-through endpoint?', description: 'Requests to its path stop being proxied.', destructive: true, confirmLabel: 'Delete' }))) return
     try {
       await deleteGatewayPassThroughEndpoint(apiKey, id)
       setItems((prev) => prev.filter((item) => item.id !== id))
@@ -183,6 +185,7 @@ export function PassThroughPanel({ apiKey, canManage }: { apiKey: string; canMan
 
   return (
     <section className="space-y-4">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold dark:text-white">Pass-Through Endpoints</h2>
