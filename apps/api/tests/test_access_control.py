@@ -136,8 +136,8 @@ def test_no_duplicated_analytics_prefix() -> None:
 def test_governance_config_writes_need_workspace_admin() -> None:
     admin_only = {
         ("POST", "/guardrails"),
-        ("PUT", "/gateway/flywheel/settings"),
-        ("POST", "/gateway/flywheel/recommendations/{rec_id}/apply"),
+        ("POST", "/gateway/flywheel/run"),
+        ("POST", "/gateway/flywheel/recommendations/{rec_id}/dismiss"),
         ("POST", "/prompts/github-config"),
         ("PUT", "/prompts/github-config"),
         ("POST", "/intelligence/alerts/{rule_id}/enable-adaptive"),
@@ -149,6 +149,22 @@ def test_governance_config_writes_need_workspace_admin() -> None:
                 assert "require_workspace_admin" in names, (method, r.path)
                 found.add((method, r.path))
     assert found == admin_only
+
+
+def test_flywheel_route_rewrites_need_org_admin() -> None:
+    """Apply, rollback and settings rewrite routes: org admin only (review G-03)."""
+    org_only = {
+        ("PUT", "/gateway/flywheel/settings"),
+        ("POST", "/gateway/flywheel/recommendations/{rec_id}/apply"),
+        ("POST", "/gateway/flywheel/recommendations/{rec_id}/rollback"),
+    }
+    found = set()
+    for r, names in _routes():
+        for method in r.methods:
+            if (method, r.path) in org_only:
+                assert "require_org_admin" in names, (method, r.path)
+                found.add((method, r.path))
+    assert found == org_only
 
 
 # ── require_workspace_writer ──────────────────────────────────────────────────

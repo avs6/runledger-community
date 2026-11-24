@@ -107,7 +107,17 @@ export async function createGatewayRoute(
 export async function updateGatewayRoute(
   apiKey: string,
   routeId: string,
-  body: {
+  body: GatewayRouteUpdateBody
+): Promise<GatewayRoute> {
+  return apiFetch<GatewayRoute>(`/gateway/routes/${routeId}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+/** Body of PUT /gateway/routes/{id}. With merge_configs the dict configs merge (G-16). */
+export type GatewayRouteUpdateBody = {
+    merge_configs?: boolean
     alias?: string
     routing_group_id?: string | null
     target_model?: string
@@ -134,12 +144,83 @@ export async function updateGatewayRoute(
     region?: string | null
     mirror_config?: Record<string, unknown> | null
     health_auto_disable?: boolean
-  }
-): Promise<GatewayRoute> {
-  return apiFetch<GatewayRoute>(`/gateway/routes/${routeId}`, apiKey, {
-    method: 'PUT',
+}
+
+export interface GatewayRouteFieldChange {
+  field: string
+  before: unknown
+  after: unknown
+}
+
+export interface GatewayRouteChangePreview {
+  route_id: string
+  changes: GatewayRouteFieldChange[]
+  warnings: string[]
+}
+
+/** The diff a route update would apply, validated server-side, without saving. */
+export async function previewGatewayRouteChange(
+  apiKey: string,
+  routeId: string,
+  body: GatewayRouteUpdateBody,
+): Promise<GatewayRouteChangePreview> {
+  return apiFetch<GatewayRouteChangePreview>(`/gateway/routes/${routeId}/preview-change`, apiKey, {
+    method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export interface GatewayRoutePreviewCandidate {
+  route_id: string
+  provider: string
+  target_model: string
+  priority: number
+  region: string | null
+  selected: boolean
+  est_cost_usd: string | null
+  p50_latency_ms: string | null
+  p95_latency_ms: string | null
+  sample_size: number
+  note: string | null
+}
+
+export interface GatewayRoutePreview {
+  alias: string
+  decision_reason: string
+  policy_type: string | null
+  selected_route_id: string | null
+  est_input_tokens: number
+  est_output_tokens: number
+  est_cost_usd: string | null
+  p50_latency_ms: string | null
+  fallback_aliases: string[]
+  candidates: GatewayRoutePreviewCandidate[]
+  warnings: string[]
+}
+
+/** Test request (dry run): chosen route, estimated cost and recent latency. */
+export async function previewGatewayRoute(
+  apiKey: string,
+  body: { model: string; prompt?: string; tags?: string[]; region?: string | null; expected_output_tokens?: number },
+): Promise<GatewayRoutePreview> {
+  return apiFetch<GatewayRoutePreview>('/gateway/routes/preview', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export type GatewayRoleLevel = 'viewer' | 'member' | 'workspace_admin' | 'org_admin' | 'platform_admin'
+
+export interface GatewayRoleMatrix {
+  levels: GatewayRoleLevel[]
+  matrix: Record<string, Record<string, GatewayRoleLevel>>
+  caller_level: GatewayRoleLevel | 'workload'
+  capabilities: Record<string, Record<string, boolean>>
+}
+
+/** One role matrix for gateway admin (G-17): what the API will accept from the caller. */
+export async function getGatewayRoleMatrix(apiKey: string): Promise<GatewayRoleMatrix> {
+  return apiFetch<GatewayRoleMatrix>('/gateway/role-matrix', apiKey)
 }
 
 export async function deleteGatewayRoute(apiKey: string, routeId: string): Promise<void> {
@@ -477,6 +558,18 @@ export async function dismissFlywheelRecommendation(
   )
 }
 
+/** Restore the route an applied recommendation changed (org admin, audited). */
+export async function rollbackFlywheelRecommendation(
+  apiKey: string,
+  recId: string,
+): Promise<import('@/types/api').FlywheelRecommendation> {
+  return apiFetch<import('@/types/api').FlywheelRecommendation>(
+    `/gateway/flywheel/recommendations/${recId}/rollback`,
+    apiKey,
+    { method: 'POST' },
+  )
+}
+
 export async function runFlywheel(
   apiKey: string,
 ): Promise<import('@/types/api').FlywheelRunResponse> {
@@ -485,13 +578,14 @@ export async function runFlywheel(
   })
 }
 
+/** Re-load the deployment's pricing catalog file into the global rows (platform admin). */
 export async function triggerPricingSync(
   apiKey: string,
-  options?: { force?: boolean; dry_run?: boolean; providers?: string[] }
-): Promise<{ inserted: number; updated: number; skipped: number; errors: string[] }> {
-  return apiFetch('/pricing/sync', apiKey, {
+  options?: { dry_run?: boolean },
+): Promise<import('@/types/api').PricingImportResult> {
+  return apiFetch('/providers/pricing/sync', apiKey, {
     method: 'POST',
-    body: JSON.stringify(options ?? { force: true }),
+    body: JSON.stringify(options ?? {}),
   })
 }
 

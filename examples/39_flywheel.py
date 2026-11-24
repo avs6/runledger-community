@@ -120,7 +120,10 @@ def part2_api() -> None:
     ).json()
     for rec in recs["items"]:
         print(f"  • [{rec['kind']}] {rec['segment_key']} — {rec['rationale']}")
-        # To apply:  httpx.post(f"{API_URL}/gateway/flywheel/recommendations/{rec['id']}/apply", headers=h)
+        # Applying rewrites a route, so it needs an org admin's session key (audited):
+        #   httpx.post(f"{API_URL}/gateway/flywheel/recommendations/{rec['id']}/apply", headers=h)
+        # Undo it later; the route gets back the config snapshotted at apply time:
+        #   httpx.post(f"{API_URL}/gateway/flywheel/recommendations/{rec['id']}/rollback", headers=h)
     if not recs["items"]:
         print("  (no recommendations yet — the flywheel needs traffic + outcomes to learn from)")
 

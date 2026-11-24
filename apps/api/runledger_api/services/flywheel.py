@@ -333,8 +333,22 @@ async def run_analysis(db: AsyncSession, workspace_id: Any) -> dict[str, Any]:
                 and rec.confidence in ("high", "medium")
                 and rec.kind in ("switch", "guardrail")
             )
-            if auto_ok and await apply_recommendation(db, workspace_id, rec.id, mode="auto"):
+            if auto_ok and await apply_recommendation(
+                db, workspace_id, rec.id, mode="auto", commit=False
+            ):
                 applied += 1
+                from runledger_api.services.admin_audit import audit_change  # noqa: PLC0415
+
+                await audit_change(
+                    db,
+                    workspace_id,
+                    "flywheel.recommendation_auto_applied",
+                    target_type="flywheel_recommendation",
+                    target_id=rec.id,
+                    before=(rec.current_config or {}).get("_route_snapshot"),
+                    after={"proposed_config": rec.proposed_config},
+                )
+        await db.commit()
 
     return {"status": "ok", "recommendations": len(created), "auto_applied": applied}
 
@@ -377,7 +391,12 @@ def _apply_config_to_route(route: GatewayRoute, proposed: dict[str, Any]) -> Non
 
 
 async def apply_recommendation(
-    db: AsyncSession, workspace_id: Any, rec_id: Any, *, mode: str = "approval"
+    db: AsyncSession,
+    workspace_id: Any,
+    rec_id: Any,
+    *,
+    mode: str = "approval",
+    commit: bool = True,
 ) -> bool:
     """
     Apply a recommendation. For alias-segmented recs this patches the alias's primary route
@@ -411,7 +430,10 @@ async def apply_recommendation(
     rec.apply_mode = mode
     rec.applied_at = datetime.now(UTC)
     rec.updated_at = datetime.now(UTC)
-    await db.commit()
+    if commit:
+        await db.commit()
+    else:
+        await db.flush()
     return mutated
 
 
@@ -423,6 +445,37 @@ async def dismiss_recommendation(db: AsyncSession, workspace_id: Any, rec_id: An
     rec.updated_at = datetime.now(UTC)
     await db.commit()
     return True
+
+
+def _restore_route_snapshot(route: GatewayRoute, snap: dict[str, Any]) -> None:
+    route.target_model = snap.get("target_model", route.target_model)
+    route.semantic_cache_enabled = snap.get("semantic_cache_enabled", route.semantic_cache_enabled)
+    route.context_compiler_enabled = snap.get(
+        "context_compiler_enabled", route.context_compiler_enabled
+    )
+    route.context_compiler_config = snap.get("context_compiler_config")
+
+
+async def rollback_recommendation(
+    db: AsyncSession, workspace_id: Any, rec_id: Any, *, reason: str = "manual"
+) -> FlywheelRecommendation | None:
+    """Undo an applied recommendation: restore the route snapshot taken at apply time.
+
+    Returns the recommendation (status ``rolled_back``), or None when it is missing,
+    foreign or not applied. Does not commit: the caller audits, then commits.
+    """
+    rec = await db.get(FlywheelRecommendation, rec_id)
+    if rec is None or rec.workspace_id != workspace_id or rec.status != "applied":
+        return None
+    snap = (rec.current_config or {}).get("_route_snapshot")
+    if rec.applied_route_id is not None and snap:
+        route = await db.get(GatewayRoute, rec.applied_route_id)
+        if route is not None and route.workspace_id == workspace_id:
+            _restore_route_snapshot(route, snap)
+    rec.status = "rolled_back"
+    rec.rationale = (rec.rationale or "") + f" [rolled back: {reason}]"
+    rec.updated_at = datetime.now(UTC)
+    return rec
 
 
 async def check_guardrails(db: AsyncSession, workspace_id: Any) -> int:
@@ -454,20 +507,23 @@ async def check_guardrails(db: AsyncSession, workspace_id: Any) -> int:
             route = await db.get(GatewayRoute, rec.applied_route_id)
             snap = (rec.current_config or {}).get("_route_snapshot")
             if route is not None and snap:
-                route.target_model = snap.get("target_model", route.target_model)
-                route.semantic_cache_enabled = snap.get(
-                    "semantic_cache_enabled", route.semantic_cache_enabled
-                )
-                route.context_compiler_enabled = snap.get(
-                    "context_compiler_enabled", route.context_compiler_enabled
-                )
-                route.context_compiler_config = snap.get("context_compiler_config")
+                _restore_route_snapshot(route, snap)
             rec.status = "rolled_back"
             rec.rationale = (
                 rec.rationale or ""
             ) + f" [rolled back: quality {q:.2f} < SLA {float(rec.min_quality):.2f}]"
             rec.updated_at = datetime.now(UTC)
             rolled += 1
+            from runledger_api.services.admin_audit import audit_change  # noqa: PLC0415
+
+            await audit_change(
+                db,
+                workspace_id,
+                "flywheel.recommendation_auto_rolled_back",
+                target_type="flywheel_recommendation",
+                target_id=rec.id,
+                after={"quality": round(q, 4), "min_quality": float(rec.min_quality)},
+            )
     if rolled:
         await db.commit()
     return rolled

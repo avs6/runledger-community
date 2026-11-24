@@ -1227,6 +1227,34 @@ async def get_access_group_dashboard(
     )
 
 
+async def _audit_cache(
+    db: AsyncSession, workspace_id: uuid.UUID, action: str, config: Any, *, after: bool
+) -> None:
+    """Audit a response-cache profile change (review G-10, added by stream W1-C)."""
+    from runledger_api.services.admin_audit import audit_change, snapshot  # noqa: PLC0415
+
+    fields = (
+        "name",
+        "is_enabled",
+        "ttl_seconds",
+        "max_entries",
+        "eviction_policy",
+        "similarity_threshold",
+        "embedding_model",
+        "scope_models",
+    )
+    snap = snapshot(config, fields)
+    await audit_change(
+        db,
+        workspace_id,
+        action,
+        target_type="response_cache_config",
+        target_id=config.id,
+        before=None if after else snap,
+        after=snap if after else None,
+    )
+
+
 @response_cache_router.post(
     "",
     response_model=ResponseCacheConfigResponse,
@@ -1263,6 +1291,8 @@ async def create_response_cache_config(
         config=body.config,
     )
     db.add(config)
+    await db.flush()
+    await _audit_cache(db, ws.id, "response_cache.created", config, after=True)
     await db.commit()
     await db.refresh(config)
     invalidate_cache_profile(ws.id)
@@ -1316,9 +1346,11 @@ async def update_response_cache_config(
     ).scalar_one_or_none()
     if not config:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Response cache config not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(config, field, value)
     config.updated_at = datetime.now(UTC)
+    await _audit_cache(db, ws.id, "response_cache.updated", config, after=True)
     await db.commit()
     await db.refresh(config)
     invalidate_cache_profile(ws.id)
@@ -1345,6 +1377,7 @@ async def delete_response_cache_config(
     ).scalar_one_or_none()
     if not config:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Response cache config not found")
+    await _audit_cache(db, ws.id, "response_cache.deleted", config, after=False)
     await db.delete(config)
     await db.commit()
     invalidate_cache_profile(ws.id)

@@ -95,6 +95,7 @@ from runledger_api.schemas.guardrails import (
     PartnerGuardrailResponse,
     PartnerGuardrailUpdate,
 )
+from runledger_api.services.admin_audit import audit_change, changed_only, snapshot
 from runledger_api.services.audit import emit_audit_event
 from runledger_api.services.guardrails import (
     BUILTIN_FILTERS,
@@ -179,6 +180,7 @@ async def create_guardrail(
         target_id=str(rule.id),
         after={"name": body.name, "rule_type": body.rule_type, "mode": body.mode},
     )
+    await db.commit()  # persist the audit event (get_db never commits)
     return GuardrailRuleResponse.model_validate(rule)
 
 
@@ -309,6 +311,7 @@ async def activate_content_filters(
         target_id="bulk",
         after={"filters": [f.model_dump() for f in body.filters]},
     )
+    await db.commit()  # persist the audit event (get_db never commits)
     return await list_content_filters(auth, db)
 
 
@@ -841,6 +844,20 @@ async def run_regression(
 
 
 # ── Partner Guardrails CRUD ──────────────────────────────────────────────────
+# Partner guardrails are stored and managed, but the gateway does not call partner
+# endpoints yet; the dashboard labels them "not enforced" until it does (ui-fixes #2).
+
+_PARTNER_FIELDS = (
+    "name",
+    "mode",
+    "endpoint_url",
+    "credentials",
+    "config",
+    "timeout_ms",
+    "fallback_action",
+    "priority",
+    "status",
+)
 
 
 @router.post(
@@ -881,6 +898,7 @@ async def create_partner_guardrail(
         target_id=str(pg.id),
         after={"provider": body.provider, "name": body.name},
     )
+    await db.commit()  # persist the audit event (get_db never commits)
     return PartnerGuardrailResponse.model_validate(pg)
 
 
@@ -955,10 +973,33 @@ async def update_partner_guardrail(
             status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found"
         )
 
+    before = snapshot(pg, _PARTNER_FIELDS)
     update_data = body.model_dump(exclude_unset=True)
+    replace = bool(update_data.pop("replace_credentials", False))
+    if "credentials" in update_data:
+        sent = update_data.pop("credentials") or {}
+        if replace:
+            pg.credentials = {k: v for k, v in sent.items() if v not in (None, "")}
+        else:
+            # Untouched fields keep their stored secret (review G-06): the dashboard
+            # never has the old values, so it sends only what the user typed.
+            merged = dict(pg.credentials or {})
+            merged.update({k: v for k, v in sent.items() if v not in (None, "")})
+            pg.credentials = merged
     for field, value in update_data.items():
         setattr(pg, field, value)
     pg.updated_at = datetime.now(UTC)
+    b, a = changed_only(before, snapshot(pg, _PARTNER_FIELDS))
+    await audit_change(
+        db,
+        workspace.id,
+        "guardrail.partner_updated",
+        auth=auth,
+        target_type="partner_guardrail",
+        target_id=pg.id,
+        before=b,
+        after=a,
+    )
 
     await db.commit()
     await db.refresh(pg)
@@ -999,6 +1040,7 @@ async def delete_partner_guardrail(
         target_id=str(partner_id),
         after={"provider": pg.provider, "name": pg.name},
     )
+    await db.commit()  # persist the audit event (get_db never commits)
 
 
 @router.post(
@@ -1023,8 +1065,10 @@ async def health_check_partner(
             status_code=status.HTTP_404_NOT_FOUND, detail="Partner guardrail not found"
         )
 
+    # Partners aren't called at runtime yet, so a health check can't prove anything:
+    # record the check and say so instead of claiming "healthy" (ui-fixes #2).
     pg.last_health_check = datetime.now(UTC)
-    pg.health_status = "healthy"
+    pg.health_status = "unverified" if pg.endpoint_url else "not_configured"
     await db.commit()
     await db.refresh(pg)
     return PartnerGuardrailResponse.model_validate(pg)
@@ -1075,6 +1119,7 @@ async def submit_event_feedback(
         target_id=str(event_id),
         after={"is_false_positive": body.is_false_positive, "reason": body.reason},
     )
+    await db.commit()  # persist the audit event (get_db never commits)
     return GuardrailEventResponse.model_validate(event)
 
 
@@ -1220,6 +1265,7 @@ async def update_guardrail(
         target_id=str(guardrail_id),
         after=update_data,
     )
+    await db.commit()  # persist the audit event (get_db never commits)
     return GuardrailRuleResponse.model_validate(rule)
 
 
@@ -1254,3 +1300,4 @@ async def delete_guardrail(
         target_id=str(guardrail_id),
         after={"name": rule.name},
     )
+    await db.commit()  # persist the audit event (get_db never commits)

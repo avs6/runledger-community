@@ -1,5 +1,6 @@
 'use client'
 
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import Link from 'next/link'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
@@ -23,6 +24,7 @@ interface EditState {
 }
 
 export default function ProviderProfilesPage() {
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
   const { isOrgAdmin, isPlatformAdmin } = useRole()
@@ -134,8 +136,8 @@ export default function ProviderProfilesPage() {
     if (!apiKey) return
     setSyncing(true)
     try {
-      const result = await triggerPricingSync(apiKey, { force: true })
-      toast.success(`Pricing updated: ${result.inserted} added, ${result.updated} updated, ${result.skipped} skipped`)
+      const result = await triggerPricingSync(apiKey)
+      toast.success(`Catalog synced: ${result.inserted} added, ${result.updated} updated, ${result.unchanged} unchanged`)
       await load()
     } catch (err: unknown) {
       toast.error(`Sync failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -177,7 +179,7 @@ export default function ProviderProfilesPage() {
 
   async function handleReprice(provider: string, model: string) {
     if (!apiKey) return
-    if (!confirm(`Reset all ${provider}/${model} costs to NULL and re-enrich?`)) return
+    if (!(await confirm({ title: `Re-price ${provider}/${model}?`, description: 'Stored costs for these calls are cleared and recomputed with current prices.', confirmLabel: 'Re-price' }))) return
     try {
       const result = await repriceProvider(apiKey, { provider, model })
       toast.success(`Reprice queued — ${result.reset} calls reset`)
@@ -187,7 +189,7 @@ export default function ProviderProfilesPage() {
   }
 
   async function handleDeletePricing(pricingId: string) {
-    if (!confirm('Delete this pricing profile?')) return
+    if (!(await confirm({ title: 'Retire this price?', description: 'Calls already priced keep their cost; budgets that use it block the delete.', destructive: true, confirmLabel: 'Retire' }))) return
     try {
       await deleteProviderPricing(apiKey!, pricingId)
       setPricing((prev) => prev.filter((p) => p.id !== pricingId))
@@ -223,6 +225,7 @@ export default function ProviderProfilesPage() {
 
   return (
     <div className="space-y-3">
+      {confirmDialog}
       {/* ── Header ───────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -247,9 +250,12 @@ export default function ProviderProfilesPage() {
           <button onClick={handleDownloadExample} className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
             <FileDown className="h-3 w-3" />Example
           </button>
-          <button onClick={handlePullPricing} disabled={syncing} className="flex items-center gap-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/40 disabled:opacity-50">
-            <CloudDownload className={`h-3 w-3 ${syncing ? 'animate-pulse' : ''}`} />{syncing ? 'Syncing…' : 'Pull Internet'}
-          </button>
+          {/* Re-loads the deployment's pricing catalog file (PRICING_FILE) into the global rows. */}
+          {isPlatformAdmin && (
+            <button onClick={handlePullPricing} disabled={syncing} title="Re-load the pricing catalog file shipped with this deployment into the global prices" className="flex items-center gap-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 px-2.5 py-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/40 disabled:opacity-50">
+              <CloudDownload className={`h-3 w-3 ${syncing ? 'animate-pulse' : ''}`} />{syncing ? 'Syncing…' : 'Sync catalog'}
+            </button>
+          )}
           <button onClick={load} className="flex items-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
             <RefreshCw className="h-3 w-3" />Refresh
           </button>

@@ -8,6 +8,9 @@ Business rules:
 - GET: returns global rows (workspace_id IS NULL) + current workspace rows
 - POST: always creates workspace-scoped rows
 - PUT/DELETE: only allowed on workspace-owned rows (403 on global or foreign)
+- POST /pricing/sync: platform admins re-load the deployment's pricing catalog
+  (``settings.pricing_file``) into the global rows; ``dry_run`` only validates it
+- Every write is audited (review G-10); roles follow core/role_matrix.py ("pricing")
 """
 
 from __future__ import annotations
@@ -40,7 +43,8 @@ from runledger_api.schemas.providers import (
     UnpricedModel,
     UnpricedUsage,
 )
-from runledger_api.services.pricing_import import import_pricing_yaml
+from runledger_api.services.admin_audit import audit_change, snapshot
+from runledger_api.services.pricing_import import import_pricing_yaml, parse_pricing_yaml
 
 log = structlog.get_logger()
 
@@ -53,6 +57,17 @@ DbDep = Annotated[AsyncSession, Depends(get_db)]
 OrgAdminDep = Annotated[tuple[Workspace, User, TenantUser | None], Depends(require_org_admin)]
 # The global pricing catalog prices every tenant's spend: platform admins only.
 PlatformAdminDep = Annotated[tuple[Workspace, User], Depends(require_platform_admin)]
+_PRICE_FIELDS = (
+    "provider",
+    "model",
+    "input_cost_per_1m",
+    "output_cost_per_1m",
+    "cached_input_cost_per_1m",
+    "tags",
+    "display_name",
+    "effective_from",
+    "effective_to",
+)
 
 
 async def _retry_unpriced_calls(
@@ -224,6 +239,15 @@ async def import_pricing(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "file must be UTF-8 text") from None
     result = await import_pricing_yaml(db, text)
     await _retry_unpriced_calls(db, None, None)
+    await audit_change(
+        db,
+        workspace.id,
+        "pricing.imported",
+        auth=auth,
+        target_type="pricing_catalog",
+        target_id="global",
+        after=result.model_dump(include={"inserted", "updated", "unchanged", "total"}),
+    )
     await db.commit()
     log.info(
         "provider_pricing_imported",
@@ -232,6 +256,64 @@ async def import_pricing(
         updated=result.updated,
         unchanged=result.unchanged,
     )
+    return result
+
+
+class PricingSyncRequest(BaseModel):
+    dry_run: bool = False
+
+
+def _catalog_path() -> Path | None:
+    from runledger_api.core.config import settings  # noqa: PLC0415
+
+    candidates = [Path(settings.pricing_file), Path("/app/config/pricing.yml")]
+    for parent in Path(__file__).resolve().parents:
+        candidates.append(parent / "config" / "pricing.yml")
+    return next((c for c in candidates if c.exists()), None)
+
+
+@router.post("/pricing/sync", response_model=PricingImportResult)
+async def sync_pricing(
+    auth: PlatformAdminDep, db: DbDep, body: PricingSyncRequest | None = None
+) -> PricingImportResult:
+    """Re-load the deployment's pricing catalog file into the global rows (review G-08).
+
+    The catalog ships with the deployment (``PRICING_FILE``); updating that file and
+    syncing is how operators refresh prices. Nothing is fetched from the internet.
+    ``dry_run`` parses and validates the file without writing.
+    """
+    workspace = auth[0]
+    path = _catalog_path()
+    if path is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "pricing catalog file not found")
+    text = path.read_text(encoding="utf-8")
+    if body is not None and body.dry_run:
+        rows, errors = parse_pricing_yaml(text)
+        return PricingImportResult(
+            inserted=0,
+            updated=0,
+            unchanged=0,
+            total=len(rows),
+            providers=sorted({r.provider for r in rows}),
+            tags=sorted({t for r in rows for t in r.tags}),
+            errors=errors,
+        )
+    result = await import_pricing_yaml(db, text)
+    await _retry_unpriced_calls(db, None, None)
+    await audit_change(
+        db,
+        workspace.id,
+        "pricing.synced",
+        auth=auth,
+        target_type="pricing_catalog",
+        target_id="global",
+        after={
+            **result.model_dump(include={"inserted", "updated", "unchanged", "total"}),
+            "file": path.name,
+        },
+    )
+    await db.commit()
+    log.info("provider_pricing_synced", inserted=result.inserted, updated=result.updated)
     return result
 
 
@@ -277,6 +359,15 @@ async def create_pricing(
     db.add(pricing)
     await db.flush()
     await _retry_unpriced_calls(db, workspace.id, body.model)
+    await audit_change(
+        db,
+        workspace.id,
+        "pricing.created",
+        auth=auth,
+        target_type="provider_pricing",
+        target_id=pricing.id,
+        after=snapshot(pricing, _PRICE_FIELDS),
+    )
     await db.commit()
     await db.refresh(pricing)
     log.info("provider_pricing_created", pricing_id=str(pricing.id), workspace_id=str(workspace.id))
@@ -298,6 +389,8 @@ async def update_pricing(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot modify global or foreign pricing")
     if pricing.effective_to is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "This price version is retired")
+    before = snapshot(pricing, _PRICE_FIELDS)
+    original_id = pricing.id
     now = datetime.now(UTC)
     price_changed = any(
         value is not None and value != current
@@ -350,6 +443,16 @@ async def update_pricing(
     if body.display_name is not None:
         pricing.display_name = body.display_name
     await _retry_unpriced_calls(db, workspace.id, pricing.model)
+    await audit_change(
+        db,
+        workspace.id,
+        "pricing.updated",
+        auth=auth,
+        target_type="provider_pricing",
+        target_id=original_id,
+        before=before,
+        after={**snapshot(pricing, _PRICE_FIELDS), "version_id": str(pricing.id)},
+    )
     await db.commit()
     await db.refresh(pricing)
     return ProviderPricingResponse.model_validate(pricing)
@@ -380,6 +483,15 @@ async def delete_pricing(pricing_id: uuid.UUID, auth: OrgAdminDep, db: DbDep) ->
     # Retire rather than delete (review G-21): calls made while it applied keep their
     # cost on re-pricing, and the price history stays auditable.
     pricing.effective_to = datetime.now(UTC)
+    await audit_change(
+        db,
+        workspace.id,
+        "pricing.retired",
+        auth=auth,
+        target_type="provider_pricing",
+        target_id=pricing.id,
+        after=snapshot(pricing, _PRICE_FIELDS),
+    )
     await db.commit()
     log.info("provider_pricing_retired", pricing_id=str(pricing_id))
 
@@ -409,6 +521,15 @@ async def reprice_provider(body: RepriceRequest, auth: OrgAdminDep, db: DbDep) -
         update(ProviderCall).where(*filters).values(cost_usd=None).returning(ProviderCall.id)
     )
     reset = len(result.fetchall())
+    await audit_change(
+        db,
+        workspace.id,
+        "pricing.repriced",
+        auth=auth,
+        target_type="provider_pricing",
+        target_id=f"{body.provider}/{body.model or '*'}",
+        after={"reset_calls": reset},
+    )
     await db.commit()
 
     if reset:

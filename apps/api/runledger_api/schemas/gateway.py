@@ -37,7 +37,7 @@ class GatewayRoutingGroupCreate(BaseModel):
 
 
 class GatewayRoutingGroupUpdate(BaseModel):
-    alias: str | None = None
+    alias: str | None = Field(None, min_length=1, max_length=128)
     name: str | None = Field(None, min_length=1, max_length=120)
     description: str | None = None
     match_tags: list[str] | None = None
@@ -144,8 +144,26 @@ class GatewayRouteCreate(BaseModel):
     health_auto_disable: bool = True
 
 
+ROUTE_CONFIG_FIELDS = (
+    "config",
+    "context_compiler_config",
+    "routing_config",
+    "fallback_config",
+    "mirror_config",
+)
+
+
 class GatewayRouteUpdate(BaseModel):
-    alias: str | None = None
+    """Partial route update. Only fields that are sent change.
+
+    With ``merge_configs=true`` the dict configs (``config``, ``fallback_config``,
+    ``routing_config``, ``context_compiler_config``, ``mirror_config``) are deep-merged
+    into the stored value instead of replacing it; a key sent as ``null`` is removed.
+    The dashboard always edits in merge mode, so keys it doesn't show survive (G-16).
+    """
+
+    merge_configs: bool = False
+    alias: str | None = Field(None, min_length=1, max_length=128)
     routing_group_id: uuid.UUID | None = None
     target_model: str | None = None
     base_url: str | None = None
@@ -818,6 +836,14 @@ class RoutingPolicyUpdate(BaseModel):
     config: dict[str, Any] | None = None
     is_active: bool | None = None
 
+    @field_validator("policy_type")
+    @classmethod
+    def _valid_policy_type(cls, value: str | None) -> str | None:
+        # Same rule as create (review G-13): an unknown strategy is refused, not stored.
+        if value is not None and value not in VALID_POLICY_TYPES:
+            raise ValueError(f"policy_type must be one of {sorted(VALID_POLICY_TYPES)}")
+        return value
+
 
 class RoutingPolicyResponse(BaseModel):
     id: uuid.UUID
@@ -905,3 +931,68 @@ class RoutingRecommendationResponse(BaseModel):
     recommended_route_id: uuid.UUID | None
     # Human-readable summary, e.g. "gpt-4o-mini has a 12% better cost-per-success than gpt-4o"
     message: str
+
+
+# ── Route test / change preview (ENH) ──────────────────────────────────────────
+
+
+class GatewayRoutePreviewRequest(BaseModel):
+    """Dry-run a request against the routing table. No provider is called."""
+
+    model: str = Field(..., min_length=1, max_length=128, description="Alias the client sends")
+    prompt: str = Field("Hello", max_length=20000)
+    tags: list[str] = Field(default_factory=list)
+    region: str | None = None
+    expected_output_tokens: int = Field(256, ge=0, le=200000)
+
+
+class GatewayRoutePreviewCandidate(BaseModel):
+    route_id: uuid.UUID
+    provider: str
+    target_model: str
+    priority: int
+    region: str | None = None
+    selected: bool = False
+    est_cost_usd: Decimal | None = None
+    p50_latency_ms: Decimal | None = None
+    p95_latency_ms: Decimal | None = None
+    sample_size: int = 0
+    note: str | None = None
+
+
+class GatewayRoutePreviewResponse(BaseModel):
+    alias: str
+    decision_reason: str
+    policy_type: str | None = None
+    selected_route_id: uuid.UUID | None = None
+    est_input_tokens: int
+    est_output_tokens: int
+    est_cost_usd: Decimal | None = None
+    p50_latency_ms: Decimal | None = None
+    fallback_aliases: list[str] = Field(default_factory=list)
+    candidates: list[GatewayRoutePreviewCandidate]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class GatewayRouteFieldChange(BaseModel):
+    field: str
+    before: Any = None
+    after: Any = None
+
+
+class GatewayRouteChangePreview(BaseModel):
+    """What a ``PUT /gateway/routes/{id}`` with this body would change, without saving."""
+
+    route_id: uuid.UUID
+    changes: list[GatewayRouteFieldChange]
+    warnings: list[str] = Field(default_factory=list)
+
+
+# ── Role matrix (review G-17) ───────────────────────────────────────────────────
+
+
+class GatewayRoleMatrixResponse(BaseModel):
+    levels: list[str]
+    matrix: dict[str, dict[str, str]]
+    caller_level: str
+    capabilities: dict[str, dict[str, bool]]

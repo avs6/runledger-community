@@ -1,0 +1,120 @@
+---
+title: "Gateway Administration"
+description: "Who can change the gateway, what every change records, and how to check a route change before and after you make it."
+---
+
+The gateway's configuration (routes, routing groups, routing policies, budget tiers, response cache
+profiles, pricing, guardrails and the optimization flywheel) decides where every request goes and what it
+may cost. This page covers the controls around changing it.
+
+## Role matrix
+
+One table decides who may read and change each part of the gateway. The API enforces it, and the dashboard
+reads it from `GET /gateway/role-matrix`, so the page shows exactly the controls the API will accept.
+
+| Area | Read | Change | Notes |
+|---|---|---|---|
+| Routes, routing groups, routing policies | workspace admin | org admin | Includes promote, rollout advance and rollback |
+| Pass-through endpoints | org admin | org admin | |
+| Optimization flywheel | member | workspace admin (run, dismiss) | **Apply, roll back and settings: org admin**, since they rewrite routes or enable auto-apply |
+| Budget tiers | member | workspace admin | Assigning a tier to a key is a change |
+| Response cache profiles | member | workspace admin | |
+| Pricing | member | org admin (workspace rows) | The global catalog (import, sync) needs a platform admin |
+| Guardrails | member | workspace admin | |
+
+Levels, lowest first: `viewer` < `member` < `workspace_admin` < `org_admin` < `platform_admin`. Workload
+API keys (SDK, automation) count as `member` for reads and can't change gateway configuration.
+
+```bash
+curl -s "$RUNLEDGER_URL/gateway/role-matrix" -H "Authorization: Bearer $RUNLEDGER_API_KEY"
+# {"caller_level":"workspace_admin","capabilities":{"routes":{"read":true,"write":false}, ...}}
+```
+
+## Audit trail
+
+Every change writes one audit event, in the same transaction as the change, with the acting user and a
+before/after snapshot of the fields that changed. Secret values (partner credentials) are recorded as key
+names only. Find the events under **Audit Log** or with `GET /audit`.
+
+| Area | Actions |
+|---|---|
+| Routes | `gateway_route.created`, `.updated`, `.deleted` |
+| Routing groups | `gateway_routing_group.created`, `.updated`, `.deleted` |
+| Routing policies | `gateway_policy.created`, `.updated`, `.deleted`, `.promoted`, `.rollout_advanced`, `.rolled_back` |
+| Budget tiers | `budget_tier.created`, `.updated`, `.deleted`, `.assigned`, `.unassigned` |
+| Response cache | `response_cache.created`, `.updated`, `.deleted` |
+| Pricing | `pricing.created`, `.updated`, `.retired`, `.repriced`, `.imported`, `.synced` |
+| Guardrails | `guardrail.created`, `.updated`, `.deleted`, `guardrail.partner_created`, `.partner_updated`, `.partner_deleted` |
+| Flywheel | `flywheel.settings_updated`, `.run`, `.recommendation_applied`, `.recommendation_rolled_back`, `.recommendation_dismissed`, `.recommendation_auto_applied`, `.recommendation_auto_rolled_back` |
+
+## Changing a route safely
+
+### Partial updates keep what you didn't touch
+
+`PUT /gateway/routes/{id}` changes only the fields you send. With `"merge_configs": true` the dict configs
+(`config`, `fallback_config`, `routing_config`, `context_compiler_config`, `mirror_config`) are merged into
+the stored value instead of replacing it, and a key sent as `null` is removed. The dashboard always edits
+in merge mode, so keys set through the API, such as extra fallback rules or per-step overrides, survive an
+edit.
+
+```json
+{ "merge_configs": true, "fallback_config": { "aliases": ["backup-chat"] } }
+```
+
+### Preview the change first
+
+`POST /gateway/routes/{id}/preview-change` takes the same body, runs the same validation, and returns the
+field-level diff without saving. The dashboard shows it in a **Review route change** dialog before every
+save, with warnings for changes that move traffic (alias change, deactivation, removing all fallbacks).
+
+```json
+{
+  "route_id": "…",
+  "changes": [{ "field": "target_model", "before": "gpt-4o", "after": "gpt-4o-mini" }],
+  "warnings": ["Cost caps and pricing are re-checked against the new model."]
+}
+```
+
+### Test a request without sending it
+
+`POST /gateway/routes/preview` (the **Test request** panel on the Routes tab) runs an alias, prompt, tags
+and region through the same route selection the gateway uses and returns the chosen route, every candidate
+route, the estimated cost of the request from provider pricing, and each route's p50/p95 latency over the
+last 7 days. No provider is called and nothing is recorded.
+
+```json
+{ "model": "chat", "prompt": "Summarise this ticket", "tags": ["tier:gold"], "expected_output_tokens": 256 }
+```
+
+## Invariants
+
+- **Alias and group.** A route in a routing group always has the group's alias. Changing a route's alias
+  while it stays in a group returns **400**; move it out of the group in the same request. Renaming a group
+  that still has routes returns **409**.
+- **Policies name their own routes.** Every route a routing policy refers to (`weights` keys,
+  `canary_route_id`, `variants[].route_id`, or the `route_id` passed to promote) must belong to the
+  workspace (**404** otherwise) and serve the policy's alias (**422** otherwise).
+- **Known strategies only.** `policy_type` is validated on create and on update (**422** for an unknown
+  strategy).
+- **Budget tier delete is a soft delete.** The tier is deactivated, stops being the default, and is removed
+  from the keys that had it. On edit, sending `null` clears a limit.
+
+## What is not enforced yet
+
+Some controls are stored and shown but not yet checked at request time. The dashboard labels them:
+
+- **Per-model quotas** (Advanced tab): moving into Budgets with a `model` scope.
+- **Partner guardrails**: the gateway does not call partner endpoints yet, and **Health** only records when
+  it was checked (`unverified`). Use custom guardrail rules for enforcement.
+- The **Rate Limits** tab is an overview; limits are set on routes (per-user RPM) and budget tiers (per key).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Runtime controls" icon="shield" href="/gateway/runtime-controls">
+    Cost caps, per-user and per-key rate limits, PII redaction.
+  </Card>
+  <Card title="Routing" icon="route" href="/gateway/routing">
+    Policies, groups, tags and fallbacks.
+  </Card>
+</CardGroup>

@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ArrowLeft, ChevronLeft, ChevronRight, ShieldAlert, Search, X } from 'lucide-react'
 import { listGuardrailEvents } from '@/lib/api'
@@ -32,15 +33,37 @@ export default function GuardrailViolationsPage() {
   const [error, setError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
 
-  const [query, setQuery] = useState('')
+  // Filters live in the URL so a filtered view can be shared and survives reloads.
+  const params = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
+  const pick = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+    const v = params.get(key)
+    return (allowed as readonly string[]).includes(v ?? '') ? (v as T) : fallback
+  }
+  const [query, setQuery] = useState(params.get('q') ?? '')
   // Search waits for a pause in typing instead of firing a request per keystroke.
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [decision, setDecision] = useState<'all' | 'block' | 'modify' | 'allow'>('all')
-  const [mode, setMode] = useState<'all' | 'pre_call' | 'post_call' | 'during_call' | 'both'>('all')
-  const [falsePositiveFilter, setFalsePositiveFilter] = useState<FalsePositiveFilter>('all')
-  const [violationsOnly, setViolationsOnly] = useState(true)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [debouncedQuery, setDebouncedQuery] = useState(params.get('q') ?? '')
+  const [decision, setDecision] = useState(pick('decision', ['all', 'block', 'modify', 'allow'] as const, 'all'))
+  const [mode, setMode] = useState(pick('mode', ['all', 'pre_call', 'post_call', 'during_call', 'both'] as const, 'all'))
+  const [falsePositiveFilter, setFalsePositiveFilter] = useState<FalsePositiveFilter>(pick('fp', ['all', 'only', 'exclude'] as const, 'all'))
+  const [violationsOnly, setViolationsOnly] = useState(params.get('violations') !== '0')
+  const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1))
+  const [pageSize, setPageSize] = useState([25, 50, 100].includes(Number(params.get('size'))) ? Number(params.get('size')) : 25)
+  const firstFilterRun = useRef(true)
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (debouncedQuery) next.set('q', debouncedQuery)
+    if (decision !== 'all') next.set('decision', decision)
+    if (mode !== 'all') next.set('mode', mode)
+    if (falsePositiveFilter !== 'all') next.set('fp', falsePositiveFilter)
+    if (!violationsOnly) next.set('violations', '0')
+    if (page > 1) next.set('page', String(page))
+    if (pageSize !== 25) next.set('size', String(pageSize))
+    const qs = next.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }, [debouncedQuery, decision, mode, falsePositiveFilter, violationsOnly, page, pageSize, pathname, router])
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
@@ -49,7 +72,11 @@ export default function GuardrailViolationsPage() {
     return () => clearTimeout(timer)
   }, [query])
 
-  useEffect(() => { setPage(1) }, [debouncedQuery, decision, mode, falsePositiveFilter, violationsOnly, pageSize])
+  useEffect(() => {
+    // Keep the page from the URL on first load; any later filter change starts at page 1.
+    if (firstFilterRun.current) { firstFilterRun.current = false; return }
+    setPage(1)
+  }, [debouncedQuery, decision, mode, falsePositiveFilter, violationsOnly, pageSize])
 
   useEffect(() => {
     async function load() {
@@ -136,28 +163,28 @@ export default function GuardrailViolationsPage() {
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
           <div className="xl:col-span-2 relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search guardrail name…" className={`pl-7 ${inputCls}`} />
-            {query && <button onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>}
+            <input aria-label="Search by guardrail name" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search guardrail name…" className={`pl-7 ${inputCls}`} />
+            {query && <button aria-label="Clear search" onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>}
           </div>
-          <select value={decision} onChange={(e) => setDecision(e.target.value as typeof decision)} className={inputCls}>
+          <select aria-label="Filter by decision" value={decision} onChange={(e) => setDecision(e.target.value as typeof decision)} className={inputCls}>
             <option value="all">All decisions</option>
             <option value="block">Block</option>
             <option value="modify">Modify</option>
             <option value="allow">Allow</option>
           </select>
-          <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className={inputCls}>
+          <select aria-label="Filter by mode" value={mode} onChange={(e) => setMode(e.target.value as typeof mode)} className={inputCls}>
             <option value="all">All modes</option>
             <option value="pre_call">pre_call</option>
             <option value="post_call">post_call</option>
             <option value="during_call">during_call</option>
             <option value="both">both</option>
           </select>
-          <select value={falsePositiveFilter} onChange={(e) => setFalsePositiveFilter(e.target.value as FalsePositiveFilter)} className={inputCls}>
+          <select aria-label="Filter by false-positive status" value={falsePositiveFilter} onChange={(e) => setFalsePositiveFilter(e.target.value as FalsePositiveFilter)} className={inputCls}>
             <option value="all">All FP status</option>
             <option value="only">Only false positives</option>
             <option value="exclude">Exclude false positives</option>
           </select>
-          <select value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value))} className={inputCls}>
+          <select aria-label="Rows per page" value={String(pageSize)} onChange={(e) => setPageSize(Number(e.target.value))} className={inputCls}>
             <option value="25">25/page</option>
             <option value="50">50/page</option>
             <option value="100">100/page</option>
@@ -225,10 +252,10 @@ export default function GuardrailViolationsPage() {
             {items.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total.toLocaleString()}
           </span>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage((c) => Math.max(1, c - 1))} disabled={page === 1} className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
+            <button aria-label="Previous page" onClick={() => setPage((c) => Math.max(1, c - 1))} disabled={page === 1} className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
               <ChevronLeft className="h-3 w-3" /> Prev
             </button>
-            <button onClick={() => setPage((c) => Math.min(totalPages, c + 1))} disabled={page >= totalPages} className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
+            <button aria-label="Next page" onClick={() => setPage((c) => Math.min(totalPages, c + 1))} disabled={page >= totalPages} className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
               Next <ChevronRight className="h-3 w-3" />
             </button>
           </div>

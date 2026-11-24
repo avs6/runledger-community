@@ -554,6 +554,18 @@ async def _preflight(
 
     # Keep every message field (tool_calls, tool_call_id, name, …), not just role/content.
     messages = [m.model_dump(exclude_none=True) for m in body.body.messages]
+    # Per-key budget tier: allowed_models, rpm and tpm (review G-02, stream W1-C hook).
+    from runledger_api.services.budget_tier_enforcement import enforce_key_tier  # noqa: PLC0415
+
+    await enforce_key_tier(
+        db,
+        await get_redis(),
+        workspace_id=workspace.id,
+        api_key=api_key,
+        model=body.body.model,
+        messages=messages,
+        max_tokens=body.body.max_tokens,
+    )
     request_tags = (
         [str(tag).strip() for tag in metadata.get("tags", [])]
         if isinstance(metadata.get("tags"), list)

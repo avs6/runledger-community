@@ -2,7 +2,12 @@
 Budget tier CRUD + assign to API keys.
 
 Prefix: /budget-tiers
-Auth: Bearer API key (workspace-scoped)
+Auth: reads any member or workload key; writes a workspace admin (core/role_matrix.py).
+
+rpm_limit, tpm_limit and allowed_models are enforced per key in the gateway preflight
+(services/budget_tier_enforcement.py, review G-02); max_spend_usd by the cost-cap check.
+Delete is a soft delete: the tier is deactivated, loses default status and is unassigned
+from its keys (review G-20). Every mutation is audited (review G-10).
 """
 
 from __future__ import annotations
@@ -16,9 +21,10 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import get_current_workspace
 from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
+from runledger_api.core.role_matrix import gateway_role
 from runledger_api.models.budget_tiers import BudgetTier
 from runledger_api.models.tenant import ApiKey, Workspace
 from runledger_api.schemas.budget_tiers import (
@@ -27,6 +33,7 @@ from runledger_api.schemas.budget_tiers import (
     BudgetTierResponse,
     BudgetTierUpdate,
 )
+from runledger_api.services.admin_audit import audit_change, changed_only, snapshot
 
 router = APIRouter(
     prefix="/budget-tiers",
@@ -34,6 +41,18 @@ router = APIRouter(
     dependencies=[Depends(management_rate_limit)],
 )
 log = structlog.get_logger()
+
+TierWriteDep = Annotated[tuple[Any, ...], Depends(gateway_role("budget_tiers", "write"))]
+_TIER_FIELDS = (
+    "name",
+    "max_spend_usd",
+    "period_type",
+    "rpm_limit",
+    "tpm_limit",
+    "allowed_models",
+    "is_default",
+    "is_active",
+)
 
 
 async def _key_counts(db: AsyncSession, tier_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
@@ -71,7 +90,7 @@ async def _tier_response(
 @router.post("", response_model=BudgetTierResponse, status_code=status.HTTP_201_CREATED)
 async def create_tier(
     body: BudgetTierCreate,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: TierWriteDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BudgetTierResponse:
     workspace: Workspace = auth[0]
@@ -94,6 +113,16 @@ async def create_tier(
         is_default=body.is_default,
     )
     db.add(tier)
+    await db.flush()
+    await audit_change(
+        db,
+        workspace.id,
+        "budget_tier.created",
+        auth=auth,
+        target_type="budget_tier",
+        target_id=tier.id,
+        after=snapshot(tier, _TIER_FIELDS),
+    )
     await db.commit()
     await db.refresh(tier)
     log.info("budget_tier_created", tier_id=str(tier.id), name=tier.name)
@@ -154,7 +183,7 @@ async def get_tier(
 async def update_tier(
     tier_id: uuid.UUID,
     body: BudgetTierUpdate,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: TierWriteDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> BudgetTierResponse:
     workspace: Workspace = auth[0]
@@ -169,6 +198,12 @@ async def update_tier(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget tier not found")
 
     updates = body.model_dump(exclude_unset=True)
+    for required in ("name", "period_type"):
+        if required in updates and updates[required] is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{required} can't be null")
+    if updates.get("is_default") and not tier.is_active:
+        raise HTTPException(status.HTTP_409_CONFLICT, "A deleted tier can't be the default")
+    before = snapshot(tier, _TIER_FIELDS)
     if updates.get("is_default"):
         await db.execute(
             update(BudgetTier)
@@ -176,8 +211,22 @@ async def update_tier(
             .values(is_default=False)
         )
 
+    # Null clears a limit (max_spend_usd, rpm_limit, tpm_limit, allowed_models).
     for field, value in updates.items():
         setattr(tier, field, value)
+    if tier.allowed_models == []:
+        tier.allowed_models = None
+    b, a = changed_only(before, snapshot(tier, _TIER_FIELDS))
+    await audit_change(
+        db,
+        workspace.id,
+        "budget_tier.updated",
+        auth=auth,
+        target_type="budget_tier",
+        target_id=tier.id,
+        before=b,
+        after=a,
+    )
     await db.commit()
     await db.refresh(tier)
     return await _tier_response(db, tier)
@@ -186,7 +235,7 @@ async def update_tier(
 @router.delete("/{tier_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tier(
     tier_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: TierWriteDep,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     workspace: Workspace = auth[0]
@@ -200,10 +249,28 @@ async def delete_tier(
     if tier is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget tier not found")
 
-    await db.execute(
-        update(ApiKey).where(ApiKey.budget_tier_id == tier_id).values(budget_tier_id=None)
+    unassigned = await db.execute(
+        update(ApiKey)
+        .where(ApiKey.budget_tier_id == tier_id, ApiKey.workspace_id == workspace.id)
+        .values(budget_tier_id=None)
+        .returning(ApiKey.id)
     )
-    await db.execute(update(BudgetTier).where(BudgetTier.id == tier_id).values(is_active=False))
+    key_ids = [str(k) for k in unassigned.scalars().all()]
+    before = snapshot(tier, _TIER_FIELDS)
+    # Soft delete (review G-20): a deleted tier is never the default, so keys without a
+    # tier don't silently fall back to it.
+    tier.is_active = False
+    tier.is_default = False
+    await audit_change(
+        db,
+        workspace.id,
+        "budget_tier.deleted",
+        auth=auth,
+        target_type="budget_tier",
+        target_id=tier.id,
+        before={**before, "assigned_key_ids": key_ids},
+        after={"is_active": False, "is_default": False},
+    )
     await db.commit()
     log.info("budget_tier_deleted", tier_id=str(tier_id))
 
@@ -211,7 +278,7 @@ async def delete_tier(
 @router.put("/assign/{key_id}", response_model=dict[str, Any])
 async def assign_tier_to_key(
     key_id: uuid.UUID,
-    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
+    auth: TierWriteDep,
     db: Annotated[AsyncSession, Depends(get_db)],
     tier_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> dict[str, Any]:
@@ -236,7 +303,18 @@ async def assign_tier_to_key(
         if tier_result.scalar_one_or_none() is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Budget tier not found")
 
+    previous = api_key.budget_tier_id
     await db.execute(update(ApiKey).where(ApiKey.id == key_id).values(budget_tier_id=tier_id))
+    await audit_change(
+        db,
+        workspace.id,
+        "budget_tier.assigned" if tier_id else "budget_tier.unassigned",
+        auth=auth,
+        target_type="api_key",
+        target_id=key_id,
+        before={"budget_tier_id": str(previous) if previous else None},
+        after={"budget_tier_id": str(tier_id) if tier_id else None},
+    )
     await db.commit()
     log.info("tier_assigned", key_id=str(key_id), tier_id=str(tier_id))
     return {"key_id": str(key_id), "budget_tier_id": str(tier_id) if tier_id else None}

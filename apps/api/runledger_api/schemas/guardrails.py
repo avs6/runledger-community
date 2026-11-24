@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 GuardrailMode = Literal["pre_call", "post_call", "during_call", "both"]
 GuardrailRuleType = Literal["custom", "template", "builtin_filter", "partner"]
@@ -188,10 +188,15 @@ class PartnerGuardrailCreate(BaseModel):
 
 
 class PartnerGuardrailUpdate(BaseModel):
+    """Partial update. ``credentials`` merges into the stored map (review G-06): a key
+    left out, or sent empty or null, keeps its stored value. Set
+    ``replace_credentials=true`` to replace the whole map instead."""
+
     name: str | None = Field(None, max_length=200)
     mode: GuardrailMode | None = None
     endpoint_url: str | None = None
     credentials: dict[str, Any] | None = None
+    replace_credentials: bool = False
     config: dict[str, Any] | None = None
     timeout_ms: int | None = Field(None, ge=100, le=30000)
     fallback_action: FallbackAction | None = None
@@ -207,6 +212,8 @@ class PartnerGuardrailResponse(BaseModel):
     mode: str
     endpoint_url: str | None
     config: dict[str, Any]
+    # Names of the stored credential fields; values are never returned.
+    credential_keys: list[str] = Field(default_factory=list)
     timeout_ms: int
     fallback_action: str
     priority: int
@@ -219,6 +226,22 @@ class PartnerGuardrailResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _credential_names(cls, data: Any) -> Any:
+        creds = (
+            data.get("credentials")
+            if isinstance(data, dict)
+            else getattr(data, "credentials", None)
+        )
+        keys = sorted(k for k, v in (creds or {}).items() if v not in (None, ""))
+        if isinstance(data, dict):
+            return {**data, "credential_keys": keys}
+        return {
+            **{f: getattr(data, f, None) for f in cls.model_fields if f != "credential_keys"},
+            "credential_keys": keys,
+        }
 
 
 class PartnerGuardrailList(BaseModel):
