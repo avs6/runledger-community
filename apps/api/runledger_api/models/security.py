@@ -34,18 +34,6 @@ class WorkspaceSecuritySettings(Base):
     required_metadata_mode: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, server_default=sa.text("'warn'")
     )
-    data_residency_regions: Mapped[list[str]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'[]'")
-    )
-    callback_config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
-    )
-    brand_config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
-    )
-    oidc_session_config: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default=sa.text("'{}'")
-    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

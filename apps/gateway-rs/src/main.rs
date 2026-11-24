@@ -1059,7 +1059,8 @@ async fn call_preflight(
             )
                 .into_response()
         })?;
-    if !resp.status().is_success() {
+    // 202 = an approval hold from tool policy (W1-H): forward it, don't parse it.
+    if !resp.status().is_success() || resp.status() == reqwest::StatusCode::ACCEPTED {
         return Err(response_from_upstream(resp).await);
     }
     resp.json::<RuntimePreflightResponse>()
@@ -1093,7 +1094,8 @@ async fn call_finalize(state: &AppState, payload: RuntimeFinalizeRequest) -> Res
             )
                 .into_response()
         })?;
-    if !resp.status().is_success() {
+    // 202 = an approval hold from tool policy (W1-H): forward it, don't parse it.
+    if !resp.status().is_success() || resp.status() == reqwest::StatusCode::ACCEPTED {
         return Err(response_from_upstream(resp).await);
     }
     Ok(())
@@ -1497,6 +1499,7 @@ const FORWARDED_REFUSAL_HEADERS: [&str; 4] = [
     "x-cost-cap-reason",
     "x-budget-id",
     "x-agent-policy-reason",
+    "x-runledger-approval-id",
 ];
 
 async fn response_from_upstream(resp: reqwest::Response) -> Response {

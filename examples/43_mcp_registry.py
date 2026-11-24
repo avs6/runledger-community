@@ -6,8 +6,8 @@ Exercise the MCP Registry lifecycle with a dashboard session key:
   2. create a custom server
   3. list and inspect it
   4. update the server definition
-  5. grant and revoke a permission policy
-  6. list tools and execute a test tool call
+  5. allow-list two tools on the server with tool policies scoped to it
+  6. list tools and make a governed test tool call (status is the real outcome)
   7. deactivate and re-activate the server
 
 Required env vars:
@@ -92,20 +92,30 @@ def main() -> None:
         )
         print(f"[ok] updated MCP server transport={updated['transport']}")
 
-        policy = expect_ok(
-            client.post(
-                "/mcp-registry/permissions",
-                json={
-                    "mcp_server_id": server_id,
-                    "scope_type": "workspace",
-                    "scope_id": WORKSPACE_ID,
-                    "allowed_tools": ["read_file", "list_directory"],
-                },
-            ),
-            "grant permission policy",
-        )
-        policy_id = policy["id"]
-        print(f"[ok] granted policy {policy_id}")
+        # Per-server permissions are tool policies scoped to the server (one evaluator for
+        # MCP calls, /tools/check and the gateway): allow two tools, block the rest.
+        policy_ids: list[str] = []
+        for name, tool, action, priority in [
+            ("allow read_file", "read_file", "allow", 10),
+            ("allow list_directory", "list_directory", "allow", 11),
+            ("block everything else", "*", "block", 1000),
+        ]:
+            created_policy = expect_ok(
+                client.post(
+                    "/tool-policies",
+                    json={
+                        "name": f"{server_name}: {name}",
+                        "tool_name": tool,
+                        "action": action,
+                        "scope_type": "mcp_server",
+                        "scope_id": server_id,
+                        "priority": priority,
+                    },
+                ),
+                f"create policy {name}",
+            )
+            policy_ids.append(created_policy["id"])
+        print(f"[ok] allow-listed 2 tools on the server ({len(policy_ids)} policies)")
 
         tools = expect_ok(client.get("/mcp-registry/tools"), "list mcp tools")
         print(f"[ok] listed {len(tools['items'])} MCP tools")
@@ -120,12 +130,16 @@ def main() -> None:
                         "arguments": {},
                     },
                 ),
-                "execute test tool call",
+                "governed test tool call",
+                allowed=(200, 202, 403),
             )
-            print(f"[ok] executed tool call status={tool_call['status']}")
+            # success | error (HTTP server ran it), not_executed (stdio runs on the agent),
+            # pending_approval (202), or a 403 when a policy blocks it.
+            print(f"[ok] tool call status={tool_call.get('status', 'blocked')}")
 
-        expect_ok(client.delete(f"/mcp-registry/permissions/{policy_id}"), "revoke permission policy")
-        print("[ok] revoked permission policy")
+        for pid in policy_ids:
+            expect_ok(client.delete(f"/tool-policies/{pid}"), "archive policy")
+        print("[ok] archived the server's tool policies")
 
         expect_ok(client.delete(f"/mcp-registry/{server_id}"), "deactivate mcp server")
         print("[ok] deactivated MCP server")

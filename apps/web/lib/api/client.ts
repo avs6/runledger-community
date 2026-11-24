@@ -277,11 +277,14 @@ export async function exportChargebackReport(
 
 export async function exportGovernanceAuditPack(
   apiKey: string,
-  params?: { from?: string; to?: string; format?: 'json' | 'csv' }
+  params?: { from?: string; to?: string; format?: 'json' | 'csv'; user_id?: string; access_group_id?: string; api_key_id?: string }
 ): Promise<string> {
   const q = new URLSearchParams({ format: params?.format ?? 'json' })
   if (params?.from) q.set('from', params.from)
   if (params?.to) q.set('to', params.to)
+  if (params?.user_id) q.set('user_id', params.user_id)
+  if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
+  if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
   const res = await apiRequest(`/governance/audit-pack/export?${q}`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()

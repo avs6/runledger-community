@@ -47,7 +47,8 @@ from runledger_api.models.events import (
 from runledger_api.models.ingest_dead_letters import IngestDeadLetter
 from runledger_api.models.ledger import CapturePolicy
 from runledger_api.models.outcomes import Outcome
-from runledger_api.services import kafka_export
+from runledger_api.services import auto_tagging, kafka_export
+from runledger_api.services.capture_policy import CaptureResolver, load_resolver
 from runledger_api.services.scrubbing import scrub_dict
 from runledger_api.services.workflow_attribution import attribution_from_event
 
@@ -99,7 +100,9 @@ async def _process_events(workspace_id: str, events: list[dict[str, Any]]) -> No
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with session_factory() as session:
-            privacy_mode, sampled_rate = await _get_capture_policy(session, workspace_id)
+            # Workspace default + scoped overrides, resolved per run (W1-H, review S-09).
+            capture = await load_resolver(session, workspace_id)
+            privacy_mode, sampled_rate = capture.default
             priced_calls: list[dict[str, Any]] = []
             owned_runs: dict[str, bool] = {}
             for raw in events:
@@ -117,7 +120,13 @@ async def _process_events(workspace_id: str, events: list[dict[str, Any]]) -> No
                     batch_priced: list[dict[str, Any]] = []
                     async with session.begin_nested():
                         await _dispatch(
-                            session, workspace_id, event, privacy_mode, sampled_rate, batch_priced
+                            session,
+                            workspace_id,
+                            event,
+                            privacy_mode,
+                            sampled_rate,
+                            batch_priced,
+                            capture=capture,
                         )
                     priced_calls.extend(batch_priced)
                     if dead_letter_id:
@@ -303,6 +312,8 @@ async def _dispatch(
     privacy_mode: str,
     sampled_rate: float,
     priced_calls: list[dict[str, Any]] | None = None,
+    *,
+    capture: CaptureResolver | None = None,
 ) -> None:
     match event.get("event_type"):
         case "run_start":
@@ -312,6 +323,8 @@ async def _dispatch(
         case "span_start":
             await _handle_span_start(session, event)
         case "span_end":
+            if capture is not None:
+                privacy_mode, sampled_rate = await capture.for_run(session, event.get("run_id"))
             await _handle_span_end(session, event, privacy_mode, sampled_rate)
         case "provider_call":
             await _handle_provider_call(session, workspace_id, event, priced_calls)
@@ -383,6 +396,23 @@ def _uuid(value: str | None) -> uuid.UUID | None:
 async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:
     # Workflow spine: resolve workflow + agent inside this workspace (never across).
     attribution = await attribution_from_event(session, uuid.UUID(workspace_id), e)
+    run_metadata = scrub_dict(e.get("metadata"))
+    # Auto-tag rules apply at ingest (W1-H, review S-19).
+    auto_tags = await auto_tagging.tags_for(
+        session,
+        uuid.UUID(workspace_id),
+        {
+            "feature_tag": e.get("feature_tag"),
+            "end_user_id": e.get("end_user_id"),
+            "session_id": e.get("session_id"),
+            "intent": e.get("intent"),
+            "deployment_version": e.get("deployment_version"),
+            "source": e.get("source_type") or "sdk",
+            "metadata": e.get("metadata") or {},
+        },
+    )
+    if auto_tags:
+        run_metadata = {**(run_metadata or {}), "auto_tags": auto_tags}
     stmt = insert(AgentRun).values(
         id=uuid.UUID(e["run_id"]),
         workspace_id=uuid.UUID(workspace_id),
@@ -396,7 +426,7 @@ async def _handle_run_start(session: AsyncSession, workspace_id: str, e: dict[st
         deployment_version=e.get("deployment_version"),
         status=RunStatusEnum.running,
         started_at=_dt(e["started_at"]),
-        run_metadata=scrub_dict(e.get("metadata")),
+        run_metadata=run_metadata,
         intent=e.get("intent"),
         # OTLP source-provenance (populated only for OTLP-ingested runs)
         source_type=e.get("source_type"),

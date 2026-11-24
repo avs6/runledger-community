@@ -68,7 +68,7 @@ from runledger_api.models.ledger import (
     SecurityEvent,
     ToolRegistry,
 )
-from runledger_api.models.mcp_registry import McpPermission, McpServer, McpToolCall
+from runledger_api.models.mcp_registry import McpServer, McpToolCall
 from runledger_api.models.metering import (
     DataQualityIssue,
     ProviderPricing,
@@ -218,7 +218,6 @@ __all__ = [
     "Evaluator",
     "HubModel",
     "McpServer",
-    "McpPermission",
     "McpToolCall",
     "OtlpIngestBatch",
     "OtlpMetricRollup",

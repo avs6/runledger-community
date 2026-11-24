@@ -42,9 +42,7 @@ def test_no_references_to_missing_model_attributes() -> None:
                 if cls is not None and not hasattr(cls, attr):
                     rel = path.relative_to(API_ROOT).as_posix()
                     missing.append(f"{rel}:{lineno} {cls_name}.{attr}")
-    assert not missing, "References to model attributes that don't exist:\n" + "\n".join(
-        missing
-    )
+    assert not missing, "References to model attributes that don't exist:\n" + "\n".join(missing)
 
 
 def test_every_model_table_is_created_by_a_migration() -> None:

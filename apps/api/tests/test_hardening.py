@@ -24,29 +24,29 @@ from httpx import AsyncClient
 
 
 def test_scrub_value_email() -> None:
-    """scrub_value() replaces email addresses with [REDACTED]."""
+    """scrub_value() replaces email addresses with a typed placeholder (shared redactor, S-11)."""
     from runledger_api.services.scrubbing import scrub_value
 
     result = scrub_value("Contact us at user@example.com for help.")
-    assert "[REDACTED]" in result
+    assert "[EMAIL]" in result
     assert "user@example.com" not in result
 
 
 def test_scrub_value_ssn() -> None:
-    """scrub_value() replaces SSN patterns with [REDACTED]."""
+    """scrub_value() replaces SSN patterns with a typed placeholder (shared redactor, S-11)."""
     from runledger_api.services.scrubbing import scrub_value
 
     result = scrub_value("SSN: 123-45-6789")
-    assert "[REDACTED]" in result
+    assert "[SSN]" in result
     assert "123-45-6789" not in result
 
 
 def test_scrub_value_credit_card() -> None:
-    """scrub_value() replaces credit card numbers with [REDACTED]."""
+    """scrub_value() replaces credit card numbers with a typed placeholder (shared redactor, S-11)."""
     from runledger_api.services.scrubbing import scrub_value
 
     result = scrub_value("Card: 4111 1111 1111 1111")
-    assert "[REDACTED]" in result
+    assert "[CARD]" in result
     assert "4111 1111 1111 1111" not in result
 
 
@@ -64,9 +64,9 @@ def test_scrub_dict_recursive() -> None:
     }
     result = scrub_dict(d)
     assert result is not None
-    assert "[REDACTED]" in result["email"]
+    assert "[EMAIL]" in result["email"]
     assert "alice@example.com" not in result["email"]
-    assert "[REDACTED]" in result["nested"]["card"]
+    assert "[CARD]" in result["nested"]["card"]
     assert result["nested"]["count"] == 5  # non-string unchanged
     assert result["name"] == "Alice"  # no PII, unchanged
 

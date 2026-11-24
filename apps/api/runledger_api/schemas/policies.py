@@ -24,6 +24,9 @@ class PolicyCheckRequest(BaseModel):
     model_alias: str | None = None
     score_gate: ScoreGateRequest | None = None
     dry_run: bool = False
+    # Tool-dimension inputs, evaluated by the shared tool-policy engine.
+    risk_score: int | None = Field(None, ge=0, le=100)
+    approval_id: uuid.UUID | None = None
 
 
 class PolicyDryRunDetail(BaseModel):
@@ -40,12 +43,14 @@ class PolicyDryRunDetail(BaseModel):
 
 class PolicyCheckResponse(BaseModel):
     allowed: bool
-    decision: str = Field(..., pattern="^(allow|downgrade|block)$")
+    decision: str = Field(..., pattern="^(allow|downgrade|require_approval|block)$")
     reasons: list[str] = Field(default_factory=list)
     budget_action: str | None = None
     budget_id: str | None = None
     downgrade_model: str | None = None
     tool_policy: str | None = None
+    tool_policy_name: str | None = None
+    approval_id: str | None = None
     gateway_route_available: bool | None = None
     score_gate_passed: bool | None = None
     detail: PolicyDryRunDetail | None = None

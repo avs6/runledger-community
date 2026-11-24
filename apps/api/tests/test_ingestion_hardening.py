@@ -80,7 +80,7 @@ async def test_failing_event_is_dead_lettered_without_aborting_batch() -> None:
     }
     calls: list[str] = []
 
-    async def dispatch(_s: Any, _ws: Any, event: dict[str, Any], *args: Any) -> None:
+    async def dispatch(_s: Any, _ws: Any, event: dict[str, Any], *args: Any, **_kw: Any) -> None:
         calls.append(event["run_id"])
         if event is bad or event["run_id"] == bad["run_id"]:
             raise ValueError("boom")

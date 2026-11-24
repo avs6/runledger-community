@@ -11,7 +11,17 @@ from pydantic import BaseModel, Field
 
 TagMatchType = Literal["equals", "contains", "regex", "prefix", "suffix"]
 ToolPolicyAction = Literal["allow", "audit", "block", "require_approval", "deny"]
-ScopeType = Literal["workspace", "access_group", "group", "search_tool"]
+ScopeType = Literal["workspace", "access_group", "group", "api_key", "mcp_server", "search_tool"]
+ToolPolicyCondition = Literal[
+    "all",
+    "risk_score_gte",
+    "tool_type",
+    "end_user",
+    "feature_tag",
+    "context_equals",
+    "argument_contains",
+    "mcp_server",
+]
 
 
 class TagCreate(BaseModel):
@@ -186,7 +196,7 @@ class ToolPolicyCreate(BaseModel):
     description: str | None = Field(None, max_length=2000)
     tool_name: str = Field(..., max_length=200)
     action: ToolPolicyAction
-    condition_type: str | None = Field(None, max_length=50)
+    condition_type: ToolPolicyCondition | None = None
     condition_config: dict[str, Any] = Field(default_factory=dict)
     scope_type: ScopeType = "workspace"
     scope_id: uuid.UUID | None = None
@@ -199,7 +209,7 @@ class ToolPolicyUpdate(BaseModel):
     description: str | None = Field(None, max_length=2000)
     tool_name: str | None = Field(None, max_length=200)
     action: ToolPolicyAction | None = None
-    condition_type: str | None = Field(None, max_length=50)
+    condition_type: ToolPolicyCondition | None = None
     condition_config: dict[str, Any] | None = None
     scope_type: ScopeType | None = None
     scope_id: uuid.UUID | None = None
@@ -236,14 +246,68 @@ class ToolPolicySimulationRequest(BaseModel):
     end_user_id: str | None = Field(None, max_length=255)
     feature_tag: str | None = Field(None, max_length=255)
     context: dict[str, Any] = Field(default_factory=dict)
+    # A dry run may name the identity to test (it enforces nothing).
+    api_key_id: uuid.UUID | None = None
+    access_group_ids: list[uuid.UUID] = Field(default_factory=list)
+    server_id: uuid.UUID | None = None
+    arguments: dict[str, Any] | None = None
 
 
 class ToolPolicySimulationResponse(BaseModel):
+    """Result of the shared evaluator (identical to what runtime would decide)."""
+
     tool_name: str
     final_action: str
     matched_policy_ids: list[uuid.UUID]
     matched_policy_names: list[str]
     reasons: list[str]
+    deciding_policy_id: uuid.UUID | None = None
+
+
+class ToolPolicyImpactRequest(BaseModel):
+    """Replay recent real tool calls against a draft policy before saving it."""
+
+    policy: ToolPolicyCreate | None = None
+    policy_id: uuid.UUID | None = None  # the policy being edited (replaced by ``policy``)
+    remove: bool = False  # simulate deleting ``policy_id`` instead
+    days: int = Field(7, ge=1, le=30)
+
+
+class ToolPolicyImpactToolRow(BaseModel):
+    tool_name: str
+    calls: int
+    before: dict[str, int]
+    after: dict[str, int]
+    changed: int
+
+
+class ToolPolicyImpactSample(BaseModel):
+    source: str
+    tool_name: str
+    occurred_at: datetime | None = None
+    before: str
+    after: str
+    end_user_id: str | None = None
+    feature_tag: str | None = None
+    run_id: uuid.UUID | None = None
+
+
+class ToolPolicyImpactResponse(BaseModel):
+    days: int
+    window_start: datetime
+    window_end: datetime
+    calls_replayed: int
+    changed: int
+    newly_blocked: int
+    newly_held: int
+    newly_audited: int
+    newly_allowed: int
+    affected_end_users: int
+    affected_runs: int
+    by_tool: list[ToolPolicyImpactToolRow]
+    samples: list[ToolPolicyImpactSample]
+    truncated: bool = False
+    notes: list[str] = Field(default_factory=list)
 
 
 class ToolUsageAnalyticsItem(BaseModel):

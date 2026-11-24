@@ -8,12 +8,11 @@ from pydantic import BaseModel, Field
 
 
 class WorkspaceSecuritySettingsUpdate(BaseModel):
+    """Only settings with a runtime enforcement path (review S-24: residency, callback,
+    brand and OIDC-session settings were stored but never read, so they were removed)."""
+
     required_metadata_fields: list[str] | None = None
     required_metadata_mode: str | None = Field(None, pattern="^(warn|reject)$")
-    data_residency_regions: list[str] | None = None
-    callback_config: dict[str, Any] | None = None
-    brand_config: dict[str, Any] | None = None
-    oidc_session_config: dict[str, Any] | None = None
 
 
 class WorkspaceSecuritySettingsResponse(BaseModel):
@@ -21,10 +20,6 @@ class WorkspaceSecuritySettingsResponse(BaseModel):
     workspace_id: uuid.UUID
     required_metadata_fields: list[str]
     required_metadata_mode: str
-    data_residency_regions: list[str]
-    callback_config: dict[str, Any]
-    brand_config: dict[str, Any]
-    oidc_session_config: dict[str, Any]
     created_at: datetime
     updated_at: datetime
 

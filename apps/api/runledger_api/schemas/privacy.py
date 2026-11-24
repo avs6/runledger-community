@@ -40,8 +40,10 @@ class CapturePolicyResponse(BaseModel):
 
 
 class CapturePolicyScopeUpsert(BaseModel):
-    scope_type: str
-    scope_id: str
+    # Only scopes the ingest pipeline can resolve from a run (review S-09):
+    # api_key > user > feature_tag > intent > workspace.
+    scope_type: Literal["api_key", "user", "feature_tag", "intent", "workspace"]
+    scope_id: str = Field(..., min_length=1, max_length=255)
     privacy_mode: PrivacyMode
     sampled_rate: Decimal | None = Field(default=None, ge=0, le=1)
 

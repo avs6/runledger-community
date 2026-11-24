@@ -92,7 +92,7 @@ def test_full_mode_pii_scrubbed() -> None:
 
     assert result is not None
     assert "secret@example.com" not in result["messages"][0]["content"]
-    assert "[REDACTED]" in result["messages"][0]["content"]
+    assert "[EMAIL]" in result["messages"][0]["content"]
 
 
 # ── _get_capture_policy (DB helper) ───────────────────────────────────────────

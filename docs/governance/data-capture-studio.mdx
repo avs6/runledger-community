@@ -12,20 +12,39 @@ The data capture policy studio lets org admins decide how much request and respo
 | `METADATA_ONLY` | Token counts, model metadata, timing, and status only |
 | `ERRORS_ONLY` | Metadata plus failed-request payload context |
 | `SAMPLED` | Full payloads on a configurable sample of traffic |
-| `FULL` | Full prompt, response, tool, and payload capture |
+| `FULL` | Full span payloads (after PII redaction) |
+
+## What it applies to (and what it doesn't)
+
+The capture mode is enforced **at ingest, on span payloads** (`span_end` metadata from the SDK, OTLP and webhook
+ingest). Run-level metadata is always kept, after PII redaction. The gateway's response cache is configured
+separately, per route (Gateway → Cache).
+
+## How a run's mode is chosen
+
+The workspace policy is the default. A scoped override applies to a run by the run's own attributes, most specific
+first:
+
+`api_key` (the run's API key) → `user` (the end user sent with the run) → `feature_tag` → `intent` → `workspace`
+
+Only these scope types can be saved; others are rejected because ingest can't resolve them from a run.
+
+## PII redaction
+
+RunLedger has one redactor, shared by ingest, gateway route redaction and the PII sandbox on this page. It replaces
+emails, phone numbers, US SSNs and card numbers with `[EMAIL]`, `[PHONE]`, `[SSN]` and `[CARD]`.
 
 ## Key features
 
 - **Global policy** - set the default privacy mode for the workspace.
-- **Scoped overrides** - create, edit, and delete overrides per org, workspace, API key, model route, user, intent, or agent.
+- **Scoped overrides** - create, edit, and delete overrides per API key, end user, feature tag, intent or workspace.
 - **Retention preview** - review estimated storage footprint, fields captured, fields redacted, and compliance notes before saving.
 - **PII testing sandbox** - paste sample text and inspect detected entities plus the redacted result.
-- **Operator-friendly workflow** - the UI now exposes the full scoped-override lifecycle instead of only upsert-style creation.
 
 ## Typical flow
 
 1. Start with `METADATA_ONLY` as the baseline.
-2. Add a scoped override for a route, API key, or agent that needs deeper debugging.
+2. Add a scoped override for the feature tag or API key that needs deeper debugging.
 3. Use the PII sandbox on representative payloads before switching that scope to `SAMPLED` or `FULL`.
 4. Remove the scoped override once the investigation window closes.
 

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { CheckCircle2, Database, Eye, Info, Layers, Link2, Loader2, Pencil, Plus, Radio, Search, Shield, Trash2, X, Building2, Zap, Lock, Globe, Server, Activity } from 'lucide-react'
 import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { deleteCapturePolicyScope, getCapturePolicy, getRetentionPreview, listCapturePolicyScopes, testPiiRedaction, upsertCapturePolicy, upsertCapturePolicyScope } from '@/lib/api'
 import type { CapturePolicyResponse, CapturePolicyScope, PiiTestResult, RetentionPreview } from '@/types/api'
 
@@ -14,7 +15,16 @@ const inputCls =
 
 type Tab = 'global' | 'scoped' | 'pii'
 
-const SCOPE_TYPES = ['org', 'workspace', 'api_key', 'model_route', 'user', 'intent', 'agent'] as const
+// Scopes the ingest pipeline resolves per run, most specific first (review S-09):
+// api_key > user (end user) > feature_tag > intent > workspace.
+const SCOPE_TYPES = ['api_key', 'user', 'feature_tag', 'intent', 'workspace'] as const
+const SCOPE_HINTS: Record<string, string> = {
+  api_key: 'API key id',
+  user: 'End-user id sent with the run',
+  feature_tag: 'Feature tag, e.g. checkout',
+  intent: 'Run intent',
+  workspace: 'Workspace id',
+}
 
 const COMPLIANCE_NOTES: Record<string, { icon: typeof CheckCircle2; color: string; note: string }> = {
   METADATA_ONLY: {
@@ -53,6 +63,7 @@ const MODE_COLORS: Record<string, string> = {
 
 export default function DataCapturePage() {
   const { data: session } = useSession()
+  const { confirm, dialog } = useConfirm()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
   const { canManageOrgSettings } = useRole()
 
@@ -116,8 +127,6 @@ export default function DataCapturePage() {
 
   useEffect(() => {
     void loadPolicy()
-    if (apiKey) {
-    }
   }, [loadPolicy])
 
   useEffect(() => {
@@ -183,7 +192,7 @@ export default function DataCapturePage() {
   }
 
   async function handleDeleteScope(scope: CapturePolicyScope) {
-    if (!apiKey || !confirm(`Delete scoped override ${scope.scope_type}:${scope.scope_id}?`)) return
+    if (!apiKey || !(await confirm({ title: `Delete override ${scope.scope_type}:${scope.scope_id}?`, description: 'Runs in this scope fall back to the next matching scope or the workspace default.', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deleteCapturePolicyScope(apiKey, scope.scope_type, scope.scope_id)
       toast.success('Scoped policy deleted')
@@ -224,6 +233,7 @@ export default function DataCapturePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
+      {dialog}
       {/* Hero header */}
       <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
         <div className="flex items-center justify-between">
@@ -233,7 +243,7 @@ export default function DataCapturePage() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-950 dark:text-white">Data Capture Policy Studio</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Privacy mode, per-scope overrides, PII redaction &amp; compliance controls</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Applied at ingest to span payloads: the workspace mode, overridden per run by API key, end user, feature tag or intent. PII is redacted with the same redactor the gateway uses.</p>
             </div>
           </div>
           {capturePolicy && (
@@ -388,7 +398,7 @@ export default function DataCapturePage() {
               </label>
               <label className="text-xs">
                 <span className="mb-1 block text-[10px] font-medium text-slate-500">Scope ID</span>
-                <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={inputCls} disabled={Boolean(editingScopeKey)} />
+                <input value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={inputCls} disabled={Boolean(editingScopeKey)} placeholder={SCOPE_HINTS[scopeType] ?? ''} aria-label="Scope id" />
               </label>
               <label className="text-xs">
                 <span className="mb-1 block text-[10px] font-medium text-slate-500">Privacy Mode</span>

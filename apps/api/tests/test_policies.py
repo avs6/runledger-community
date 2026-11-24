@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
+from runledger_api.services.tool_policy_engine import PolicyRule
 
 
 @pytest.mark.asyncio
@@ -91,8 +92,22 @@ async def test_policy_check_blocks_on_tool_policy(
             new=AsyncMock(return_value=type("Budget", (), {"allowed": True})()),
         ),
         patch(
-            "runledger_api.services.policies._get_tool_policy",
-            new=AsyncMock(return_value="block"),
+            "runledger_api.services.tool_policy_engine.load_rules",
+            new=AsyncMock(
+                return_value=[
+                    PolicyRule(
+                        id=None,
+                        name="no-danger",
+                        tool_name="dangerous_tool",
+                        action="block",
+                        condition_type="all",
+                        condition_config={},
+                        scope_type="workspace",
+                        scope_id=None,
+                        priority=10,
+                    )
+                ]
+            ),
         ),
     ):
         resp = await authed_client.post(

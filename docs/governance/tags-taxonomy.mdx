@@ -12,6 +12,18 @@ The Tags page is the taxonomy surface for workflow-centered metadata. It is wher
 - **Auto-tagging rules** - create, edit, delete, activate, and simulate rules that apply tags from request fields
 - **Simulation** - validate how a payload would be tagged before enabling stricter automation
 
+## Where auto-tag rules apply
+
+Active rules run on every new run, at ingest (SDK, OTLP, webhook) and in the gateway (finalize). Matching tags are
+written to the run as `run_metadata.auto_tags` (`{"team": "billing"}`); for one key, the lowest-priority-number rule
+wins. Rules can match `feature_tag`, `end_user_id`, `session_id`, `intent`, `model`, `source`,
+`deployment_version` or `metadata.<key>`. The simulator uses the same matcher.
+
+Regex rules are limited to 300 characters, can't use nested quantifiers such as `(a+)+`, and are matched against
+the first 1,000 characters of a value.
+
+Tag catalog entries (the vocabulary) are documentation for operators; only auto-tag rules write tags to runs.
+
 ## Cohesion guidance
 
 Tags should support workflow analytics, governance, routing, and FinOps dimensions without introducing a parallel "project" or "team model" concept. Keep the taxonomy aligned to workflow, tenant, route, channel, product area, and similar operational dimensions.

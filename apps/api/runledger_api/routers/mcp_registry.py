@@ -11,12 +11,14 @@ GET    /mcp-registry                              List MCP servers
 GET    /mcp-registry/{id}                         Get MCP server
 PUT    /mcp-registry/{id}                         Update MCP server
 DELETE /mcp-registry/{id}                         Deactivate MCP server
-GET    /mcp-registry/tools                        List available tools (filtered by permissions)
-POST   /mcp-registry/tools/call                   Call a tool through RunLedger
-GET    /mcp-registry/tool-calls                   List recent tool calls
-POST   /mcp-registry/permissions                  Grant permission
-GET    /mcp-registry/permissions                  List permissions
-DELETE /mcp-registry/permissions/{id}             Revoke permission
+POST   /mcp-registry/{id}/discover                Connect, refresh tools and real health status
+GET    /mcp-registry/tools                        List discovered tools
+POST   /mcp-registry/tools/call                   Governed call: policy → (hold | block | execute)
+GET    /mcp-registry/tool-calls                   List recent tool calls (filters: status, server, tool)
+POST   /mcp-registry/tool-calls/{id}/resume       Execute a held call once its approval is approved
+
+Per-server permissions are ToolPolicy rows with scope_type ``mcp_server`` (see
+/tool-policies); the separate, never-enforced permission table was removed (S-23).
 """
 
 from __future__ import annotations
@@ -26,20 +28,25 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from runledger_api.core.db import get_db
-from runledger_api.core.deps import get_current_workspace, require_workspace_admin
+from runledger_api.core.deps import (
+    get_current_workspace,
+    require_key_scope,
+    require_workspace_admin,
+    require_workspace_writer,
+)
 from runledger_api.core.pagination import PageDep, paginate, paginate_list
 from runledger_api.core.ratelimit import analytics_rate_limit, management_rate_limit
-from runledger_api.models.mcp_registry import McpPermission, McpServer, McpToolCall
+from runledger_api.core.scopes import MCP, WRITE
+from runledger_api.models.approvals import Approval
+from runledger_api.models.mcp_registry import McpServer, McpToolCall
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.mcp_registry import (
-    McpPermissionCreate,
-    McpPermissionList,
-    McpPermissionResponse,
+    McpDiscoverResponse,
     McpServerCreate,
     McpServerList,
     McpServerResponse,
@@ -50,6 +57,10 @@ from runledger_api.schemas.mcp_registry import (
     McpToolListItem,
     McpToolListResponse,
 )
+from runledger_api.services import mcp_client
+from runledger_api.services import plugin_runner as governance
+from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.sessions import resolve_principal_user_id
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/mcp-registry", tags=["mcp-registry"])
@@ -108,6 +119,15 @@ async def register_server(body: McpServerCreate, ws: WorkspaceDep, db: DbDep) ->
         auth_config=body.auth_config,
     )
     db.add(srv)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        ws.id,
+        "mcp_server.created",
+        target_type="mcp_server",
+        target_id=str(srv.id),
+        after={"name": srv.name, "transport": srv.transport, "url": srv.url},
+    )
     await db.commit()
     await db.refresh(srv)
     return _server_to_response(srv)
@@ -166,37 +186,23 @@ async def list_tools(
 async def list_tool_calls(
     ws: WorkspaceDep,
     db: DbDep,
-    limit: int = Query(50, ge=1, le=200),
+    page: PageDep,
+    response: Response,
+    status_filter: Annotated[str | None, Query(alias="status", max_length=32)] = None,
+    server_id: uuid.UUID | None = None,
+    tool_name: Annotated[str | None, Query(max_length=200)] = None,
 ) -> McpToolCallList:
-    rows = (
-        (
-            await db.execute(
-                select(McpToolCall)
-                .where(McpToolCall.workspace_id == ws.id)
-                .order_by(McpToolCall.created_at.desc())
-                .limit(limit)
-            )
-        )
-        .scalars()
-        .all()
+    q = select(McpToolCall).where(McpToolCall.workspace_id == ws.id)
+    if status_filter:
+        q = q.where(McpToolCall.status == status_filter)
+    if server_id:
+        q = q.where(McpToolCall.mcp_server_id == server_id)
+    if tool_name:
+        q = q.where(McpToolCall.tool_name == tool_name)
+    rows = await paginate(
+        db, q.order_by(McpToolCall.created_at.desc(), McpToolCall.id), page, response
     )
-    return McpToolCallList(
-        items=[
-            McpToolCallResponse(
-                id=c.id,
-                mcp_server_id=c.mcp_server_id,
-                tool_name=c.tool_name,
-                arguments=c.arguments or {},
-                result=c.result,
-                cost_usd=c.cost_usd,
-                latency_ms=c.latency_ms,
-                status=c.status,
-                error=c.error,
-                created_at=c.created_at,
-            )
-            for c in rows
-        ]
-    )
+    return McpToolCallList(items=[_call_to_response(c) for c in rows])
 
 
 @router.get(
@@ -228,9 +234,18 @@ async def update_server(
     ).scalar_one_or_none()
     if not srv:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found")
-    for k, v in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    for k, v in changes.items():
         setattr(srv, k, v)
     srv.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        ws.id,
+        "mcp_server.updated",
+        target_type="mcp_server",
+        target_id=str(srv.id),
+        after={k: v for k, v in changes.items() if k not in {"auth_config", "env"}},
+    )
     await db.commit()
     await db.refresh(srv)
     return _server_to_response(srv)
@@ -247,155 +262,207 @@ async def deactivate_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -
         .where(McpServer.id == server_id, McpServer.workspace_id == ws.id)
         .values(is_active=False, updated_at=datetime.now(UTC))
     )
+    await emit_audit_event(
+        db, ws.id, "mcp_server.deactivated", target_type="mcp_server", target_id=str(server_id)
+    )
     await db.commit()
+
+
+def _call_to_response(c: McpToolCall) -> McpToolCallResponse:
+    return McpToolCallResponse(
+        id=c.id,
+        mcp_server_id=c.mcp_server_id,
+        tool_name=c.tool_name,
+        arguments=c.arguments or {},
+        result=c.result,
+        cost_usd=c.cost_usd,
+        latency_ms=c.latency_ms,
+        status=c.status,
+        error=c.error,
+        created_at=c.created_at,
+        decision=c.decision,
+        policy_name=c.policy_name,
+        approval_id=c.approval_id,
+        end_user_id=c.end_user_id,
+    )
+
+
+async def _active_server(db: AsyncSession, ws_id: uuid.UUID, server_id: uuid.UUID) -> McpServer:
+    srv = (
+        await db.execute(
+            select(McpServer).where(McpServer.id == server_id, McpServer.workspace_id == ws_id)
+        )
+    ).scalar_one_or_none()
+    if not srv or not srv.is_active:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found or inactive")
+    return srv
+
+
+async def _execute(call: McpToolCall, srv: McpServer) -> None:
+    """Run the tool on the MCP server and record the real outcome on ``call``."""
+    try:
+        outcome = await mcp_client.call_tool(srv, call.tool_name, call.arguments or {})
+    except mcp_client.McpNotExecutable as exc:
+        call.status = "not_executed"
+        call.error = str(exc)
+        return
+    except mcp_client.McpError as exc:
+        call.status = "error"
+        call.error = str(exc)[:2000]
+        return
+    call.result = outcome.result
+    call.latency_ms = outcome.latency_ms
+    call.status = "error" if outcome.is_error else "success"
+    call.error = "tool returned isError" if outcome.is_error else None
 
 
 @router.post(
     "/tools/call",
     response_model=McpToolCallResponse,
-    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_writer)],
 )
-async def call_tool(body: McpToolCallRequest, ws: WorkspaceDep, db: DbDep) -> McpToolCallResponse:
-    srv = (
-        await db.execute(
-            select(McpServer).where(McpServer.id == body.server_id, McpServer.workspace_id == ws.id)
-        )
-    ).scalar_one_or_none()
-    if not srv or not srv.is_active:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "MCP server not found or inactive")
+async def call_tool(
+    body: McpToolCallRequest,
+    request: Request,
+    response: Response,
+    ws: WorkspaceDep,
+    db: DbDep,
+) -> McpToolCallResponse:
+    """Governed MCP proxy (review S-01, cd:S-04).
 
-    # 1. Govern and filter tool call through ToolPolicy, Guardrails & Plugin Hooks
-    from runledger_api.services.plugin_runner import govern_and_filter_tool_call  # noqa: PLC0415
-
-    gov_res = await govern_and_filter_tool_call(
+    The one tool-policy evaluator decides; ``block`` → 403 (recorded), approval →
+    202 with a real ``approval_id`` (resume after approval), otherwise the tool is
+    executed on the registered HTTP MCP server and its real result is stored.
+    """
+    api_key = getattr(request.state, "api_key", None)
+    require_key_scope(api_key, MCP | WRITE)
+    srv = await _active_server(db, ws.id, body.server_id)
+    principal = await resolve_principal_user_id(
+        db, api_key=api_key, end_user_id=body.end_user_id, workspace=ws
+    )
+    ctx = await governance.build_context(
         db,
         ws.id,
-        srv.id,
         body.tool_name,
-        body.arguments,
-        access_group_id=body.access_group_id,
-        api_key_id=body.api_key_id,
+        api_key=api_key,
+        principal_user_id=principal,
         end_user_id=body.end_user_id,
+        server_id=srv.id,
+        arguments=body.arguments,
+        feature_tag=body.feature_tag,
+        tool_type="mcp",
     )
-
-    call_status = "success"
-    result_data = None
-    if gov_res.get("status") == "require_approval":
-        call_status = "pending_approval"
-        result_data = {
-            "status": "pending_approval",
-            "approval_id": gov_res.get("approval_id"),
-            "reason": gov_res.get("reason"),
-            "message": gov_res.get("message"),
-        }
-
     call = McpToolCall(
         id=uuid.uuid4(),
         workspace_id=ws.id,
         mcp_server_id=srv.id,
+        api_key_id=getattr(api_key, "id", None),
         tool_name=body.tool_name,
         arguments=body.arguments,
-        status=call_status,
-        result=result_data,
+        end_user_id=body.end_user_id,
+        status="pending",
     )
+    try:
+        decision = await governance.govern_tool_call(
+            db,
+            ws.id,
+            ctx,
+            source="mcp_registry",
+            approval_id=body.approval_id,
+            hold_type=governance.MCP_HOLD_TYPE,
+            requested_by=str(principal) if principal else None,
+            hold_extra={"mcp_call_id": str(call.id), "server_name": srv.name},
+        )
+    except governance.ToolCallBlocked as exc:
+        call.status, call.decision = "blocked", "block"
+        call.policy_name, call.error = exc.decision.policy_name, exc.decision.reason
+        db.add(call)
+        await db.commit()
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"Tool call '{body.tool_name}' blocked: {exc.decision.reason}",
+        ) from exc
+    except governance.ToolCallHeld as exc:
+        call.status, call.decision = "pending_approval", "require_approval"
+        call.policy_name, call.approval_id = exc.decision.policy_name, exc.approval_id
+        call.result = {"approval_id": str(exc.approval_id), "reason": exc.decision.reason}
+        db.add(call)
+        await db.commit()
+        await db.refresh(call)
+        response.status_code = status.HTTP_202_ACCEPTED
+        response.headers["X-RunLedger-Approval-Id"] = str(exc.approval_id)
+        return _call_to_response(call)
+
+    call.decision, call.policy_name = decision.action, decision.policy_name
+    await _execute(call, srv)
     db.add(call)
     await db.commit()
     await db.refresh(call)
-    return McpToolCallResponse(
-        id=call.id,
-        mcp_server_id=call.mcp_server_id,
-        tool_name=call.tool_name,
-        arguments=call.arguments,
-        result=call.result,
-        cost_usd=call.cost_usd,
-        latency_ms=call.latency_ms,
-        status=call.status,
-        error=call.error,
-        created_at=call.created_at,
-    )
-
-
-# ── Permissions ──────────────────────────────────────────────────────────────
+    return _call_to_response(call)
 
 
 @router.post(
-    "/permissions",
-    response_model=McpPermissionResponse,
-    status_code=status.HTTP_201_CREATED,
+    "/tool-calls/{call_id}/resume",
+    response_model=McpToolCallResponse,
+    dependencies=[Depends(management_rate_limit), Depends(require_workspace_writer)],
+)
+async def resume_tool_call(
+    call_id: uuid.UUID, request: Request, ws: WorkspaceDep, db: DbDep
+) -> McpToolCallResponse:
+    """Execute a held call once its Approval is approved (409 while pending)."""
+    require_key_scope(getattr(request.state, "api_key", None), MCP | WRITE)
+    call = (
+        await db.execute(
+            select(McpToolCall).where(McpToolCall.id == call_id, McpToolCall.workspace_id == ws.id)
+        )
+    ).scalar_one_or_none()
+    if call is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool call not found")
+    if call.status != "pending_approval" or call.approval_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Tool call is {call.status}, not held")
+    approval = await db.get(Approval, call.approval_id)
+    if approval is None or approval.workspace_id != ws.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Approval not found")
+    if approval.status == "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Approval is still pending")
+    if approval.status != "approved":
+        call.status, call.error = "denied", f"approval {approval.status}"
+        await db.commit()
+        await db.refresh(call)
+        return _call_to_response(call)
+    srv = await _active_server(db, ws.id, call.mcp_server_id)
+    call.decision = "allow"
+    await _execute(call, srv)
+    await db.commit()
+    await db.refresh(call)
+    return _call_to_response(call)
+
+
+@router.post(
+    "/{server_id}/discover",
+    response_model=McpDiscoverResponse,
     dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
 )
-async def grant_permission(
-    body: McpPermissionCreate, ws: WorkspaceDep, db: DbDep
-) -> McpPermissionResponse:
-    perm = McpPermission(
-        id=uuid.uuid4(),
-        workspace_id=ws.id,
-        mcp_server_id=body.mcp_server_id,
-        scope_type=body.scope_type,
-        scope_id=body.scope_id,
-        allowed_tools=body.allowed_tools,
-    )
-    db.add(perm)
+async def discover_server(server_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> McpDiscoverResponse:
+    """Connect to the server, refresh ``discovered_tools`` and record real health."""
+    srv = await _active_server(db, ws.id, server_id)
+    error: str | None = None
+    try:
+        srv.discovered_tools = await mcp_client.list_tools(srv)
+        srv.health_status = "healthy"
+    except mcp_client.McpNotExecutable as exc:
+        srv.health_status, error = "client_side", str(exc)
+    except mcp_client.McpError as exc:
+        srv.health_status, error = "unreachable", str(exc)[:500]
+    srv.last_health_check = datetime.now(UTC)
+    srv.updated_at = datetime.now(UTC)
     await db.commit()
-    await db.refresh(perm)
-    return McpPermissionResponse(
-        id=perm.id,
-        workspace_id=perm.workspace_id,
-        mcp_server_id=perm.mcp_server_id,
-        scope_type=perm.scope_type,
-        scope_id=perm.scope_id,
-        allowed_tools=perm.allowed_tools,
-        created_at=perm.created_at,
+    return McpDiscoverResponse(
+        server_id=srv.id,
+        health_status=srv.health_status,
+        tool_count=len(srv.discovered_tools or []),
+        error=error,
     )
-
-
-@router.get(
-    "/permissions", response_model=McpPermissionList, dependencies=[Depends(analytics_rate_limit)]
-)
-async def list_permissions(ws: WorkspaceDep, db: DbDep) -> McpPermissionList:
-    rows = (
-        (
-            await db.execute(
-                select(McpPermission)
-                .where(McpPermission.workspace_id == ws.id)
-                .order_by(McpPermission.created_at.desc())
-            )
-        )
-        .scalars()
-        .all()
-    )
-    return McpPermissionList(
-        items=[
-            McpPermissionResponse(
-                id=p.id,
-                workspace_id=p.workspace_id,
-                mcp_server_id=p.mcp_server_id,
-                scope_type=p.scope_type,
-                scope_id=p.scope_id,
-                allowed_tools=p.allowed_tools,
-                created_at=p.created_at,
-            )
-            for p in rows
-        ]
-    )
-
-
-@router.delete(
-    "/permissions/{perm_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(management_rate_limit), Depends(require_workspace_admin)],
-)
-async def revoke_permission(perm_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> None:
-    result = await db.execute(
-        select(McpPermission).where(
-            McpPermission.id == perm_id, McpPermission.workspace_id == ws.id
-        )
-    )
-    perm = result.scalar_one_or_none()
-    if not perm:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Permission not found")
-    await db.delete(perm)
-    await db.commit()
 
 
 DEFAULT_POPULAR_MCP_SERVERS = [
@@ -490,7 +557,7 @@ async def seed_default_mcp_servers(ws: WorkspaceDep, db: DbDep) -> dict:
                 command=srv_def.get("command"),
                 args=srv_def.get("args"),
                 discovered_tools=srv_def.get("discovered_tools"),
-                health_status="healthy",
+                health_status="client_side",
                 is_active=True,
             )
             db.add(srv)

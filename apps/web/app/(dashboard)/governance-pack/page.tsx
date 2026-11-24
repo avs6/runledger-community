@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -18,7 +19,8 @@ import {
   Layers,
   Link2,
 } from 'lucide-react'
-import { getGovernanceAuditPack, exportGovernanceAuditPack } from '@/lib/api'
+import { getAccessGroups, getGovernanceAuditPack, exportGovernanceAuditPack, listApiKeys } from '@/lib/api'
+import type { AccessGroupResponse, ApiKeyResponse } from '@/types/api'
 import type { GovernanceAuditPack } from '@/types/api'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -41,18 +43,42 @@ export default function GovernancePackPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
 
-  const [fromDate, setFromDate] = useState(() => {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  // Filters live in the URL so a pack can be shared and regenerated exactly.
+  const defaultFrom = (() => {
     const d = new Date()
     d.setDate(d.getDate() - 30)
     return d.toISOString().slice(0, 10)
-  })
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10))
+  })()
+  const fromDate = searchParams.get('from') ?? defaultFrom
+  const toDate = searchParams.get('to') ?? new Date().toISOString().slice(0, 10)
+  const accessGroupId = searchParams.get('access_group_id') ?? ''
+  const apiKeyId = searchParams.get('api_key_id') ?? ''
   const [pack, setPack] = useState<GovernanceAuditPack | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [groups, setGroups] = useState<AccessGroupResponse[]>([])
+  const [keys, setKeys] = useState<ApiKeyResponse[]>([])
+
+  const setParam = useCallback((key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value) params.set(key, value)
+    else params.delete(key)
+    router.replace(`${pathname}?${params.toString()}`)
+  }, [pathname, router, searchParams])
+  const setFromDate = (v: string) => setParam('from', v)
+  const setToDate = (v: string) => setParam('to', v)
+  const identity = {
+    access_group_id: accessGroupId || undefined,
+    api_key_id: apiKeyId || undefined,
+  }
 
   useEffect(() => {
     if (!apiKey) return
+    void getAccessGroups(apiKey).then((r) => setGroups(r.items || [])).catch(() => setGroups([]))
+    void listApiKeys(apiKey).then((r) => setKeys(r.filter((k) => !k.is_session))).catch(() => setKeys([]))
   }, [apiKey])
 
   async function handleGenerate() {
@@ -60,10 +86,10 @@ export default function GovernancePackPage() {
     setLoading(true)
     setPack(null)
     try {
-      const result = await getGovernanceAuditPack(apiKey, { from: fromDate, to: toDate })
+      const result = await getGovernanceAuditPack(apiKey, { from: fromDate, to: toDate, ...identity })
       setPack(result)
-    } catch {
-      toast.error('Failed to generate audit pack')
+    } catch (err) {
+      toast.error(err instanceof Error && err.message.startsWith('API 422') ? err.message.replace(/^API 422: /, '') : 'Failed to generate audit pack')
     } finally {
       setLoading(false)
     }
@@ -73,7 +99,7 @@ export default function GovernancePackPage() {
     if (!apiKey) return
     setExporting(true)
     try {
-      const raw = await exportGovernanceAuditPack(apiKey, { from: fromDate, to: toDate, format })
+      const raw = await exportGovernanceAuditPack(apiKey, { from: fromDate, to: toDate, format, ...identity })
       const mimeType = format === 'csv' ? 'text/csv' : 'application/json'
       const blob = new Blob([raw], { type: mimeType })
       const url = URL.createObjectURL(blob)
@@ -109,12 +135,26 @@ export default function GovernancePackPage() {
       <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-end gap-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">From</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className={inputCls} />
+            <label htmlFor="pack-from" className="mb-1 block text-xs font-medium text-slate-500">From</label>
+            <input id="pack-from" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">To</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className={inputCls} />
+            <label htmlFor="pack-to" className="mb-1 block text-xs font-medium text-slate-500">To</label>
+            <input id="pack-to" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="pack-group" className="mb-1 block text-xs font-medium text-slate-500">Access group</label>
+            <select id="pack-group" value={accessGroupId} onChange={(e) => setParam('access_group_id', e.target.value)} className={inputCls}>
+              <option value="">All</option>
+              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="pack-key" className="mb-1 block text-xs font-medium text-slate-500">API key</label>
+            <select id="pack-key" value={apiKeyId} onChange={(e) => setParam('api_key_id', e.target.value)} className={inputCls}>
+              <option value="">All</option>
+              {keys.map((k) => <option key={k.id} value={k.id}>{k.name || k.key_prefix}</option>)}
+            </select>
           </div>
           <button
             onClick={handleGenerate}

@@ -655,12 +655,28 @@ export async function listMcpTools(apiKey: string): Promise<import('@/types/api'
   return apiFetch<import('@/types/api').McpToolListResponse>('/mcp-registry/tools', apiKey)
 }
 
-export async function callMcpTool(apiKey: string, data: { server_id: string; tool_name: string; arguments?: Record<string, unknown> }): Promise<import('@/types/api').McpToolCallResponse> {
+/** Governed MCP call: 200 executed (status success|error|not_executed), 202 held for approval, 403 blocked. */
+export async function callMcpTool(apiKey: string, data: { server_id: string; tool_name: string; arguments?: Record<string, unknown>; end_user_id?: string; approval_id?: string }): Promise<import('@/types/api').McpToolCallResponse> {
   return apiFetch<import('@/types/api').McpToolCallResponse>('/mcp-registry/tools/call', apiKey, { method: 'POST', body: JSON.stringify(data) })
 }
 
-export async function listMcpToolCalls(apiKey: string, limit = 50): Promise<import('@/types/api').McpToolCallList> {
-  return apiFetch<import('@/types/api').McpToolCallList>(`/mcp-registry/tool-calls?limit=${limit}`, apiKey)
+export async function resumeMcpToolCall(apiKey: string, callId: string): Promise<import('@/types/api').McpToolCallResponse> {
+  return apiFetch<import('@/types/api').McpToolCallResponse>(`/mcp-registry/tool-calls/${callId}/resume`, apiKey, { method: 'POST' })
+}
+
+export async function discoverMcpServer(apiKey: string, serverId: string): Promise<import('@/types/api').McpDiscoverResponse> {
+  return apiFetch<import('@/types/api').McpDiscoverResponse>(`/mcp-registry/${serverId}/discover`, apiKey, { method: 'POST' })
+}
+
+export async function listMcpToolCalls(
+  apiKey: string,
+  filters: { limit?: number; status?: string; server_id?: string; tool_name?: string } = {},
+): Promise<import('@/types/api').McpToolCallList> {
+  const qs = new URLSearchParams({ limit: String(filters.limit ?? 50) })
+  if (filters.status) qs.set('status', filters.status)
+  if (filters.server_id) qs.set('server_id', filters.server_id)
+  if (filters.tool_name) qs.set('tool_name', filters.tool_name)
+  return apiFetch<import('@/types/api').McpToolCallList>(`/mcp-registry/tool-calls?${qs.toString()}`, apiKey)
 }
 
 export async function syncHubProvider(
@@ -673,17 +689,6 @@ export async function syncHubProvider(
   })
 }
 
-export async function grantMcpPermission(apiKey: string, data: { mcp_server_id: string; scope_type: string; scope_id?: string; allowed_tools: string[] }): Promise<import('@/types/api').McpPermissionResponse> {
-  return apiFetch<import('@/types/api').McpPermissionResponse>('/mcp-registry/permissions', apiKey, { method: 'POST', body: JSON.stringify(data) })
-}
-
-export async function listMcpPermissions(apiKey: string): Promise<import('@/types/api').McpPermissionList> {
-  return apiFetch<import('@/types/api').McpPermissionList>('/mcp-registry/permissions', apiKey)
-}
-
-export async function revokeMcpPermission(apiKey: string, id: string): Promise<void> {
-  await apiFetch<void>(`/mcp-registry/permissions/${id}`, apiKey, { method: 'DELETE' })
-}
 
 // ── AI Hub ───────────────────────────────────────────────────────────────
 

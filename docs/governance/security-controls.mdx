@@ -7,7 +7,7 @@ The Security console is the governance home for enterprise auth posture and requ
 
 ## What lives here
 
-- **Security posture** - required metadata fields, enforcement mode, callback defaults, branding, and residency constraints
+- **Security posture** - required metadata fields and their enforcement mode (`reject` is enforced by the gateway). Residency, callback, branding and OIDC-session settings were removed: they were stored but never enforced.
 - **OIDC providers** - create, edit, activate, deactivate, and delete issuer configurations for gateway auth
 - **IP ACL rules** - create, edit, simulate, and delete allow or deny rules for workspace, API-key or access-group scope (global rules, which apply to every workspace, are platform-admin only)
 

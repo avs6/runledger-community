@@ -1,6 +1,6 @@
 ---
 title: "MCP Registry"
-description: "Manage workspace MCP servers, setup paths, tool permissions, and call history from one consolidated control-plane surface."
+description: "Register MCP servers, discover their tools, make governed tool calls through RunLedger, and review every call with its policy decision."
 ---
 
 The **MCP Registry** is the canonical workspace surface for Model Context Protocol connectivity in RunLedger.
@@ -8,7 +8,7 @@ The **MCP Registry** is the canonical workspace surface for Model Context Protoc
 It combines two responsibilities that used to be split across separate pages:
 
 - **setup and connection guidance** for Claude, Codex, Cursor, Windsurf, hosted agents, and local stdio bridges
-- **ongoing registry management** for MCP servers, discovered tools, permission policies, and tool-call review
+- **ongoing registry management** for MCP servers, discovered tools, governed tool calls and their review
 
 The legacy `/mcp` route now exists only as a compatibility redirect into this consolidated area.
 
@@ -17,12 +17,29 @@ The legacy `/mcp` route now exists only as a compatibility redirect into this co
 - Register a custom MCP server.
 - Edit the server definition after registration.
 - Deactivate and re-activate servers.
-- Inspect discovered tools, resources, and prompts on each server.
-- Execute a test tool call through RunLedger.
-- Grant and revoke MCP permission policies.
-- Review recent MCP tool calls and governance outcomes.
+- **Discover** an HTTP server: RunLedger connects, refreshes its tool list and records real health
+  (`healthy`, `unreachable`, or `client_side` for stdio servers, which run on the agent's machine).
+- Make a **governed tool call** through RunLedger (see below).
+- See the tool policies that target each server (**Tool Policies** tab).
+- Review every call with its status, deciding policy and approval.
 
 This is the working control-plane home for MCP server lifecycle management. Setup guidance may also be linked from **Onboarding**, but MCP Registry owns the actual managed entity surface.
+
+## Governed tool calls
+
+`POST /mcp-registry/tools/call` is a real MCP proxy for HTTP servers (MCP streamable-HTTP transport, bearer token
+from the server's `auth_config.token`):
+
+1. The tool policy evaluator decides, using the caller's authenticated identity (API key, access groups). The
+   body can't name an identity.
+2. `block` → `403`; the call is recorded as `blocked` with a security event.
+3. `require_approval` → `202` with `approval_id` (a real pending approval, type `external_mcp_tool`). After it is
+   approved, `POST /mcp-registry/tool-calls/{id}/resume` executes the call; a denied approval marks it `denied`.
+4. Otherwise RunLedger calls the tool and stores the real result and latency (`success` or `error`). stdio servers
+   can't be executed by the control plane and are recorded as `not_executed`.
+
+Workload keys need the `mcp` or `write` scope. Per-server permissions are tool policies scoped to an `mcp_server`
+(the older permission grants were migrated into tool policies; they were never enforced).
 
 ## Who Can Manage It
 
@@ -36,8 +53,8 @@ This is the working control-plane home for MCP server lifecycle management. Setu
 2. Register or seed the server definitions the workspace intends to allow.
 3. Review discovered tools, resources, and prompts for each server.
 4. Edit server metadata, auth hints, command arguments, or URLs as the integration evolves.
-5. Add permission policies for narrower scopes when governance requires it.
-6. Run a test tool call and review the resulting call log.
+5. Add tool policies scoped to the server (allow-list with `allow` rules plus a lower-priority `block *`).
+6. Run a test tool call and review the result, decision and status in the call log.
 7. Deactivate unused or risky servers instead of leaving them available indefinitely.
 
 ## Relationship To Nearby Surfaces
@@ -56,12 +73,11 @@ The backing API supports the full server lifecycle plus tool and permission acti
 - `GET /mcp-registry/{id}`
 - `PUT /mcp-registry/{id}`
 - `DELETE /mcp-registry/{id}`
+- `POST /mcp-registry/{id}/discover`
 - `GET /mcp-registry/tools`
 - `POST /mcp-registry/tools/call`
-- `GET /mcp-registry/tool-calls`
-- `POST /mcp-registry/permissions`
-- `GET /mcp-registry/permissions`
-- `DELETE /mcp-registry/permissions/{id}`
-- `POST /mcp-registry/seed-defaults`
+- `GET /mcp-registry/tool-calls` (filters: `status`, `server_id`, `tool_name`; paginated)
+- `POST /mcp-registry/tool-calls/{id}/resume`
+- `POST /mcp-registry/seed-defaults` (explicit only; the page no longer seeds on load)
 
 Use a dashboard session key from `POST /auth/login` for management actions.

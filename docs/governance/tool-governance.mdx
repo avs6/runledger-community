@@ -1,47 +1,91 @@
 ---
 title: "Tool Governance"
-description: "Registry, search-provider governance, runtime tool policies, simulation, and dry-run review from one governance area."
+description: "One tool-policy system, enforced by the gateway, MCP proxy and SDK check, with a simulator that replays real traffic before you save."
 ---
 
-Tool governance in RunLedger now has two primary operator surfaces:
+RunLedger has **one** tool-control system: `ToolPolicy`. The tool registry, per-server MCP permissions and the
+SDK runtime check all read and write it, and one evaluator decides everywhere.
 
-- **Tool Registry** for runtime tool registrations and search-provider management
-- **Tool Policies** for allow, audit, block, approval, simulation, and dry-run review
+## Where policies are enforced
 
-The older standalone routes for Search Tools and Policy Dry Run remain as compatibility redirects, but they are no longer the long-term owner pages.
+| Path | What happens |
+|---|---|
+| Gateway preflight (`/gateway/chat/completions`) | Each tool in `tools[]` is evaluated. `block` removes it from `tools[]`; `require_approval` **holds** the request (see below). |
+| Gateway finalize | Each `tool_call` the model returned is evaluated. A blocked call fails the response with `451` (the run and its cost are still recorded); an approval-required call holds it. |
+| `POST /mcp-registry/tools/call` | Governed MCP proxy: `block` → `403`, `require_approval` → `202` with a real `approval_id`, otherwise the tool is executed on the registered HTTP MCP server and the real result is stored. |
+| `GET /tools/check/{tool}` (SDK) | `403` for `block`, `403` + `X-RunLedger-Approval-Id` for `require_approval`, `200` otherwise. |
+| `POST /policies/check` | The tool dimension uses the same evaluator, so it can't disagree with `/tools/check`. |
 
-## Ownership
+Every non-allow decision writes a security event (`tool_call_blocked`, `tool_call_held`, `tool_call_audited`),
+which the governance audit pack includes.
 
-```mermaid
-flowchart LR
-  registry["/tool-registry"] --> runtime["Runtime tool registrations"]
-  registry --> search["Search providers"]
-  policies["/tool-policies"] --> rules["Tool policies"]
-  policies --> sim["Interactive simulator"]
-  policies --> dryrun["Policy dry run"]
-  legacy1["/search-tools"] --> registry
-  legacy2["/policy-dry-run"] --> policies
+## How a decision is made
+
+Policies are ordered by `priority` (lowest first). **The first policy that applies decides**; no match means
+`allow`. A policy applies when:
+
+1. its `tool_name` matches: exact, `*`, or a glob such as `github_*` (case-insensitive);
+2. its scope covers the caller: `workspace`, `access_group` (the authenticated principal is a member),
+   `api_key`, `mcp_server` or `search_tool`;
+3. its condition holds: `all`, `risk_score_gte`, `tool_type`, `end_user`, `feature_tag`, `context_equals`,
+   `argument_contains` or `mcp_server`.
+
+Identity (API key, access groups) always comes from the authenticated credential, never from the request body.
+Policies that can't be enforced as written (unknown action, condition or scope, a scope without a target, a target
+from another workspace) are rejected with `422`.
+
+Allow-list example: `allow search_*` at priority 10, then `block *` at priority 1000.
+
+## Approvals as gateway holds
+
+When a tool needs approval, the gateway does not call the provider. It creates a pending approval
+(type `tool_allow`) and answers:
+
+```http
+HTTP/1.1 202 Accepted
+X-RunLedger-Approval-Id: 6f1c…
+Retry-After: 30
+
+{"detail": {"status": "held", "approval_id": "6f1c…", "tool_name": "wire_transfer", "reason": "…"}}
 ```
 
-## What lives where
+Approve it on the **Approvals** page (or `POST /approvals/{id}/approve`), then resubmit the same request with
+`metadata: {"runledger.approval_id": "6f1c…"}`. The approval is bound to the tool and the API key that was held.
+Held MCP calls resume with `POST /mcp-registry/tool-calls/{id}/resume`.
 
-### Tool Registry
+## Tool registry
 
-- register runtime tools
-- set baseline policy and runtime enforcement on registered tools
-- manage search providers and provider metadata
-- review policy counts and pivot into Tool Policies
+The registry is a catalog (name, description). Its **policy** is stored as the managed policy
+`registry:<tool>` at priority 50, so it shows up and is enforced like any other policy. The list shows each
+tool's **effective** decision, which may come from a higher-priority rule. `runtime_enforcement` is accepted
+for older clients but ignored: enforcement is always on.
 
-### Tool Policies
+## Policy simulator
 
-- create, edit, deactivate, and simulate tool rules
-- scope rules to workspace, access group, or search-provider context
-- model `allow`, `audit`, `block`, and `require_approval`
-- test policy outcomes before enforcement using the dry-run tab
+Before saving a policy, **Preview impact** replays the last 1–30 days of real tool calls (ingested tool calls and
+governed MCP calls) against the current policies and against the draft, and shows how many calls would newly be
+blocked, held, audited or allowed, per tool, with the end users affected.
 
-## Runtime behavior
+```bash
+curl -X POST $API/tool-policies/simulate-impact -H "Authorization: Bearer $KEY"   -d '{"days": 7, "policy": {"name": "no shell", "tool_name": "shell", "action": "block"}}'
+```
 
-Tool calls are governed on the request path through the runtime enforcement and plugin/governance services, so this area is not just decorative configuration. The simulator and dry-run views help operators understand what the live runtime would do before turning on stricter enforcement.
+Pass `policy_id` to simulate an edit, or `policy_id` with `"remove": true` to simulate deleting a policy.
+Access-group membership isn't historical, so group-scoped rules replay without membership (the response says so).
+
+The single-call dry run (`POST /tool-policies/simulate`) uses the same evaluator and returns the deciding policy.
+
+## API
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET/POST | `/tool-policies` | List / create |
+| PUT/DELETE | `/tool-policies/{id}` | Update / archive |
+| POST | `/tool-policies/simulate` | Dry run one call |
+| POST | `/tool-policies/simulate-impact` | Replay recent traffic against a draft |
+| GET/POST/PATCH/DELETE | `/tools/registry[/{tool}]` | Catalog + managed policy |
+| GET | `/tools/check/{tool}` | SDK runtime decision |
+| GET | `/tools/security-events` | Decisions recorded at runtime (filters: `event_type`, `tool_name`) |
 
 ## Related
 
