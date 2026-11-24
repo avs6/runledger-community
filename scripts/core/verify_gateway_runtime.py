@@ -73,7 +73,7 @@ from runledger_api.models.guardrails import GuardrailEvent, GuardrailRule  # noq
 from runledger_api.models.prompts import Prompt, PromptVersion  # noqa: E402
 from runledger_api.models.tenant import ApiKey, Tenant, Workspace  # noqa: E402
 from runledger_api.services.auth import generate_api_key  # noqa: E402
-from runledger_api.services.budgets import incr_budget_spend  # noqa: E402
+from runledger_api.services.budgets import set_budget_spend  # noqa: E402
 from runledger_api.services.gateway_cache import invalidate_cache_profile  # noqa: E402
 from runledger_api.services.gateway_hotpath import count_queries, ttl_cache  # noqa: E402
 from sqlalchemy import func, select, text  # noqa: E402
@@ -484,7 +484,10 @@ async def verify(client: httpx.AsyncClient, ctx: dict[str, Any]) -> None:
     )
     check("guardrail block → 451", blocked.status_code == 451, blocked.status_code)
     redis = await get_redis()
-    await incr_budget_spend(redis, ctx["blocked_budget_id"], "monthly", Decimal("5"))
+    # Budget spend is durable in Postgres with Redis as a cache (W1-D, cd:B-05).
+    async with AsyncSessionLocal() as db:
+        await set_budget_spend(db, redis, ctx["blocked_budget_id"], "monthly", Decimal("5"), 1)
+        await db.commit()
     over = await client.post(
         "/gateway/passthrough/upstream/ok",
         headers={**bearer, "X-RunLedger-Workflow": "blocked-wf"},

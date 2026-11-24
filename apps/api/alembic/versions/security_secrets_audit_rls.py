@@ -52,7 +52,8 @@ RLS_TABLES = [
     "provider_calls",
     "tool_calls",
     "spans",
-    "outcome_events",
+    "outcome_events",  # dropped by W1-E (observe_outcomes_views); kept for older databases
+    "outcomes",
     "approvals",
     "auto_approval_policies",
     "budgets",
