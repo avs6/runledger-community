@@ -703,6 +703,14 @@ class GatewayPassThroughEndpointResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    # Write-only secrets (review G-05): stored values come back as the mask.
+    @field_validator("auth_config", "header_config", mode="before")
+    @classmethod
+    def _mask_secrets(cls, value: Any) -> Any:
+        from runledger_api.core.secrets import mask_config  # noqa: PLC0415
+
+        return mask_config(value) if isinstance(value, dict) else (value or {})
+
 
 class GatewayPassThroughEndpointList(BaseModel):
     items: list[GatewayPassThroughEndpointResponse]

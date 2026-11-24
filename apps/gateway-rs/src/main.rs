@@ -25,7 +25,10 @@ type HmacSha256 = Hmac<Sha256>;
 struct AppState {
     http: Client,
     control_plane_url: String,
+    /// Secret sent on control-plane calls (the dedicated internal token when set).
     admin_secret: String,
+    /// Header that carries it: x-gateway-internal-token, or legacy x-admin-secret.
+    internal_auth_header: &'static str,
     event_signing_secret: String,
     /// Proxies whose X-Forwarded-For is believed (RUNLEDGER_GATEWAY_TRUSTED_PROXIES).
     trusted_proxies: Vec<IpNet>,
@@ -429,11 +432,30 @@ async fn main() {
         .unwrap_or_else(|_| "http://runledger-api:8000".to_string())
         .trim_end_matches('/')
         .to_string();
-    let admin_secret = env::var("RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET")
+    // Control-plane channel secret (review tr-security / cd:S-05): a dedicated
+    // RUNLEDGER_GATEWAY_INTERNAL_TOKEN, sent as x-gateway-internal-token. The shared
+    // admin secret is only a fallback for deployments that have not set one yet.
+    let admin_secret_fallback = env::var("RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET")
         .or_else(|_| env::var("ADMIN_SECRET"))
-        .expect("RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET or ADMIN_SECRET must be set");
-    let event_signing_secret =
-        env::var("RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET").unwrap_or_else(|_| admin_secret.clone());
+        .ok()
+        .filter(|v| !v.is_empty());
+    let (internal_auth_header, admin_secret) = match env::var("RUNLEDGER_GATEWAY_INTERNAL_TOKEN")
+        .ok()
+        .filter(|v| !v.is_empty())
+    {
+        Some(token) => ("x-gateway-internal-token", token),
+        None => (
+            "x-admin-secret",
+            admin_secret_fallback
+                .clone()
+                .expect("RUNLEDGER_GATEWAY_INTERNAL_TOKEN (or legacy ADMIN_SECRET) must be set"),
+        ),
+    };
+    let event_signing_secret = env::var("RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or(admin_secret_fallback)
+        .unwrap_or_else(|| admin_secret.clone());
     let bind = env::var("RUNLEDGER_GATEWAY_BIND").unwrap_or_else(|_| "0.0.0.0:8210".to_string());
     let trusted_proxies =
         parse_trusted_proxies(&env::var("RUNLEDGER_GATEWAY_TRUSTED_PROXIES").unwrap_or_default());
@@ -459,6 +481,7 @@ async fn main() {
         http,
         control_plane_url,
         admin_secret,
+        internal_auth_header,
         event_signing_secret,
         trusted_proxies,
         control_plane_timeout,
@@ -966,7 +989,7 @@ async fn call_preflight(
         .http
         .post(url)
         .timeout(state.control_plane_timeout)
-        .header("x-admin-secret", &state.admin_secret)
+        .header(state.internal_auth_header, &state.admin_secret)
         .json(&payload)
         .send()
         .await
@@ -1000,7 +1023,7 @@ async fn call_finalize(state: &AppState, payload: RuntimeFinalizeRequest) -> Res
         .http
         .post(url)
         .timeout(state.control_plane_timeout)
-        .header("x-admin-secret", &state.admin_secret)
+        .header(state.internal_auth_header, &state.admin_secret)
         .json(&payload)
         .send()
         .await
@@ -1036,7 +1059,7 @@ async fn call_provider_execute(
         ));
     }
     let resp = builder
-        .header("x-admin-secret", &state.admin_secret)
+        .header(state.internal_auth_header, &state.admin_secret)
         .json(&RuntimeProviderExecuteRequest {
             route_id: step.route_id.clone(),
             request_body: step.request_body.clone(),
@@ -1342,7 +1365,7 @@ async fn call_route_result(
         .http
         .post(url)
         .timeout(state.control_plane_timeout)
-        .header("x-admin-secret", &state.admin_secret)
+        .header(state.internal_auth_header, &state.admin_secret)
         .json(&RuntimeRouteResultRequest {
             route_id: route_id.to_string(),
             success,
@@ -1364,7 +1387,7 @@ async fn call_mirror(state: &AppState, payload: RuntimeMirrorRequest) -> Result<
         .http
         .post(url)
         .timeout(std::time::Duration::from_secs(300))
-        .header("x-admin-secret", &state.admin_secret)
+        .header(state.internal_auth_header, &state.admin_secret)
         .json(&payload)
         .send()
         .await

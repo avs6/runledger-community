@@ -1,10 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Building2, Layers, Link2, Pencil, Radio, RefreshCw, Shield, Trash2, X } from 'lucide-react'
-import Link from 'next/link'
+import { Pencil, RefreshCw, Shield, Trash2, X } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { AuthProvidersCard } from './_components/AuthProvidersCard'
+import { SecretInput } from './_components/SecretInput'
+import { SecretsInventory } from './_components/SecretsInventory'
 import { useRole } from '@/components/rbac/useRole'
 import { createIpAclRule, createOidcProvider, deleteIpAclRule, deleteOidcProvider, getAccessGroups, getSecuritySettings, listIpAclRules, listOidcProviders, testIpAcl, updateIpAclRule, updateOidcProvider, updateSecuritySettings } from '@/lib/api'
 import type { AccessGroupResponse, IpAclRuleResponse, OIDCProviderResponse, WorkspaceSecuritySettings } from '@/types/api'
@@ -26,6 +30,7 @@ export default function SecurityPage() {
   const apiKey = (session as { apiKey?: string })?.apiKey
   const { isOrgAdmin, isPlatformAdmin } = useRole()
   const canManage = isOrgAdmin || isPlatformAdmin
+  const { confirm, dialog } = useConfirm()
 
   const [settings, setSettings] = useState<WorkspaceSecuritySettings | null>(null)
   const [loading, setLoading] = useState(false)
@@ -46,6 +51,9 @@ export default function SecurityPage() {
   const [oidcAudience, setOidcAudience] = useState('')
   const [oidcDiscoveryUrl, setOidcDiscoveryUrl] = useState('')
   const [oidcJwksUri, setOidcJwksUri] = useState('')
+  const [oidcClientId, setOidcClientId] = useState('')
+  // Write-only: undefined keeps the stored secret (review S-03).
+  const [oidcClientSecret, setOidcClientSecret] = useState<string | undefined>(undefined)
   const [oidcClaimMappingsStr, setOidcClaimMappingsStr] = useState('{"workspace_id":"workspace_id"}')
   const [oidcIsActive, setOidcIsActive] = useState(true)
 
@@ -69,6 +77,8 @@ export default function SecurityPage() {
     setOidcAudience('')
     setOidcDiscoveryUrl('')
     setOidcJwksUri('')
+    setOidcClientId('')
+    setOidcClientSecret(undefined)
     setOidcClaimMappingsStr('{"workspace_id":"workspace_id"}')
     setOidcIsActive(true)
   }, [])
@@ -153,6 +163,8 @@ export default function SecurityPage() {
           audience: oidcAudience.trim() || null,
           discovery_url: oidcDiscoveryUrl.trim() || null,
           jwks_uri: oidcJwksUri.trim() || null,
+          client_id: oidcClientId.trim() || null,
+          ...(oidcClientSecret ? { client_secret: oidcClientSecret } : {}),
           claim_mappings: claimMappings,
           is_active: oidcIsActive,
         })
@@ -165,6 +177,8 @@ export default function SecurityPage() {
           audience: oidcAudience.trim() || null,
           discovery_url: oidcDiscoveryUrl.trim() || null,
           jwks_uri: oidcJwksUri.trim() || null,
+          client_id: oidcClientId.trim() || null,
+          ...(oidcClientSecret ? { client_secret: oidcClientSecret } : {}),
           claim_mappings: claimMappings,
           is_active: oidcIsActive,
         })
@@ -184,12 +198,16 @@ export default function SecurityPage() {
     setOidcAudience(provider.audience ?? '')
     setOidcDiscoveryUrl(provider.discovery_url ?? '')
     setOidcJwksUri(provider.jwks_uri ?? '')
+    setOidcClientId(provider.client_id ?? '')
+    setOidcClientSecret(undefined)
     setOidcClaimMappingsStr(JSON.stringify(provider.claim_mappings ?? {}, null, 2))
     setOidcIsActive(provider.is_active)
   }
 
   async function handleDeleteOidcProvider(id: string) {
-    if (!apiKey || !confirm('Delete this OIDC provider?')) return
+    if (!apiKey) return
+    const ok = await confirm({ title: 'Delete this OIDC provider?', description: 'Tokens from this issuer stop authenticating. Its client secret is deleted.', confirmLabel: 'Delete', destructive: true })
+    if (!ok) return
     try {
       await deleteOidcProvider(apiKey, id)
       setOidcProviders((prev) => prev.filter((item) => item.id !== id))
@@ -247,7 +265,9 @@ export default function SecurityPage() {
   }
 
   async function handleDeleteIpAclRule(id: string) {
-    if (!apiKey || !confirm('Delete this IP ACL rule?')) return
+    if (!apiKey) return
+    const ok = await confirm({ title: 'Delete this IP ACL rule?', description: 'Gateway traffic is evaluated without it immediately.', confirmLabel: 'Delete', destructive: true })
+    if (!ok) return
     try {
       await deleteIpAclRule(apiKey, id)
       setIpAclRules((prev) => prev.filter((item) => item.id !== id))
@@ -279,29 +299,30 @@ export default function SecurityPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h1 className="text-2xl font-bold tracking-tight dark:text-white">Enterprise Security</h1>
-          </div>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Control OIDC gateway auth, IP allow and deny policies, required metadata, callback routing, and residency posture.
-          </p>
-        </div>
-        <button
-          onClick={() => void load()}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </div>
+      {dialog}
+      <PageHeader
+        title="Enterprise Security"
+        icon={Shield}
+        description="Stored secrets, sign-in providers, IP allow and deny policies, required metadata and residency."
+        actions={
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            aria-label="Refresh security settings"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        }
+      />
 
-
-
-
+      {apiKey && (
+        <Suspense fallback={null}>
+          <SecretsInventory apiKey={apiKey} />
+        </Suspense>
+      )}
 
       <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800/40 lg:grid-cols-2">
         <div className="lg:col-span-2">
@@ -354,18 +375,27 @@ export default function SecurityPage() {
               </p>
             </div>
             {editingOidcId && (
-              <button onClick={resetOidcForm} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
-                <X className="h-4 w-4" />
+              <button type="button" onClick={resetOidcForm} aria-label="Cancel editing the OIDC provider" className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             )}
           </div>
           <form onSubmit={handleSaveOidcProvider} className="grid gap-3">
-            <input value={oidcName} onChange={(e) => setOidcName(e.target.value)} className={inputCls} placeholder="Okta production" required />
-            <input value={oidcIssuerUrl} onChange={(e) => setOidcIssuerUrl(e.target.value)} className={inputCls} placeholder="https://issuer.example.com" required />
-            <input value={oidcAudience} onChange={(e) => setOidcAudience(e.target.value)} className={inputCls} placeholder="Audience (optional)" />
-            <input value={oidcDiscoveryUrl} onChange={(e) => setOidcDiscoveryUrl(e.target.value)} className={inputCls} placeholder="Discovery URL (optional)" />
-            <input value={oidcJwksUri} onChange={(e) => setOidcJwksUri(e.target.value)} className={inputCls} placeholder="JWKS URI (optional)" />
-            <textarea value={oidcClaimMappingsStr} onChange={(e) => setOidcClaimMappingsStr(e.target.value)} className={`${inputCls} min-h-[100px]`} />
+            <input value={oidcName} onChange={(e) => setOidcName(e.target.value)} className={inputCls} placeholder="Okta production" required aria-label="Provider name" />
+            <input value={oidcIssuerUrl} onChange={(e) => setOidcIssuerUrl(e.target.value)} className={inputCls} placeholder="https://issuer.example.com" required aria-label="Issuer URL" />
+            <input value={oidcAudience} onChange={(e) => setOidcAudience(e.target.value)} className={inputCls} placeholder="Audience (optional)" aria-label="Audience" />
+            <input value={oidcDiscoveryUrl} onChange={(e) => setOidcDiscoveryUrl(e.target.value)} className={inputCls} placeholder="Discovery URL (optional)" aria-label="Discovery URL" />
+            <input value={oidcJwksUri} onChange={(e) => setOidcJwksUri(e.target.value)} className={inputCls} placeholder="JWKS URI (optional)" aria-label="JWKS URI" />
+            <input value={oidcClientId} onChange={(e) => setOidcClientId(e.target.value)} className={inputCls} placeholder="Client ID (for SSO sign-in)" aria-label="Client ID" />
+            <SecretInput
+              key={editingOidcId ?? 'new'}
+              id="oidc-client-secret"
+              label="Client secret"
+              stored={oidcProviders.find((p) => p.id === editingOidcId)?.client_secret}
+              value={oidcClientSecret}
+              onChange={setOidcClientSecret}
+            />
+            <textarea value={oidcClaimMappingsStr} onChange={(e) => setOidcClaimMappingsStr(e.target.value)} className={`${inputCls} min-h-[100px]`} aria-label="Claim mappings JSON" />
             <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={oidcIsActive} onChange={(e) => setOidcIsActive(e.target.checked)} />
               Active
@@ -384,15 +414,15 @@ export default function SecurityPage() {
                     <p className="font-medium dark:text-slate-100">{provider.name}</p>
                     <p className="mt-1 break-all font-mono text-xs text-slate-500 dark:text-slate-400">{provider.issuer_url}</p>
                     <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                      audience {provider.audience ?? 'unset'} · {provider.is_active ? 'active' : 'inactive'}
+                      audience {provider.audience ?? 'unset'} · {provider.is_active ? 'active' : 'inactive'} · client secret {provider.client_secret ? 'stored' : 'not set'}
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => startEditOidcProvider(provider)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
-                      <Pencil className="h-4 w-4" />
+                    <button type="button" onClick={() => startEditOidcProvider(provider)} aria-label={`Edit ${provider.name}`} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
                     </button>
-                    <button onClick={() => void handleDeleteOidcProvider(provider.id)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                      <Trash2 className="h-4 w-4" />
+                    <button type="button" onClick={() => void handleDeleteOidcProvider(provider.id)} aria-label={`Delete ${provider.name}`} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -410,36 +440,36 @@ export default function SecurityPage() {
               </p>
             </div>
             {editingAclId && (
-              <button onClick={resetAclForm} className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
-                <X className="h-4 w-4" />
+              <button type="button" onClick={resetAclForm} aria-label="Cancel editing the IP ACL rule" className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             )}
           </div>
 
           <form onSubmit={handleSaveIpAclRule} className="grid gap-3 sm:grid-cols-2">
-            <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls} disabled={Boolean(editingAclId)}>
+            <select value={scopeType} onChange={(e) => setScopeType(e.target.value)} className={inputCls} disabled={Boolean(editingAclId)} aria-label="Rule scope">
               <option value="workspace">workspace</option>
               <option value="api_key">api_key</option>
               <option value="access_group">access group</option>
               {(isPlatformAdmin || scopeType === 'global') && <option value="global">global (all workspaces)</option>}
               {scopeType === 'team' && <option value="team">legacy team</option>}
             </select>
-            <select value={aclAction} onChange={(e) => setAclAction(e.target.value)} className={inputCls}>
+            <select value={aclAction} onChange={(e) => setAclAction(e.target.value)} className={inputCls} aria-label="Rule action">
               <option value="allow">allow</option>
               <option value="deny">deny</option>
             </select>
-            <input value={cidr} onChange={(e) => setCidr(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="203.0.113.0/24" required />
-            <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="API key ID (optional)" />
+            <input value={cidr} onChange={(e) => setCidr(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="203.0.113.0/24" required aria-label="CIDR" />
+            <input value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} className={`${inputCls} sm:col-span-2`} placeholder="API key ID (optional)" aria-label="API key ID" />
             {(scopeType === 'access_group' || scopeType === 'team') && (
-              <select value={accessGroupId} onChange={(e) => setAccessGroupId(e.target.value)} className={`${inputCls} sm:col-span-2`} required>
+              <select value={accessGroupId} onChange={(e) => setAccessGroupId(e.target.value)} className={`${inputCls} sm:col-span-2`} required aria-label="Access group">
                 <option value="">Select an access group…</option>
                 {accessGroups.map((group) => (
                   <option key={group.id} value={group.id}>{group.name}</option>
                 ))}
               </select>
             )}
-            <input value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls} placeholder="100" />
-            <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Description" />
+            <input value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls} placeholder="100" aria-label="Priority" />
+            <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} placeholder="Description" aria-label="Description" />
             <div className="sm:col-span-2">
               <button type="submit" className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
                 {editingAclId ? 'Save ACL rule' : 'Add ACL rule'}
@@ -450,7 +480,7 @@ export default function SecurityPage() {
           <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Policy Simulator</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              <input value={testIp} onChange={(e) => setTestIp(e.target.value)} className={`${inputCls} min-w-[220px]`} placeholder="198.51.100.10" />
+              <input value={testIp} onChange={(e) => setTestIp(e.target.value)} className={`${inputCls} min-w-[220px]`} placeholder="198.51.100.10" aria-label="IP address to simulate" />
               <button onClick={() => void handleTestIp()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
                 Simulate
               </button>
@@ -483,11 +513,11 @@ export default function SecurityPage() {
                     {rule.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{rule.description}</p>}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => startEditIpAclRule(rule)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
-                      <Pencil className="h-4 w-4" />
+                    <button type="button" onClick={() => startEditIpAclRule(rule)} aria-label={`Edit IP ACL rule ${rule.cidr}`} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
                     </button>
-                    <button onClick={() => void handleDeleteIpAclRule(rule.id)} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
-                      <Trash2 className="h-4 w-4" />
+                    <button type="button" onClick={() => void handleDeleteIpAclRule(rule.id)} aria-label={`Delete IP ACL rule ${rule.cidr}`} className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -496,6 +526,13 @@ export default function SecurityPage() {
           </div>
         </div>
       </section>
+
+      {apiKey && (
+        <section className="grid gap-6 lg:grid-cols-2" aria-label="Sign-in providers">
+          <AuthProvidersCard apiKey={apiKey} kind="oauth2" />
+          <AuthProvidersCard apiKey={apiKey} kind="ldap" />
+        </section>
+      )}
     </div>
   )
 }

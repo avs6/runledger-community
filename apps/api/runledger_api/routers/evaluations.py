@@ -254,7 +254,10 @@ async def update_evaluator(
     if body.description is not None:
         ev.description = body.description
     if body.config is not None:
-        ev.config = body.config
+        # A masked api_key means "keep the stored key" (review B-09).
+        from runledger_api.core.secrets import merge_config  # noqa: PLC0415
+
+        ev.config = merge_config(body.config, ev.config)
     if body.status is not None:
         ev.status = body.status
 

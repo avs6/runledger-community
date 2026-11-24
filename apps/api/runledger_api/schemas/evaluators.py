@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EvaluatorCreate(BaseModel):
@@ -36,6 +36,14 @@ class EvaluatorResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    # Write-only provider key (review B-09): stored secrets come back as the mask.
+    @field_validator("config", mode="before")
+    @classmethod
+    def _mask_secrets(cls, value: Any) -> Any:
+        from runledger_api.core.secrets import mask_config  # noqa: PLC0415
+
+        return mask_config(value) if isinstance(value, dict) else (value or {})
 
 
 class EvaluatorList(BaseModel):

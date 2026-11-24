@@ -38,6 +38,7 @@ from runledger_api.core.deps import (
 from runledger_api.core.pagination import PageDep, paginate
 from runledger_api.core.ratelimit import management_rate_limit
 from runledger_api.core.redis import get_redis
+from runledger_api.core.secrets import SECRET_MASK, is_mask, mask_url
 from runledger_api.models.access_groups import AccessGroup
 from runledger_api.models.approvals import Approval
 from runledger_api.models.budget_overrides import BudgetOverride
@@ -371,7 +372,8 @@ def _notification_response(notification: BudgetNotification) -> NotificationResp
     return NotificationResponse(
         id=str(notification.id),
         channel=notification.channel,
-        destination_url=notification.destination_url,
+        # Write-only (review F-15): the URL path/query carries the webhook token.
+        destination_url=mask_url(notification.destination_url) or "",
         events=notification.events,
         is_active=notification.is_active,
         created_at=notification.created_at,
@@ -857,12 +859,13 @@ async def budget_check(
 
 @router.get("/notifications", response_model=NotificationList)
 async def list_notifications(
-    workspace: Annotated[Workspace, Depends(get_current_workspace)],
+    auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
     db: Annotated[AsyncSession, Depends(get_db)],
     page: PageDep,
     response: Response,
 ) -> NotificationList:
-    """List notification channels for this workspace."""
+    """List notification channels for this workspace (workspace admins; review F-15)."""
+    workspace: Workspace = auth[0]
     notifications: list[BudgetNotification] = await paginate(
         db,
         select(BudgetNotification)
@@ -915,7 +918,7 @@ async def create_notification(
         target_id=str(notification.id),
         after={
             "channel": notification.channel,
-            "destination_url": notification.destination_url,
+            "destination_url": mask_url(notification.destination_url),
             "events": notification.events,
             "is_active": notification.is_active,
         },
@@ -935,12 +938,16 @@ async def update_notification(
     workspace: Workspace = auth[0]
     notification = await _get_notification(db, workspace.id, notification_id)
     before = {
-        "destination_url": notification.destination_url,
+        "destination_url": mask_url(notification.destination_url),
         "events": list(notification.events or []),
         "is_active": notification.is_active,
     }
 
     data = body.model_dump(exclude_unset=True)
+    if is_mask(data.get("destination_url")) or (data.get("destination_url") or "").endswith(
+        "/" + SECRET_MASK
+    ):
+        data.pop("destination_url")  # masked URL sent back unchanged: keep it
     if data.get("destination_url"):
         _check_destination(data["destination_url"])
     for key, value in data.items():
@@ -956,7 +963,7 @@ async def update_notification(
         target_id=str(notification.id),
         before=before,
         after={
-            "destination_url": notification.destination_url,
+            "destination_url": mask_url(notification.destination_url),
             "events": list(notification.events or []),
             "is_active": notification.is_active,
         },
@@ -976,7 +983,7 @@ async def delete_notification(
     notification = await _get_notification(db, workspace.id, notification_id)
     before = {
         "channel": notification.channel,
-        "destination_url": notification.destination_url,
+        "destination_url": mask_url(notification.destination_url),
         "events": list(notification.events or []),
     }
     await db.delete(notification)

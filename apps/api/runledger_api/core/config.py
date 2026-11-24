@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     # semantic cache, context compiler, ...) require on every non-health request.
     # Falls back to ADMIN_SECRET, matching the docker-compose default.
     internal_service_token: str = ""
+    # Dedicated secret for gateway-rs -> API /gateway/runtime/internal/* calls
+    # (review tr-security / cd:S-05). When set, those endpoints accept only this
+    # token (x-gateway-internal-token) and no longer the shared ADMIN_SECRET.
+    gateway_internal_token: str = ""
+    # Dedicated secret for mcp-gateway -> API key resolution (same header).
+    mcp_internal_token: str = ""
+    # Secrets at rest (core/secrets.py): comma-separated Fernet keys or passphrases
+    # (first one encrypts), and an optional AWS KMS key for envelope encryption.
+    secrets_master_key: str = ""
+    secrets_kms_key_id: str = ""
     # Shared secret used to verify HMAC-signed webhook ingest payloads.
     ingest_signing_secret: str = ""
     # Pepper for API key HMAC hashing (falls back to secret_key if empty).

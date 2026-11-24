@@ -6,8 +6,6 @@ All functions are pure async with no FastAPI dependencies.
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import secrets
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -18,7 +16,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.core.config import settings
+from runledger_api.core import secrets as secret_store
 from runledger_api.models.audit import AuditEvent
 from runledger_api.models.backup_ops import BackupSnapshot
 from runledger_api.models.billing import BillingPeriod
@@ -37,33 +35,23 @@ from runledger_api.schemas.ledger import (
 log = structlog.get_logger()
 
 
-def _get_fernet():
-    master = settings.ledger_master_key
-    if not master:
-        return None
-    from cryptography.fernet import Fernet
-
-    if len(master) == 44 and master.endswith("="):
-        return Fernet(master.encode())
-    key = base64.urlsafe_b64encode(hashlib.sha256(master.encode()).digest())
-    return Fernet(key)
-
-
 def _encrypt_key(plaintext: str) -> str:
-    f = _get_fernet()
-    if f is None:
-        return plaintext
-    return f.encrypt(plaintext.encode()).decode()
+    """Ledger signing keys are always encrypted at rest (review cd:M-03).
+
+    Uses the shared envelope in ``core/secrets.py`` (SECRETS_MASTER_KEY / KMS, or
+    the SECRET_KEY-derived key in development); LEDGER_MASTER_KEY stays a
+    decryption key for keys written before this change.
+    """
+    return secret_store.encrypt(plaintext)
 
 
 def _decrypt_key(stored: str) -> str:
-    f = _get_fernet()
-    if f is None:
-        return stored
-    try:
-        return f.decrypt(stored.encode()).decode()
-    except Exception:
-        return stored
+    """Decrypt a stored key. Raises SecretDecryptError instead of silently using
+    the ciphertext as the HMAC key (review cd:M-03)."""
+    plain = secret_store.decrypt(stored)
+    if not plain:
+        raise secret_store.SecretDecryptError("ledger key is empty")
+    return plain
 
 
 # ── Key management ────────────────────────────────────────────────────────────

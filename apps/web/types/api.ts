@@ -1672,12 +1672,17 @@ export interface AuditEvent {
   workspace_id: string
   actor_user_id: string | null
   actor_api_key_prefix: string | null
+  actor_type?: string | null
+  actor_label?: string | null
   action: string
   target_type: string | null
   target_id: string | null
   before: Record<string, unknown> | null
   after: Record<string, unknown> | null
   created_at: string
+  seq?: number | null
+  prev_hash?: string | null
+  hash?: string | null
 }
 
 export interface AuditEventList {
@@ -2236,6 +2241,9 @@ export interface OIDCProviderResponse {
   audience: string | null
   discovery_url: string | null
   jwks_uri: string | null
+  client_id?: string | null
+  /** Write-only: '••••••••' when a client secret is stored, else null (review S-03). */
+  client_secret?: string | null
   claim_mappings: Record<string, unknown>
   is_active: boolean
   created_at: string

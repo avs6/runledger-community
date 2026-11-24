@@ -16,6 +16,11 @@ review queue, with a full audit trail of who requested, who decided, and when.
 - **Review queue** — approvers see pending items, approve or reject with a note.
 - **Audit trail** — every request and decision is recorded immutably.
 - **Scoped by role** — who can approve is governed by [RBAC](/governance/rbac).
+- **Separation of duties** — nobody approves their own request: a request made with a session is checked
+  against the user's e-mail, one made with a workload key against that key (`api_key:<prefix>`). The
+  Approve button is disabled for your own requests and the API returns 403.
+- **One decision per request** — approve, deny and cancel lock the row (`SELECT … FOR UPDATE`), so two
+  concurrent decisions give one success and one 409.
 - **Auto-approval policies** — define conditions under which requests are approved automatically.
 
 ## How it works
@@ -30,6 +35,12 @@ flowchart LR
   review -- reject --> stop[Blocked · logged]
   exec & stop --> audit[Audit event]
 ```
+
+## Audit trail
+
+`approval.requested`, `approval.auto_approved`, `approval.approved`, `approval.denied`,
+`approval.cancelled` and `approval_policy.*` events are written in the same transaction as the change,
+so a committed decision always has its audit event. Each carries the actor (see [Audit log](/governance/audit-log)).
 
 ## Supported request types
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from runledger_api.core.config import settings
+from runledger_api.core.deps import require_gateway_internal, require_runtime_key_resolver
 from runledger_api.core.redis import get_redis
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
 from runledger_api.core.scopes import normalize_scopes
@@ -26,6 +27,10 @@ log = structlog.get_logger()
 # Providers that accept stream_options.include_usage (OpenAI-compatible).
 _STREAM_USAGE_PROVIDERS = {"openai", "azure", "vllm", "groq", "ollama", "local"}
 
+
+# gateway-rs channel: its own secret, not the shared admin secret (tr-security).
+GatewayInternalDep = Annotated[None, Depends(require_gateway_internal)]
+KeyResolverDep = Annotated[None, Depends(require_runtime_key_resolver)]
 
 router = APIRouter()
 
@@ -371,7 +376,7 @@ async def get_gateway_runtime_snapshot(
 
 @router.get("/runtime/internal/snapshot", response_model=GatewayRuntimeSnapshotResponse)
 async def get_gateway_runtime_snapshot_internal(
-    _: AdminDep,
+    _: GatewayInternalDep,
     db: DbDep,
     workspace_id: uuid.UUID = Query(...),
 ) -> GatewayRuntimeSnapshotResponse:
@@ -385,7 +390,7 @@ async def get_gateway_runtime_snapshot_internal(
 )
 async def resolve_gateway_runtime_api_key(
     body: GatewayRuntimeApiKeyResolveRequest,
-    _: AdminDep,
+    _: KeyResolverDep,
     db: DbDep,
 ) -> GatewayRuntimeApiKeyResolveResponse:
     needed = None
@@ -419,7 +424,7 @@ async def resolve_gateway_runtime_api_key(
 )
 async def gateway_runtime_preflight(
     body: GatewayRuntimePreflightRequest,
-    _: AdminDep,
+    _: GatewayInternalDep,
     db: DbDep,
 ) -> GatewayRuntimePreflightResponse:
     workspace, api_key, _oidc_auth = await _resolve_gateway_bearer_token(
@@ -904,7 +909,7 @@ async def gateway_runtime_preflight(
 )
 async def gateway_runtime_finalize(
     body: GatewayRuntimeFinalizeRequest,
-    _: AdminDep,
+    _: GatewayInternalDep,
     db: DbDep,
 ) -> GatewayRuntimeFinalizeResponse:
     workspace = await db.get(Workspace, body.workspace_id)
@@ -1059,7 +1064,7 @@ async def gateway_runtime_finalize(
 @router.post("/runtime/internal/provider-execute")
 async def gateway_runtime_provider_execute(
     body: GatewayRuntimeProviderExecuteRequest,
-    _: AdminDep,
+    _: GatewayInternalDep,
     db: DbDep,
 ) -> Any:
     route = await db.get(GatewayRoute, body.route_id)
@@ -1136,7 +1141,7 @@ def _provider_error_response(exc: Exception) -> JSONResponse:
 @router.post("/runtime/internal/route-result")
 async def gateway_runtime_route_result(
     body: GatewayRuntimeRouteResultRequest,
-    _: AdminDep,
+    _: GatewayInternalDep,
     db: DbDep,
 ) -> dict[str, bool]:
     route = await db.get(GatewayRoute, body.route_id)
@@ -1170,7 +1175,7 @@ def _mirror_sample_pct(route: GatewayRoute) -> float:
 @router.post("/runtime/internal/mirror")
 async def gateway_runtime_mirror(
     body: GatewayRuntimeMirrorRequest,
-    _: AdminDep,
+    _: GatewayInternalDep,
     db: DbDep,
 ) -> dict[str, bool]:
     route = await db.get(GatewayRoute, body.route_id)

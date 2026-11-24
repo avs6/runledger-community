@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import structlog
-from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.core.config import settings
+from runledger_api.core import secrets
 from runledger_api.models.kafka import KafkaExportConfig, KafkaExportDelivery
 
 log = structlog.get_logger()
@@ -121,38 +118,21 @@ def _derive_idempotency_key(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _fernet() -> Fernet:
-    key = base64.urlsafe_b64encode(hashlib.sha256(settings.secret_key.encode("utf-8")).digest())
-    return Fernet(key)
-
-
 def encrypt_secret_value(value: str) -> str:
-    return "enc::" + _fernet().encrypt(value.encode("utf-8")).decode("utf-8")
+    """Encrypt with the shared secrets envelope (``core/secrets.py``)."""
+    return secrets.encrypt(value)
 
 
 def is_secret_reference(value: str) -> bool:
-    lowered = value.lower()
-    return lowered.startswith("secretref://") or lowered.startswith("env://")
+    return secrets.is_secret_reference(value)
 
 
 def resolve_secret_value(value: str | None) -> str | None:
-    if not value:
-        return None
-    if value.startswith("enc::"):
-        token = value.removeprefix("enc::").encode("utf-8")
-        try:
-            return _fernet().decrypt(token).decode("utf-8")
-        except InvalidToken as exc:  # noqa: PERF203
-            raise ValueError("Stored Kafka secret could not be decrypted") from exc
-    if is_secret_reference(value):
-        env_name = value.split("://", 1)[1].strip()
-        if not env_name:
-            raise ValueError("Kafka secret reference is missing an environment variable name")
-        resolved = os.getenv(env_name)
-        if not resolved:
-            raise ValueError(f"Kafka secret reference '{env_name}' is not set in the environment")
-        return resolved
-    return value
+    """Decrypt a stored value (new ``rlsec:`` or legacy ``enc::``) or read ``env://``."""
+    try:
+        return secrets.resolve(value)
+    except secrets.SecretDecryptError as exc:
+        raise ValueError(f"Stored secret could not be resolved: {exc}") from exc
 
 
 def _producer_kwargs(config: KafkaExportConfig) -> dict[str, Any]:

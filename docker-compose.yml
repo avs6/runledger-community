@@ -186,6 +186,10 @@ services:
       REDIS_URL: redis://runledger-redis:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
+      # Per-channel internal secrets (tr-security); empty = legacy admin-secret fallback.
+      GATEWAY_INTERNAL_TOKEN: ${GATEWAY_INTERNAL_TOKEN:-}
+      MCP_INTERNAL_TOKEN: ${MCP_INTERNAL_TOKEN:-}
+      SECRETS_MASTER_KEY: ${SECRETS_MASTER_KEY:-}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # Allow both hostnames the dashboard is commonly opened at. If you browse the UI
@@ -304,6 +308,7 @@ services:
       RUNLEDGER_GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-}
       RUNLEDGER_CONTROL_PLANE_URL: http://runledger-api:8000
       RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
+      RUNLEDGER_GATEWAY_INTERNAL_TOKEN: ${GATEWAY_INTERNAL_TOKEN:-}
       RUNLEDGER_GATEWAY_EVENT_SIGNING_SECRET: ${INGEST_SIGNING_SECRET:-${ADMIN_SECRET:?Set ADMIN_SECRET in .env}}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -566,6 +571,7 @@ services:
       # memory / knowledge-graph / skill data is namespaced under its workspace.
       RUNLEDGER_CONTROL_PLANE_URL: http://runledger-api:8000
       RUNLEDGER_CONTROL_PLANE_ADMIN_SECRET: ${ADMIN_SECRET:?Set ADMIN_SECRET in .env}
+      RUNLEDGER_MCP_INTERNAL_TOKEN: ${MCP_INTERNAL_TOKEN:-}
       MCP_REQUIRE_AUTH: ${MCP_REQUIRE_AUTH:-true}
       CONTEXT_COMPILER_SVC_URL: http://runledger-context-compiler:8103
       # Intelligent routing classifies in-process; set ROUTER_SVC_URL only for an external classifier.

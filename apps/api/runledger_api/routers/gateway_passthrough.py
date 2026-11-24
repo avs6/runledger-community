@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
+from runledger_api.core.secrets import merge_config
 
 from .gateway_shared import *
 
@@ -111,7 +112,12 @@ async def update_gateway_passthrough_endpoint(
     if endpoint is None or endpoint.workspace_id != workspace.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Pass-through endpoint not found")
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    # A masked secret ("••••••••") means "keep the stored value" (review G-05).
+    for secret_field in ("auth_config", "header_config"):
+        if data.get(secret_field) is not None:
+            data[secret_field] = merge_config(data[secret_field], getattr(endpoint, secret_field))
+    for field, value in data.items():
         setattr(endpoint, field, value)
 
     await db.commit()

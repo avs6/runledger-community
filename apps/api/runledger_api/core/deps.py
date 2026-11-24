@@ -26,8 +26,9 @@ from runledger_api.models.tenant import (
     WorkspaceStatusEnum,
     WorkspaceUser,
 )
+from runledger_api.services.audit import Actor, actor_from_api_key, set_actor
 from runledger_api.services.auth import verify_api_key
-from runledger_api.services.security import authenticate_oidc_token
+from runledger_api.services.security import apply_tenant_context, authenticate_oidc_token
 from runledger_api.services.sessions import ORG_ADMIN_ROLES, has_workspace_access
 
 _bearer = HTTPBearer()
@@ -148,6 +149,10 @@ async def _verified_key(request: Request, token: str, db: AsyncSession) -> ApiKe
     request.state.api_key = api_key
     if api_key is not None:
         _enforce_route_scope(request, api_key)
+        # Audit actor for every event this request writes (review S-16).
+        set_actor(
+            actor_from_api_key(api_key, client_ip=request.client.host if request.client else None)
+        )
     return api_key
 
 
@@ -168,13 +173,33 @@ async def get_current_workspace(
     api_key = await _verified_key(request, token, db)
     if api_key is not None:
         workspace, owner = await authorize_api_key(api_key, db)
+        # Postgres RLS context: org-wide for session keys, workspace-pinned for
+        # workload keys (tr-security defence in depth).
+        await apply_tenant_context(db, workspace, pin_workspace=not api_key.is_session)
         if owner is not None:
             request.state.session_user = owner
+            set_actor(
+                actor_from_api_key(
+                    api_key,
+                    user=owner,
+                    client_ip=request.client.host if request.client else None,
+                )
+            )
         return workspace
 
     # Fallback: try OIDC bearer token validation
     oidc_result = await authenticate_oidc_token(token, db)
     if oidc_result is not None:
+        oidc_user = getattr(oidc_result, "user", None)
+        set_actor(
+            Actor(
+                kind="oidc",
+                user_id=getattr(oidc_user, "id", None),
+                label=getattr(oidc_user, "email", None),
+                client_ip=request.client.host if request.client else None,
+            )
+        )
+        await apply_tenant_context(db, oidc_result.workspace, pin_workspace=False)
         return await _validate_workspace_status(oidc_result.workspace, db)
 
     raise HTTPException(
@@ -445,3 +470,50 @@ async def require_admin(x_admin_secret: Annotated[str, Header()]) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid admin secret",
         )
+    set_actor(Actor(kind="admin_secret", label="x-admin-secret"))
+
+
+def _internal_channel(
+    token: str | None, admin_secret: str | None, channels: dict[str, str]
+) -> None:
+    configured = {label: value for label, value in channels.items() if value}
+    if configured:
+        for label, expected in configured.items():
+            if token and hmac.compare_digest(token.encode(), expected.encode()):
+                set_actor(Actor(kind="service", label=label))
+                return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid internal token")
+    if admin_secret and hmac.compare_digest(
+        admin_secret.encode(), settings.effective_admin_secret.encode()
+    ):
+        set_actor(Actor(kind="service", label="internal (admin secret)"))
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid internal token")
+
+
+async def require_runtime_key_resolver(
+    x_gateway_internal_token: Annotated[str | None, Header()] = None,
+    x_admin_secret: Annotated[str | None, Header()] = None,
+) -> None:
+    """``/gateway/runtime/internal/resolve-api-key``: gateway-rs or mcp-gateway, each
+    with its own token (GATEWAY_INTERNAL_TOKEN / MCP_INTERNAL_TOKEN)."""
+    _internal_channel(
+        x_gateway_internal_token,
+        x_admin_secret,
+        {"gateway-rs": settings.gateway_internal_token, "mcp-gateway": settings.mcp_internal_token},
+    )
+
+
+async def require_gateway_internal(
+    x_gateway_internal_token: Annotated[str | None, Header()] = None,
+    x_admin_secret: Annotated[str | None, Header()] = None,
+) -> None:
+    """Auth for gateway-rs -> API internal calls (review tr-security, cd:S-05).
+
+    With GATEWAY_INTERNAL_TOKEN set, only ``x-gateway-internal-token`` is accepted,
+    so the shared admin secret no longer authorizes the runtime channel. Without
+    it, the legacy ``x-admin-secret`` is still accepted for compatibility.
+    """
+    _internal_channel(
+        x_gateway_internal_token, x_admin_secret, {"gateway-rs": settings.gateway_internal_token}
+    )

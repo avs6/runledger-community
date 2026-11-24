@@ -1,22 +1,64 @@
 ---
 title: "Enterprise Security Controls"
-description: "Manage security posture, OIDC providers, and IP allow or deny controls from the Security console."
+description: "Stored secrets with rotation, sign-in providers, IP allow or deny controls and security posture, from the Security console."
 ---
 
 The Security console is the governance home for enterprise auth posture and request-edge network controls.
 
 ## What lives here
 
+- **Secrets** - every stored credential with its age, last rotation, the key that encrypts it, a
+  **Rotate** action, **Re-wrap** (re-encrypt with the current master key) and its own audit timeline
+- **Sign-in providers** - OIDC, OAuth2 and LDAP providers with full create, edit and delete
 - **Security posture** - required metadata fields, enforcement mode, callback defaults, branding, and residency constraints
 - **OIDC providers** - create, edit, activate, deactivate, and delete issuer configurations for gateway auth
 - **IP ACL rules** - create, edit, simulate, and delete allow or deny rules for workspace, API-key or access-group scope (global rules, which apply to every workspace, are platform-admin only)
 
+## Secrets: write-only, encrypted, rotated
+
+Every credential RunLedger stores is encrypted at rest with `core/secrets.py` (Fernet with
+`SECRETS_MASTER_KEY`, or AWS KMS envelope encryption with `SECRETS_KMS_KEY_ID`):
+
+| Secret | Where it is set |
+|---|---|
+| OIDC / OAuth2 client secret, LDAP bind password | Security → sign-in providers |
+| Search-provider credentials (`auth_config`) | Tool registry → search providers |
+| Pass-through `auth_config` and secret headers | Gateway → pass-through endpoints |
+| Notification webhook / Slack URL | Budgets → notifications |
+| Evaluator provider key (`config.api_key`) | Evaluation → evaluators |
+| Kafka, backup, GitHub tokens and ledger keys | Integrations, backups, prompts, ledger |
+
+Secrets are **write-only** in the API and UI. Responses show `••••••••` (webhook URLs show only the
+scheme and host); sending the mask back on an update keeps the stored value, and a form field shows a
+**Replace** button instead of the value. A decryption failure is an error; RunLedger never falls back to
+using ciphertext as a key.
+
+The **Secrets** card lists each secret with an age badge (fresh, aging after 60 days, stale after 90),
+its last rotation and who did it, and the key id that wraps it.
+
+- **Rotate** replaces the value (`POST /security/secrets/{id}/rotate` with `value`, or `values` by key for
+  JSON configs). It is recorded as `secret.rotated`.
+- **Re-wrap** re-encrypts with the current primary key after you add a new `SECRETS_MASTER_KEY`
+  (`POST /security/secrets/{id}/rewrap`, or `POST /security/secrets/rewrap` for the workspace).
+- **Timeline** shows `secret.created`, `secret.rotated`, `secret.rewrapped` and `secret.deleted` events
+  (`GET /audit/events?target_type=secret&target_id={id}`).
+
+The inventory is maintained by the database session itself: any code path that changes a secret updates
+it, so it can't drift. Writing back an unchanged value is not counted as a rotation.
+
+## LDAP
+
+A service bind DN needs a bind password (422 otherwise), and sign-ins reject empty passwords, because an
+empty password is an unauthenticated bind. Directory calls run in a worker thread so they never block the
+API's event loop.
+
 ## Operator workflow
 
-1. Set the workspace security posture first.
-2. Register or update OIDC providers used by your tenant.
-3. Add IP ACL rules for sensitive traffic paths.
-4. Run the simulator before saving broader deny rules.
+1. Set `SECRETS_MASTER_KEY` before storing any secret in production.
+2. Set the workspace security posture.
+3. Register sign-in providers (OIDC, OAuth2, LDAP).
+4. Add IP ACL rules for sensitive traffic paths, and run the simulator before saving broader deny rules.
+5. Review the Secrets card monthly and rotate anything stale.
 
 ## How IP ACLs are enforced
 
@@ -37,6 +79,16 @@ The gateway applies IP ACLs to every request, including cache hits and OIDC-auth
 - **Legacy team rules**: the old team scope was replaced by access groups. Migration 095 mapped team
   rules to the access group with the same name; any that couldn't be mapped never match and are flagged
   on the Security page for reassignment or deletion.
+
+## Defence in depth
+
+- Tenant tables carry Postgres row-level security keyed on the caller's org (and workspace for workload
+  keys). See [configuration](/deployment/configuration#database-role-and-row-level-security) for the
+  database role it needs.
+- gateway-rs and the MCP gateway each use their own internal secret (`GATEWAY_INTERNAL_TOKEN`,
+  `MCP_INTERNAL_TOKEN`) instead of the shared admin secret, and Caddy refuses `/gateway/runtime/internal/*`.
+
+Verify everything on this page end to end with `python scripts/run_demo.py verify-secrets`.
 
 ## Notes
 

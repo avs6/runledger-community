@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from runledger_api.core.db import Base
+from runledger_api.core.secrets import EncryptedText
 
 
 class WorkspaceSecuritySettings(Base):
@@ -86,7 +87,9 @@ class OIDCProvider(Base):
     discovery_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     jwks_uri: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     client_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    client_secret_encrypted: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    client_secret_encrypted: Mapped[str | None] = mapped_column(
+        EncryptedText(legacy_hmac=True), nullable=True
+    )
     scopes: Mapped[str] = mapped_column(
         sa.Text, nullable=False, server_default=sa.text("'openid email profile'")
     )
@@ -178,7 +181,9 @@ class OAuth2Provider(Base):
     token_endpoint: Mapped[str] = mapped_column(sa.Text, nullable=False)
     userinfo_endpoint: Mapped[str] = mapped_column(sa.Text, nullable=False)
     client_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    client_secret_encrypted: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    client_secret_encrypted: Mapped[str | None] = mapped_column(
+        EncryptedText(legacy_hmac=True), nullable=True
+    )
     scopes: Mapped[str] = mapped_column(
         sa.Text, nullable=False, server_default=sa.text("'openid email profile'")
     )
@@ -233,7 +238,9 @@ class LDAPProvider(Base):
     name: Mapped[str] = mapped_column(sa.String(120), nullable=False)
     server_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
     bind_dn: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    bind_password_encrypted: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    bind_password_encrypted: Mapped[str | None] = mapped_column(
+        EncryptedText(legacy_hmac=True), nullable=True
+    )
     use_ssl: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=sa.text("false")
     )

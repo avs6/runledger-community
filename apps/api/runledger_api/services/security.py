@@ -10,6 +10,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import urlencode
 
@@ -360,17 +361,14 @@ def sso_callback_url(kind: str) -> str:
     return f"{settings.app_base_url.rstrip('/')}/auth/{kind}/callback"
 
 
-def _encrypt_client_secret(plain: str) -> str:
-    from runledger_api.core.config import settings  # noqa: PLC0415
+def _provider_secret(stored: str | None) -> str:
+    """Plaintext of a provider secret column.
 
-    pepper = (settings.api_key_pepper or settings.secret_key).encode()
-    return hmac.new(pepper, plain.encode(), hashlib.sha256).hexdigest() + ":" + plain
-
-
-def _decrypt_client_secret(stored: str) -> str:
-    if ":" in stored:
-        return stored.split(":", 1)[1]
-    return stored
+    The ``*_encrypted`` columns use ``core.secrets.EncryptedText``: values are
+    Fernet/KMS-encrypted at rest and decrypted on load (review S-03), so the ORM
+    attribute already holds the plaintext.
+    """
+    return stored or ""
 
 
 async def build_oidc_authorize_url(
@@ -416,7 +414,7 @@ async def exchange_oidc_code(
             status.HTTP_502_BAD_GATEWAY,
             "OIDC provider discovery missing token_endpoint",
         )
-    client_secret = _decrypt_client_secret(provider.client_secret_encrypted or "")
+    client_secret = _provider_secret(provider.client_secret_encrypted)
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(
             token_endpoint,
@@ -631,7 +629,7 @@ def build_oauth2_authorize_url(
 async def exchange_oauth2_code(
     provider: OAuth2Provider, code: str, redirect_uri: str, code_verifier: str
 ) -> dict[str, Any]:
-    client_secret = _decrypt_client_secret(provider.client_secret_encrypted or "")
+    client_secret = _provider_secret(provider.client_secret_encrypted)
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(
             provider.token_endpoint,
@@ -695,7 +693,7 @@ async def find_or_create_user_from_oauth2(
 
 
 def _authenticate_ldap_sync(
-    provider: LDAPProvider,
+    provider: Any,
     username: str,
     password: str,
 ) -> dict[str, str]:
@@ -705,7 +703,10 @@ def _authenticate_ldap_sync(
     server = ldap3.Server(provider.server_url, use_ssl=use_ssl, get_info=ldap3.NONE)
 
     bind_dn = provider.bind_dn
-    bind_pw = _decrypt_client_secret(provider.bind_password_encrypted or "") if bind_dn else None
+    bind_pw = _provider_secret(provider.bind_password_encrypted) if bind_dn else None
+    if bind_dn and not bind_pw:
+        # Never fall back to an unauthenticated service bind (S-25).
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "LDAP service bind password missing")
 
     conn = ldap3.Connection(server, user=bind_dn, password=bind_pw, auto_bind=False)
 
@@ -776,8 +777,21 @@ async def authenticate_ldap(
             status.HTTP_501_NOT_IMPLEMENTED,
             "LDAP support requires the ldap3 package. Install with: pip install ldap3",
         ) from exc
-    # ldap3 is synchronous; keep the event loop free.
-    return await asyncio.to_thread(_authenticate_ldap_sync, provider, username, password)
+    # ldap3 is synchronous; keep the event loop free (S-25). Hand the worker thread a
+    # plain snapshot so it never touches the ORM session (no lazy loads off-loop).
+    snapshot = SimpleNamespace(
+        server_url=provider.server_url,
+        use_ssl=provider.use_ssl,
+        start_tls=provider.start_tls,
+        bind_dn=provider.bind_dn,
+        bind_password_encrypted=provider.bind_password_encrypted,
+        user_search_base=provider.user_search_base,
+        user_search_filter=provider.user_search_filter,
+        email_attribute=provider.email_attribute,
+        name_attribute=provider.name_attribute,
+        uid_attribute=provider.uid_attribute,
+    )
+    return await asyncio.to_thread(_authenticate_ldap_sync, snapshot, username, password)
 
 
 async def find_or_create_user_from_ldap(
@@ -821,3 +835,62 @@ async def enforce_required_metadata(
             f"Missing required metadata fields: {', '.join(missing)}",
         )
     return missing
+
+
+# ── Row-level security context (tr-security: defence in depth) ───────────────
+#
+# Migration ``security_secrets_audit_rls`` puts an RLS policy on tenant tables
+# keyed on two per-transaction settings. ``apply_tenant_context`` records them
+# for the request's session; an ``after_begin`` hook re-applies them at the start
+# of every transaction (they are SET LOCAL, so a pooled connection never carries
+# them into another request). Session (dashboard) keys get the whole org, since
+# org roles legitimately span workspaces; workload keys are pinned to their
+# workspace. With nothing set (workers, internal calls) the policy allows all.
+
+_RLS_TENANT = "rl_rls_tenant_id"
+_RLS_WORKSPACE = "rl_rls_workspace_id"
+_SET_RLS_SQL = (
+    "SELECT set_config('app.tenant_id', :tenant, true),"
+    " set_config('app.workspace_id', :workspace, true)"
+)
+
+
+def _rls_params(info: dict[str, Any]) -> dict[str, str]:
+    return {"tenant": info.get(_RLS_TENANT, ""), "workspace": info.get(_RLS_WORKSPACE, "")}
+
+
+async def apply_tenant_context(db: Any, workspace: Any, *, pin_workspace: bool) -> None:
+    """Scope this request's DB session to the caller's org (and workspace)."""
+    info = getattr(db, "info", None)
+    sync_session = getattr(db, "sync_session", None)
+    if not isinstance(info, dict) or sync_session is None:
+        return  # not a real AsyncSession (unit tests use mocks)
+    tenant_id = getattr(workspace, "tenant_id", None)
+    info[_RLS_TENANT] = str(tenant_id) if tenant_id else ""
+    info[_RLS_WORKSPACE] = str(workspace.id) if pin_workspace else ""
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text  # noqa: PLC0415
+
+    await db.execute(text(_SET_RLS_SQL), _rls_params(info))
+
+
+def _rls_after_begin(session: Any, transaction: Any, connection: Any) -> None:
+    info = session.info
+    if not info.get(_RLS_TENANT) or connection.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text  # noqa: PLC0415
+
+    connection.execute(text(_SET_RLS_SQL), _rls_params(info))
+
+
+def _install_rls_hook() -> None:
+    from sqlalchemy import event as sa_event  # noqa: PLC0415
+    from sqlalchemy.orm import Session  # noqa: PLC0415
+
+    if not sa_event.contains(Session, "after_begin", _rls_after_begin):
+        sa_event.listen(Session, "after_begin", _rls_after_begin)
+
+
+_install_rls_hook()

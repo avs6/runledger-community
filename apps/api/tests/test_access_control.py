@@ -36,6 +36,8 @@ _AUTH_DEPS = {
     "get_current_api_key",
     "require_user",
     "require_admin",
+    "require_gateway_internal",  # per-channel internal secrets (tr-security)
+    "require_runtime_key_resolver",
 }
 _ROLE_DEPS = {
     "require_workspace_writer",
@@ -46,6 +48,8 @@ _ROLE_DEPS = {
     "require_admin",
     "require_user",
     "_dep",  # require_billing_access / require_audit_access
+    "require_gateway_internal",
+    "require_runtime_key_resolver",
 }
 
 # Routes that authenticate inside the handler or are intentionally public.
@@ -293,7 +297,7 @@ def test_prompt_github_token_is_encrypted_and_legacy_values_still_read() -> None
     from runledger_api.services.kafka_export import encrypt_secret_value
 
     stored = encrypt_secret_value("ghp_secret")
-    assert stored.startswith("enc::") and "ghp_secret" not in stored
+    assert stored.startswith("rlsec:v1:") and "ghp_secret" not in stored
     assert _decrypt_token(stored) == "ghp_secret"
     legacy = "b64:" + base64.b64encode(b"ghp_old").decode()
     assert _decrypt_token(legacy) == "ghp_old"
@@ -421,7 +425,7 @@ async def test_backup_secret_is_encrypted_and_never_returned() -> None:
         config = await backup_ops.upsert_backup_config(
             db, uuid.uuid4(), {"bucket": "b", "secret_access_key": "s3cr3t"}
         )
-    assert config.secret_access_key.startswith("enc::")
+    assert config.secret_access_key.startswith("rlsec:v1:")
     assert "s3cr3t" not in config.secret_access_key
     env = backup_ops._command_env(config)
     assert env["RUNLEDGER_BACKUP_SECRET_ACCESS_KEY"] == "s3cr3t"
@@ -465,3 +469,37 @@ async def test_backup_secret_is_encrypted_and_never_returned() -> None:
         )
     assert existing.secret_access_key == config.secret_access_key
     assert existing.bucket == "c"
+
+
+# ── Per-channel internal secrets (tr-security) ───────────────────────────────
+
+
+async def test_gateway_internal_token_replaces_admin_secret(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from fastapi import HTTPException
+    from runledger_api.core import deps
+    from runledger_api.core.config import settings
+
+    monkeypatch.setattr(settings, "admin_secret", "admin-s3cret")
+    monkeypatch.setattr(settings, "gateway_internal_token", "")
+    monkeypatch.setattr(settings, "mcp_internal_token", "")
+    # No dedicated token yet: the legacy admin secret still works.
+    await deps.require_gateway_internal(
+        x_gateway_internal_token=None, x_admin_secret="admin-s3cret"
+    )
+
+    monkeypatch.setattr(settings, "gateway_internal_token", "gw-token")
+    monkeypatch.setattr(settings, "mcp_internal_token", "mcp-token")
+    await deps.require_gateway_internal(x_gateway_internal_token="gw-token", x_admin_secret=None)
+    with pytest.raises(HTTPException) as exc:
+        await deps.require_gateway_internal(
+            x_gateway_internal_token=None, x_admin_secret="admin-s3cret"
+        )
+    assert exc.value.status_code == 403
+    # The MCP token resolves keys but cannot drive the gateway runtime channel.
+    await deps.require_runtime_key_resolver(
+        x_gateway_internal_token="mcp-token", x_admin_secret=None
+    )
+    with pytest.raises(HTTPException):
+        await deps.require_gateway_internal(
+            x_gateway_internal_token="mcp-token", x_admin_secret=None
+        )

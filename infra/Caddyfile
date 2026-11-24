@@ -9,5 +9,9 @@ runledger.localhost:3443 {
 
 api.runledger.localhost:8443 {
   tls internal
+  # Service-to-service endpoints are for the internal network only (review
+  # tr-security): gateway-rs and mcp-gateway reach the API directly, never via Caddy.
+  @internal path /gateway/runtime/internal/* /internal/*
+  respond @internal 404
   reverse_proxy runledger-api:8000
 }

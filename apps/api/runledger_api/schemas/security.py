@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class WorkspaceSecuritySettingsUpdate(BaseModel):
@@ -73,6 +73,8 @@ class OIDCProviderResponse(BaseModel):
     discovery_url: str | None
     jwks_uri: str | None
     client_id: str | None = None
+    # Write-only: "••••••••" when a secret is stored, else null (review S-03).
+    client_secret: str | None = None
     scopes: str
     auto_provision: bool
     default_workspace_role: str
@@ -170,6 +172,8 @@ class OAuth2ProviderResponse(BaseModel):
     token_endpoint: str
     userinfo_endpoint: str
     client_id: str
+    # Write-only: "••••••••" when a secret is stored, else null (review S-03).
+    client_secret: str | None = None
     scopes: str
     userinfo_id_field: str
     userinfo_email_field: str
@@ -206,7 +210,8 @@ class LDAPProviderCreate(BaseModel):
     name: str
     server_url: str
     bind_dn: str | None = None
-    bind_password: str | None = None
+    # Non-empty when set: an empty bind password is an unauthenticated bind (S-25).
+    bind_password: str | None = Field(None, min_length=1, max_length=1024)
     use_ssl: bool = False
     start_tls: bool = False
     user_search_base: str
@@ -221,12 +226,19 @@ class LDAPProviderCreate(BaseModel):
     default_tenant_role: str = "org_member"
     is_active: bool = True
 
+    @model_validator(mode="after")
+    def _service_bind_needs_password(self) -> LDAPProviderCreate:
+        if self.bind_dn and not self.bind_password:
+            raise ValueError("bind_password is required when bind_dn is set")
+        return self
+
 
 class LDAPProviderUpdate(BaseModel):
     name: str | None = None
     server_url: str | None = None
     bind_dn: str | None = None
-    bind_password: str | None = None
+    # Send the mask (or omit) to keep the stored password; never empty (S-25).
+    bind_password: str | None = Field(None, min_length=1, max_length=1024)
     use_ssl: bool | None = None
     start_tls: bool | None = None
     user_search_base: str | None = None
@@ -249,6 +261,8 @@ class LDAPProviderResponse(BaseModel):
     name: str
     server_url: str
     bind_dn: str | None
+    # Write-only: "••••••••" when a password is stored, else null (review S-03).
+    bind_password: str | None = None
     use_ssl: bool
     start_tls: bool
     user_search_base: str
@@ -356,3 +370,48 @@ class RotateApiKeyResponse(BaseModel):
     key_prefix: str
     key: str
     expires_old_at: datetime | None
+
+
+# ── Secret inventory (ENH: secret age, rotation, per-secret audit timeline) ──
+
+
+class SecretRecordResponse(BaseModel):
+    id: uuid.UUID
+    kind: str
+    label: str | None
+    owner_table: str
+    owner_id: uuid.UUID
+    field: str
+    key_id: str | None
+    # True when the value is wrapped by the current primary key (else re-wrap).
+    key_current: bool
+    fingerprint: str | None
+    rotation_count: int
+    rotated_by_label: str | None
+    created_at: datetime
+    rotated_at: datetime
+    age_days: int
+    # fresh (< warn), aging (>= warn_days), stale (>= max_age_days)
+    age_status: str
+    # Secret keys inside a JSON config (rotate sends one value per key).
+    fields: list[str] = Field(default_factory=list)
+
+
+class SecretInventoryResponse(BaseModel):
+    items: list[SecretRecordResponse]
+    primary_key_id: str
+    using_derived_key: bool
+    max_age_days: int
+    warn_days: int
+
+
+class SecretRotateRequest(BaseModel):
+    """New value for a plain secret, or ``values`` by key for a JSON config."""
+
+    value: str | None = Field(None, min_length=1, max_length=8192)
+    values: dict[str, str] | None = None
+
+
+class SecretRewrapResponse(BaseModel):
+    rewrapped: int
+    primary_key_id: str

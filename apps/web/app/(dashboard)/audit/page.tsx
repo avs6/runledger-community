@@ -1,307 +1,347 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { ScrollText, RefreshCw, ChevronLeft, ChevronRight, Download, X, Layers, Search, Filter } from 'lucide-react'
-import { listAuditEvents, exportAuditEvents, getAuditEvent } from '@/lib/api'
-import type { AuditEvent } from '@/types/api'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { Download, Layers, Link2, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { DataTable, type DataTableColumn, type DataTableQuery } from '@/components/ui/data-table'
+import { PageHeader } from '@/components/ui/page-header'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { TIME_RANGES, TimeRangePicker, rangeToWindow, type TimeRange } from '@/components/ui/time-range-picker'
+import {
+  exportAuditLog,
+  getAccessGroups,
+  listAuditActors,
+  listAuditPage,
+  verifyAuditChain,
+  type AuditActor,
+  type AuditChainVerification,
+  type AuditFilters,
+  type AuditRow,
+} from '@/lib/api'
+import type { AccessGroupResponse } from '@/types/api'
+import type { StaticRoute } from '@/lib/routes'
 
-const PAGE_SIZE = 50
+const GOVERNANCE_PACK: StaticRoute = '/governance-pack'
+const FILTER_KEYS = ['action', 'actor', 'actor_type', 'api_key_prefix', 'access_group_id', 'target_type', 'target_id'] as const
+type FilterKey = (typeof FILTER_KEYS)[number]
+const ACTOR_TYPES = ['user', 'session', 'api_key', 'oidc', 'admin_secret', 'service', 'system'] as const
 
 const inputCls =
-  'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500'
+  'rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
 
-const ACTION_COLORS: Record<string, string> = {
-  'api_key.created': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  'api_key.revoked': 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-  'budget.created': 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  'budget.deleted': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
-  'prompt.promoted': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  'approval.approved': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-  'approval.denied': 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  'approval.cancelled': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+function actionTone(action: string): string {
+  if (/\.(deleted|revoked|denied|rotated)$/.test(action)) return 'bg-status-warning/15 text-status-warning'
+  if (/\.(created|approved|requested)$/.test(action)) return 'bg-status-success/15 text-status-success'
+  return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
 }
 
-export default function AuditPage() {
+function actorText(e: AuditRow): string {
+  return e.actor_label ?? e.actor_api_key_prefix ?? (e.actor_user_id ? e.actor_user_id.slice(0, 8) : 'system')
+}
+
+function AuditLog() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey ?? ''
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
 
-  const [events, setEvents] = useState<AuditEvent[]>([])
-  const [total, setTotal] = useState(0)
-  const [offset, setOffset] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [actionFilter, setActionFilter] = useState('')
-  const [targetTypeFilter, setTargetTypeFilter] = useState('')
-  const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-
-  const fetchEvents = useCallback(async () => {
-    if (!apiKey) return
-    setLoading(true)
-    try {
-      const res = await listAuditEvents(apiKey, {
-        action: actionFilter || undefined,
-        target_type: targetTypeFilter || undefined,
-        limit: PAGE_SIZE,
-        offset,
-      })
-      setEvents(res.items)
-      setTotal(res.total)
-    } catch {
-      toast.error('Failed to load audit events')
-    } finally {
-      setLoading(false)
+  // Filters live in the URL (shareable links, e.g. from a secret's timeline).
+  const filters = useMemo(() => {
+    const f: AuditFilters = {}
+    for (const k of FILTER_KEYS) {
+      const v = params.get(k)
+      if (v) f[k] = v
     }
-  }, [apiKey, actionFilter, targetTypeFilter, offset])
+    return f
+  }, [params])
+  const range = (params.get('range') as TimeRange | null) ?? null
+  const effective = useMemo<AuditFilters>(
+    () => (range && TIME_RANGES.includes(range) ? { ...filters, ...rangeToWindow(range) } : filters),
+    // rangeToWindow uses "now"; recompute only when the inputs change.
+    [filters, range],
+  )
 
-  useEffect(() => { fetchEvents() }, [fetchEvents])
+  const [draft, setDraft] = useState<Record<FilterKey, string>>(() => ({ action: '', actor: '', actor_type: '', api_key_prefix: '', access_group_id: '', target_type: '', target_id: '' }))
+  useEffect(() => {
+    setDraft({
+      action: filters.action ?? '',
+      actor: filters.actor ?? '',
+      actor_type: filters.actor_type ?? '',
+      api_key_prefix: filters.api_key_prefix ?? '',
+      access_group_id: filters.access_group_id ?? '',
+      target_type: filters.target_type ?? '',
+      target_id: filters.target_id ?? '',
+    })
+  }, [filters])
+
+  const [actors, setActors] = useState<AuditActor[]>([])
+  const [groups, setGroups] = useState<AccessGroupResponse[]>([])
+  const [chain, setChain] = useState<AuditChainVerification | null>(null)
+  const [chainError, setChainError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<AuditRow | null>(null)
 
   useEffect(() => {
     if (!apiKey) return
+    listAuditActors(apiKey).then(setActors).catch(() => setActors([]))
+    getAccessGroups(apiKey).then((g) => setGroups(g.items)).catch(() => setGroups([]))
   }, [apiKey])
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const currentPage = Math.floor(offset / PAGE_SIZE) + 1
+  const runVerify = useCallback(async () => {
+    if (!apiKey) return
+    setChainError(null)
+    try {
+      setChain(await verifyAuditChain(apiKey))
+    } catch (err) {
+      setChainError(err instanceof Error ? err.message : 'Verification failed')
+    }
+  }, [apiKey])
+  useEffect(() => { void runVerify() }, [runVerify])
 
-  function handleFilterChange() {
-    setOffset(0)
-    fetchEvents()
+  const pushParams = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(params.toString())
+    for (const [k, v] of Object.entries(patch)) {
+      if (v) next.set(k, v)
+      else next.delete(k)
+    }
+    next.delete('audit_page')
+    router.replace(`${pathname}${next.toString() ? `?${next}` : ''}`, { scroll: false })
   }
 
-  async function openEventDetail(eventId: string) {
+  const applyFilters = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    pushParams(Object.fromEntries(FILTER_KEYS.map((k) => [k, draft[k].trim() || null])))
+  }
+  const clearFilters = () => pushParams({ ...Object.fromEntries(FILTER_KEYS.map((k) => [k, null])), range: null })
+
+  const fetchPage = useCallback(
+    (q: DataTableQuery) => listAuditPage(apiKey, effective, q.limit, q.offset),
+    [apiKey, effective],
+  )
+
+  async function download(format: 'csv' | 'json') {
     if (!apiKey) return
-    setDetailLoading(true)
     try {
-      const event = await getAuditEvent(apiKey, eventId)
-      setSelectedEvent(event)
+      const body = await exportAuditLog(apiKey, effective, format)
+      const blob = new Blob([body], { type: format === 'csv' ? 'text/csv' : 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `audit-events-${new Date().toISOString().slice(0, 10)}.${format}`
+      a.click()
+      URL.revokeObjectURL(url)
     } catch {
-      toast.error('Failed to load audit event detail')
-    } finally {
-      setDetailLoading(false)
+      toast.error('Export failed')
     }
   }
 
+  const columns: DataTableColumn<AuditRow>[] = [
+    {
+      key: 'created_at',
+      header: 'Time',
+      render: (e) => <span className="whitespace-nowrap font-mono text-[11px] text-slate-500">{new Date(e.created_at).toLocaleString()}</span>,
+    },
+    {
+      key: 'action',
+      header: 'Action',
+      render: (e) => <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${actionTone(e.action)}`}>{e.action}</span>,
+    },
+    {
+      key: 'actor',
+      header: 'Actor',
+      value: (e) => actorText(e),
+      render: (e) => (
+        <button
+          type="button"
+          onClick={(ev) => { ev.stopPropagation(); pushParams({ actor: e.actor_label ?? e.actor_api_key_prefix ?? e.actor_user_id ?? null }) }}
+          className="text-left text-xs hover:underline"
+          aria-label={`Filter by actor ${actorText(e)}`}
+        >
+          <span className="text-slate-800 dark:text-slate-200">{actorText(e)}</span>
+          <span className="ml-1 text-[10px] uppercase text-slate-400">{e.actor_type ?? ''}</span>
+        </button>
+      ),
+    },
+    {
+      key: 'target',
+      header: 'Target',
+      value: (e) => `${e.target_type ?? ''} ${e.target_id ?? ''}`.trim(),
+      render: (e) =>
+        e.target_type || e.target_id ? (
+          <span className="text-[11px]">
+            <span className="font-medium text-slate-700 dark:text-slate-300">{e.target_type}</span>
+            {e.target_id && <span className="ml-1 font-mono text-slate-500">{e.target_id.length > 16 ? `${e.target_id.slice(0, 8)}…` : e.target_id}</span>}
+          </span>
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
+    },
+    { key: 'seq', header: '#', defaultHidden: true },
+    {
+      key: 'hash',
+      header: 'Hash',
+      defaultHidden: true,
+      render: (e) => <span className="font-mono text-[10px] text-slate-400">{e.hash ? e.hash.slice(0, 12) : '—'}</span>,
+    },
+    {
+      key: 'after',
+      header: 'Details',
+      value: (e) => (e.after ? JSON.stringify(e.after) : ''),
+      render: (e) => <span className="block max-w-xs truncate font-mono text-[10px] text-slate-500">{e.after ? JSON.stringify(e.after) : '—'}</span>,
+    },
+  ]
+
+  const activeCount = FILTER_KEYS.filter((k) => filters[k]).length + (range ? 1 : 0)
+
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
-      {/* Hero header */}
-      <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 ring-1 ring-violet-200 dark:bg-violet-500/20 dark:ring-violet-400/30">
-              <ScrollText className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-slate-950 dark:text-white">Audit Log</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Immutable record of all sensitive mutations in this workspace</p>
-            </div>
-          </div>
+      <PageHeader
+        title="Audit Log"
+        icon={ScrollText}
+        description="Hash-chained record of every sensitive change in this workspace, with who made it."
+        actions={
           <div className="flex items-center gap-2">
-            <button
-              onClick={async () => {
-                if (!apiKey) return
-                try {
-                  const csv = await exportAuditEvents(apiKey, 'csv', actionFilter || undefined, targetTypeFilter || undefined)
-                  const blob = new Blob([csv], { type: 'text/csv' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = `audit-events-${new Date().toISOString().slice(0, 10)}.csv`
-                  a.click()
-                  URL.revokeObjectURL(url)
-                  toast.success('Audit log exported')
-                } catch { toast.error('Export failed') }
-              }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              <Download className="h-3.5 w-3.5" /> Export CSV
+            <Link href={GOVERNANCE_PACK} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+              <Layers className="h-3.5 w-3.5" aria-hidden="true" /> Audit pack
+            </Link>
+            <button type="button" onClick={() => void download('csv')} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+              <Download className="h-3.5 w-3.5" aria-hidden="true" /> CSV
             </button>
-            <button
-              onClick={fetchEvents}
-              disabled={loading}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+            <button type="button" onClick={() => void download('json')} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+              <Download className="h-3.5 w-3.5" aria-hidden="true" /> JSON
             </button>
           </div>
-        </div>
+        }
+      />
 
-        {/* KPI strip */}
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-        </div>
-
+      <div
+        role="status"
+        className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-xs ${
+          chainError || (chain && !chain.ok)
+            ? 'border-status-error/40 bg-status-error/10 text-status-error'
+            : 'border-status-success/40 bg-status-success/10 text-status-success'
+        }`}
+      >
+        <span className="flex items-center gap-2">
+          {chain && !chain.ok ? <ShieldAlert className="h-4 w-4" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+          {chainError
+            ? `Chain check failed: ${chainError}`
+            : !chain
+              ? 'Verifying the hash chain…'
+              : chain.ok
+                ? `Hash chain intact: ${chain.checked} events verified${chain.unchained ? ` (${chain.unchained} legacy events outside the chain)` : ''}.`
+                : `Hash chain broken at event #${chain.first_bad_seq}: ${chain.reason}.`}
+        </span>
+        <span className="flex items-center gap-2">
+          {chain?.head_hash && <span className="font-mono text-[10px] opacity-80" title="Head hash">{chain.head_hash.slice(0, 16)}…</span>}
+          <button type="button" onClick={() => void runVerify()} className="rounded-md border border-current px-2 py-0.5 font-medium">
+            Re-verify
+          </button>
+        </span>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Filter className="h-3.5 w-3.5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Filter by action..."
-          value={actionFilter}
-          onChange={e => setActionFilter(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleFilterChange()}
-          className={`w-48 ${inputCls}`}
+      <form onSubmit={applyFilters} aria-label="Audit filters" className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4 dark:border-slate-700 dark:bg-slate-900">
+        <input aria-label="Action prefix" placeholder="Action (e.g. secret, budget.)" value={draft.action} onChange={(e) => setDraft({ ...draft, action: e.target.value })} className={inputCls} />
+        <input aria-label="Actor" list="audit-actors" placeholder="Actor (email, key prefix or user id)" value={draft.actor} onChange={(e) => setDraft({ ...draft, actor: e.target.value })} className={inputCls} />
+        <datalist id="audit-actors">
+          {actors.map((a, i) => (
+            <option key={`${a.actor_label}-${a.actor_api_key_prefix}-${i}`} value={a.actor_label ?? a.actor_api_key_prefix ?? a.actor_user_id ?? ''}>
+              {`${a.actor_type ?? ''} · ${a.events} events`}
+            </option>
+          ))}
+        </datalist>
+        <select aria-label="Actor type" value={draft.actor_type} onChange={(e) => setDraft({ ...draft, actor_type: e.target.value })} className={inputCls}>
+          <option value="">Any actor type</option>
+          {ACTOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <input aria-label="API key prefix" placeholder="API key prefix" value={draft.api_key_prefix} onChange={(e) => setDraft({ ...draft, api_key_prefix: e.target.value })} className={inputCls} />
+        <select aria-label="Access group" value={draft.access_group_id} onChange={(e) => setDraft({ ...draft, access_group_id: e.target.value })} className={inputCls}>
+          <option value="">Any access group</option>
+          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+        <input aria-label="Target type" placeholder="Target type (e.g. secret, approval)" value={draft.target_type} onChange={(e) => setDraft({ ...draft, target_type: e.target.value })} className={inputCls} />
+        <input aria-label="Target id" placeholder="Target id" value={draft.target_id} onChange={(e) => setDraft({ ...draft, target_id: e.target.value })} className={inputCls} />
+        <div className="flex items-center gap-2">
+          <button type="submit" className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700">Apply</button>
+          {activeCount > 0 && (
+            <button type="button" onClick={clearFilters} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
+              Clear {activeCount}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
+          <TimeRangePicker value={range ?? '90d'} onChange={(r) => pushParams({ range: r })} label="Audit time range" />
+          {!range && <span className="text-[11px] text-slate-400">All time</span>}
+        </div>
+      </form>
+
+      {apiKey && (
+        <DataTable
+          key={JSON.stringify(effective)}
+          label="Audit events"
+          urlPrefix="audit_"
+          fetchPage={fetchPage}
+          rowKey={(e) => e.id}
+          columns={columns}
+          pageSize={50}
+          searchable={false}
+          csvFileName="audit-events.csv"
+          emptyTitle="No audit events match"
+          emptyDescription="Change or clear the filters."
+          onRowClick={setSelected}
         />
-        <input
-          type="text"
-          placeholder="Filter by target type..."
-          value={targetTypeFilter}
-          onChange={e => setTargetTypeFilter(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleFilterChange()}
-          className={`w-44 ${inputCls}`}
-        />
-        <button onClick={handleFilterChange} className="rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:from-violet-500 hover:to-purple-500">Apply</button>
-        {(actionFilter || targetTypeFilter) && (
-          <button onClick={() => { setActionFilter(''); setTargetTypeFilter(''); setOffset(0) }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">Clear</button>
-        )}
-        <span className="ml-auto text-xs text-slate-500 dark:text-slate-400">{total} event{total !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
-                <th className="px-3 py-2 text-left font-medium text-slate-500 whitespace-nowrap">Time</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-500">Action</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-500">Target</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-500">Actor</th>
-                <th className="px-3 py-2 text-left font-medium text-slate-500">After</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && events.length === 0 ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
-                    {Array.from({ length: 5 }).map((_, j) => (
-                      <td key={j} className="px-3 py-2">
-                        <div className="h-3 rounded bg-slate-100 dark:bg-slate-700 animate-pulse" style={{ width: `${60 + (j * 15) % 40}%` }} />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : events.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-10 text-center text-xs text-slate-400">No audit events found</td>
-                </tr>
-              ) : events.map(ev => (
-                <tr key={ev.id} onClick={() => openEventDetail(ev.id)} className="cursor-pointer border-b border-slate-100 dark:border-slate-800 hover:bg-violet-50/30 dark:hover:bg-violet-950/10">
-                  <td className="px-3 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap font-mono text-[10px]">
-                    {new Date(ev.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${ACTION_COLORS[ev.action] ?? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
-                      {ev.action}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-[11px] text-slate-600 dark:text-slate-400">
-                    {ev.target_type && <span className="font-medium text-slate-700 dark:text-slate-300">{ev.target_type}</span>}
-                    {ev.target_id && <span className="ml-1 font-mono text-slate-500">{ev.target_id.length > 16 ? ev.target_id.slice(0, 8) + '...' : ev.target_id}</span>}
-                    {!ev.target_type && !ev.target_id && <span className="text-slate-400">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                    {ev.actor_api_key_prefix
-                      ? <span title="API key prefix">{ev.actor_api_key_prefix}...</span>
-                      : ev.actor_user_id
-                        ? <span title="User ID">{ev.actor_user_id.slice(0, 8)}...</span>
-                        : <span className="text-slate-400">system</span>
-                    }
-                  </td>
-                  <td className="px-3 py-2 max-w-xs truncate font-mono text-[10px] text-slate-500 dark:text-slate-400">
-                    {ev.after ? JSON.stringify(ev.after) : <span className="text-slate-400">—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {total > PAGE_SIZE && (
-          <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 px-3 py-2">
-            <span className="text-[11px] text-slate-500">Page {currentPage} of {totalPages}</span>
-            <div className="flex gap-1.5">
-              <button onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0} className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] disabled:opacity-40 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                <ChevronLeft className="h-3 w-3" /> Prev
-              </button>
-              <button onClick={() => setOffset(offset + PAGE_SIZE)} disabled={offset + PAGE_SIZE >= total} className="flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] disabled:opacity-40 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                Next <ChevronRight className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Detail slide-over */}
-      {(selectedEvent || detailLoading) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40">
-          <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl dark:bg-slate-950">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">Audit Event Detail</h2>
-                <p className="mt-0.5 text-[11px] text-slate-500">Full before/after payload for governance evidence.</p>
-              </div>
-              <button onClick={() => setSelectedEvent(null)} className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            {detailLoading || !selectedEvent ? (
-              <div className="text-xs text-slate-500">Loading event detail...</div>
-            ) : (
-              <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Action</p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-white">{selectedEvent.action}</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-white">{new Date(selectedEvent.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Target</p>
-                    <p className="mt-1 text-slate-900 dark:text-white">{selectedEvent.target_type ?? '-'} {selectedEvent.target_id ?? ''}</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actor</p>
-                    <p className="mt-1 text-slate-900 dark:text-white">{selectedEvent.actor_api_key_prefix ?? selectedEvent.actor_user_id ?? 'system'}</p>
-                  </div>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Before</p>
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-slate-50 p-2.5 text-[10px] text-slate-700 dark:bg-slate-900 dark:text-slate-300">{JSON.stringify(selectedEvent.before, null, 2)}</pre>
-                </div>
-                <div className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-700">
-                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">After</p>
-                  <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-slate-50 p-2.5 text-[10px] text-slate-700 dark:bg-slate-900 dark:text-slate-300">{JSON.stringify(selectedEvent.after, null, 2)}</pre>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       )}
 
-      {/* Quick nav footer */}
-      <div className="flex flex-wrap gap-1.5 pt-2">
-        {[
-          { href: '/approvals', label: 'Approvals' },
-          { href: '/security', label: 'Security' },
-          { href: '/data-capture', label: 'Data Capture' },
-          { href: '/tool-registry', label: 'Tool Governance' },
-          { href: '/governance-pack', label: 'Audit Pack' },
-          { href: '/alert-rules', label: 'Alert Rules' },
-          { href: '/tags', label: 'Tags' },
-        ].map((l) => (
-          <Link key={l.href} href={l.href} className="rounded-full bg-violet-50 px-2.5 py-1 text-[10px] font-medium text-violet-700 ring-1 ring-violet-200 hover:bg-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:ring-violet-800 dark:hover:bg-violet-950/50">
-            {l.label}
-          </Link>
-        ))}
-      </div>
+      <Sheet open={selected !== null} onOpenChange={(o) => { if (!o) setSelected(null) }}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>{selected?.action}</SheetTitle>
+            <SheetDescription>Full before/after payload and its place in the hash chain.</SheetDescription>
+          </SheetHeader>
+          {selected && (
+            <div className="mt-4 space-y-4 text-xs">
+              <dl className="grid grid-cols-3 gap-2">
+                <dt className="text-slate-500">When</dt><dd className="col-span-2">{new Date(selected.created_at).toLocaleString()}</dd>
+                <dt className="text-slate-500">Actor</dt><dd className="col-span-2">{actorText(selected)} <span className="text-slate-400">({selected.actor_type ?? 'unknown'})</span></dd>
+                <dt className="text-slate-500">User id</dt><dd className="col-span-2 font-mono">{selected.actor_user_id ?? '—'}</dd>
+                <dt className="text-slate-500">API key</dt><dd className="col-span-2 font-mono">{selected.actor_api_key_prefix ?? '—'}</dd>
+                <dt className="text-slate-500">Target</dt><dd className="col-span-2 font-mono">{selected.target_type ?? '—'} {selected.target_id ?? ''}</dd>
+                <dt className="text-slate-500">Chain #</dt><dd className="col-span-2">{selected.seq ?? '—'}</dd>
+                <dt className="text-slate-500">Hash</dt><dd className="col-span-2 break-all font-mono text-[10px]">{selected.hash ?? '—'}</dd>
+                <dt className="text-slate-500">Previous</dt><dd className="col-span-2 break-all font-mono text-[10px]">{selected.prev_hash ?? '—'}</dd>
+              </dl>
+              {selected.target_type && selected.target_id && (
+                <button
+                  type="button"
+                  onClick={() => { pushParams({ target_type: selected.target_type, target_id: selected.target_id }); setSelected(null) }}
+                  className="flex items-center gap-1 font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                >
+                  <Link2 className="h-3 w-3" aria-hidden="true" /> All events for this target
+                </button>
+              )}
+              {(['before', 'after'] as const).map((k) => (
+                <div key={k}>
+                  <p className="mb-1 font-semibold capitalize text-slate-700 dark:text-slate-300">{k}</p>
+                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-50 p-3 font-mono text-[11px] dark:bg-slate-900">
+                    {selected[k] ? JSON.stringify(selected[k], null, 2) : '—'}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
+  )
+}
+
+export default function AuditPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-xs text-slate-400">Loading…</div>}>
+      <AuditLog />
+    </Suspense>
   )
 }

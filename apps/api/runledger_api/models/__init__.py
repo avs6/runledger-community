@@ -93,6 +93,7 @@ from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAno
 from runledger_api.models.retention import RetentionPolicy
 from runledger_api.models.scores import ScoreEvent, ScoreRollupDaily
 from runledger_api.models.search_tools import SearchTool
+from runledger_api.models.secrets import SecretRecord
 from runledger_api.models.security import (
     IpAclRule,
     KeyRotationEvent,
@@ -184,6 +185,7 @@ __all__ = [
     "Tag",
     "AutoTaggingRule",
     "SearchTool",
+    "SecretRecord",
     "ToolPolicy",
     "AccessGroup",
     "AccessGroupMember",

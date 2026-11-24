@@ -15,8 +15,27 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import Response
+from runledger_api.routers.audit import AuditFilters
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
+
+def _filters(**overrides: object) -> AuditFilters:
+    values: dict[str, object] = {
+        "action": None,
+        "actor": None,
+        "actor_user_id": None,
+        "actor_type": None,
+        "api_key_prefix": None,
+        "access_group_id": None,
+        "target_type": None,
+        "target_id": None,
+        "from_ts": None,
+        "to_ts": None,
+    }
+    values.update(overrides)
+    return AuditFilters(**values)  # type: ignore[arg-type]
 
 
 def _make_ws(ws_id: uuid.UUID | None = None) -> SimpleNamespace:
@@ -137,12 +156,8 @@ async def test_list_audit_events_returns_paginated() -> None:
     result = await list_audit_events(
         auth=(ws, None, None),  # type: ignore[arg-type]
         db=mock_db,
-        action=None,
-        actor_user_id=None,
-        target_type=None,
-        target_id=None,
-        access_group_id=None,
-        api_key_prefix=None,
+        filters=_filters(action=None),
+        response=Response(),
         limit=50,
         offset=0,
     )
@@ -173,12 +188,8 @@ async def test_list_audit_events_action_filter() -> None:
     result = await list_audit_events(
         auth=(ws, None, None),  # type: ignore[arg-type]
         db=mock_db,
-        action="budget",
-        actor_user_id=None,
-        target_type=None,
-        target_id=None,
-        access_group_id=None,
-        api_key_prefix=None,
+        filters=_filters(action="budget"),
+        response=Response(),
         limit=50,
         offset=0,
     )
@@ -206,12 +217,8 @@ async def test_list_audit_events_empty() -> None:
     result = await list_audit_events(
         auth=(ws, None, None),  # type: ignore[arg-type]
         db=mock_db,
-        action=None,
-        actor_user_id=None,
-        target_type=None,
-        target_id=None,
-        access_group_id=None,
-        api_key_prefix=None,
+        filters=_filters(action=None),
+        response=Response(),
         limit=50,
         offset=0,
     )

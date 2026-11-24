@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -11,7 +12,9 @@ from runledger_api.core.config import settings
 
 engine = create_async_engine(
     settings.database_url,
-    echo=settings.is_development,
+    # SQL echo leaks bound parameters (emails, prompts) into logs: opt-in only
+    # (review tr-security). Set SQL_ECHO=1 for local debugging.
+    echo=os.getenv("SQL_ECHO", "") == "1",
     pool_size=10,
     max_overflow=20,
     pool_timeout=30,

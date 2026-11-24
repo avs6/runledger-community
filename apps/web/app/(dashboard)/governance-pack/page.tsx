@@ -47,6 +47,15 @@ export default function GovernancePackPage() {
     return d.toISOString().slice(0, 10)
   })
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10))
+  // Actor filters the audit-pack API already supported (review S-27).
+  const [userId, setUserId] = useState('')
+  const [accessGroupId, setAccessGroupId] = useState('')
+  const [apiKeyId, setApiKeyId] = useState('')
+  const actorFilters = {
+    user_id: userId.trim() || undefined,
+    access_group_id: accessGroupId.trim() || undefined,
+    api_key_id: apiKeyId.trim() || undefined,
+  }
   const [pack, setPack] = useState<GovernanceAuditPack | null>(null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -60,7 +69,7 @@ export default function GovernancePackPage() {
     setLoading(true)
     setPack(null)
     try {
-      const result = await getGovernanceAuditPack(apiKey, { from: fromDate, to: toDate })
+      const result = await getGovernanceAuditPack(apiKey, { from: fromDate, to: toDate, ...actorFilters })
       setPack(result)
     } catch {
       toast.error('Failed to generate audit pack')
@@ -73,7 +82,7 @@ export default function GovernancePackPage() {
     if (!apiKey) return
     setExporting(true)
     try {
-      const raw = await exportGovernanceAuditPack(apiKey, { from: fromDate, to: toDate, format })
+      const raw = await exportGovernanceAuditPack(apiKey, { from: fromDate, to: toDate, format, ...actorFilters })
       const mimeType = format === 'csv' ? 'text/csv' : 'application/json'
       const blob = new Blob([raw], { type: mimeType })
       const url = URL.createObjectURL(blob)
@@ -115,6 +124,18 @@ export default function GovernancePackPage() {
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">To</label>
             <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="pack-user" className="mb-1 block text-xs font-medium text-slate-500">User id</label>
+            <input id="pack-user" value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Any user" className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="pack-group" className="mb-1 block text-xs font-medium text-slate-500">Access group id</label>
+            <input id="pack-group" value={accessGroupId} onChange={(e) => setAccessGroupId(e.target.value)} placeholder="Any group" className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="pack-key" className="mb-1 block text-xs font-medium text-slate-500">API key id</label>
+            <input id="pack-key" value={apiKeyId} onChange={(e) => setApiKeyId(e.target.value)} placeholder="Any key" className={inputCls} />
           </div>
           <button
             onClick={handleGenerate}
