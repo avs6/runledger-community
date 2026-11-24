@@ -330,7 +330,7 @@ spec:
       containers:
         - name: redis
           image: {{ $r.image | quote }}
-          args: ["redis-server", "--appendonly", "yes"]
+          args: ["redis-server", "--appendonly", "yes", "--requirepass", {{ required "redis.password is required when redis.inCluster=true" $r.password | quote }}]
           ports:
             - name: redis
               containerPort: {{ $r.port }}

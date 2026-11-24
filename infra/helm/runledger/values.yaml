@@ -2,15 +2,24 @@
 # Override with: helm install runledger ./runledger -f my-values.yaml
 
 # ── Image ─────────────────────────────────────────────────────────────────────
+# Images are built and pushed by CI (.github/workflows/images.yml) to docker.io/abijith13
+# with immutable tags (a release version or sha-<git sha>). An empty tag means the
+# chart's appVersion; "latest" is refused, so api, workers and beat always run one
+# build (review P-13, cd:S-06).
 image:
-  repository: ghcr.io/avs6/runledger-api
-  tag: latest
+  repository: docker.io/abijith13/runledger-api
+  tag: ""
   pullPolicy: IfNotPresent
 
 webImage:
-  repository: ghcr.io/avs6/runledger-web
-  tag: latest
+  repository: docker.io/abijith13/runledger-web
+  tag: ""
   pullPolicy: IfNotPresent
+
+# Application environment. "production" turns on the API's startup validation (known
+# default secrets, passwordless Redis, wildcard CORS → refuse to start) and disables the
+# development seed (review P-04, P-14). Use "development" only for throwaway clusters.
+environment: production
 
 imagePullSecrets: []
 
@@ -27,6 +36,10 @@ api:
 
 worker:
   replicaCount: 2        # Scale out for higher ingest throughput
+  concurrency: 4         # prefork pool size per pod (review P-12)
+  # Queues this deployment consumes: default, maintenance (backups, retention, ML) and
+  # ingest. Run a dedicated ingest Deployment by splitting these if ingest volume is high.
+  queues: celery,maintenance,ingest
   resources:
     requests:
       cpu: 250m
@@ -234,7 +247,7 @@ backup:
 optimization:
   enabled: true
   imageRegistry: docker.io/abijith13   # microservice images (see .github/workflows/images.yml)
-  imageTag: latest
+  imageTag: ""          # empty = chart appVersion; "latest" is refused
   pullPolicy: IfNotPresent
   # External local-LLM runtimes (always external — never bundled).
   ollamaBaseUrl: "http://host.docker.internal:11434/v1"
@@ -379,6 +392,7 @@ redis:
   inCluster: false
   image: abijith13/runledger-redis:v1beta1
   port: 6379
+  password: ""           # required when inCluster (review P-05); use URL-safe characters
   persistence: { size: 5Gi, storageClass: "" }
   resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 512Mi } }
 

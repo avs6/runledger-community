@@ -18,21 +18,32 @@ Only the bundled Kafka broker is optional (the `streaming` profile).
 git clone https://github.com/avs6/runledger-community
 cd runledger-community
 cp .env.example .env
-# set SECRET_KEY:
-python -c "import secrets; print(secrets.token_hex(32))"
+# Fill in SECRET_KEY, ADMIN_SECRET, REDIS_PASSWORD, POSTGRES_PASSWORD and
+# RUNLEDGER_BACKUP_SECRET_ACCESS_KEY, each with a value like:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 docker compose up -d                          # full stack
 docker compose --profile streaming up -d      # also start Redpanda for Kafka export
 ```
 
-Bootstrap the first admin:
+`ENVIRONMENT` defaults to `production`: the API refuses known-default secrets and no account is
+seeded. Create the first platform admin once, either in the browser at
+`http://localhost:3201/setup` (it asks for `ADMIN_SECRET`) or with the API:
 
 ```bash
 curl -s -X POST http://localhost:8201/admin/bootstrap \
-  -H "X-Admin-Secret: runledger-admin" \
+  -H "X-Admin-Secret: $ADMIN_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin123!","full_name":"Admin","org_name":"My Org"}'
+  -d '{"email":"admin@example.com","password":"<12+ chars with a letter and a digit>","full_name":"Admin","org_name":"My Org"}'
 ```
+
+Bootstrap works only while no platform admin exists (409 afterwards). For a local development stack,
+set `ENVIRONMENT=development`: the API then seeds a demo admin (`admin@runledger.local` /
+`runledger`), which is refused at sign-in in any other environment.
+
+Api, workers and beat run one image (`runledger-api:${RUNLEDGER_TAG}`), so they can't drift onto
+different builds. Platform admins can check workers, queues, beat, migrations, backups and versions
+on **Platform → System Status** in the dashboard (`GET /system/status`).
 
 | URL | What it is |
 |---|---|

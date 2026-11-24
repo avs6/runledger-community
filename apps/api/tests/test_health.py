@@ -40,7 +40,8 @@ async def test_health_db_error(
 
     app.dependency_overrides.clear()
 
-    assert response.status_code == 200
+    # Degraded is a 503 so load balancers and uptime checks notice (review P-19).
+    assert response.status_code == 503
     data = response.json()
     assert data["status"] == "degraded"
     assert data["db"] == "error"
@@ -73,7 +74,8 @@ async def test_health_redis_error(
 
     app.dependency_overrides.clear()
 
-    assert response.status_code == 200
+    # Degraded is a 503 so load balancers and uptime checks notice (review P-19).
+    assert response.status_code == 503
     data = response.json()
     assert data["status"] == "degraded"
     assert data["db"] == "ok"

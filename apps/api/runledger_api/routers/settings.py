@@ -296,7 +296,6 @@ async def get_ops_feature_status(auth: PlatformAdminDep) -> dict[str, Any]:
         "abuse_protection_enabled": app_settings.abuse_protection_enabled,
         "local_tls_enabled": app_settings.local_tls_enabled,
         "deployment_profile": app_settings.deployment_profile,
-        "feature_flags": sorted(app_settings.enabled_feature_flags),
     }
 
 
@@ -413,29 +412,6 @@ async def test_platform_webhook_defaults(
         if not results
         else "Platform webhook default test completed.",
     )
-
-
-@router.get("/ops/feature-flags")
-async def get_ops_feature_flags(auth: PlatformAdminDep) -> dict[str, Any]:
-    _workspace = auth[0]
-    known_flags = [
-        "gateway_pass_through",
-        "kafka_exports",
-        "backup_operations",
-        "policy_dry_run",
-        "otlp_insights",
-        "demo_mode",
-    ]
-    return {
-        "enabled": sorted(app_settings.enabled_feature_flags),
-        "items": [
-            {
-                "name": flag,
-                "enabled": app_settings.is_feature_enabled(flag),
-            }
-            for flag in known_flags
-        ],
-    }
 
 
 @router.get("/ops/policy-evaluation")
@@ -1029,6 +1005,13 @@ async def test_backup_connection(auth: PlatformAdminDep, db: DbDep) -> BackupAct
 @router.post("/backups/restore-drill", response_model=BackupRunResponse)
 async def run_restore_drill(auth: PlatformAdminDep, db: DbDep) -> BackupRunResponse:
     workspace = auth[0]
+    # Same gate as /backups/run (review P-22): a drill touches the object store and
+    # pg_restore tooling, so it is off wherever backups are off.
+    if not app_settings.backup_enabled:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Restore drills are disabled for this deployment (BACKUP_ENABLED=false).",
+        )
     actor = None
     if len(auth) > 1 and getattr(auth[1], "email", None):
         actor = auth[1].email

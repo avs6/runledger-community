@@ -9,6 +9,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { useRole } from '@/components/rbac/useRole'
+import { apiRequest } from '@/lib/api'
 
 interface Workspace {
   id: string
@@ -46,7 +47,6 @@ export default function TopBar() {
   const email = (s?.email as string) || ''
   const apiKey = (s?.apiKey as string) || ''
   const currentWorkspaceId = (s?.workspaceId as string) || ''
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
 
   const badge = roleBadge(workspaceRole || tenantRole, isPlatformAdmin)
   const analyticsScope = pathname === '/analytics' ? searchParams.get('scope') : null
@@ -116,23 +116,14 @@ export default function TopBar() {
   // Fetch workspaces when workspace menu opens
   useEffect(() => {
     if (!wsMenuOpen || !apiKey || workspaces.length > 0) return
-    fetch(`${apiBase}/org/workspaces/my`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    })
+    apiRequest('/org/workspaces/my', apiKey)
       .then((r) => r.ok ? r.json() : [])
       .then((data: Workspace[]) => setWorkspaces(data))
       .catch(() => {})
-  }, [wsMenuOpen, apiKey, apiBase, workspaces.length])
+  }, [wsMenuOpen, apiKey, workspaces.length])
 
-  async function handleSignOut() {
-    // Revoke the server-side session key first so a copied token stops working too.
-    try {
-      if (apiKey) {
-        await fetch(`${apiBase}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` } })
-      }
-    } catch {
-      /* sign out locally even if the API is unreachable */
-    }
+  function handleSignOut() {
+    // The NextAuth signOut event revokes the session key server-side (review P-06).
     signOut({ callbackUrl: '/login' })
   }
 
@@ -141,23 +132,16 @@ export default function TopBar() {
     setSwitching(true)
     setWsMenuOpen(false)
     try {
-      const r = await fetch(`${apiBase}/auth/switch-workspace`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspace_id: ws.id }),
-      })
-      if (r.status === 401) {
-        // Session is no longer valid (revoked, expired, access removed).
+      // The switch runs server-side in the NextAuth jwt callback: the new key goes
+      // straight into the httpOnly session cookie and never reaches the browser.
+      const next = await update({ switchWorkspaceId: ws.id })
+      if (next?.switchError === 'session_expired') {
         signOut({ callbackUrl: '/login' })
         return
       }
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}))
-        throw new Error(typeof body.detail === 'string' ? body.detail : 'Could not switch workspace')
+      if (!next || next.switchError || next.workspaceId !== ws.id) {
+        throw new Error(next?.switchError || 'Could not switch workspace')
       }
-      const data = await r.json()
-      // Only the new key is passed; the session callback re-reads roles from /auth/me.
-      await update({ apiKey: data.api_key })
       window.location.reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not switch workspace')

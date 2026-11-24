@@ -1,5 +1,6 @@
 'use client'
 
+import { API_URL } from '@/lib/api'
 import { useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
@@ -39,7 +40,7 @@ function statusCls(s: string) {
 type Mode = 'single' | 'compare'
 interface ResultCard { model: string; response: PlaygroundRequestResponse | null; loading: boolean; error: string | null }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
+const API_BASE = API_URL // BFF proxy in the browser (review P-06)
 const inputCls = 'w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500'
 const PAGE_SIZE = 20
 

@@ -31,10 +31,10 @@ from typing import Annotated, Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from runledger_api.core.config import settings
+from runledger_api.core.config import DEV_SEED_ADMIN_EMAIL, settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_api_key, require_user
 from runledger_api.core.redis import get_redis
@@ -203,6 +203,15 @@ async def login(body: LoginRequest, request: Request, db: DbDep, redis: RedisDep
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
 
     await clear_login_failures(redis, email)
+    # The demo admin seeded for local development must never work in production, even
+    # if a database seeded in dev is promoted (review P-01).
+    if not settings.is_development and user.email.lower() == DEV_SEED_ADMIN_EMAIL:
+        log.warning("dev_seed_admin_login_refused", user_id=str(user.id))
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "The development demo account is disabled outside development. "
+            "Create a platform admin with the setup page or POST /admin/bootstrap.",
+        )
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is deactivated")
     if not user.email_verified:
@@ -216,6 +225,28 @@ async def login(body: LoginRequest, request: Request, db: DbDep, redis: RedisDep
         is_platform_admin=user.is_platform_admin,
     )
     return response
+
+
+# ── First-run bootstrap status ───────────────────────────────────────────────
+
+
+class BootstrapStatusResponse(BaseModel):
+    needs_bootstrap: bool
+    environment: str
+
+
+@router.get("/auth/bootstrap-status", response_model=BootstrapStatusResponse)
+async def bootstrap_status(db: DbDep) -> BootstrapStatusResponse:
+    """Public: whether this deployment still needs its first platform admin. The login
+    page uses it to point operators at /setup instead of a seeded default account."""
+    admins = (
+        await db.execute(
+            select(func.count()).select_from(User).where(User.is_platform_admin.is_(True))
+        )
+    ).scalar_one()
+    return BootstrapStatusResponse(
+        needs_bootstrap=not bool(admins), environment=settings.environment
+    )
 
 
 # ── Session management ────────────────────────────────────────────────────────

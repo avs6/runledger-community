@@ -2,18 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
+# The queues celery_app.py actually declares and the workers consume (review P-12).
+# The old list named "priority" and "low" queues that nothing consumed.
 QUEUE_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "celery": {
         "role": "default",
-        "description": "General background work such as pipeline jobs, exports, and rollups.",
+        "description": "Enrichment, rollups, alerts, gateway health checks and the Kafka outbox.",
     },
-    "priority": {
-        "role": "priority",
-        "description": "Latency-sensitive work such as budget checks and route health actions.",
+    "ingest": {
+        "role": "ingest",
+        "description": "Event ingest (pipeline.process_events), consumed by the ingest worker.",
     },
-    "low": {
-        "role": "low",
-        "description": "Deferred maintenance work that can tolerate delay.",
+    "maintenance": {
+        "role": "maintenance",
+        "description": "Backups, retention and purges, ML retraining, replay and batch evals.",
     },
 }
 

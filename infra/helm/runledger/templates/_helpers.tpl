@@ -85,7 +85,7 @@ valueFrom:
     name: {{ .Values.secrets.existingSecret }}
     key: REDIS_URL
 {{- else if .Values.redis.inCluster -}}
-value: {{ printf "redis://%s-redis:%v/0" (include "runledger.fullname" .) .Values.redis.port | quote }}
+value: {{ printf "redis://:%s@%s-redis:%v/0" (required "redis.password is required when redis.inCluster=true" .Values.redis.password) (include "runledger.fullname" .) .Values.redis.port | quote }}
 {{- else -}}
 value: {{ required "externalRedis.url is required (or set redis.inCluster=true)" .Values.externalRedis.url | quote }}
 {{- end }}
@@ -230,15 +230,32 @@ INTERNAL_SERVICE_TOKEN key when internalServiceToken is set, otherwise ADMIN_SEC
 {{- end }}
 
 {{/*
+Image tag: the value given, else the chart appVersion. "latest" is refused (review P-13).
+Usage: {{ include "runledger.imageTag" (list . .Values.image.tag) }}
+*/}}
+{{- define "runledger.imageTag" -}}
+{{- $ctx := index . 0 -}}
+{{- $tag := toString (index . 1 | default $ctx.Chart.AppVersion) -}}
+{{- if eq $tag "latest" -}}
+{{- fail "Image tag \"latest\" is mutable; pin a release version or sha-<git sha> (review P-13)" -}}
+{{- end -}}
+{{- $tag -}}
+{{- end }}
+
+{{/*
 Common environment variables shared by api, worker, and beat.
 */}}
 {{- define "runledger.commonEnv" -}}
+- name: ENVIRONMENT
+  value: {{ .Values.environment | default "production" | quote }}
+- name: RUNLEDGER_VERSION
+  value: {{ include "runledger.imageTag" (list . .Values.image.tag) | quote }}
 - name: DATABASE_URL
   {{- include "runledger.databaseUrl" . | nindent 2 }}
 - name: REDIS_URL
   {{- include "runledger.redisUrl" . | nindent 2 }}
 - name: SECRET_KEY
-  {{- include "runledger.secretRef" (list . "SECRET_KEY" .Values.secrets.secretKey) | nindent 2 }}
+  {{- include "runledger.secretRef" (list . "SECRET_KEY" (ternary .Values.secrets.secretKey (required "secrets.secretKey (or secrets.existingSecret) is required" .Values.secrets.secretKey) (ne .Values.secrets.existingSecret ""))) | nindent 2 }}
 - name: ADMIN_SECRET
   {{- include "runledger.secretRef" (list . "ADMIN_SECRET" .Values.secrets.adminSecret) | nindent 2 }}
 - name: METRICS_TOKEN

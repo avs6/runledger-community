@@ -19,7 +19,8 @@ echo "" | tee -a "$LOG"
 
 # ── Seed (capture output so we can extract the API key) ───────────────────────
 
-echo "→ Seeding database (idempotent — safe on every start)..." | tee -a "$LOG"
+# The seed creates a demo admin and dev key, so it only runs in development (P-01).
+echo "→ Seeding database (development only; idempotent)..." | tee -a "$LOG"
 SEED_OUTPUT=$(python /app/scripts/seed.py 2>&1)
 # Full output (including a newly created API key) goes to the console only; the
 # bind-mounted log gets the key redacted (review P-23).
@@ -44,8 +45,13 @@ echo "  Dashboard   →  http://localhost:3201"
 echo "  API docs    →  http://localhost:8201/docs"
 echo "  Health      →  http://localhost:8201/health"
 echo ""
-echo "  Login       →  admin@runledger.local  /  runledger"
+if [ "${ENVIRONMENT:-production}" = "development" ]; then
+echo "  Login       →  admin@runledger.local  /  runledger   (development only)"
 echo "  API Key     →  ${API_KEY:0:11}... (full key shown once above, on first start)"
+else
+echo "  First run   →  open the dashboard at /setup (needs ADMIN_SECRET) or call"
+echo "                 POST /admin/bootstrap; no default account exists in production"
+fi
 echo ""
 echo "  Logs        →  docker compose logs -f runledger-api"
 echo "  Log file    →  logs/startup.log  (at repo root)"

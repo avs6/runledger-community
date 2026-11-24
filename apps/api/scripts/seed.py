@@ -1,6 +1,11 @@
 """
-Seed script — creates a default tenant, workspace, application, API key,
-and provider pricing data for local development.
+Seed script — creates a default tenant, workspace, application, API key and a demo
+platform admin for LOCAL DEVELOPMENT ONLY (review P-01).
+
+It does nothing unless ENVIRONMENT=development. Production deployments create their
+first platform admin with the dashboard's /setup page or POST /admin/bootstrap; the
+demo account (admin@runledger.local) is refused at login outside development.
+SEED_DEV_ADMIN=false skips the demo admin even in development.
 
 Safe to run multiple times (idempotent).
 
@@ -22,6 +27,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import bcrypt
+from runledger_api.core.config import DEV_SEED_ADMIN_EMAIL, settings
 from runledger_api.core.db import AsyncSessionLocal
 from runledger_api.models.metering import ProviderPricing
 from runledger_api.models.tenant import (
@@ -86,6 +92,13 @@ _PRICING_DATA: list[tuple[str, str, str, str, str | None]] = [
 
 
 async def seed() -> None:
+    if not settings.is_development:
+        print(
+            f"ENVIRONMENT={settings.environment}: skipping the development seed. "
+            "Create the first platform admin at <dashboard>/setup or with "
+            "POST /admin/bootstrap (X-Admin-Secret)."
+        )
+        return
     async with AsyncSessionLocal() as session:
         await _seed_tenant(session)
         # Pricing starts EMPTY by default — import config/pricing.yml from the dashboard
@@ -96,7 +109,7 @@ async def seed() -> None:
         # Always look up the workspace so _seed_user runs even on re-runs
         result = await session.execute(select(Workspace).where(Workspace.name == "default"))
         workspace = result.scalar_one_or_none()
-        if workspace:
+        if workspace and settings.seed_dev_admin:
             await _seed_user(session, workspace)
 
 
@@ -149,7 +162,7 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
 
     assert isinstance(session, AsyncSession)
 
-    _DEFAULT_EMAIL = "admin@runledger.local"
+    _DEFAULT_EMAIL = DEV_SEED_ADMIN_EMAIL
     _DEFAULT_PASSWORD = "runledger"
 
     existing = await session.execute(select(User).where(User.email == _DEFAULT_EMAIL))
@@ -193,10 +206,10 @@ async def _seed_user(session: object, workspace: Workspace) -> None:
     )
     await session.commit()
 
-    print("\nDashboard login (Platform Admin):")
+    print("\nDashboard login (Platform Admin, development only):")
     print(f"  Email:    {_DEFAULT_EMAIL}")
     print(f"  Password: {_DEFAULT_PASSWORD}")
-    print("  URL:      http://localhost:3201")
+    print(f"  URL:      {settings.app_base_url}")
     print("  Role:     Platform Admin (can create orgs via Sidebar → Platform Admin → Tenants)")
 
 

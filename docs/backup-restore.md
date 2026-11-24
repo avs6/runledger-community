@@ -138,9 +138,19 @@ The dashboard restore drill is intended to validate that backup inventory is rea
 
 Use it as a regular validation step before relying on any backup schedule.
 
+### How backups run
+
+Dashboard and scheduled backups run `python -m runledger_api.services.pg_backup backup` inside the
+API/worker image. It dumps Postgres over the network with `pg_dump` using `DATABASE_URL` (and
+`MEMORY_DB_URL` for the Letta memory DB when set), so it works in Compose, Kubernetes and on a
+laptop; the image ships the PostgreSQL 17 client. Nothing uses `docker exec`.
+
+Restore drills (`POST /settings/backups/restore-drill`) and the restore command are refused while
+`BACKUP_ENABLED=false`, the same gate as running a backup. Restore also needs `--confirm-restore`.
+
 ### Local restore helper
 
-For local restore using the bundled helper:
+For local restore using the bundled helper (needs `DATABASE_URL` and `BACKUP_ENABLED=true`):
 
 ```bash
 python scripts/localai/localai_s3_backup.py restore --confirm-restore

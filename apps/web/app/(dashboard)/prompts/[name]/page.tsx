@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getPrompt, listVersions, createVersion, promoteVersion, getPromptMetrics, getGithubConfig, pushToGithub, pullFromGithub } from '@/lib/api'
+import { getPrompt, listVersions, createVersion, promoteVersion, getPromptMetrics, getGithubConfig, pushToGithub, pullFromGithub, API_URL } from '@/lib/api'
 import type { PromptResponse, PromptVersion, VersionMetrics, GithubConfig } from '@/types/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, GitBranch, Plus, ArrowUpCircle, Edit2, Upload, Download, X } from 'lucide-react'
@@ -179,7 +179,7 @@ export default function PromptDetailPage({ params }: { params: { name: string } 
     setEditSaving(true)
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8201'}/prompts/${encodeURIComponent(decodedName)}/versions/${editingVersion.version}`,
+        `${API_URL}/prompts/${encodeURIComponent(decodedName)}/versions/${editingVersion.version}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },

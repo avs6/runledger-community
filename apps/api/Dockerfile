@@ -25,6 +25,10 @@ FROM python:3.13-slim AS runtime
 
 WORKDIR /app
 
+# pg_dump / pg_restore for backups over the network (review P-21). PGDG's client 17 can
+# dump any server up to 17; Debian's own client would be too old for a 16/17 server.
+RUN apt-get update  && apt-get install -y --no-install-recommends ca-certificates curl gnupg  && install -d /usr/share/postgresql-common/pgdg  && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc  && . /etc/os-release  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list  && apt-get update  && apt-get install -y --no-install-recommends postgresql-client-17  && apt-get purge -y --auto-remove gnupg  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/apps/api/runledger_api /app/runledger_api
 COPY --from=builder /app/apps/api/alembic /app/alembic
@@ -35,6 +39,13 @@ RUN sed -i 's/\r$//' /app/scripts/start.sh && chmod +x /app/scripts/start.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app"
+
+# Build identity (CI passes the release version and git sha). The system status page
+# compares it across api, workers and beat to catch version skew (cd:S-06).
+ARG RUNLEDGER_VERSION=0.1.0
+ARG RUNLEDGER_BUILD_SHA=local
+ENV RUNLEDGER_VERSION=${RUNLEDGER_VERSION} RUNLEDGER_BUILD_SHA=${RUNLEDGER_BUILD_SHA}
+LABEL org.opencontainers.image.version=${RUNLEDGER_VERSION} org.opencontainers.image.revision=${RUNLEDGER_BUILD_SHA}
 
 EXPOSE 8000
 

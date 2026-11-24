@@ -60,7 +60,9 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-The defaults in `.env.example` point to the Docker services and work out of the box.
+The defaults in `.env.example` point to the Docker services and work out of the box. Set
+`ENVIRONMENT=development` for local work: the API defaults to `production`, which refuses the
+default secrets and never seeds the demo admin (`admin@runledger.local` / `runledger`).
 
 **4. Run migrations**
 

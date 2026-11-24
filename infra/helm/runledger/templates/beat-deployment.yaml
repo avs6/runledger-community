@@ -37,7 +37,7 @@ spec:
         - name: beat
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ include "runledger.imageTag" (list . .Values.image.tag) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - celery
@@ -46,10 +46,20 @@ spec:
             - beat
             - --loglevel=info
             - --scheduler=celery.beat.PersistentScheduler
+            # The image's working dir isn't writable as runAsUser 1000; the schedule file
+            # lives on an emptyDir (review P-20). Daily jobs are crontab-aligned, so losing
+            # it on a reschedule doesn't shift them.
+            - --schedule=/var/lib/celery/celerybeat-schedule
           env:
             {{- include "runledger.commonEnv" . | nindent 12 }}
+          volumeMounts:
+            - name: beat-schedule
+              mountPath: /var/lib/celery
           resources:
             {{- toYaml .Values.beat.resources | nindent 12 }}
+      volumes:
+        - name: beat-schedule
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

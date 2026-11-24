@@ -1,0 +1,131 @@
+name: Publish SDKs
+
+# Release pipeline for the Python SDK (PyPI: runledger-sdk) and the TypeScript SDK
+# (npm: @runledger/sdk) — review I-28.
+#
+#   Pull requests touching packages/  → build, test and package both SDKs (no publish)
+#   Tag sdk-py-v<version>             → publish runledger-sdk <version> to PyPI
+#   Tag sdk-ts-v<version>             → publish @runledger/sdk <version> to npm
+#   Run workflow (manual)             → choose an SDK; dry_run (default) packages only
+#
+# The tag version must equal the version in pyproject.toml / package.json, and the
+# CHANGELOG must have a section for it, or the job fails before publishing.
+#
+# One-time setup by the repository owner (see docs/sdk-publishing.md):
+#   PyPI: create the runledger-sdk project and add a Trusted Publisher for this repo,
+#         workflow "publish-sdks.yml", environment "pypi" (no token stored here).
+#   npm:  create the @runledger org, add an automation token as the NPM_TOKEN secret in
+#         the "npm" environment. Publishes carry npm provenance.
+
+on:
+  pull_request:
+    paths:
+      - "packages/sdk/**"
+      - "packages/ts-sdk/**"
+      - ".github/workflows/publish-sdks.yml"
+  push:
+    tags:
+      - "sdk-py-v*"
+      - "sdk-ts-v*"
+  workflow_dispatch:
+    inputs:
+      sdk:
+        description: "Which SDK"
+        type: choice
+        options: [python, typescript]
+        required: true
+      dry_run:
+        description: "Build and check only; don't publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      startsWith(github.ref, 'refs/tags/sdk-py-v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.sdk == 'python')
+    environment: ${{ (startsWith(github.ref, 'refs/tags/sdk-py-v') || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)) && 'pypi' || '' }}
+    permissions:
+      contents: read
+      id-token: write   # PyPI Trusted Publishing (OIDC); no API token in the repo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync --all-packages
+      - name: Lint, type check and test
+        run: |
+          uv run ruff check packages/sdk
+          uv run mypy packages/sdk/runledger_sdk
+          uv run pytest packages/sdk/tests -q
+      - name: Version matches the tag and the changelog
+        run: |
+          VERSION=$(python -c "import tomllib;print(tomllib.load(open('packages/sdk/pyproject.toml','rb'))['project']['version'])")
+          echo "pyproject version: $VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/sdk-py-v* ]]; then
+            test "${GITHUB_REF#refs/tags/sdk-py-v}" = "$VERSION" || { echo "::error::tag ${GITHUB_REF_NAME} != pyproject $VERSION"; exit 1; }
+          fi
+          grep -q "^## \[$VERSION\]" packages/sdk/CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$VERSION] section"; exit 1; }
+      - name: Build sdist and wheel
+        run: uv build --package runledger-sdk -o dist
+      - name: Check metadata and install the wheel
+        run: |
+          uvx twine check dist/*
+          python -m venv /tmp/sdk && /tmp/sdk/bin/pip install dist/*.whl && /tmp/sdk/bin/python -c "import runledger_sdk; print('import ok')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runledger-sdk-dist
+          path: dist/
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags/sdk-py-v') || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  typescript:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      startsWith(github.ref, 'refs/tags/sdk-ts-v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.sdk == 'typescript')
+    environment: ${{ (startsWith(github.ref, 'refs/tags/sdk-ts-v') || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)) && 'npm' || '' }}
+    permissions:
+      contents: read
+      id-token: write   # npm provenance
+    defaults:
+      run:
+        working-directory: packages/ts-sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+          cache-dependency-path: packages/ts-sdk/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Version matches the tag and the changelog
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "package.json version: $VERSION"
+          if [[ "$GITHUB_REF" == refs/tags/sdk-ts-v* ]]; then
+            test "${GITHUB_REF#refs/tags/sdk-ts-v}" = "$VERSION" || { echo "::error::tag ${GITHUB_REF_NAME} != package.json $VERSION"; exit 1; }
+          fi
+          grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$VERSION] section"; exit 1; }
+      - name: Package (what would be published)
+        run: npm pack --dry-run
+      - name: Publish to npm
+        if: startsWith(github.ref, 'refs/tags/sdk-ts-v') || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

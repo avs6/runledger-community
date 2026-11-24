@@ -1,5 +1,6 @@
 'use client'
 
+import { API_URL } from '@/lib/api'
 import { useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -16,7 +17,7 @@ const HEADERS = [
   'Cost', 'Tokens', 'Duration', 'Started',
 ]
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8201'
+const apiBase = API_URL // BFF proxy in the browser (review P-06)
 
 export default function RunsTable({ items }: { items: RunListItem[] }) {
   const { data: session } = useSession()

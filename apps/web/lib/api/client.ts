@@ -1,29 +1,64 @@
 /** Shared fetch helpers and types for the API client modules (split from lib/api.ts). */
 import type { AnalyticsExport, CapturePolicyResponse } from '@/types/api'
 
-// Server-side (SSR/RSC): use API_URL — an internal Docker/Railway URL not visible to the browser.
-// Client-side (browser): use NEXT_PUBLIC_API_URL — baked at build time, must be browser-reachable.
+// Where API calls go (review P-06, BFF):
+//   * Browser: the same-origin BFF proxy (`/api/rl/*`). It reads the session key from the
+//     httpOnly NextAuth cookie and adds the Authorization header server-side, so the key
+//     is never readable by browser JS. `session.apiKey` on the client is only the
+//     placeholder BFF_SESSION_KEY; callers keep passing it, so apiFetch's signature and
+//     every page that uses it stay unchanged.
+//   * Server (RSC / route handlers): the API directly at API_URL (an internal URL never
+//     exposed to the browser), with the real key resolved from the session cookie.
 
-export const API_URL =
-  typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
+/** Placeholder `session.apiKey` the browser sees instead of the real session key. */
+export const BFF_SESSION_KEY = 'bff-session'
+
+/** Same-origin path of the BFF proxy (app/api/rl/[...path]/route.ts). */
+export const BFF_BASE_PATH = '/api/rl'
+
+const SERVER_API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201'
+
+export const API_URL = typeof window === 'undefined' ? SERVER_API_URL : BFF_BASE_PATH
+
+/**
+ * Authorization header for a call. In the browser there is none: the BFF adds it. On the
+ * server, the placeholder is swapped for the real key from the session cookie (via the
+ * resolver lib/server-session.ts registers); explicit keys (scripts, tests) pass through.
+ */
+export async function authHeaders(apiKey: string | null | undefined): Promise<Record<string, string>> {
+  if (typeof window !== 'undefined') return {}
+  let key = apiKey ?? ''
+  if (!key || key === BFF_SESSION_KEY) {
+    key = (await globalThis.__runledgerSessionKey?.()) ?? ''
+  }
+  return key ? { Authorization: `Bearer ${key}` } : {}
+}
+
+/** fetch() against the API (via the BFF in the browser) with auth applied. */
+export async function apiRequest(path: string, apiKey: string | null | undefined, init?: RequestInit): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    cache: 'no-store',
+    ...init,
+    headers: { ...(await authHeaders(apiKey)), ...(init?.headers as Record<string, string> | undefined) },
+  })
+}
+
+async function redirectToLogin(): Promise<never> {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/login'
+    throw new Error('API 401: session expired')
+  }
+  const { redirect } = await import('next/navigation')
+  return redirect('/login')
+}
 
 export async function apiFetch<T>(path: string, apiKey: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await apiRequest(path, apiKey, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      ...init?.headers,
-    },
-    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', ...(init?.headers as Record<string, string> | undefined) },
   })
 
-  if (res.status === 401) {
-    const { redirect } = await import('next/navigation')
-    redirect('/login')
-  }
+  if (res.status === 401) await redirectToLogin()
 
   if (!res.ok) {
     const text = await res.text()
@@ -45,38 +80,14 @@ export interface Page<T> {
  * endpoints that return either a bare array or `{ items: [...] }`.
  */
 export async function apiFetchPage<T>(path: string, apiKey: string): Promise<Page<T>> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
-  if (res.status === 401) {
-    const { redirect } = await import('next/navigation')
-    redirect('/login')
-  }
+  const res = await apiRequest(path, apiKey, { headers: { 'Content-Type': 'application/json' } })
+  if (res.status === 401) await redirectToLogin()
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   const body = await res.json()
   const items: T[] = Array.isArray(body) ? body : (body?.items ?? [])
   const header = res.headers.get('x-total-count')
   const total = header != null ? Number(header) : typeof body?.total === 'number' ? body.total : items.length
   return { items, total }
-}
-
-export async function adminFetch<T>(path: string, adminSecret: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Admin-Secret': adminSecret,
-      ...init?.headers,
-    },
-    cache: 'no-store',
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`API ${res.status}: ${text}`)
-  }
-  if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
 }
 
 // ── Analytics helpers ─────────────────────────────────────────────────────────
@@ -104,10 +115,7 @@ export async function exportPeriodCsv(
   const query = new URLSearchParams({ format: 'csv' })
   if (params.access_group_id) query.set('access_group_id', params.access_group_id)
   if (params.api_key_id) query.set('api_key_id', params.api_key_id)
-  const res = await fetch(`${API_URL}/billing/periods/${id}/export?${query.toString()}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/billing/periods/${id}/export?${query.toString()}`, apiKey)
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${res.status}: ${text}`)
@@ -132,11 +140,12 @@ export async function listWebhookDeliveries(
 export async function getCapturePolicy(
   apiKey: string
 ): Promise<CapturePolicyResponse | null> {
-  const res = await fetch(`${API_URL}/privacy/capture-policy`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
-  if (res.status === 404) return null
+  const res = await apiRequest(`/privacy/capture-policy`, apiKey)
+  if (res.status === 404) {
+    // Drain the body so the connection is released (an unread body keeps the request open).
+    await res.text().catch(() => '')
+    return null
+  }
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`API ${res.status}: ${text}`)
@@ -168,21 +177,14 @@ export async function importProviderPricing(
 ): Promise<import('@/types/api').PricingImportResult> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`${API_URL}/providers/pricing/import`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` }, // no Content-Type — browser sets multipart boundary
-    body: form,
-    cache: 'no-store',
-  })
+  // No Content-Type: the browser sets the multipart boundary.
+  const res = await apiRequest('/providers/pricing/import', apiKey, { method: 'POST', body: form })
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.json()
 }
 
 export async function getPricingExampleYaml(apiKey: string): Promise<string> {
-  const res = await fetch(`${API_URL}/providers/pricing/example`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/providers/pricing/example`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}`)
   return res.text()
 }
@@ -199,10 +201,7 @@ export async function exportAnalytics(
   if (from) qs.set('from', from)
   if (to) qs.set('to', to)
 
-  const res = await fetch(`${API_URL}/analytics/export?${qs.toString()}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/analytics/export?${qs.toString()}`, apiKey)
 
   if (!res.ok) {
     const text = await res.text()
@@ -227,12 +226,7 @@ export async function uploadInvoice(
   formData.append('file', file)
   const qs = new URLSearchParams({ period_start: periodStart, period_end: periodEnd })
   if (provider) qs.set('provider', provider)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201'
-  const res = await fetch(`${API_URL}/invoices/upload?${qs}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: formData,
-  })
+  const res = await apiRequest(`/invoices/upload?${qs}`, apiKey, { method: 'POST', body: formData })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail ?? `Upload failed: ${res.status}`)
@@ -251,13 +245,7 @@ export async function exportAuditEvents(
   const qs = new URLSearchParams({ format })
   if (action) qs.set('action', action)
   if (targetType) qs.set('target_type', targetType)
-  const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-  const res = await fetch(`${API}/audit/events/export?${qs}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/audit/events/export?${qs}`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()
 }
@@ -267,13 +255,7 @@ export async function exportRunbook(
   runbookId: string,
   format: 'markdown' | 'json' = 'markdown'
 ): Promise<string> {
-  const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-  const res = await fetch(`${API}/runs/runbooks/${runbookId}/export?format=${format}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/runs/runbooks/${runbookId}/export?format=${format}`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()
 }
@@ -288,13 +270,7 @@ export async function exportChargebackReport(
   if (params?.access_group_id) q.set('access_group_id', params.access_group_id)
   if (params?.api_key_id) q.set('api_key_id', params.api_key_id)
   if (params?.end_user_id) q.set('end_user_id', params.end_user_id)
-  const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-  const res = await fetch(`${API}/billing/chargeback-report/export?${q}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/billing/chargeback-report/export?${q}`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()
 }
@@ -306,13 +282,7 @@ export async function exportGovernanceAuditPack(
   const q = new URLSearchParams({ format: params?.format ?? 'json' })
   if (params?.from) q.set('from', params.from)
   if (params?.to) q.set('to', params.to)
-  const API = typeof window === 'undefined'
-    ? (process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-    : (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8201')
-  const res = await fetch(`${API}/governance/audit-pack/export?${q}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-    cache: 'no-store',
-  })
+  const res = await apiRequest(`/governance/audit-pack/export?${q}`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()
 }
@@ -324,9 +294,7 @@ export async function exportBilling(
 ): Promise<Blob> {
   const params = new URLSearchParams({ format })
   if (months) params.set('months', String(months))
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8201'}/budgets/billing-export?${params}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  })
+  const res = await apiRequest(`/budgets/billing-export?${params}`, apiKey)
   if (!res.ok) throw new Error(`Export failed: ${res.status}`)
   return res.blob()
 }

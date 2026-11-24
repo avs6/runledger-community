@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from runledger_api.core.config import settings as app_settings
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import require_admin
 from runledger_api.core.ratelimit import system_rate_limit
@@ -308,11 +309,29 @@ class BootstrapResponse(BaseModel):
 @router.post("/bootstrap", status_code=status.HTTP_201_CREATED)
 async def bootstrap_platform_admin(body: BootstrapRequest, db: DbDep) -> BootstrapResponse:
     """
-    One-time bootstrap: creates the platform admin user + default org.
-    Protected by X-Admin-Secret. Call once after fresh deployment.
-    Idempotent: if user already exists, just promotes them to platform admin.
+    One-time bootstrap: creates the first platform admin user + default org.
+    Protected by X-Admin-Secret. Call once after a fresh production deployment (the
+    dashboard's /setup page calls it too). Refused with 409 once any platform admin
+    exists, so a leaked admin secret can't mint or promote further admins (review P-01).
+    Outside development the password must meet the password policy (the local demo
+    simulator bootstraps the development demo admin with its short password).
     """
     from runledger_api.services.auth import generate_api_key as _gen_key  # noqa
+    from runledger_api.services.passwords import validate_password_policy  # noqa: PLC0415
+
+    existing_admins = (
+        await db.execute(
+            select(func.count()).select_from(User).where(User.is_platform_admin.is_(True))
+        )
+    ).scalar_one()
+    if existing_admins:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Already bootstrapped: a platform admin exists. Sign in and manage users instead.",
+        )
+    if not app_settings.is_development:
+        validate_password_policy(body.password)
+    body.email = body.email.strip().lower()
 
     # Find or create user
     result = await db.execute(select(User).where(User.email == body.email))

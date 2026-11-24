@@ -2001,13 +2001,12 @@ export interface OpsFeatureStatus {
   abuse_protection_enabled: boolean
   local_tls_enabled: boolean
   deployment_profile: string
-  feature_flags: string[]
 }
 
 export interface OpsQueueStatusItem {
   queue: string
   depth: number
-  role: 'default' | 'priority' | 'low'
+  role: 'default' | 'ingest' | 'maintenance'
   description: string
   status: 'idle' | 'active' | 'busy'
 }
@@ -2032,16 +2031,6 @@ export interface OpsStorageStatus {
     storage_class: string
     retention_days: number
   }
-}
-
-export interface OpsFeatureFlagItem {
-  name: string
-  enabled: boolean
-}
-
-export interface OpsFeatureFlagsResponse {
-  enabled: string[]
-  items: OpsFeatureFlagItem[]
 }
 
 export interface OpsPolicyCheck {
@@ -4346,4 +4335,60 @@ export interface EntityContext {
   title: string
   window_days: number
   items: EntityContextItem[]
+}
+
+// ── System status (platform admins; GET /system/status) ────────────────────────
+
+export type SystemCheckState = 'ok' | 'error' | 'degraded' | 'behind' | 'stale' | 'starting' | 'unknown'
+
+export interface SystemWorker {
+  worker: string
+  queues: string[]
+  version: string | null
+  build_sha: string | null
+  pid: number | null
+  age_seconds: number | null
+  status: 'ok' | 'stale'
+}
+
+export interface SystemVersionComponent {
+  component: string
+  version: string | null
+  build_sha: string | null
+  status: string | null
+}
+
+export interface SystemBackupRun {
+  id: string
+  status: string
+  scope: string
+  trigger_mode: string
+  target: string | null
+  created_at: string | null
+  completed_at: string | null
+  size_bytes: number | null
+  error: string | null
+}
+
+export interface SystemStatus {
+  generated_at: string
+  healthy: boolean
+  health: {
+    status: 'ok' | 'degraded'
+    db: SystemCheckState
+    redis: SystemCheckState
+    migrations: SystemCheckState
+    beat: SystemCheckState
+    version: string
+  }
+  environment: string
+  uptime_seconds: number
+  started_at: string
+  versions: { components: SystemVersionComponent[]; skew: boolean }
+  migrations: { status: SystemCheckState; current?: string[]; head?: string[] }
+  beat: { status: SystemCheckState; version?: string | null; build_sha?: string | null; age_seconds?: number | null }
+  workers: SystemWorker[]
+  queues: OpsQueueStatusItem[]
+  backups: { enabled: boolean; recent: SystemBackupRun[]; last_success: SystemBackupRun | null } | null
+  config_warnings: string[]
 }

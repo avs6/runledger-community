@@ -75,20 +75,18 @@ Compliance artifacts can be pointed at dedicated object storage with:
 The app owns destination awareness; bucket policy, KMS policy, lifecycle, and
 replication remain infrastructure concerns.
 
-## Feature flags
+## Feature flags (removed)
 
-Deployment-scoped feature flags are now supported through:
-
-```bash
-FEATURE_FLAGS=backup_operations,kafka_exports,policy_dry_run
-```
-
-The Settings operator surface and ops API expose the enabled set.
+`FEATURE_FLAGS` and `GET /settings/ops/feature-flags` were removed: the flags were only displayed and
+gated nothing. Optional features are switched by their own settings (`BACKUP_ENABLED`,
+`EMAIL_ENABLED`, the `streaming` compose profile, …).
 
 ## Abuse and rate protection
 
-RunLedger now has a dedicated **system** rate-limit tier alongside ingest,
-analytics, and management tiers.
+RunLedger has a dedicated **system** rate-limit tier alongside ingest,
+analytics, and management tiers. Every tier is a sliding 60-second window keyed by
+API key id (client IP for anonymous callers), and all are on by default — see
+[Configuration](deployment/configuration.mdx#rate-limits).
 
 Settings:
 

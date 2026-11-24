@@ -21,6 +21,31 @@ Signing in (password, OIDC, OAuth2, or LDAP) issues a **session key**. This is a
 - Users can list their sessions and revoke any of them from **Account → Sessions** (`/account`). Org admins can sign a user out everywhere from **Users**.
 - Revoked and expired session keys are purged daily (`auth.purge_session_keys`, after a 7-day grace period).
 
+### The key never reaches the browser
+
+The dashboard is a backend-for-frontend (BFF). The session key is stored only inside the encrypted,
+`httpOnly` NextAuth session cookie, so page scripts (or an XSS) can't read it:
+
+- The browser's session object carries a placeholder instead of the key, and dashboard pages call
+  the API through the same-origin proxy **`/api/rl/<api path>`**. The proxy decrypts the cookie
+  server-side and adds `Authorization: Bearer <session key>`.
+- The proxy answers `401` without a session, refuses state-changing requests that don't come from
+  the dashboard's own origin (`403`, on top of the cookie's `SameSite=Lax`), and never proxies
+  `/admin/*` or `/internal/*`. Responses stream through, so CSV exports and SSE work.
+- Switching workspace runs server-side: the new key goes straight into the cookie.
+- **Sign-out revokes the key on the server** (`POST /auth/logout` from the NextAuth sign-out event),
+  so a copied cookie stops working immediately.
+
+Scripts and SDKs keep calling the API directly with an API key; the BFF is only for the dashboard.
+
+### First-run setup
+
+Production deployments seed no account. While no platform admin exists, the sign-in page links to
+**`/setup`**, which creates the first platform admin after you enter the deployment's `ADMIN_SECRET`
+(it calls `POST /admin/bootstrap`). Bootstrap works once and then returns `409`. The development demo
+admin (`admin@runledger.local`) exists only with `ENVIRONMENT=development` and is refused at sign-in
+everywhere else.
+
 ### Who can enter a workspace
 
 The same rule is used at sign-in, at workspace switch, and on every request:
@@ -120,6 +145,7 @@ LDAP sign-ins reject empty usernames and passwords, because an empty password tr
 | `POST` | `/auth/login` | Email + password sign-in (rate-limited) |
 | `POST` | `/auth/switch-workspace` | Switch workspace; revokes the current session key |
 | `POST` | `/auth/logout` | Revoke the current session key |
+| `GET` | `/auth/bootstrap-status` | Public: `{ needs_bootstrap, environment }` for the first-run check |
 | `GET` | `/auth/me` | Current user, workspace, org role, `must_change_password` |
 | `GET` | `/auth/sessions` | Your live sessions |
 | `DELETE` | `/auth/sessions/{key_id}` | Revoke one of your sessions |
