@@ -422,28 +422,6 @@ def _first_metadata(spans: list[Span], keys: list[str]) -> str | None:
     return None
 
 
-def _matching_gateway_request(
-    run: AgentRun,
-    primary_call: ProviderCall | None,
-    gateway_requests: list[GatewayRequest],
-) -> GatewayRequest | None:
-    model = (primary_call.model if primary_call else None) or ""
-    model_lower = model.lower()
-    best: tuple[int, GatewayRequest] | None = None
-    for request in gateway_requests:
-        if request.workspace_id != run.workspace_id:
-            continue
-        request_model = (request.model_used or request.model_requested or "").lower()
-        if model_lower and request_model != model_lower:
-            continue
-        distance = abs(int((request.created_at - run.started_at).total_seconds() * 1000))
-        if distance > 5 * 60 * 1000:
-            continue
-        if best is None or distance < best[0]:
-            best = (distance, request)
-    return best[1] if best else None
-
-
 @router.get("", response_model=RunListResponse)
 async def list_runs(
     workspace: WorkspaceDep,
@@ -804,7 +782,7 @@ async def get_run_flow(
     spans_by_run: dict[uuid.UUID, list[Span]] = {run_id: [] for run_id in run_ids}
     tools_by_run: dict[uuid.UUID, list[ToolCall]] = {run_id: [] for run_id in run_ids}
     outcomes_by_run: dict[uuid.UUID, OutcomeEvent] = {}
-    gateway_requests: list[GatewayRequest] = []
+    gateway_by_run: dict[uuid.UUID, GatewayRequest] = {}
     gateway_routes: dict[uuid.UUID, GatewayRoute] = {}
 
     if run_ids:
@@ -847,26 +825,22 @@ async def get_run_flow(
         ).scalars():
             outcomes_by_run.setdefault(outcome.run_id, outcome)
 
-        min_started = min(run.started_at for run in runs) - timedelta(minutes=5)
-        max_started = max(run.started_at for run in runs) + timedelta(minutes=5)
-        gateway_requests = list(
-            (
-                await db.execute(
-                    select(GatewayRequest)
-                    .where(
-                        GatewayRequest.workspace_id.in_(workspace_ids),
-                        GatewayRequest.created_at >= min_started,
-                        GatewayRequest.created_at <= max_started,
-                    )
-                    .order_by(GatewayRequest.created_at.desc())
-                    .limit(limit * 2)
+        # Gateway calls persist the run they recorded (review O-12, G-19): join on it
+        # instead of guessing by model and a ±5 minute window.
+        for request in (
+            await db.execute(
+                select(GatewayRequest)
+                .where(
+                    GatewayRequest.workspace_id.in_(workspace_ids),
+                    GatewayRequest.run_id.in_(run_ids),
                 )
+                .order_by(GatewayRequest.created_at.desc())
             )
-            .scalars()
-            .all()
-        )
+        ).scalars():
+            if request.run_id is not None:
+                gateway_by_run.setdefault(request.run_id, request)
         route_ids = [
-            request.route_id for request in gateway_requests if request.route_id is not None
+            request.route_id for request in gateway_by_run.values() if request.route_id is not None
         ]
         if route_ids:
             gateway_routes = {
@@ -884,7 +858,7 @@ async def get_run_flow(
         tools = tools_by_run.get(run.id, [])
         primary_call = primary_calls.get(run.id)
         run_outcome: OutcomeEvent | None = outcomes_by_run.get(run.id)
-        gateway_request = _matching_gateway_request(run, primary_call, gateway_requests)
+        gateway_request = gateway_by_run.get(run.id)
         route = (
             gateway_routes.get(gateway_request.route_id)
             if gateway_request is not None and gateway_request.route_id is not None

@@ -26,6 +26,17 @@ _SVC_URL = os.getenv("SEMANTIC_CACHE_SVC_URL", "").rstrip("/")
 _TIMEOUT = float(os.getenv("SEMANTIC_CACHE_TIMEOUT_SECONDS", "2.0"))
 
 
+_client: httpx.AsyncClient | None = None
+
+
+def _http() -> httpx.AsyncClient:
+    """One pooled client per process: no TCP/TLS setup per lookup (review cd:gw-perf)."""
+    global _client  # noqa: PLW0603
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(timeout=_TIMEOUT, headers=settings.internal_service_headers)
+    return _client
+
+
 def enabled() -> bool:
     """True only if a semantic-cache service URL is configured."""
     return bool(_SVC_URL)
@@ -58,22 +69,28 @@ def _scope(
 
 
 async def lookup(
-    workspace_id: Any, model: str, messages: list[dict[str, Any]], security_scope: str = ""
+    workspace_id: Any,
+    model: str,
+    messages: list[dict[str, Any]],
+    security_scope: str = "",
+    threshold: float | None = None,
 ) -> dict[str, Any] | None:
-    """Return a cached response dict on a semantic hit, else None. Never raises."""
+    """Return a cached response dict on a semantic hit, else None. Never raises.
+
+    ``threshold`` is the workspace cache profile's ``similarity_threshold`` (G-09);
+    None lets the service use its default."""
     if not _SVC_URL:
         return None
     try:
-        payload = {
+        payload: dict[str, Any] = {
             "text": _canonical_text(messages),
             "scope": _scope(workspace_id, model, messages, security_scope),
         }
-        async with httpx.AsyncClient(
-            timeout=_TIMEOUT, headers=settings.internal_service_headers
-        ) as client:
-            resp = await client.post(f"{_SVC_URL}/lookup", json=payload)
-            resp.raise_for_status()
-            data: dict[str, Any] = resp.json()
+        if threshold is not None:
+            payload["threshold"] = threshold
+        resp = await _http().post(f"{_SVC_URL}/lookup", json=payload)
+        resp.raise_for_status()
+        data: dict[str, Any] = resp.json()
         if data.get("hit") and data.get("payload"):
             hit_payload: dict[str, Any] = data["payload"]
             return hit_payload
@@ -102,10 +119,7 @@ async def store(
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
         }
-        async with httpx.AsyncClient(
-            timeout=_TIMEOUT, headers=settings.internal_service_headers
-        ) as client:
-            resp = await client.post(f"{_SVC_URL}/store", json=payload)
-            resp.raise_for_status()
+        resp = await _http().post(f"{_SVC_URL}/store", json=payload)
+        resp.raise_for_status()
     except Exception as exc:  # noqa: BLE001 — fail-open
         log.warning("semantic_cache_store_skipped error=%s", str(exc))

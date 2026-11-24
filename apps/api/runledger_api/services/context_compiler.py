@@ -19,7 +19,8 @@ from runledger_api.core.config import settings
 log = logging.getLogger(__name__)
 
 _SVC_URL = os.getenv("CONTEXT_COMPILER_SVC_URL", "").rstrip("/")
-_TIMEOUT = float(os.getenv("CONTEXT_COMPILER_TIMEOUT_SECONDS", "25"))
+# 5 s default: the compiler sits on the hot path and fails open (review cd:gw-perf).
+_TIMEOUT = float(os.getenv("CONTEXT_COMPILER_TIMEOUT_SECONDS", "5"))
 
 
 def enabled() -> bool:

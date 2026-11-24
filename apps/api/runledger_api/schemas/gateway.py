@@ -304,6 +304,16 @@ class GatewayCompletionRequest(BaseModel):
         None,
         description="Optional list of guardrail rule IDs to run. If omitted, all active guardrails run.",
     )
+    # Prompt-ref resolution (review B-23): "name", "name@prod" or "name@3".
+    prompt: str | None = Field(
+        None,
+        max_length=300,
+        description="Managed prompt to prepend as the system message: 'name', 'name@prod' "
+        "(environment) or 'name@3' (version).",
+    )
+    prompt_variables: dict[str, Any] | None = Field(
+        None, description="Values for the prompt's {{variable}} placeholders."
+    )
 
 
 # ── Stats schema ───────────────────────────────────────────────────────────────
@@ -360,6 +370,10 @@ class GatewayRequestResponse(BaseModel):
     latency_ms: int | None
     status: str
     decision_reason: str | None
+    # Attribution persisted at request time (review G-19, O-12).
+    run_id: uuid.UUID | None = None
+    api_key_id: uuid.UUID | None = None
+    workflow: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -597,6 +611,13 @@ class GatewayRuntimePreflightResponse(BaseModel):
     ir_decision: dict[str, Any] | None = None
     decision_reason: str | None = None
     execution_steps: list[GatewayRuntimeExecutionStep] = Field(default_factory=list)
+    # Minted by preflight and echoed by the gateway on finalize / runtime events, so the
+    # request row, its guardrail events and its run share one id (review G-19).
+    request_id: uuid.UUID | None = None
+    # Structured "why": route, cache, budget, guardrail, prompt. Stored on the run and
+    # summarised in the X-RunLedger-Decision response header (ENH).
+    decision: dict[str, Any] = Field(default_factory=dict)
+    decision_header: str | None = None
 
 
 class GatewayRuntimeFinalizeRequest(BaseModel):
@@ -620,6 +641,8 @@ class GatewayRuntimeFinalizeRequest(BaseModel):
     ir_decision: dict[str, Any] | None = None
     cache_key: str | None = Field(default=None, max_length=64)
     semantic_scope: str | None = Field(default=None, max_length=256)
+    request_id: uuid.UUID | None = None
+    decision: dict[str, Any] | None = None
 
 
 class GatewayRuntimeFinalizeResponse(BaseModel):
@@ -654,6 +677,7 @@ class GatewayRuntimeMirrorRequest(BaseModel):
     api_key_id: uuid.UUID | None = None
     end_user_id: str | None = None
     request_metadata: dict[str, Any] = Field(default_factory=dict)
+    request_id: uuid.UUID | None = None
 
 
 class GatewayPassThroughEndpointCreate(BaseModel):

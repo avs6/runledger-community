@@ -882,6 +882,9 @@ async def evaluate_guardrails(
     metadata: dict[str, Any] | None = None,
     gateway_request_id: uuid.UUID | None = None,
     guardrail_ids: list[uuid.UUID] | None = None,
+    api_key_id: uuid.UUID | None = None,
+    workflow: str | None = None,
+    run_id: uuid.UUID | None = None,
 ) -> tuple[str, list[dict[str, Any]], float]:
     """
     Run all active guardrails for a workspace in priority order.
@@ -1028,6 +1031,9 @@ async def evaluate_guardrails(
                 "end_user_id": end_user_id,
             },
             gateway_request_id=gateway_request_id,
+            run_id=run_id,
+            api_key_id=api_key_id,
+            workflow=workflow,
             model=model,
             user_id=user_id or end_user_id,
             error=error_str,

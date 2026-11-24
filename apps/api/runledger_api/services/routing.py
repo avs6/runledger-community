@@ -106,6 +106,17 @@ async def select_route_with_policy(
 async def _fetch_active_routes(
     db: AsyncSession, workspace_id: Any, alias: str
 ) -> list[GatewayRoute]:
+    # Shares the gateway's per-request memo with select_routes (review cd:gw-perf).
+    from runledger_api.services.gateway_hotpath import (  # noqa: PLC0415
+        is_missing,
+        memo_get,
+        memo_put,
+    )
+
+    memo_key = ("routes", str(workspace_id), alias)
+    cached = memo_get(memo_key)
+    if not is_missing(cached):
+        return list(cached)
     stmt = (
         select(GatewayRoute)
         .where(
@@ -116,7 +127,9 @@ async def _fetch_active_routes(
         .order_by(GatewayRoute.priority.asc())
     )
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    routes = list(result.scalars().all())
+    memo_put(memo_key, routes)
+    return list(routes)
 
 
 async def _fetch_active_routes_by_alias(
@@ -126,13 +139,25 @@ async def _fetch_active_routes_by_alias(
 
 
 async def _fetch_policy(db: AsyncSession, workspace_id: Any, alias: str) -> RoutingPolicy | None:
+    from runledger_api.services.gateway_hotpath import (  # noqa: PLC0415
+        is_missing,
+        memo_get,
+        memo_put,
+    )
+
+    memo_key = ("routing_policy", str(workspace_id), alias)
+    cached = memo_get(memo_key)
+    if not is_missing(cached):
+        return cached  # type: ignore[no-any-return]
     stmt = select(RoutingPolicy).where(
         RoutingPolicy.workspace_id == workspace_id,
         RoutingPolicy.alias == alias,
         RoutingPolicy.is_active.is_(True),
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    policy = result.scalar_one_or_none()
+    memo_put(memo_key, policy)
+    return policy
 
 
 # ---------------------------------------------------------------------------

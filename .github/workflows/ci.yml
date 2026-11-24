@@ -131,6 +131,42 @@ jobs:
         working-directory: apps/api
         run: uv run alembic downgrade -1 && uv run alembic upgrade head
 
+  gateway-bench:
+    name: Gateway runtime verify + p50/p99 overhead
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: runledger
+          POSTGRES_PASSWORD: runledger
+          POSTGRES_DB: runledger
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U runledger" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql+asyncpg://runledger:runledger@localhost:5432/runledger
+      REDIS_URL: redis://localhost:6379/0
+      # Fails the job when one preflight issues more SQL or is slower than this (cd:gw-perf).
+      GATEWAY_BENCH_MAX_SQL: "20"
+      GATEWAY_BENCH_MAX_P99_MS: "250"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync --all-packages
+      - name: Migrate
+        working-directory: apps/api
+        run: uv run alembic upgrade head
+      - name: Verify gateway runtime and benchmark preflight
+        working-directory: apps/api
+        run: uv run python ../../scripts/core/verify_gateway_runtime.py --bench --iterations 300
+
   gateway-rs:
     name: Gateway (Rust)
     runs-on: ubuntu-latest
