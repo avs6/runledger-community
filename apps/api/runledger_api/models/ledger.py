@@ -78,10 +78,8 @@ class ToolRegistry(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     tool_name: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    policy: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'audit'"))
-    runtime_enforcement: Mapped[bool] = mapped_column(
-        sa.Boolean, nullable=False, server_default=sa.text("FALSE")
-    )
+    # Catalog only: the tool's policy is the managed ``registry:<tool>`` ToolPolicy
+    # row (review S-07); the old policy/runtime_enforcement columns were migrated.
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False

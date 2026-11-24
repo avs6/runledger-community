@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,8 @@ from runledger_api.schemas.policies import (
     ToolCostAccountingResponse,
     ToolCostBreakdownItem,
 )
+from runledger_api.services import plugin_runner as governance
+from runledger_api.services import tool_policy_engine as engine
 from runledger_api.services.budgets import check_budgets
 
 try:
@@ -116,18 +119,42 @@ def _match_model_key(model_name: str | None) -> str | None:
     return None
 
 
-async def _get_tool_policy(
+async def _tool_decision(
     db: AsyncSession,
     workspace_id: uuid.UUID,
-    tool_name: str,
-) -> str | None:
-    result = await db.execute(
-        select(ToolRegistry.policy).where(
-            ToolRegistry.workspace_id == workspace_id,
-            ToolRegistry.tool_name == tool_name,
-        )
+    body: PolicyCheckRequest,
+    *,
+    api_key: Any | None,
+    principal_user_id: uuid.UUID | None,
+) -> engine.PolicyDecision:
+    """The shared evaluator (same answer as /tools/check, MCP and the gateway: S-08)."""
+    ctx = await governance.build_context(
+        db,
+        workspace_id,
+        body.tool_name or "",
+        api_key=api_key,
+        principal_user_id=principal_user_id,
+        end_user_id=body.end_user_id,
+        feature_tag=body.feature_tag,
+        risk_score=body.risk_score,
     )
-    return result.scalar_one_or_none()
+    if body.dry_run:
+        return engine.evaluate(await engine.load_rules(db, workspace_id), ctx)
+    try:
+        return await governance.govern_tool_call(
+            db,
+            workspace_id,
+            ctx,
+            source="policies_check",
+            approval_id=body.approval_id,
+            hold_type=governance.GATEWAY_HOLD_TYPE,
+            requested_by=str(principal_user_id) if principal_user_id else None,
+        )
+    except governance.ToolCallBlocked as exc:
+        return exc.decision
+    except governance.ToolCallHeld as exc:
+        exc.decision.approval_id = str(exc.approval_id)
+        return exc.decision
 
 
 async def _has_active_gateway_route(
@@ -219,7 +246,11 @@ async def _collect_dry_run_detail(
             )
         )
         detail.tool_registered = tool_exists.scalar_one_or_none() is not None
-        detail.tool_policy_setting = await _get_tool_policy(db, workspace_id, body.tool_name)
+        decision = engine.evaluate(
+            await engine.load_rules(db, workspace_id),
+            engine.ToolCallContext(tool_name=body.tool_name),
+        )
+        detail.tool_policy_setting = decision.action
 
     if body.model_alias:
         routes_result = await db.execute(
@@ -255,6 +286,9 @@ async def evaluate_policy_check(
     redis: Redis,
     workspace_id: uuid.UUID,
     body: PolicyCheckRequest,
+    *,
+    api_key: Any | None = None,
+    principal_user_id: uuid.UUID | None = None,
 ) -> PolicyCheckResponse:
     reasons: list[str] = []
     decision = "allow"
@@ -263,6 +297,8 @@ async def evaluate_policy_check(
     budget_id: str | None = None
     downgrade_model: str | None = None
     tool_policy: str | None = None
+    tool_policy_name: str | None = None
+    approval_id: str | None = None
     gateway_route_available: bool | None = None
     score_gate_passed: bool | None = None
 
@@ -287,13 +323,23 @@ async def evaluate_policy_check(
             reasons.append("Budget exceeded: request blocked")
 
     if body.tool_name:
-        tool_policy = await _get_tool_policy(db, workspace_id, body.tool_name)
+        tool_decision = await _tool_decision(
+            db, workspace_id, body, api_key=api_key, principal_user_id=principal_user_id
+        )
+        tool_policy = tool_decision.action
+        tool_policy_name = tool_decision.policy_name
+        approval_id = tool_decision.approval_id
         if tool_policy == "block":
             decision = "block"
             allowed = False
-            reasons.append(f"Tool '{body.tool_name}' is blocked by policy")
+            reasons.append(f"Tool '{body.tool_name}' is blocked: {tool_decision.reason}")
+        elif tool_policy == "require_approval":
+            if decision != "block":
+                decision = "require_approval"
+            allowed = False
+            reasons.append(f"Tool '{body.tool_name}' requires approval: {tool_decision.reason}")
         elif tool_policy == "audit":
-            reasons.append(f"Tool '{body.tool_name}' requires audit")
+            reasons.append(f"Tool '{body.tool_name}' is audited: {tool_decision.reason}")
 
     if body.model_alias:
         gateway_route_available = await _has_active_gateway_route(
@@ -344,6 +390,8 @@ async def evaluate_policy_check(
         budget_id=budget_id,
         downgrade_model=downgrade_model,
         tool_policy=tool_policy,
+        tool_policy_name=tool_policy_name,
+        approval_id=approval_id,
         gateway_route_available=gateway_route_available,
         score_gate_passed=score_gate_passed,
         detail=detail,

@@ -10,7 +10,9 @@ import {
   Play, FlaskConical, Shield, Layers, Radio, Building2, Link2, Zap, Activity,
   CheckCircle2, XCircle, Loader2, FileText, ArrowUpCircle, ExternalLink,
 } from 'lucide-react'
-import { createSearchTool, createToolPolicy, deleteSearchTool, deleteToolPolicy, deleteToolRegistry, getAccessGroups, getSearchTools, getToolPolicies, getToolPolicyAnalytics, listMcpTools, listToolRegistry, policyDryRun, getPolicyDryRunReport, promotePolicy, simulateToolPolicy, updateSearchTool, updateToolPolicy, updateToolRegistry, upsertToolRegistry } from '@/lib/api'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import type { ToolPolicyImpactResponse } from '@/types/api'
+import { createSearchTool, createToolPolicy, deleteSearchTool, deleteToolPolicy, deleteToolRegistry, getAccessGroups, getSearchTools, getToolPolicies, getToolPolicyAnalytics, listMcpTools, listToolRegistry, policyDryRun, getPolicyDryRunReport, promotePolicy, simulateToolPolicy, simulateToolPolicyImpact, updateSearchTool, updateToolPolicy, updateToolRegistry, upsertToolRegistry } from '@/lib/api'
 import type { AccessGroupResponse, McpToolListItem, SearchToolResponse, ToolPolicyResponse, ToolPolicySimulationResponse, ToolRegistryResponse, ToolUsageAnalyticsResponse, PolicyCheckResponse, PolicyDryRunReport } from '@/types/api'
 import { num } from '@/lib/utils'
 import { useRole } from '@/components/rbac/useRole'
@@ -100,8 +102,12 @@ export default function ToolGovernancePage() {
   const [editingPolicyId, setEditingPolicyId] = useState<string | null>(null)
 
   const [registryForm, setRegistryForm] = useState({
-    tool_name: '', policy: 'audit', runtime_enforcement: false, description: '',
+    tool_name: '', policy: 'audit', description: '',
   })
+  const { confirm, dialog } = useConfirm()
+  const [impact, setImpact] = useState<ToolPolicyImpactResponse | null>(null)
+  const [impactDays, setImpactDays] = useState(7)
+  const [impactLoading, setImpactLoading] = useState(false)
   const [searchForm, setSearchForm] = useState({
     name: '', description: '', tool_type: 'web_search', endpoint_url: '',
     auth_type: '', rate_limit_rpm: '', cost_per_query: '0', is_active: true,
@@ -170,12 +176,12 @@ export default function ToolGovernancePage() {
   // --- Registry CRUD ---
   function resetRegistryForm() {
     setEditingToolName(null)
-    setRegistryForm({ tool_name: '', policy: 'audit', runtime_enforcement: false, description: '' })
+    setRegistryForm({ tool_name: '', policy: 'audit', description: '' })
     setShowRegistryForm(false)
   }
   function startEditRegistry(tool: ToolRegistryResponse) {
     setEditingToolName(tool.tool_name)
-    setRegistryForm({ tool_name: tool.tool_name, policy: tool.policy, runtime_enforcement: tool.runtime_enforcement, description: tool.description ?? '' })
+    setRegistryForm({ tool_name: tool.tool_name, policy: tool.policy, description: tool.description ?? '' })
     setShowRegistryForm(true)
   }
   async function handleSaveRegistry(e: React.FormEvent) {
@@ -184,10 +190,10 @@ export default function ToolGovernancePage() {
     setSaving(true)
     try {
       if (editingToolName) {
-        await updateToolRegistry(apiKey, editingToolName, { policy: registryForm.policy, runtime_enforcement: registryForm.runtime_enforcement, description: registryForm.description.trim() || null })
+        await updateToolRegistry(apiKey, editingToolName, { policy: registryForm.policy, description: registryForm.description.trim() || null })
         toast.success('Tool updated')
       } else {
-        await upsertToolRegistry(apiKey, { tool_name: registryForm.tool_name.trim(), policy: registryForm.policy, runtime_enforcement: registryForm.runtime_enforcement, description: registryForm.description.trim() || null })
+        await upsertToolRegistry(apiKey, { tool_name: registryForm.tool_name.trim(), policy: registryForm.policy, description: registryForm.description.trim() || null })
         toast.success('Tool registered')
       }
       resetRegistryForm()
@@ -195,7 +201,7 @@ export default function ToolGovernancePage() {
     } catch { toast.error('Failed to save') } finally { setSaving(false) }
   }
   async function handleDeleteRegistry(toolName: string) {
-    if (!apiKey || !confirm(`Remove "${toolName}"?`)) return
+    if (!apiKey || !(await confirm({ title: `Remove "${toolName}"?`, description: 'Removes the catalog entry and its managed policy.', confirmLabel: 'Remove', destructive: true }))) return
     try { await deleteToolRegistry(apiKey, toolName); toast.success('Removed'); await load() } catch { toast.error('Failed') }
   }
 
@@ -222,12 +228,12 @@ export default function ToolGovernancePage() {
     } catch { toast.error('Failed to save') } finally { setSaving(false) }
   }
   async function handleDeleteSearch(toolId: string) {
-    if (!apiKey || !confirm('Deactivate this provider?')) return
+    if (!apiKey || !(await confirm({ title: 'Deactivate this search provider?', confirmLabel: 'Deactivate', destructive: true }))) return
     try { await deleteSearchTool(apiKey, toolId); toast.success('Deactivated'); await load() } catch { toast.error('Failed') }
   }
 
   // --- Policy CRUD ---
-  function resetPolicyForm() { setEditingPolicyId(null); setPolicyForm(defaultPolicyForm); setShowPolicyForm(false) }
+  function resetPolicyForm() { setEditingPolicyId(null); setPolicyForm(defaultPolicyForm); setShowPolicyForm(false); setImpact(null) }
   function startEditPolicy(p: ToolPolicyResponse) {
     setEditingPolicyId(p.id)
     setPolicyForm({ name: p.name, description: p.description ?? '', tool_name: p.tool_name, action: p.action, condition_type: p.condition_type ?? 'all', condition_config_text: JSON.stringify(p.condition_config ?? {}, null, 2), scope_type: p.scope_type || 'workspace', scope_id: p.scope_id ?? '', priority: p.priority, is_active: p.is_active })
@@ -246,8 +252,25 @@ export default function ToolGovernancePage() {
       await load()
     } catch { toast.error('Failed to save policy') } finally { setSaving(false) }
   }
+  /** Policy simulator: replay recent real tool calls against the draft before saving. */
+  async function handlePreviewImpact() {
+    if (!apiKey || !policyForm.tool_name.trim()) { toast.error('Pick a target tool first'); return }
+    let condCfg: Record<string, unknown> = {}
+    try { condCfg = JSON.parse(policyForm.condition_config_text || '{}') } catch { toast.error('Invalid JSON'); return }
+    setImpactLoading(true)
+    try {
+      const res = await simulateToolPolicyImpact(apiKey, {
+        policy: { name: policyForm.name.trim() || 'draft', tool_name: policyForm.tool_name.trim(), action: policyForm.action, condition_type: policyForm.condition_type || 'all', condition_config: condCfg, scope_type: policyForm.scope_type, scope_id: policyForm.scope_id || undefined, priority: Number(policyForm.priority), is_active: policyForm.is_active },
+        policy_id: editingPolicyId ?? undefined,
+        days: impactDays,
+      })
+      setImpact(res)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message.replace(/^API \d+: /, '') : 'Simulation failed')
+    } finally { setImpactLoading(false) }
+  }
   async function handleDeletePolicy(id: string) {
-    if (!apiKey || !confirm('Deactivate this policy?')) return
+    if (!apiKey || !(await confirm({ title: 'Archive this policy?', description: 'It stops applying to the gateway, MCP calls and /tools/check immediately.', confirmLabel: 'Archive', destructive: true }))) return
     try { await deleteToolPolicy(apiKey, id); toast.success('Deactivated'); await load() } catch { toast.error('Failed') }
   }
 
@@ -284,7 +307,7 @@ export default function ToolGovernancePage() {
     try { const res = await promotePolicy(apiKey!, { policy_type: policyType, enforce: true }); toast.success(res.message || 'Promoted') } catch { toast.error('Failed') } finally { setReportPromoting(false) }
   }
 
-  const activeRegistry = tools.filter((t) => t.runtime_enforcement).length
+  const activeRegistry = tools.filter((t) => t.effective_action === 'block' || t.effective_action === 'require_approval').length
   const activeSearch = searchToolsList.filter((t) => t.is_active).length
   const activePolicies = policies.filter((p) => p.is_active).length
 
@@ -292,6 +315,7 @@ export default function ToolGovernancePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-3">
+      {dialog}
       {!isWorkspaceAdmin && (
         <ReadOnlyNotice
           message={
@@ -403,7 +427,7 @@ export default function ToolGovernancePage() {
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[10px] font-medium text-slate-500">Policy</label>
                   <select value={registryForm.policy} onChange={(e) => setRegistryForm((p) => ({ ...p, policy: e.target.value }))} className={inputCls}>
-                    <option value="audit">audit</option><option value="allow">allow</option><option value="block">block</option>
+                    <option value="audit">audit</option><option value="allow">allow</option><option value="require_approval">require_approval</option><option value="block">block</option>
                   </select>
                 </div>
                 <div className="md:col-span-2 flex flex-col gap-0.5">
@@ -411,10 +435,7 @@ export default function ToolGovernancePage() {
                   <input value={registryForm.description} onChange={(e) => setRegistryForm((p) => ({ ...p, description: e.target.value }))} className={inputCls} placeholder="What this tool does" />
                 </div>
               </div>
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
-                <input type="checkbox" checked={registryForm.runtime_enforcement} onChange={(e) => setRegistryForm((p) => ({ ...p, runtime_enforcement: e.target.checked }))} />
-                Enable runtime enforcement
-              </label>
+              <p className="text-[11px] text-slate-500">Enforced everywhere: gateway <code>tools[]</code> and <code>tool_calls</code>, governed MCP calls, <code>/tools/check</code> and <code>/policies/check</code>. Saved as the managed policy <code>registry:&lt;tool&gt;</code> (priority 50).</p>
               <div className="flex gap-2">
                 <button type="submit" disabled={saving} className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-500 disabled:opacity-50">{saving ? 'Saving...' : editingToolName ? 'Save' : 'Register'}</button>
                 <button type="button" onClick={resetRegistryForm} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300">Cancel</button>
@@ -436,7 +457,7 @@ export default function ToolGovernancePage() {
                   <tr>
                     <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Tool</th>
                     <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Policy</th>
-                    <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
+                    <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Effective</th>
                     <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Description</th>
                     <th className="px-3 py-1.5 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">Cost</th>
                     <th className="px-3 py-1.5 text-right text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</th>
@@ -448,16 +469,16 @@ export default function ToolGovernancePage() {
                       <td className="px-3 py-1.5 font-mono font-semibold text-slate-900 dark:text-slate-200">{tool.tool_name}</td>
                       <td className="px-3 py-1.5 text-slate-600 dark:text-slate-300">{tool.policy}</td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${tool.runtime_enforcement ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'border-slate-300/40 bg-slate-100/60 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                          <Zap className="h-2.5 w-2.5" />{tool.runtime_enforcement ? 'LIVE' : 'OFF'}
+                        <span title={tool.effective_policy_name ? `Decided by ${tool.effective_policy_name}` : 'No policy matches: allowed'} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${actionBadge[tool.effective_action ?? 'allow'] ?? actionBadge.allow}`}>
+                          <Zap className="h-2.5 w-2.5" />{tool.effective_action ?? 'allow'}
                         </span>
                       </td>
                       <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400 max-w-[200px] truncate">{tool.description || '-'}</td>
                       <td className="px-3 py-1.5"><Link href="/chargeback?dimension=feature_tag" className="inline-flex items-center gap-0.5 text-emerald-600 hover:text-emerald-500 dark:text-emerald-400"><DollarSign className="h-2.5 w-2.5" />View</Link></td>
                       <td className="px-3 py-1.5">
                         <div className="flex justify-end gap-1">
-                          <button onClick={() => startEditRegistry(tool)} className="rounded p-1 text-slate-400 hover:text-cyan-500 hover:bg-cyan-500/10"><Pencil className="h-3 w-3" /></button>
-                          <button onClick={() => void handleDeleteRegistry(tool.tool_name)} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-500/10"><Trash2 className="h-3 w-3" /></button>
+                          <button onClick={() => startEditRegistry(tool)} aria-label={`Edit ${tool.tool_name}`} className="rounded p-1 text-slate-400 hover:text-cyan-500 hover:bg-cyan-500/10"><Pencil className="h-3 w-3" /></button>
+                          <button onClick={() => void handleDeleteRegistry(tool.tool_name)} aria-label={`Remove ${tool.tool_name}`} className="rounded p-1 text-slate-400 hover:text-red-500 hover:bg-red-500/10"><Trash2 className="h-3 w-3" /></button>
                         </div>
                       </td>
                     </tr>
@@ -593,7 +614,7 @@ export default function ToolGovernancePage() {
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[10px] font-medium text-slate-500">Scope Type</label>
                   <select value={policyForm.scope_type} onChange={(e) => setPolicyForm((p) => ({ ...p, scope_type: e.target.value, scope_id: '' }))} className={inputCls}>
-                    <option value="workspace">workspace</option><option value="access_group">access_group</option><option value="search_tool">search_tool</option>
+                    <option value="workspace">workspace</option><option value="access_group">access_group</option><option value="api_key">api_key</option><option value="mcp_server">mcp_server</option><option value="search_tool">search_tool</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-0.5">
@@ -602,7 +623,11 @@ export default function ToolGovernancePage() {
                     <select value={policyForm.scope_id} onChange={(e) => setPolicyForm((p) => ({ ...p, scope_id: e.target.value }))} className={inputCls}><option value="">-- All --</option>{accessGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
                   ) : policyForm.scope_type === 'search_tool' ? (
                     <select value={policyForm.scope_id} onChange={(e) => setPolicyForm((p) => ({ ...p, scope_id: e.target.value }))} className={inputCls}><option value="">-- Any --</option>{searchToolsList.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-                  ) : <input value={policyForm.scope_id} onChange={(e) => setPolicyForm((p) => ({ ...p, scope_id: e.target.value }))} className={inputCls} placeholder="Optional" />}
+                  ) : policyForm.scope_type === 'mcp_server' ? (
+                    <select value={policyForm.scope_id} onChange={(e) => setPolicyForm((p) => ({ ...p, scope_id: e.target.value }))} className={inputCls} required><option value="">-- Pick server --</option>{Array.from(new Map(discoveredTools.map((t) => [t.server_id, t.server_name])).entries()).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
+                  ) : policyForm.scope_type === 'workspace' ? (
+                    <input value="" disabled className={inputCls} placeholder="Whole workspace" aria-label="Scope target (whole workspace)" />
+                  ) : <input value={policyForm.scope_id} onChange={(e) => setPolicyForm((p) => ({ ...p, scope_id: e.target.value }))} className={inputCls} placeholder="API key id" required />}
                 </div>
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[10px] font-medium text-slate-500">Priority</label>
@@ -613,7 +638,7 @@ export default function ToolGovernancePage() {
                 <div className="flex flex-col gap-0.5">
                   <label className="text-[10px] font-medium text-slate-500">Condition Type</label>
                   <select value={policyForm.condition_type} onChange={(e) => setPolicyForm((p) => ({ ...p, condition_type: e.target.value }))} className={inputCls}>
-                    <option value="all">all</option><option value="risk_score_gte">risk_score_gte</option><option value="tool_type">tool_type</option><option value="end_user">end_user</option><option value="feature_tag">feature_tag</option><option value="context_equals">context_equals</option>
+                    <option value="all">all</option><option value="risk_score_gte">risk_score_gte</option><option value="tool_type">tool_type</option><option value="end_user">end_user</option><option value="feature_tag">feature_tag</option><option value="context_equals">context_equals</option><option value="argument_contains">argument_contains</option><option value="mcp_server">mcp_server</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-0.5">
@@ -629,9 +654,52 @@ export default function ToolGovernancePage() {
                 <input type="checkbox" checked={policyForm.is_active} onChange={(e) => setPolicyForm((p) => ({ ...p, is_active: e.target.checked }))} /> Active
               </label>
               <div className="flex gap-2">
+                <button type="button" onClick={() => void handlePreviewImpact()} disabled={impactLoading} className="rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-300">{impactLoading ? 'Replaying…' : 'Preview impact'}</button>
+                <label className="flex items-center gap-1 text-[11px] text-slate-500">
+                  over
+                  <select aria-label="Days of traffic to replay" value={impactDays} onChange={(e) => setImpactDays(Number(e.target.value))} className={`${inputCls} w-20`}>
+                    {[1, 7, 14, 30].map((d) => <option key={d} value={d}>{d}d</option>)}
+                  </select>
+                </label>
                 <button type="submit" disabled={saving} className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-50">{saving ? 'Saving...' : editingPolicyId ? 'Save' : 'Create'}</button>
                 <button type="button" onClick={resetPolicyForm} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300">Cancel</button>
               </div>
+              {impact && (
+                <section aria-label="Policy impact preview" className="rounded-lg border border-slate-200 bg-white/70 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/60">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">
+                    Replayed {impact.calls_replayed.toLocaleString()} tool calls from the last {impact.days} days: {impact.changed.toLocaleString()} would change.
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-5">
+                    {[
+                      ['Newly blocked', impact.newly_blocked],
+                      ['Newly held', impact.newly_held],
+                      ['Newly audited', impact.newly_audited],
+                      ['Newly allowed', impact.newly_allowed],
+                      ['End users affected', impact.affected_end_users],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="rounded-md border border-slate-200 p-2 dark:border-slate-700">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{Number(value).toLocaleString()}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {impact.by_tool.filter((r) => r.changed > 0).length > 0 && (
+                    <table className="mt-2 w-full">
+                      <thead><tr className="text-left text-[10px] uppercase text-slate-500"><th className="py-1">Tool</th><th>Calls</th><th>Changed</th><th>Before</th><th>After</th></tr></thead>
+                      <tbody>
+                        {impact.by_tool.filter((r) => r.changed > 0).slice(0, 10).map((r) => (
+                          <tr key={r.tool_name} className="border-t border-slate-100 dark:border-slate-800">
+                            <td className="py-1 font-mono">{r.tool_name}</td><td>{r.calls}</td><td>{r.changed}</td>
+                            <td>{Object.entries(r.before).map(([k, v]) => `${k} ${v}`).join(', ')}</td>
+                            <td>{Object.entries(r.after).map(([k, v]) => `${k} ${v}`).join(', ')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {impact.notes.map((n) => <p key={n} className="mt-1 text-[11px] text-slate-500">{n}</p>)}
+                </section>
+              )}
             </form>
           )}
 

@@ -31,6 +31,19 @@ flowchart LR
   exec & stop --> audit[Audit event]
 ```
 
+## Approvals in the runtime path
+
+Tool policies with the `require_approval` action create approvals **from the request path**, not only from the UI:
+
+- **Gateway**: a request whose `tools[]` (or a response whose `tool_calls`) includes an approval-required tool is
+  held with `202` + `X-RunLedger-Approval-Id`. Resubmit with `metadata["runledger.approval_id"]` once approved.
+  Type `tool_allow`.
+- **MCP proxy**: `POST /mcp-registry/tools/call` returns `202` with the approval id; resume the call with
+  `POST /mcp-registry/tool-calls/{id}/resume`. Type `external_mcp_tool`.
+- **SDK**: `GET /tools/check/{tool}` returns `403` with the approval id; retry with `?approval_id=`.
+
+An approval is bound to the tool and the API key that was held. See [Tool governance](/governance/tool-governance).
+
 ## Supported request types
 
 | Type | Description |

@@ -20,6 +20,7 @@ Single entry point for the entire demo lifecycle:
     python scripts/run_demo.py verify-api-health  # every dashboard read endpoint returns without a 5xx
     python scripts/run_demo.py verify-billing     # periods, close/reopen, chargeback rules, shared costs, signing
     python scripts/run_demo.py verify-security    # critical security fixes (guardrail logic sandbox, …)
+    python scripts/run_demo.py verify-governance  # tool policy enforced end to end, approval holds, MCP, simulator
 
   ── Traffic & Agents ──────────────────────────────────────────
     python scripts/run_demo.py traffic            # generate agent traffic (batch mode)
@@ -129,6 +130,10 @@ def cmd_verify_billing(args: argparse.Namespace) -> int:
 
 def cmd_verify_security(args: argparse.Namespace) -> int:
     return _run_script(CORE_DIR / "verify_security.py", getattr(args, "args", []))
+
+
+def cmd_verify_governance(args: argparse.Namespace) -> int:
+    return _run_script(CORE_DIR / "verify_governance.py", getattr(args, "args", []))
 
 
 def cmd_all(args: argparse.Namespace) -> int:
@@ -389,6 +394,12 @@ def main() -> int:
     )
     p.add_argument("args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser(
+        "verify-governance",
+        help="End-to-end check: tool policies enforced, approval holds, MCP calls, simulator.",
+    )
+    p.add_argument("args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("mcp-validate", help="Validate MCP endpoint connectivity and tools.")
     p.add_argument("--endpoint", default=None)
     p.add_argument("--api-key", default=None)
@@ -406,7 +417,7 @@ def main() -> int:
 
     # Pass-through subcommands forward their flags (e.g. --gateway-url) verbatim to the
     # underlying script; argparse.REMAINDER alone rejects a leading option.
-    passthrough = {"verify-org-access", "verify-budgets", "verify-ingestion", "verify-api-health", "verify-billing", "verify-security"}
+    passthrough = {"verify-org-access", "verify-budgets", "verify-ingestion", "verify-api-health", "verify-billing", "verify-security", "verify-governance"}
     if len(sys.argv) > 1 and sys.argv[1] in passthrough:
         args = argparse.Namespace(command=sys.argv[1], args=sys.argv[2:])
     else:
@@ -424,6 +435,7 @@ def main() -> int:
         "verify-api-health": cmd_verify_api_health,
         "verify-billing": cmd_verify_billing,
         "verify-security": cmd_verify_security,
+        "verify-governance": cmd_verify_governance,
         "all": cmd_all,
         "traffic": cmd_traffic,
         "otlp-traffic": cmd_otlp_traffic,

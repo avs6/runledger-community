@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -59,6 +58,8 @@ from runledger_api.schemas.workspace_controls import (
     TagTreeResponse,
     TagUpdate,
     ToolPolicyCreate,
+    ToolPolicyImpactRequest,
+    ToolPolicyImpactResponse,
     ToolPolicyListResponse,
     ToolPolicyResponse,
     ToolPolicySimulationRequest,
@@ -67,7 +68,10 @@ from runledger_api.schemas.workspace_controls import (
     ToolUsageAnalyticsItem,
     ToolUsageAnalyticsResponse,
 )
+from runledger_api.services import auto_tagging
+from runledger_api.services import tool_policy_engine as policy_engine
 from runledger_api.services.audit import emit_audit_event
+from runledger_api.services.tool_policy_impact import simulate_impact
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 WorkspaceDep = Annotated[Workspace, Depends(get_current_workspace)]
@@ -92,31 +96,6 @@ def _tag_to_response(tag: Tag) -> TagResponse:
         created_at=tag.created_at,
         updated_at=tag.updated_at,
     )
-
-
-DEFAULT_POPULAR_TOOL_POLICIES: list[dict[str, Any]] = [
-    {
-        "name": "Web Search",
-        "description": "Allow web search tool calls",
-        "tool_name": "web_search",
-        "action": "allow",
-        "priority": 1,
-    },
-    {
-        "name": "Code Interpreter",
-        "description": "Allow code interpreter tool calls",
-        "tool_name": "code_interpreter",
-        "action": "allow",
-        "priority": 2,
-    },
-    {
-        "name": "File Read",
-        "description": "Allow file read tool calls",
-        "tool_name": "file_read",
-        "action": "allow",
-        "priority": 3,
-    },
-]
 
 
 def _rule_to_response(rule: AutoTaggingRule) -> AutoTaggingRuleResponse:
@@ -238,52 +217,48 @@ def _cache_to_response(config: ResponseCacheConfig) -> ResponseCacheConfigRespon
     )
 
 
-def _match_rule(match_type: str, pattern: str, value: str | None) -> bool:
-    candidate = value or ""
-    if match_type == "equals":
-        return candidate == pattern
-    if match_type == "contains":
-        return pattern.lower() in candidate.lower()
-    if match_type == "prefix":
-        return candidate.lower().startswith(pattern.lower())
-    if match_type == "suffix":
-        return candidate.lower().endswith(pattern.lower())
-    if match_type == "regex":
-        return bool(re.search(pattern, candidate))
-    return False
+async def _validate_tool_policy(
+    db: AsyncSession,
+    ws_id: uuid.UUID,
+    *,
+    action: str | None,
+    condition_type: str | None,
+    condition_config: dict[str, Any] | None,
+    scope_type: str | None,
+    scope_id: uuid.UUID | None,
+) -> None:
+    """422 unless the policy can be enforced as written (no decorative rules)."""
+    errors = policy_engine.validate_policy_fields(
+        action=action,
+        condition_type=condition_type,
+        scope_type=scope_type,
+        scope_id=scope_id,
+        condition_config=condition_config,
+    )
+    scope = policy_engine.normalize_scope(scope_type) if scope_type is not None else None
+    if (
+        not errors
+        and scope_id is not None
+        and scope in {"access_group", "mcp_server", "search_tool", "api_key"}
+    ):
+        from runledger_api.models.mcp_registry import McpServer  # noqa: PLC0415
+        from runledger_api.models.tenant import ApiKey  # noqa: PLC0415
 
-
-def _policy_matches(policy: ToolPolicy, request: ToolPolicySimulationRequest) -> tuple[bool, str]:
-    if policy.tool_name not in {"*", request.tool_name}:
-        return False, "tool mismatch"
-
-    condition = policy.condition_type or "all"
-    config = policy.condition_config or {}
-    if condition == "all":
-        return True, "global policy"
-    if condition == "risk_score_gte":
-        threshold = int(config.get("threshold", 0))
-        return (request.risk_score or 0) >= threshold, f"risk_score>={threshold}"
-    if condition == "tool_type":
-        expected = str(config.get("tool_type", ""))
-        return request.tool_type == expected, f"tool_type={expected}"
-    if condition == "end_user":
-        expected = str(config.get("end_user_id", ""))
-        return request.end_user_id == expected, f"end_user_id={expected}"
-    if condition == "feature_tag":
-        expected = str(config.get("feature_tag", ""))
-        return request.feature_tag == expected, f"feature_tag={expected}"
-    if condition == "context_equals":
-        key = str(config.get("key", ""))
-        expected = config.get("value")
-        return request.context.get(key) == expected, f"context.{key}={expected}"
-    return False, f"unsupported condition:{condition}"
-
-
-def _normalize_policy_action(action: str) -> str:
-    if action == "deny":
-        return "block"
-    return action
+        model: Any = {
+            "access_group": AccessGroup,
+            "mcp_server": McpServer,
+            "search_tool": SearchTool,
+            "api_key": ApiKey,
+        }[scope]
+        found = (
+            await db.execute(
+                select(model.id).where(model.id == scope_id, model.workspace_id == ws_id)
+            )
+        ).scalar_one_or_none()
+        if found is None:
+            errors.append(f"{scope} {scope_id} not found in this workspace")
+    if errors:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "; ".join(errors))
 
 
 async def _get_policy_count(db: AsyncSession, workspace_id: uuid.UUID, tool_name: str) -> int:
@@ -426,6 +401,8 @@ async def create_auto_tag_rule(
     ws: WorkspaceDep,
     db: DbDep,
 ) -> AutoTaggingRuleResponse:
+    if err := auto_tagging.validate_rule_pattern(body.match_type, body.match_pattern):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, err)
     rule = AutoTaggingRule(
         id=uuid.uuid4(),
         workspace_id=ws.id,
@@ -440,6 +417,7 @@ async def create_auto_tag_rule(
         is_active=body.is_active,
     )
     db.add(rule)
+    auto_tagging.invalidate(ws.id)
     await db.commit()
     await db.refresh(rule)
     return _rule_to_response(rule)
@@ -489,9 +467,15 @@ async def update_auto_tag_rule(
     ).scalar_one_or_none()
     if not rule:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Auto-tagging rule not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    if err := auto_tagging.validate_rule_pattern(
+        changes.get("match_type", rule.match_type), changes.get("match_pattern", rule.match_pattern)
+    ):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, err)
+    for field, value in changes.items():
         setattr(rule, field, value)
     rule.updated_at = datetime.now(UTC)
+    auto_tagging.invalidate(ws.id)
     await db.commit()
     await db.refresh(rule)
     return _rule_to_response(rule)
@@ -513,6 +497,7 @@ async def delete_auto_tag_rule(rule_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) 
     ).scalar_one_or_none()
     if not rule:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Auto-tagging rule not found")
+    auto_tagging.invalidate(ws.id)
     await db.delete(rule)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -528,35 +513,26 @@ async def simulate_auto_tagging(
     ws: WorkspaceDep,
     db: DbDep,
 ) -> AutoTaggingSimulationResponse:
-    rows = (
-        (
-            await db.execute(
-                select(AutoTaggingRule)
-                .where(
-                    AutoTaggingRule.workspace_id == ws.id,
-                    AutoTaggingRule.is_active.is_(True),
-                )
-                .order_by(AutoTaggingRule.priority.asc(), AutoTaggingRule.created_at.asc())
-            )
+    """Same matcher the ingest pipeline and gateway use (S-19)."""
+    rules = await auto_tagging.load_rules(db, ws.id, use_cache=False)
+    matched = [
+        AutoTaggingSimulationMatch(
+            rule_id=rule.id,
+            rule_name=rule.name,
+            tag_key=rule.tag_key,
+            tag_value=rule.tag_value,
+            priority=rule.priority,
         )
-        .scalars()
-        .all()
+        for rule in sorted(rules, key=lambda r: (r.priority, str(r.id)))
+        if auto_tagging.match_rule(
+            rule.match_type,
+            rule.match_pattern,
+            auto_tagging.field_value(body.fields, rule.match_field),
+        )
+    ]
+    return AutoTaggingSimulationResponse(
+        matched=matched, applied_tags=auto_tagging.apply_rules(rules, body.fields)
     )
-    matched: list[AutoTaggingSimulationMatch] = []
-    applied_tags: dict[str, str] = {}
-    for rule in rows:
-        if _match_rule(rule.match_type, rule.match_pattern, body.fields.get(rule.match_field)):
-            matched.append(
-                AutoTaggingSimulationMatch(
-                    rule_id=rule.id,
-                    rule_name=rule.name,
-                    tag_key=rule.tag_key,
-                    tag_value=rule.tag_value,
-                    priority=rule.priority,
-                )
-            )
-            applied_tags[rule.tag_key] = rule.tag_value
-    return AutoTaggingSimulationResponse(matched=matched, applied_tags=applied_tags)
 
 
 @search_tools_router.post(
@@ -720,21 +696,40 @@ async def create_tool_policy(
     ws: WorkspaceDep,
     db: DbDep,
 ) -> ToolPolicyResponse:
+    await _validate_tool_policy(
+        db,
+        ws.id,
+        action=body.action,
+        condition_type=body.condition_type,
+        condition_config=body.condition_config,
+        scope_type=body.scope_type,
+        scope_id=body.scope_id,
+    )
     policy = ToolPolicy(
         id=uuid.uuid4(),
         workspace_id=ws.id,
         name=body.name,
         description=body.description,
         tool_name=body.tool_name,
-        action=body.action,
-        condition_type=body.condition_type,
+        action=policy_engine.normalize_action(body.action),
+        condition_type=body.condition_type or "all",
         condition_config=body.condition_config,
-        scope_type=body.scope_type,
+        scope_type=policy_engine.normalize_scope(body.scope_type),
         scope_id=body.scope_id,
         priority=body.priority,
         is_active=body.is_active,
     )
     db.add(policy)
+    await db.flush()
+    await emit_audit_event(
+        db,
+        ws.id,
+        "tool_policy.created",
+        target_type="tool_policy",
+        target_id=str(policy.id),
+        after=body.model_dump(mode="json"),
+    )
+    policy_engine.invalidate(ws.id)
     await db.commit()
     await db.refresh(policy)
     return _policy_to_response(policy)
@@ -762,25 +757,6 @@ async def list_tool_policies(
         .all()
     )
 
-    if not rows and not tool_name:
-        for pol_def in DEFAULT_POPULAR_TOOL_POLICIES:
-            pol = ToolPolicy(
-                id=uuid.uuid4(),
-                workspace_id=ws.id,
-                name=pol_def["name"],
-                description=pol_def["description"],
-                tool_name=pol_def["tool_name"],
-                action=pol_def["action"],
-                priority=pol_def["priority"],
-                is_active=True,
-            )
-            db.add(pol)
-        await db.commit()
-        rows = (
-            (await db.execute(q.order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())))
-            .scalars()
-            .all()
-        )
     return ToolPolicyListResponse(
         items=[_policy_to_response(policy) for policy in rows],
         total=len(rows),
@@ -805,9 +781,34 @@ async def update_tool_policy(
     ).scalar_one_or_none()
     if not policy:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool policy not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    await _validate_tool_policy(
+        db,
+        ws.id,
+        action=changes.get("action", policy.action),
+        condition_type=changes.get("condition_type", policy.condition_type or "all"),
+        condition_config=changes.get("condition_config", policy.condition_config),
+        scope_type=changes.get("scope_type", policy.scope_type),
+        scope_id=changes.get("scope_id", policy.scope_id),
+    )
+    before = _policy_to_response(policy).model_dump(mode="json")
+    for field, value in changes.items():
+        if field == "action" and value is not None:
+            value = policy_engine.normalize_action(value)
+        if field == "scope_type" and value is not None:
+            value = policy_engine.normalize_scope(value)
         setattr(policy, field, value)
     policy.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db,
+        ws.id,
+        "tool_policy.updated",
+        target_type="tool_policy",
+        target_id=str(policy.id),
+        before=before,
+        after=_policy_to_response(policy).model_dump(mode="json"),
+    )
+    policy_engine.invalidate(ws.id)
     await db.commit()
     await db.refresh(policy)
     return _policy_to_response(policy)
@@ -828,6 +829,10 @@ async def delete_tool_policy(policy_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) 
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool policy not found")
     policy.is_active = False
     policy.updated_at = datetime.now(UTC)
+    await emit_audit_event(
+        db, ws.id, "tool_policy.archived", target_type="tool_policy", target_id=str(policy.id)
+    )
+    policy_engine.invalidate(ws.id)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -842,47 +847,72 @@ async def simulate_tool_policy(
     ws: WorkspaceDep,
     db: DbDep,
 ) -> ToolPolicySimulationResponse:
-    policies = (
-        (
-            await db.execute(
-                select(ToolPolicy)
-                .where(
-                    ToolPolicy.workspace_id == ws.id,
-                    ToolPolicy.is_active.is_(True),
-                    ToolPolicy.tool_name.in_([body.tool_name, "*"]),
-                )
-                .order_by(ToolPolicy.priority.asc(), ToolPolicy.created_at.asc())
-            )
-        )
-        .scalars()
-        .all()
+    """Dry run with the runtime evaluator: the answer is what runtime would decide (S-06)."""
+    rules = await policy_engine.load_rules(db, ws.id, use_cache=False)
+    ctx = policy_engine.ToolCallContext(
+        tool_name=body.tool_name,
+        tool_type=body.tool_type,
+        risk_score=body.risk_score,
+        end_user_id=body.end_user_id,
+        feature_tag=body.feature_tag,
+        api_key_id=body.api_key_id,
+        access_group_ids=frozenset(body.access_group_ids),
+        server_id=body.server_id,
+        search_tool_ids=await policy_engine.search_tool_ids_for(db, ws.id, body.tool_name),
+        arguments=body.arguments,
+        context=body.context,
     )
-    matched_ids: list[uuid.UUID] = []
-    matched_names: list[str] = []
-    reasons: list[str] = []
-    final_action = "allow"
-    for policy in policies:
-        matched, reason = _policy_matches(policy, body)
-        if not matched:
-            continue
-        matched_ids.append(policy.id)
-        matched_names.append(policy.name)
-        reasons.append(reason)
-        normalized_action = _normalize_policy_action(policy.action)
-        if normalized_action == "block":
-            final_action = "block"
-            break
-        if normalized_action == "require_approval" and final_action not in {"block"}:
-            final_action = "require_approval"
-            continue
-        if normalized_action == "audit" and final_action == "allow":
-            final_action = "audit"
+    decision = policy_engine.evaluate(rules, ctx)
+    # Every rule that targets this tool and caller, in evaluation order, for context.
+    considered = [
+        r
+        for r in rules
+        if policy_engine.tool_name_matches(r.tool_name, body.tool_name)
+        and policy_engine.scope_applies(r, ctx)
+        and policy_engine.condition_holds(r, ctx)[0]
+    ]
     return ToolPolicySimulationResponse(
         tool_name=body.tool_name,
-        final_action=final_action,
-        matched_policy_ids=matched_ids,
-        matched_policy_names=matched_names,
-        reasons=reasons,
+        final_action=decision.action,
+        matched_policy_ids=[r.id for r in considered if r.id is not None],
+        matched_policy_names=[r.name for r in considered],
+        reasons=[decision.reason],
+        deciding_policy_id=decision.policy_id,
+    )
+
+
+@tool_policies_router.post(
+    "/simulate-impact",
+    response_model=ToolPolicyImpactResponse,
+    dependencies=[Depends(analytics_rate_limit), Depends(require_workspace_admin)],
+)
+async def simulate_tool_policy_impact(
+    body: ToolPolicyImpactRequest,
+    ws: WorkspaceDep,
+    db: DbDep,
+) -> ToolPolicyImpactResponse:
+    """Replay the last ``days`` of real tool calls against a draft policy (ENH)."""
+    if body.policy is None and not body.remove:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "policy or remove is required")
+    if body.remove and body.policy_id is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "remove needs policy_id")
+    if body.policy is not None:
+        await _validate_tool_policy(
+            db,
+            ws.id,
+            action=body.policy.action,
+            condition_type=body.policy.condition_type,
+            condition_config=body.policy.condition_config,
+            scope_type=body.policy.scope_type,
+            scope_id=body.policy.scope_id,
+        )
+    return await simulate_impact(
+        db,
+        ws.id,
+        draft=body.policy,
+        policy_id=body.policy_id,
+        remove=body.remove,
+        days=body.days,
     )
 
 

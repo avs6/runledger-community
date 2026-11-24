@@ -58,10 +58,6 @@ export async function updateSecuritySettings(
   body: {
     required_metadata_fields?: string[]
     required_metadata_mode?: string
-    data_residency_regions?: string[]
-    callback_config?: Record<string, unknown>
-    brand_config?: Record<string, unknown>
-    oidc_session_config?: Record<string, unknown>
   }
 ): Promise<import('@/types/api').WorkspaceSecuritySettings> {
   return apiFetch<import('@/types/api').WorkspaceSecuritySettings>('/security/settings', apiKey, {
@@ -964,6 +960,10 @@ export async function simulateToolPolicy(
     end_user_id?: string
     feature_tag?: string
     context?: Record<string, unknown>
+    api_key_id?: string
+    access_group_ids?: string[]
+    server_id?: string
+    arguments?: Record<string, unknown>
   }
 ): Promise<import('@/types/api').ToolPolicySimulationResponse> {
   return apiFetch<import('@/types/api').ToolPolicySimulationResponse>('/tool-policies/simulate', apiKey, {
@@ -977,4 +977,20 @@ export async function getToolPolicyAnalytics(
   limit = 500
 ): Promise<import('@/types/api').ToolUsageAnalyticsResponse> {
   return apiFetch<import('@/types/api').ToolUsageAnalyticsResponse>(`/tool-policies/analytics?limit=${limit}`, apiKey)
+}
+
+/** Policy simulator: replay the last `days` of real tool calls against a draft policy before saving it. */
+export async function simulateToolPolicyImpact(
+  apiKey: string,
+  data: {
+    policy?: Record<string, unknown>
+    policy_id?: string
+    remove?: boolean
+    days?: number
+  }
+): Promise<import('@/types/api').ToolPolicyImpactResponse> {
+  return apiFetch<import('@/types/api').ToolPolicyImpactResponse>('/tool-policies/simulate-impact', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }

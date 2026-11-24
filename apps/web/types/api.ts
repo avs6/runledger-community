@@ -615,7 +615,9 @@ export interface LedgerClosureSummary { generated_at: string; readiness_status: 
 
 // ── Phase 11 — Tools ──────────────────────────────────────────────────────────
 
-export interface ToolRegistryResponse { id: string; workspace_id: string; tool_name: string; policy: string; runtime_enforcement: boolean; description: string | null; created_at: string; updated_at: string }
+export type ToolPolicyActionValue = 'allow' | 'audit' | 'require_approval' | 'block'
+/** Catalog entry; `policy` is the managed `registry:<tool>` ToolPolicy, `effective_action` what the shared evaluator decides. */
+export interface ToolRegistryResponse { id: string; workspace_id: string; tool_name: string; policy: string; runtime_enforcement: boolean; description: string | null; created_at: string; updated_at: string; effective_action?: string | null; effective_policy_name?: string | null; policy_id?: string | null }
 export interface ToolRegistryList { items: ToolRegistryResponse[] }
 export interface SecurityEventResponse { id: string; workspace_id: string; event_type: string; tool_name: string | null; end_user_id: string | null; run_id: string | null; details: Record<string, unknown>; detected_at: string }
 export interface SecurityEventList { items: SecurityEventResponse[] }
@@ -3742,18 +3744,11 @@ export interface McpServerList {
   items: McpServerResponse[]
 }
 
-export interface McpPermissionResponse {
-  id: string
-  workspace_id: string
-  mcp_server_id: string
-  scope_type: string
-  scope_id: string
-  allowed_tools: string[]
-  created_at: string
-}
-
-export interface McpPermissionList {
-  items: McpPermissionResponse[]
+export interface McpDiscoverResponse {
+  server_id: string
+  health_status: string
+  tool_count: number
+  error: string | null
 }
 
 export interface McpToolCallResponse {
@@ -3767,6 +3762,10 @@ export interface McpToolCallResponse {
   status: string
   error: string | null
   created_at: string
+  decision?: string | null
+  policy_name?: string | null
+  approval_id?: string | null
+  end_user_id?: string | null
 }
 
 export interface McpToolCallList {
@@ -4048,6 +4047,27 @@ export interface ToolPolicySimulationResponse {
   matched_policy_ids: string[]
   matched_policy_names: string[]
   reasons: string[]
+  deciding_policy_id?: string | null
+}
+
+export interface ToolPolicyImpactToolRow { tool_name: string; calls: number; before: Record<string, number>; after: Record<string, number>; changed: number }
+export interface ToolPolicyImpactSample { source: string; tool_name: string; occurred_at: string | null; before: string; after: string; end_user_id: string | null; feature_tag: string | null; run_id: string | null }
+export interface ToolPolicyImpactResponse {
+  days: number
+  window_start: string
+  window_end: string
+  calls_replayed: number
+  changed: number
+  newly_blocked: number
+  newly_held: number
+  newly_audited: number
+  newly_allowed: number
+  affected_end_users: number
+  affected_runs: number
+  by_tool: ToolPolicyImpactToolRow[]
+  samples: ToolPolicyImpactSample[]
+  truncated: boolean
+  notes: string[]
 }
 
 export interface ToolUsageAnalyticsItem {

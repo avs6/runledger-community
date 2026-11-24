@@ -152,13 +152,17 @@ async def test_list_tool_registry(
     mock_workspace: SimpleNamespace,
 ) -> None:
     tool = _make_tool(workspace_id=mock_workspace.id)
-    mock_db_session.execute = AsyncMock(return_value=_scalars_list_result([tool]))
+    mock_db_session.execute = AsyncMock(
+        side_effect=[_scalars_list_result([tool]), _scalars_list_result([])]
+    )
 
-    resp = await authed_client.get("/tools/registry")
+    with _patch_rules([_rule("search", "block")]):
+        resp = await authed_client.get("/tools/registry")
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["items"]) == 1
     assert data["items"][0]["tool_name"] == "search"
+    assert data["items"][0]["effective_action"] == "block"
 
 
 # ── test_delete_tool_registry ─────────────────────────────────────────────────
@@ -229,130 +233,99 @@ async def test_upsert_capture_policy(
 # ── test_check_tool_allow (cache miss → DB allow) ─────────────────────────────
 
 
-@pytest.mark.asyncio
-async def test_check_tool_allow_db_miss(
-    authed_client: AsyncClient,
-    mock_db_session: AsyncMock,
-    mock_redis_client: AsyncMock,
-    mock_workspace: SimpleNamespace,
-) -> None:
-    """Unknown tool (not in DB) → defaults to allow."""
-    mock_redis_client.get = AsyncMock(return_value=None)
-    mock_redis_client.setex = AsyncMock()
-    mock_db_session.execute = AsyncMock(return_value=_scalar_result(None))
+def _rule(tool: str, action: str, **kw: object) -> object:
+    from runledger_api.services.tool_policy_engine import PolicyRule
 
-    resp = await authed_client.get("/tools/check/unknown_tool")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["tool_name"] == "unknown_tool"
-    assert data["policy"] == "allow"
-    assert data["runtime_enforcement"] is False
-    assert data["allowed"] is True
-
-
-# ── test_check_tool_audit (cache miss → DB audit) ─────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_check_tool_audit_from_db(
-    authed_client: AsyncClient,
-    mock_db_session: AsyncMock,
-    mock_redis_client: AsyncMock,
-    mock_workspace: SimpleNamespace,
-) -> None:
-    """Audit tool (not blocked) returns 200 allowed=True."""
-    tool = _make_tool(
-        workspace_id=mock_workspace.id,
-        tool_name="read_file",
-        policy="audit",
-        runtime_enforcement=True,
+    base: dict[str, object] = dict(
+        id=uuid.uuid4(),
+        name=f"registry:{tool}",
+        tool_name=tool,
+        action=action,
+        condition_type="all",
+        condition_config={},
+        scope_type="workspace",
+        scope_id=None,
+        priority=50,
     )
-    mock_redis_client.get = AsyncMock(return_value=None)
-    mock_redis_client.setex = AsyncMock()
-    mock_db_session.execute = AsyncMock(return_value=_scalar_result(tool))
+    base.update(kw)
+    return PolicyRule(**base)  # type: ignore[arg-type]
 
-    resp = await authed_client.get("/tools/check/read_file")
+
+def _patch_rules(rules: list[object]) -> object:
+    from unittest.mock import patch
+
+    return patch(
+        "runledger_api.services.tool_policy_engine.load_rules",
+        new=AsyncMock(return_value=rules),
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_tool_allow_no_policy(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
+    """No matching ToolPolicy → allow (shared evaluator)."""
+    with _patch_rules([]):
+        resp = await authed_client.get("/tools/check/unknown_tool")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["policy"] == "audit"
+    assert data["policy"] == "allow"
     assert data["runtime_enforcement"] is True
     assert data["allowed"] is True
 
 
-# ── test_check_tool_block → 403 ───────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_check_tool_audit_records_event(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
+    with _patch_rules([_rule("read_file", "audit")]):
+        resp = await authed_client.get("/tools/check/read_file")
+    assert resp.status_code == 200
+    assert resp.json()["policy"] == "audit"
+    added = [c.args[0] for c in mock_db_session.add.call_args_list]
+    assert any(getattr(o, "event_type", None) == "tool_call_audited" for o in added)
 
 
 @pytest.mark.asyncio
 async def test_check_tool_blocked_returns_403(
-    authed_client: AsyncClient,
-    mock_db_session: AsyncMock,
-    mock_redis_client: AsyncMock,
-    mock_workspace: SimpleNamespace,
+    authed_client: AsyncClient, mock_db_session: AsyncMock
 ) -> None:
-    """Blocked tool (policy=block, runtime_enforcement=True) → 403."""
-    tool = _make_tool(
-        workspace_id=mock_workspace.id,
-        tool_name="delete_record",
-        policy="block",
-        runtime_enforcement=True,
-    )
-    mock_redis_client.get = AsyncMock(return_value=None)
-    mock_redis_client.setex = AsyncMock()
-    mock_db_session.execute = AsyncMock(return_value=_scalar_result(tool))
-    mock_db_session.commit = AsyncMock()
-
-    resp = await authed_client.get("/tools/check/delete_record")
+    with _patch_rules([_rule("delete_record", "block")]):
+        resp = await authed_client.get("/tools/check/delete_record")
     assert resp.status_code == 403
     assert "blocked" in resp.json()["detail"].lower()
-
-
-# ── test_check_tool_block_no_enforcement → 200 ───────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_check_tool_block_no_runtime_enforcement(
-    authed_client: AsyncClient,
-    mock_db_session: AsyncMock,
-    mock_redis_client: AsyncMock,
-    mock_workspace: SimpleNamespace,
-) -> None:
-    """policy=block but runtime_enforcement=False → 200 allowed (post-hoc only)."""
-    tool = _make_tool(
-        workspace_id=mock_workspace.id,
-        tool_name="send_email",
-        policy="block",
-        runtime_enforcement=False,
-    )
-    mock_redis_client.get = AsyncMock(return_value=None)
-    mock_redis_client.setex = AsyncMock()
-    mock_db_session.execute = AsyncMock(return_value=_scalar_result(tool))
-
-    resp = await authed_client.get("/tools/check/send_email")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["allowed"] is True
-
-
-# ── test_check_tool_redis_cache_hit → 200 ────────────────────────────────────
+    added = [c.args[0] for c in mock_db_session.add.call_args_list]
+    assert any(getattr(o, "event_type", None) == "tool_call_blocked" for o in added)
 
 
 @pytest.mark.asyncio
-async def test_check_tool_redis_cache_hit(
-    authed_client: AsyncClient,
-    mock_db_session: AsyncMock,
-    mock_redis_client: AsyncMock,
+async def test_check_tool_glob_allow_beats_lower_priority_block(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
 ) -> None:
-    """Redis cache hit — DB should not be queried."""
-    import json
+    rules = [
+        _rule("*", "block", name="deny-all", priority=1000),
+        _rule("search_*", "allow", name="allow-search", priority=10),
+    ]
+    with _patch_rules(rules):
+        ok = await authed_client.get("/tools/check/search_web")
+        blocked = await authed_client.get("/tools/check/send_email")
+    assert ok.status_code == 200
+    assert blocked.status_code == 403
 
-    cached = json.dumps({"policy": "allow", "runtime_enforcement": False})
-    mock_redis_client.get = AsyncMock(return_value=cached)
 
-    resp = await authed_client.get("/tools/check/web_search")
-    assert resp.status_code == 200
-    assert resp.json()["policy"] == "allow"
-    # DB should not be touched — execute not called after cache hit
-    mock_db_session.execute.assert_not_called()
+@pytest.mark.asyncio
+async def test_check_tool_require_approval_opens_real_approval(
+    authed_client: AsyncClient, mock_db_session: AsyncMock
+) -> None:
+    mock_db_session.execute.return_value.scalars.return_value.first.return_value = None
+    with _patch_rules([_rule("wire_transfer", "require_approval")]):
+        resp = await authed_client.get("/tools/check/wire_transfer")
+    assert resp.status_code == 403
+    approval_id = resp.headers["x-runledger-approval-id"]
+    added = [c.args[0] for c in mock_db_session.add.call_args_list]
+    approvals = [o for o in added if type(o).__name__ == "Approval"]
+    assert approvals and str(approvals[0].id) == approval_id
+    assert approvals[0].status == "pending"
 
 
 # ── test_check_tool_requires_auth ─────────────────────────────────────────────

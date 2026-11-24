@@ -10,6 +10,7 @@ from runledger_api.core.config import settings
 from runledger_api.core.redis import get_redis
 from runledger_api.core.scopes import GATEWAY as GATEWAY_SCOPE
 from runledger_api.core.scopes import normalize_scopes
+from runledger_api.services import auto_tagging, tool_holds
 from runledger_api.services.budgets import (
     check_budget_throttle,
     check_provider_profile_budgets,
@@ -282,6 +283,20 @@ async def _record_canonical_gateway_run(
     }
     if blocked_reason:
         run_metadata["guardrail_blocked"] = blocked_reason
+    # Auto-tag rules apply to gateway runs as they do at ingest (W1-H, review S-19).
+    auto_tags = await auto_tagging.tags_for(
+        db,
+        workspace_id,
+        {
+            "feature_tag": _feature_tag_from(metadata, body.request_tags),
+            "end_user_id": body.end_user_id,
+            "model": body.model_requested,
+            "source": "gateway",
+            "metadata": metadata,
+        },
+    )
+    if auto_tags:
+        run_metadata["auto_tags"] = auto_tags
     if shadow_of:
         run_metadata["shadow"] = True
         run_metadata["shadow_of_alias"] = shadow_of
@@ -489,6 +504,19 @@ async def gateway_runtime_preflight(
             raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
         if gr_decision == "modify":
             _apply_modified_texts(messages, text_positions, gr_results)
+
+    # Tool policy (W1-H, review S-07 / approvals as holds): blocked tools leave
+    # tools[]; a tool that needs approval holds the request (202 + approval_id).
+    body.body.tools = await tool_holds.govern_request_tools(
+        db,
+        workspace.id,
+        body.body.tools,
+        api_key_id=api_key.id if api_key is not None else None,
+        principal_user_id=principal_user_id,
+        end_user_id=body.end_user_id,
+        feature_tag=_feature_tag_from(metadata, request_tags),
+        metadata=metadata,
+    )
 
     seed_routes = await select_routes(
         db,
@@ -968,6 +996,23 @@ async def gateway_runtime_finalize(
                         "Response blocked by guardrail",
                     )
 
+    # Tool policy on the model's tool_calls (W1-H): blocked → 451, approval → 202 hold.
+    held_approval_id = None
+    if blocked_reason is None:
+        choices = body.response_json.get("choices") or []
+        message = (choices[0].get("message") or {}) if choices else {}
+        tool_blocked, held_approval_id = await tool_holds.govern_response_tool_calls(
+            db,
+            workspace.id,
+            [c for c in (message.get("tool_calls") or []) if isinstance(c, dict)],
+            api_key_id=body.api_key_id,
+            principal_user_id=None,
+            end_user_id=body.end_user_id,
+            feature_tag=_feature_tag_from(body.request_metadata or {}, body.request_tags),
+            metadata=body.request_metadata,
+        )
+        blocked_reason = tool_blocked
+
     usage = body.response_json.get("usage") or {}
     input_tokens = _optional_int(usage.get("prompt_tokens"))
     output_tokens = _optional_int(usage.get("completion_tokens"))
@@ -1051,6 +1096,8 @@ async def gateway_runtime_finalize(
         await db.commit()
     except Exception:
         log.exception("gateway_budget_spend_failed", provider_call_id=str(provider_call_id))
+    if held_approval_id is not None:
+        raise tool_holds.hold_response("tool_call", held_approval_id, blocked_reason or "")
     if blocked_reason:
         raise HTTPException(status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS, blocked_reason)
     return GatewayRuntimeFinalizeResponse(ok=True)

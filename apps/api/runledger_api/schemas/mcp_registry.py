@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class McpServerCreate(BaseModel):
@@ -63,34 +63,19 @@ class McpServerList(BaseModel):
     items: list[McpServerResponse]
 
 
-class McpPermissionCreate(BaseModel):
-    mcp_server_id: uuid.UUID
-    scope_type: str
-    scope_id: uuid.UUID
-    allowed_tools: list[str] | None = None
-
-
-class McpPermissionResponse(BaseModel):
-    id: uuid.UUID
-    workspace_id: uuid.UUID
-    mcp_server_id: uuid.UUID
-    scope_type: str
-    scope_id: uuid.UUID
-    allowed_tools: list[str] | None
-    created_at: datetime
-
-
-class McpPermissionList(BaseModel):
-    items: list[McpPermissionResponse]
-
-
 class McpToolCallRequest(BaseModel):
+    """A governed MCP tool call.
+
+    The caller's identity (API key, access groups) comes from the authenticated
+    credential, never from the body (review cd:S-04).
+    """
+
     server_id: uuid.UUID
-    tool_name: str
-    arguments: dict[str, Any] = {}
-    access_group_id: uuid.UUID | None = None
-    api_key_id: uuid.UUID | None = None
-    end_user_id: str | None = None
+    tool_name: str = Field(..., min_length=1, max_length=200)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    end_user_id: str | None = Field(None, max_length=255)
+    feature_tag: str | None = Field(None, max_length=255)
+    approval_id: uuid.UUID | None = None
 
 
 class McpToolCallResponse(BaseModel):
@@ -104,6 +89,10 @@ class McpToolCallResponse(BaseModel):
     status: str
     error: str | None
     created_at: datetime
+    decision: str | None = None
+    policy_name: str | None = None
+    approval_id: uuid.UUID | None = None
+    end_user_id: str | None = None
 
 
 class McpToolCallList(BaseModel):
@@ -119,3 +108,10 @@ class McpToolListItem(BaseModel):
 
 class McpToolListResponse(BaseModel):
     items: list[McpToolListItem]
+
+
+class McpDiscoverResponse(BaseModel):
+    server_id: uuid.UUID
+    health_status: str
+    tool_count: int
+    error: str | None = None

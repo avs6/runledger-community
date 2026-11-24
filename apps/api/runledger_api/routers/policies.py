@@ -1,11 +1,15 @@
-"""Unified policy decision endpoint."""
+"""Unified policy decision endpoint.
+
+The tool dimension of ``/policies/check`` uses the same evaluator as
+``/tools/check``, MCP calls and the gateway, so the two checks can't disagree (S-08).
+"""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +30,7 @@ from runledger_api.services.policies import (
     get_tool_cost_accounting,
     simulate_finops_policy,
 )
+from runledger_api.services.sessions import resolve_principal_user_id
 
 router = APIRouter(
     prefix="/policies",
@@ -37,15 +42,22 @@ router = APIRouter(
 @router.post("/check", response_model=PolicyCheckResponse)
 async def check_policy(
     body: PolicyCheckRequest,
+    request: Request,
     workspace: Annotated[Workspace, Depends(get_current_workspace)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> PolicyCheckResponse:
+    api_key = getattr(request.state, "api_key", None)
+    principal = await resolve_principal_user_id(
+        db, api_key=api_key, end_user_id=body.end_user_id, workspace=workspace
+    )
     return await evaluate_policy_check(
         db=db,
         redis=redis,
         workspace_id=workspace.id,
         body=body,
+        api_key=api_key,
+        principal_user_id=principal,
     )
 
 

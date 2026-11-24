@@ -1308,16 +1308,16 @@ async def get_run_governance_context(
     for tool in tool_calls:
         matched = [policy for policy in policies if policy.tool_name in (tool.tool_name, "*")]
         registry = registry_entries.get(tool.tool_name)
+        # The registry's policy is its managed ToolPolicy row (W1-H, review S-07).
+        managed = next((p for p in matched if p.name == f"registry:{tool.tool_name}"), None)
         tool_evidence.append(
             GovernanceToolEvidence(
                 tool_name=tool.tool_name,
                 tool_type=str(tool.tool_type),
                 status=tool.status,
                 risk_score=tool.risk_score,
-                registry_policy=registry.policy if registry is not None else None,
-                registry_runtime_enforcement=bool(registry.runtime_enforcement)
-                if registry is not None
-                else False,
+                registry_policy=managed.action if managed is not None else None,
+                registry_runtime_enforcement=registry is not None,
                 matched_policy_count=len(matched),
                 matched_policy_names=[policy.name for policy in matched],
                 matched_policy_actions=[policy.action for policy in matched],

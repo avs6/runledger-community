@@ -223,7 +223,10 @@ async def test_handle_run_start_persists_source_type() -> None:
     await _handle_run_start(mock_session, workspace_id, event)
 
     assert mock_session.execute.called
-    call_args = mock_session.execute.call_args_list[0][0][0]
+    # Auto-tag rules are looked up first (S-19); find the INSERT.
+    call_args = next(
+        c[0][0] for c in mock_session.execute.call_args_list if hasattr(c[0][0], "_values")
+    )
     stmt_values = {
         getattr(key, "key", str(key)): getattr(value, "value", value)
         for key, value in call_args._values.items()

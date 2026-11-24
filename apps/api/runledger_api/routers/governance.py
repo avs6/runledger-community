@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,8 +48,13 @@ def _range_bounds(
     from_date: str | None, to_date: str | None
 ) -> tuple[datetime, datetime, str, str]:
     today = datetime.now(UTC).date()
-    start_day = date.fromisoformat(from_date) if from_date else today.replace(day=1)
-    end_day = date.fromisoformat(to_date) if to_date else today
+    try:
+        start_day = date.fromisoformat(from_date) if from_date else today.replace(day=1)
+        end_day = date.fromisoformat(to_date) if to_date else today
+    except ValueError as exc:
+        raise HTTPException(422, "from/to must be ISO dates (YYYY-MM-DD)") from exc
+    if end_day < start_day:
+        raise HTTPException(422, "'to' must not be before 'from'")
     start = datetime.combine(start_day, time.min, tzinfo=UTC)
     end = datetime.combine(end_day, time.max, tzinfo=UTC)
     return start, end, start_day.isoformat(), end_day.isoformat()
@@ -68,38 +73,71 @@ async def _build_pack(
 
     import uuid as _uuid
 
-    identity_user_ids: list[str] | None = None
-    identity_emails: list[str] | None = None
+    from sqlalchemy import or_
+
+    from runledger_api.models.tenant import ApiKey
+    from runledger_api.models.tenant import User as UserModel
+
+    def _uuid_or_422(value: str, name: str) -> _uuid.UUID:
+        try:
+            return _uuid.UUID(value)
+        except ValueError as exc:
+            raise HTTPException(422, f"{name} must be a UUID") from exc
+
+    # Identity lineage (review S-21): a platform user's traffic is the traffic of the
+    # API keys they own (session keys included), plus calls that name them as the
+    # end user. Comparing user ids with end_user_id alone always came back empty.
+    identity_user_ids: list[_uuid.UUID] | None = None
     if access_group_id:
         from runledger_api.models.access_groups import AccessGroupMember
 
-        member_rows = (
+        identity_user_ids = list(
             (
                 await db.execute(
                     select(AccessGroupMember.user_id).where(
-                        AccessGroupMember.group_id == _uuid.UUID(access_group_id)
+                        AccessGroupMember.group_id
+                        == _uuid_or_422(access_group_id, "access_group_id")
                     )
                 )
             )
             .scalars()
             .all()
         )
-        identity_user_ids = [str(uid) for uid in member_rows]
     elif user_id:
-        identity_user_ids = [user_id]
+        identity_user_ids = [_uuid_or_422(user_id, "user_id")]
+    key_ids: list[_uuid.UUID] | None = None
+    if api_key_id:
+        key_ids = [_uuid_or_422(api_key_id, "api_key_id")]
+    identity_emails: list[str] | None = None
+    identity_key_ids: list[_uuid.UUID] = []
     if identity_user_ids is not None:
-        from runledger_api.models.tenant import User as UserModel
-
         identity_emails = list(
             (
                 await db.execute(
-                    select(UserModel.email).where(
-                        UserModel.id.in_([_uuid.UUID(uid) for uid in identity_user_ids])
+                    select(UserModel.email).where(UserModel.id.in_(identity_user_ids or [None]))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        identity_key_ids = list(
+            (
+                await db.execute(
+                    select(ApiKey.id).where(
+                        ApiKey.workspace_id == workspace.id,
+                        ApiKey.user_id.in_(identity_user_ids or [None]),
                     )
                 )
             )
             .scalars()
             .all()
+        )
+    identity_refs = [str(u) for u in identity_user_ids or []] + list(identity_emails or [])
+
+    def _identity_clause(key_col: Any, end_user_col: Any) -> Any:
+        return or_(
+            key_col.in_(identity_key_ids or [None]),
+            end_user_col.in_(identity_refs or [""]),
         )
 
     _provider_base = select(ProviderCall).where(
@@ -118,9 +156,11 @@ async def _build_pack(
         ProviderCall.created_at <= end,
     )
     if identity_user_ids is not None:
-        summary_q = summary_q.where(ProviderCall.end_user_id.in_(identity_user_ids))
-    if api_key_id:
-        summary_q = summary_q.where(ProviderCall.api_key_id == api_key_id)
+        summary_q = summary_q.where(
+            _identity_clause(ProviderCall.api_key_id, ProviderCall.end_user_id)
+        )
+    if key_ids:
+        summary_q = summary_q.where(ProviderCall.api_key_id.in_(key_ids))
     summary_row = (await db.execute(summary_q)).one()
 
     approvals_q = select(func.count(Approval.id)).where(
@@ -128,11 +168,8 @@ async def _build_pack(
         Approval.created_at >= start,
         Approval.created_at <= end,
     )
-    if identity_emails is not None:
-        if identity_emails:
-            approvals_q = approvals_q.where(Approval.requested_by.in_(identity_emails))
-        else:
-            approvals_q = approvals_q.where(False)
+    if identity_user_ids is not None:
+        approvals_q = approvals_q.where(Approval.requested_by.in_(identity_refs or [""]))
     approvals_processed = int((await db.execute(approvals_q)).scalar() or 0)
     alerts_fired = int(
         (
@@ -160,6 +197,39 @@ async def _build_pack(
         or 0
     )
 
+    from runledger_api.models.ledger import SecurityEvent
+
+    security_q = select(
+        SecurityEvent.event_type,
+        SecurityEvent.tool_name,
+        func.count(SecurityEvent.id),
+        func.max(SecurityEvent.detected_at),
+    ).where(
+        SecurityEvent.workspace_id == workspace.id,
+        SecurityEvent.detected_at >= start,
+        SecurityEvent.detected_at <= end,
+    )
+    if identity_user_ids is not None:
+        security_q = security_q.where(
+            or_(
+                SecurityEvent.details["api_key_id"].astext.in_(
+                    [str(k) for k in identity_key_ids] or [""]
+                ),
+                SecurityEvent.end_user_id.in_(identity_refs or [""]),
+            )
+        )
+    if key_ids:
+        security_q = security_q.where(
+            SecurityEvent.details["api_key_id"].astext.in_([str(k) for k in key_ids])
+        )
+    security_rows = (
+        await db.execute(
+            security_q.group_by(SecurityEvent.event_type, SecurityEvent.tool_name).order_by(
+                func.max(SecurityEvent.detected_at).desc()
+            )
+        )
+    ).all()
+
     model_q = select(
         ProviderCall.model,
         ProviderCall.provider,
@@ -173,9 +243,9 @@ async def _build_pack(
         ProviderCall.created_at <= end,
     )
     if identity_user_ids is not None:
-        model_q = model_q.where(ProviderCall.end_user_id.in_(identity_user_ids))
-    if api_key_id:
-        model_q = model_q.where(ProviderCall.api_key_id == api_key_id)
+        model_q = model_q.where(_identity_clause(ProviderCall.api_key_id, ProviderCall.end_user_id))
+    if key_ids:
+        model_q = model_q.where(ProviderCall.api_key_id.in_(key_ids))
     model_rows = (
         await db.execute(
             model_q.group_by(ProviderCall.model, ProviderCall.provider).order_by(
@@ -197,12 +267,14 @@ async def _build_pack(
         ToolCall.created_at <= end,
         ToolCall.status.in_(["blocked", "audited"]),
     )
-    if identity_user_ids is not None or api_key_id:
+    if identity_user_ids is not None or key_ids:
         enforcement_q = enforcement_q.join(AgentRun, AgentRun.id == ToolCall.run_id)
         if identity_user_ids is not None:
-            enforcement_q = enforcement_q.where(AgentRun.end_user_id.in_(identity_user_ids))
-        if api_key_id:
-            enforcement_q = enforcement_q.where(AgentRun.api_key_id == api_key_id)
+            enforcement_q = enforcement_q.where(
+                _identity_clause(AgentRun.api_key_id, AgentRun.end_user_id)
+            )
+        if key_ids:
+            enforcement_q = enforcement_q.where(AgentRun.api_key_id.in_(key_ids))
     enforcement_rows = (
         await db.execute(
             enforcement_q.group_by(ToolCall.tool_name, ToolCall.status).order_by(
@@ -216,11 +288,8 @@ async def _build_pack(
         Approval.created_at >= start,
         Approval.created_at <= end,
     )
-    if identity_emails is not None:
-        if identity_emails:
-            approval_q = approval_q.where(Approval.requested_by.in_(identity_emails))
-        else:
-            approval_q = approval_q.where(False)
+    if identity_user_ids is not None:
+        approval_q = approval_q.where(Approval.requested_by.in_(identity_refs or [""]))
     approval_rows = (
         (await db.execute(approval_q.order_by(Approval.created_at.desc()).limit(100)))
         .scalars()
@@ -283,7 +352,7 @@ async def _build_pack(
             total_cost_usd=summary_row[1] or Decimal("0"),
             models_used=int(summary_row[2] or 0),
             users_active=int(summary_row[3] or 0),
-            policies_enforced=policy_count,
+            policies_enforced=policy_count + sum(int(r[2] or 0) for r in security_rows),
             approvals_processed=approvals_processed,
             alerts_fired=alerts_fired,
         ),
@@ -306,6 +375,19 @@ async def _build_pack(
                 last_triggered=row[3],
             )
             for row in enforcement_rows
+        ]
+        + [
+            GovernancePolicyAction(
+                policy_type=f"{row[0]}:{row[1] or '-'}",
+                action={
+                    "tool_call_blocked": "block",
+                    "tool_call_held": "require_approval",
+                    "tool_call_audited": "audit",
+                }.get(row[0], row[0]),
+                count=int(row[2] or 0),
+                last_triggered=row[3],
+            )
+            for row in security_rows
         ],
         approvals=[
             GovernanceApprovalRecord(

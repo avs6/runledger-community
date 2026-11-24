@@ -10,7 +10,7 @@ The governance audit pack is the evidence view for Safety and Governance. It pac
 | Section | Details |
 |---|---|
 | Model usage | Which models were used, by whom, and over what period |
-| Policy enforcements | Runtime policy actions, including blocked or audited tool activity |
+| Policy enforcements | Blocked/audited tool calls from ingest, plus every runtime tool-policy decision (blocked, held for approval, audited) recorded by the gateway, MCP proxy and `/tools/check` |
 | Approvals | Request type, requester, decision, and timestamp |
 | Data capture | Active capture policies and scoped override posture |
 | Budget alerts | Budget breaches and governance-related alert activity |
@@ -25,7 +25,10 @@ The audit pack supports identity filters so operators can generate evidence scop
 | `access_group_id` | Scope to all members of an access group |
 | `api_key_id` | Scope to traffic from a specific API key |
 
-From identity detail pages (Users, Access Groups, API Keys), use the **Governance** link to generate a scoped pack.
+A user's activity is the traffic of the API keys they own (dashboard session keys included) plus calls that name
+them as the end user; approvals match the requester by user id or email. An access group is the union of its
+members. Bad dates or ids return `422`. The page keeps the date range and filters in the URL, so a scoped pack can
+be shared and regenerated exactly.
 
 ## Operator workflow
 

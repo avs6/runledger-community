@@ -35,10 +35,6 @@ export default function SecurityPage() {
 
   const [requiredFields, setRequiredFields] = useState('')
   const [requiredMode, setRequiredMode] = useState('warn')
-  const [residencyRegions, setResidencyRegions] = useState('')
-  const [callbackConfigStr, setCallbackConfigStr] = useState('{}')
-  const [brandConfigStr, setBrandConfigStr] = useState('{}')
-  const [oidcSessionConfigStr, setOidcSessionConfigStr] = useState('{}')
 
   const [editingOidcId, setEditingOidcId] = useState<string | null>(null)
   const [oidcName, setOidcName] = useState('')
@@ -98,10 +94,6 @@ export default function SecurityPage() {
       setSettings(settingsData)
       setRequiredFields(settingsData.required_metadata_fields.join(', '))
       setRequiredMode(settingsData.required_metadata_mode)
-      setResidencyRegions(settingsData.data_residency_regions.join(', '))
-      setCallbackConfigStr(JSON.stringify(settingsData.callback_config ?? {}, null, 2))
-      setBrandConfigStr(JSON.stringify(settingsData.brand_config ?? {}, null, 2))
-      setOidcSessionConfigStr(JSON.stringify(settingsData.oidc_session_config ?? {}, null, 2))
       setOidcProviders(providersData.items)
       setIpAclRules(rulesData.items)
     } catch {
@@ -117,19 +109,11 @@ export default function SecurityPage() {
 
   async function handleSaveSettings() {
     if (!apiKey) return
-    const callbackConfig = parseJsonOrToast(callbackConfigStr, 'Callback config')
-    const brandConfig = parseJsonOrToast(brandConfigStr, 'Brand config')
-    const oidcSessionConfig = parseJsonOrToast(oidcSessionConfigStr, 'OIDC session config')
-    if (!callbackConfig || !brandConfig || !oidcSessionConfig) return
     setSaving(true)
     try {
       const updated = await updateSecuritySettings(apiKey, {
         required_metadata_fields: requiredFields.split(',').map((v) => v.trim()).filter(Boolean),
         required_metadata_mode: requiredMode,
-        data_residency_regions: residencyRegions.split(',').map((v) => v.trim()).filter(Boolean),
-        callback_config: callbackConfig,
-        brand_config: brandConfig,
-        oidc_session_config: oidcSessionConfig,
       })
       setSettings(updated)
       toast.success('Security settings saved')
@@ -286,7 +270,7 @@ export default function SecurityPage() {
             <h1 className="text-2xl font-bold tracking-tight dark:text-white">Enterprise Security</h1>
           </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Control OIDC gateway auth, IP allow and deny policies, required metadata, callback routing, and residency posture.
+            Control OIDC gateway auth, IP allow and deny policies, and required metadata.
           </p>
         </div>
         <button
@@ -307,7 +291,7 @@ export default function SecurityPage() {
         <div className="lg:col-span-2">
           <h2 className="text-base font-semibold dark:text-white">Workspace Security Posture</h2>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Set request metadata enforcement, callback routing defaults, branding, and residency constraints.
+            Set request metadata enforcement (Reject is enforced by the gateway).
           </p>
         </div>
         <label className="text-sm">
@@ -320,22 +304,6 @@ export default function SecurityPage() {
             <option value="warn">Warn only</option>
             <option value="reject">Reject request</option>
           </select>
-        </label>
-        <label className="text-sm lg:col-span-2">
-          <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Residency regions</span>
-          <input value={residencyRegions} onChange={(e) => setResidencyRegions(e.target.value)} className={`${inputCls} w-full`} placeholder="us, eu-west-1" />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Callback config JSON</span>
-          <textarea value={callbackConfigStr} onChange={(e) => setCallbackConfigStr(e.target.value)} className={`${inputCls} min-h-[150px] w-full`} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Brand config JSON</span>
-          <textarea value={brandConfigStr} onChange={(e) => setBrandConfigStr(e.target.value)} className={`${inputCls} min-h-[150px] w-full`} />
-        </label>
-        <label className="text-sm lg:col-span-2">
-          <span className="mb-1 block text-xs text-slate-500 dark:text-slate-400">OIDC session config JSON</span>
-          <textarea value={oidcSessionConfigStr} onChange={(e) => setOidcSessionConfigStr(e.target.value)} className={`${inputCls} min-h-[120px] w-full`} />
         </label>
         <div className="lg:col-span-2">
           <button onClick={() => void handleSaveSettings()} disabled={saving || !settings} className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50">

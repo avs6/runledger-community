@@ -1,35 +1,25 @@
-"""
-PII scrubbing for event metadata.
+"""PII scrubbing for ingested metadata (OTLP attributes, run/span metadata).
 
-Patterns replaced with [REDACTED]:
-  - Email addresses
-  - Social Security Numbers (SSN)
-  - Credit card numbers
-  - Phone numbers
+There is one PII redactor in RunLedger (review S-11): the patterns and placeholders
+live in :mod:`runledger_api.services.gateway_redact` and are shared by gateway route
+redaction, ingest scrubbing and the Data Capture "test PII" endpoint, so a value is
+redacted the same way wherever it enters. Placeholders: ``[EMAIL]``, ``[PHONE]``,
+``[SSN]``, ``[CARD]``.
 """
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
-_PATTERNS = [
-    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),  # email
-    re.compile(r"\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b"),  # SSN
-    re.compile(r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),  # credit card
-    re.compile(r"\b\+?1?\s?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),  # phone
-]
+from runledger_api.services.gateway_redact import redact_text
 
 
 def scrub_value(s: str) -> str:
-    """Replace PII patterns with [REDACTED]."""
-    for pattern in _PATTERNS:
-        s = pattern.sub("[REDACTED]", s)
-    return s
+    """Replace PII in ``s`` with typed placeholders (the shared redactor)."""
+    return redact_text(s)
 
 
 def _scrub_any(v: Any) -> Any:
-    """Scrub a single value of any type."""
     if isinstance(v, str):
         return scrub_value(v)
     if isinstance(v, dict):

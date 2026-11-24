@@ -1,4 +1,8 @@
-"""ORM models for MCP server registry, permissions, and tool call tracking."""
+"""ORM models for the MCP server registry and governed tool-call tracking.
+
+Per-server tool permissions live in ToolPolicy (scope_type ``mcp_server``); the old
+``mcp_permissions`` table was folded into it (review S-07, S-23).
+"""
 
 from __future__ import annotations
 
@@ -64,26 +68,6 @@ class McpServer(Base):
     )
 
 
-class McpPermission(Base):
-    __tablename__ = "mcp_permissions"
-    __table_args__ = (
-        sa.Index("ix_mcp_perms_workspace", "workspace_id"),
-        sa.Index("ix_mcp_perms_server", "mcp_server_id"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    mcp_server_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    scope_type: Mapped[str] = mapped_column(sa.String(16), nullable=False)
-    scope_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
-    allowed_tools: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
-    )
-
-
 class McpToolCall(Base):
     __tablename__ = "mcp_tool_calls"
     __table_args__ = (
@@ -108,6 +92,12 @@ class McpToolCall(Base):
         sa.String(16), nullable=False, server_default=sa.text("'success'")
     )
     error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Governance outcome (review cd:S-04): the policy decision and, for holds, the
+    # real Approval row the call is waiting on.
+    decision: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
+    policy_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    approval_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    end_user_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

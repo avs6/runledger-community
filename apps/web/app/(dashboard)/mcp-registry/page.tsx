@@ -21,25 +21,43 @@ import {
 import {
   callMcpTool,
   deleteMcpServer,
-  grantMcpPermission,
-  listMcpPermissions,
+  discoverMcpServer,
+  getToolPolicies,
   listMcpServers,
   listMcpToolCalls,
   listMcpTools,
   registerMcpServer,
-  revokeMcpPermission,
+  resumeMcpToolCall,
   seedDefaultMcpServers,
   updateMcpServer,
 } from '@/lib/api'
 import type {
-  McpPermissionResponse,
   McpServerResponse,
   McpToolCallResponse,
   McpToolListItem,
+  ToolPolicyResponse,
 } from '@/types/api'
 import McpSetupPanel from '@/components/mcp/McpSetupPanel'
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
-type Tab = 'setup' | 'servers' | 'tools' | 'calls' | 'permissions'
+type Tab = 'setup' | 'servers' | 'tools' | 'calls' | 'policies'
+
+const CALL_STATUSES = ['success', 'error', 'blocked', 'pending_approval', 'denied', 'not_executed'] as const
+
+function callStatusClass(status: string): string {
+  if (status === 'success') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+  if (status === 'blocked' || status === 'error' || status === 'denied') return 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+  return 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+}
+
+/** A ToolPolicy that targets one MCP server (scope or condition). */
+function policyServerId(p: ToolPolicyResponse): string | null {
+  if (p.scope_type === 'mcp_server' && p.scope_id) return p.scope_id
+  const cfg = (p.condition_config ?? {}) as Record<string, unknown>
+  if (p.condition_type === 'mcp_server' && typeof cfg.server_id === 'string') return cfg.server_id
+  return null
+}
 
 type ServerFormState = {
   name: string
@@ -96,7 +114,6 @@ function serverToForm(server: McpServerResponse): ServerFormState {
 export default function McpRegistryPage() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string; workspaceId?: string } | null)?.apiKey
-  const workspaceId = (session as { workspaceId?: string } | null)?.workspaceId ?? ''
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -105,7 +122,9 @@ export default function McpRegistryPage() {
   const [servers, setServers] = useState<McpServerResponse[]>([])
   const [tools, setTools] = useState<McpToolListItem[]>([])
   const [calls, setCalls] = useState<McpToolCallResponse[]>([])
-  const [permissions, setPermissions] = useState<McpPermissionResponse[]>([])
+  const [serverPolicies, setServerPolicies] = useState<ToolPolicyResponse[]>([])
+  const { confirm, dialog } = useConfirm()
+  const statusFilter = searchParams.get('status') ?? ''
   const [loading, setLoading] = useState(true)
   const [includeInactive, setIncludeInactive] = useState(false)
 
@@ -120,17 +139,6 @@ export default function McpRegistryPage() {
   const [executingTool, setExecutingTool] = useState(false)
   const [toolResult, setToolResult] = useState<unknown>(null)
 
-  const [permServerId, setPermServerId] = useState('')
-  const [permScopeType, setPermScopeType] = useState('workspace')
-  const [permScopeId, setPermScopeId] = useState('')
-  const [permTools, setPermTools] = useState('')
-
-  useEffect(() => {
-    if (!permScopeId && workspaceId) {
-      setPermScopeId(workspaceId)
-    }
-  }, [permScopeId, workspaceId])
-
   useEffect(() => {
     const requested = searchParams.get('tab')
     const nextTab: Tab =
@@ -138,7 +146,7 @@ export default function McpRegistryPage() {
       requested === 'servers' ||
       requested === 'tools' ||
       requested === 'calls' ||
-      requested === 'permissions'
+      requested === 'policies'
         ? requested
         : 'setup'
     setTab(nextTab)
@@ -148,20 +156,17 @@ export default function McpRegistryPage() {
     if (!apiKey) return
     setLoading(true)
     try {
-      let serverList = await listMcpServers(apiKey, includeInactive).catch(() => ({ items: [] }))
-      if ((serverList.items || []).length === 0 && !includeInactive) {
-        await seedDefaultMcpServers(apiKey).catch(() => null)
-        serverList = await listMcpServers(apiKey, includeInactive).catch(() => ({ items: [] }))
-      }
-      const [toolList, callList, permissionList] = await Promise.all([
-        listMcpTools(apiKey).catch(() => ({ items: [] })),
-        listMcpToolCalls(apiKey).catch(() => ({ items: [] })),
-        listMcpPermissions(apiKey).catch(() => ({ items: [] })),
+      // No auto-seeding: "Populate Default Servers" is an explicit, confirmed action.
+      const [serverList, toolList, callList, policyList] = await Promise.all([
+        listMcpServers(apiKey, includeInactive),
+        listMcpTools(apiKey),
+        listMcpToolCalls(apiKey, { limit: 200, status: statusFilter || undefined }),
+        getToolPolicies(apiKey),
       ])
       setServers(serverList.items || [])
       setTools(toolList.items || [])
       setCalls(callList.items || [])
-      setPermissions(permissionList.items || [])
+      setServerPolicies((policyList.items || []).filter(p => policyServerId(p) !== null))
       if (!activeServerId && (serverList.items || []).length > 0) {
         setActiveServerId(serverList.items[0].id)
       }
@@ -171,7 +176,7 @@ export default function McpRegistryPage() {
     } finally {
       setLoading(false)
     }
-  }, [activeServerId, apiKey, includeInactive])
+  }, [activeServerId, apiKey, includeInactive, statusFilter])
 
   useEffect(() => {
     loadData()
@@ -183,8 +188,13 @@ export default function McpRegistryPage() {
   )
 
   function selectTab(nextTab: Tab) {
+    setParam('tab', nextTab)
+  }
+
+  function setParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString())
-    params.set('tab', nextTab)
+    if (value) params.set(key, value)
+    else params.delete(key)
     router.replace(`${pathname}?${params.toString()}`)
   }
 
@@ -249,6 +259,15 @@ export default function McpRegistryPage() {
   async function handleToggleActive(server: McpServerResponse, isActive: boolean) {
     if (!apiKey) return
     try {
+      if (!isActive) {
+        const ok = await confirm({
+          title: `Deactivate ${server.name}?`,
+          description: 'Governed calls to this server will be refused until it is re-activated.',
+          confirmLabel: 'Deactivate',
+          destructive: true,
+        })
+        if (!ok) return
+      }
       if (isActive) {
         await updateMcpServer(apiKey, server.id, { is_active: true })
         toast.success(`Re-activated ${server.name}`)
@@ -264,6 +283,12 @@ export default function McpRegistryPage() {
 
   async function handleSeedDefaults() {
     if (!apiKey) return
+    const ok = await confirm({
+      title: 'Add the default MCP server catalog?',
+      description: 'Adds GitHub, Postgres, Brave Search, Puppeteer and FileSystem stdio definitions that are not registered yet. They run on the agent machine; use Discover on HTTP servers to check real health.',
+      confirmLabel: 'Add servers',
+    })
+    if (!ok) return
     try {
       const res = await seedDefaultMcpServers(apiKey)
       toast.success(`Populated ${res.servers_added} default MCP servers`)
@@ -286,52 +311,82 @@ export default function McpRegistryPage() {
         arguments: parsedArgs,
       })
       setToolResult(res)
-      toast.success(`Executed ${testingTool.tool_name}`)
+      // Report the real outcome, never a blanket "Executed" (review S-26).
+      if (res.status === 'success') toast.success(`${testingTool.tool_name} ran in ${res.latency_ms ?? 0} ms`)
+      else if (res.status === 'pending_approval') toast.info(`Held for approval ${res.approval_id ?? ''}`.trim())
+      else toast.error(`${testingTool.tool_name}: ${res.status}${res.error ? ` — ${res.error}` : ''}`)
       await loadData()
-    } catch {
-      toast.error('Failed to execute tool call')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to call tool'
+      toast.error(message.includes('403') ? `Blocked by tool policy: ${message.replace(/^API 403: /, '')}` : message)
     } finally {
       setExecutingTool(false)
     }
   }
 
-  async function handleGrantPermission(e: React.FormEvent) {
-    e.preventDefault()
-    if (!apiKey || !permServerId || !permScopeId.trim()) return
+  async function handleDiscover(server: McpServerResponse) {
+    if (!apiKey) return
     try {
-      await grantMcpPermission(apiKey, {
-        mcp_server_id: permServerId,
-        scope_type: permScopeType,
-        scope_id: permScopeId.trim(),
-        allowed_tools: permTools ? permTools.split(',').map(item => item.trim()).filter(Boolean) : [],
-      })
-      toast.success('Permission policy created')
-      setPermServerId('')
-      setPermScopeId(workspaceId)
-      setPermTools('')
+      const res = await discoverMcpServer(apiKey, server.id)
+      if (res.health_status === 'healthy') toast.success(`${server.name}: ${res.tool_count} tools discovered`)
+      else toast.warning(`${server.name}: ${res.health_status}${res.error ? ` — ${res.error}` : ''}`)
       await loadData()
     } catch {
-      toast.error('Failed to grant permission')
+      toast.error('Discovery failed')
     }
   }
 
-  async function handleRevokePermission(id: string) {
+  async function handleResume(call: McpToolCallResponse) {
     if (!apiKey) return
     try {
-      await revokeMcpPermission(apiKey, id)
-      toast.success('Permission policy revoked')
+      const res = await resumeMcpToolCall(apiKey, call.id)
+      if (res.status === 'success') toast.success(`${call.tool_name} ran after approval`)
+      else toast.warning(`${call.tool_name}: ${res.status}${res.error ? ` — ${res.error}` : ''}`)
       await loadData()
-    } catch {
-      toast.error('Failed to revoke permission')
+    } catch (err) {
+      toast.error(err instanceof Error && err.message.includes('409') ? 'The approval is still pending' : 'Resume failed')
     }
   }
+
+  const callColumns: DataTableColumn<McpToolCallResponse>[] = [
+    { key: 'tool_name', header: 'Tool', sortable: true, render: c => <span className="font-semibold text-slate-900 dark:text-white">{c.tool_name}</span> },
+    {
+      key: 'mcp_server_id',
+      header: 'Server',
+      value: c => servers.find(s => s.id === c.mcp_server_id)?.name ?? c.mcp_server_id,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      render: c => <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${callStatusClass(c.status)}`}>{c.status}</span>,
+    },
+    { key: 'policy_name', header: 'Policy', value: c => c.policy_name ?? '—' },
+    { key: 'latency_ms', header: 'Latency (ms)', sortable: true, value: c => c.latency_ms ?? null },
+    { key: 'created_at', header: 'Created', sortable: true, value: c => c.created_at, render: c => new Date(c.created_at).toLocaleString() },
+    { key: 'error', header: 'Error', defaultHidden: true, value: c => c.error ?? '' },
+    {
+      key: 'actions',
+      header: '',
+      render: c =>
+        c.status === 'pending_approval' ? (
+          <div className="flex items-center gap-2">
+            <Link href={`/approvals?status=pending`} className="text-xs text-blue-600 hover:underline">Approval</Link>
+            <button type="button" onClick={() => void handleResume(c)} aria-label={`Resume held call to ${c.tool_name}`}
+              className="rounded-md border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300">
+              Resume
+            </button>
+          </div>
+        ) : null,
+    },
+  ]
 
   const tabs: { key: Tab; label: string; icon: typeof Server; count: number }[] = [
     { key: 'setup', label: 'Setup & Connect', icon: PlugZap, count: 0 },
     { key: 'servers', label: 'MCP Servers', icon: Server, count: servers.length },
     { key: 'tools', label: 'Discovered Tools', icon: Wrench, count: tools.length },
     { key: 'calls', label: 'Tool Calls Log', icon: Activity, count: calls.length },
-    { key: 'permissions', label: 'Permissions & Policies', icon: ShieldCheck, count: permissions.length },
+    { key: 'policies', label: 'Tool Policies', icon: ShieldCheck, count: serverPolicies.length },
   ]
 
   if (!apiKey) return <div className="p-6 text-slate-400">Please sign in.</div>
@@ -633,6 +688,14 @@ export default function McpRegistryPage() {
                       <Pencil className="h-4 w-4" /> Edit
                     </button>
                     <button
+                      onClick={() => void handleDiscover(activeServer)}
+                      disabled={!activeServer.is_active}
+                      aria-label={`Discover tools and check health of ${activeServer.name}`}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      <Activity className="h-4 w-4" /> Discover
+                    </button>
+                    <button
                       onClick={() => handleToggleActive(activeServer, !activeServer.is_active)}
                       className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-300 dark:hover:bg-blue-950"
                     >
@@ -821,138 +884,62 @@ export default function McpRegistryPage() {
       )}
 
       {tab === 'calls' && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <table className="w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-950/50">
-              <tr>
-                <th className="px-4 py-3 text-left">Tool</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Latency</th>
-                <th className="px-4 py-3 text-left">Created</th>
-                <th className="px-4 py-3 text-left">Arguments</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {calls.map(call => (
-                <tr key={call.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/40">
-                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{call.tool_name}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        call.status === 'success'
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                      }`}
-                    >
-                      {call.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{call.latency_ms ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-500">{new Date(call.created_at).toLocaleString()}</td>
-                  <td className="px-4 py-3">
-                    <pre className="max-w-xl overflow-auto rounded-lg bg-slate-950 p-2 text-xs text-slate-100">
-                      {JSON.stringify(call.arguments, null, 2)}
-                    </pre>
-                  </td>
-                </tr>
-              ))}
-              {calls.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">No MCP tool calls recorded yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="mcp-call-status" className="text-xs font-medium text-slate-600 dark:text-slate-300">Status</label>
+            <select id="mcp-call-status" aria-label="Filter tool calls by status" value={statusFilter}
+              onChange={e => setParam('status', e.target.value)} className={`${inputCls} w-48`}>
+              <option value="">All</option>
+              {CALL_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+            </select>
+          </div>
+          <DataTable
+            label="MCP tool calls"
+            urlPrefix="calls"
+            rows={calls}
+            columns={callColumns}
+            rowKey={c => c.id}
+            csvFileName="mcp-tool-calls.csv"
+            emptyTitle="No MCP tool calls yet"
+            emptyDescription="Governed calls made through POST /mcp-registry/tools/call appear here with their policy decision."
+          />
         </div>
       )}
 
-      {tab === 'permissions' && (
-        <div className="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-              <ShieldCheck className="h-4 w-4 text-blue-600" /> Grant policy
-            </h2>
-            <form onSubmit={handleGrantPermission} className="mt-4 space-y-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Server</label>
-                <select value={permServerId} onChange={e => setPermServerId(e.target.value)} className={inputCls}>
-                  <option value="">Select server</option>
-                  {servers.filter(server => server.is_active).map(server => (
-                    <option key={server.id} value={server.id}>
-                      {server.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Scope type</label>
-                <select value={permScopeType} onChange={e => setPermScopeType(e.target.value)} className={inputCls}>
-                  <option value="workspace">workspace</option>
-                  <option value="access_group">access_group</option>
-                  <option value="user">user</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Scope id</label>
-                <input
-                  value={permScopeId}
-                  onChange={e => setPermScopeId(e.target.value)}
-                  className={inputCls}
-                  placeholder="Workspace, access group, or user id"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">Allowed tools</label>
-                <input
-                  value={permTools}
-                  onChange={e => setPermTools(e.target.value)}
-                  className={inputCls}
-                  placeholder="tool_a, tool_b, tool_c"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                Create policy
-              </button>
-            </form>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Existing policies</h2>
-            <div className="mt-4 space-y-3">
-              {permissions.map(permission => (
-                <div key={permission.id} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-slate-950 dark:text-white">
-                        {servers.find(server => server.id === permission.mcp_server_id)?.name || permission.mcp_server_id}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {permission.scope_type} · {permission.scope_id}
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">
-                        {(permission.allowed_tools || []).length > 0
-                          ? permission.allowed_tools.join(', ')
-                          : 'All tools allowed'}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleRevokePermission(permission.id)}
-                      className="text-xs font-medium text-red-500 hover:text-red-700"
-                    >
-                      Revoke
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {permissions.length === 0 && !loading && <p className="text-sm text-slate-500">No permission policies yet.</p>}
+      {tab === 'policies' && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            Per-server permissions are tool policies scoped to an MCP server. The same evaluator enforces them on
+            governed MCP calls, <code>/tools/check</code>, <code>/policies/check</code> and the gateway. To allow-list a
+            server, add <em>allow</em> rules for its tools and a lower-priority <em>block *</em> scoped to the server.
+            <div className="mt-3">
+              <Link href={`/tool-registry?tab=policies`} className="font-medium text-blue-600 hover:underline">Manage tool policies</Link>
             </div>
           </div>
+          {servers.map(server => {
+            const rows = serverPolicies.filter(p => policyServerId(p) === server.id)
+            if (rows.length === 0) return null
+            return (
+              <div key={server.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">{server.name}</h2>
+                <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+                  {rows.map(p => (
+                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                      <span className="font-medium text-slate-800 dark:text-slate-100">{p.name}</span>
+                      <span className="text-xs text-slate-500">{p.tool_name} · {p.action} · priority {p.priority} · {p.scope_type}{p.scope_id ? `:${p.scope_id.slice(0, 8)}` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+          {serverPolicies.length === 0 && !loading && (
+            <p className="text-sm text-slate-500">No tool policies target an MCP server yet.</p>
+          )}
         </div>
       )}
 
+      {dialog}
       {loading && (
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <CheckCircle2 className="h-4 w-4 animate-pulse text-blue-600" /> Loading MCP registry data…

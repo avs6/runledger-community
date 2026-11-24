@@ -977,7 +977,8 @@ async fn call_preflight(
             )
                 .into_response()
         })?;
-    if !resp.status().is_success() {
+    // 202 = an approval hold from tool policy (W1-H): forward it, don't parse it.
+    if !resp.status().is_success() || resp.status() == reqwest::StatusCode::ACCEPTED {
         return Err(response_from_upstream(resp).await);
     }
     resp.json::<RuntimePreflightResponse>()
@@ -1011,7 +1012,8 @@ async fn call_finalize(state: &AppState, payload: RuntimeFinalizeRequest) -> Res
             )
                 .into_response()
         })?;
-    if !resp.status().is_success() {
+    // 202 = an approval hold from tool policy (W1-H): forward it, don't parse it.
+    if !resp.status().is_success() || resp.status() == reqwest::StatusCode::ACCEPTED {
         return Err(response_from_upstream(resp).await);
     }
     Ok(())
@@ -1410,7 +1412,12 @@ fn classify_error_triggers(status_code: Option<u16>, body: &str) -> Vec<String> 
 
 /// Control-plane response headers that tell a client why it was refused and when to
 /// retry; forwarded with the status and body (review G-13).
-const FORWARDED_REFUSAL_HEADERS: [&str; 3] = ["retry-after", "x-cost-cap-reason", "x-budget-id"];
+const FORWARDED_REFUSAL_HEADERS: [&str; 4] = [
+    "retry-after",
+    "x-cost-cap-reason",
+    "x-budget-id",
+    "x-runledger-approval-id",
+];
 
 async fn response_from_upstream(resp: reqwest::Response) -> Response {
     let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
