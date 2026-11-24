@@ -11,6 +11,12 @@ whole conversation — how cost accumulates turn over turn, and where it spiked.
 - **Conversation grouping** — pass a `session_id`; runs with the same id form a session.
 - **Cost-over-turns** — a chart of spend per turn and cumulative session cost.
 - **Per-turn drill-down** — jump from any turn into its [run](/observability/runs).
+- **Filters and export share one query** — search, end user, time, minimum turns, cost range,
+  API key and access group apply to both `GET /sessions` and `GET /sessions/export`.
+- **Average score** — `avg_score` is the mean evaluation score recorded against the session's runs.
+- **Saved views** — save the current filters per user.
+
+Sessions are indexed on `(workspace_id, session_id)`.
 
 ## How it works
 

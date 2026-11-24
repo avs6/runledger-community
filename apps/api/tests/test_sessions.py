@@ -128,6 +128,7 @@ async def test_list_sessions_groups_by_session_id(
         side_effect=[
             _scalar_one_result(1),
             _all_result([row]),
+            _all_result([("sess-abc", 0.875)]),  # avg score per session
         ]
     )
 
@@ -140,6 +141,8 @@ async def test_list_sessions_groups_by_session_id(
     assert item["session_id"] == "sess-abc"
     assert item["run_count"] == 3
     assert float(item["total_cost_usd"]) == pytest.approx(0.03)
+    assert float(item["avg_score"]) == pytest.approx(0.875)
+    assert resp.headers["x-total-count"] == "1"
 
 
 @pytest.mark.asyncio
@@ -154,6 +157,7 @@ async def test_list_sessions_filter_by_end_user_id(
         side_effect=[
             _scalar_one_result(1),
             _all_result([row]),
+            _all_result([]),
         ]
     )
 

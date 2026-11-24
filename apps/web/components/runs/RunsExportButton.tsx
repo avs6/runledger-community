@@ -3,11 +3,24 @@
 import { API_URL } from '@/lib/api'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { useSearchParams } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { useSearchParams, type ReadonlyURLSearchParams } from 'next/navigation'
+import { RUN_FILTER_KEYS } from '@/lib/api/observe'
+import { toast } from 'sonner'
 import { Download, FileText, ChevronDown } from 'lucide-react'
 
 const BASE_URL = API_URL // BFF proxy in the browser (review P-06)
+
+/** Export the exact list the page shows: every run filter plus the list's default
+ * 7-day window when the URL has no `from` (review O-11). */
+export function exportQuery(params: URLSearchParams | ReadonlyURLSearchParams): URLSearchParams {
+  const out = new URLSearchParams()
+  for (const key of RUN_FILTER_KEYS) {
+    const v = params.get(key)
+    if (v) out.set(key, v)
+  }
+  if (!out.has('from')) out.set('from', new Date(Date.now() - 7 * 86_400_000).toISOString())
+  return out
+}
 
 export default function RunsExportButton() {
   const { data: session } = useSession()
@@ -19,16 +32,15 @@ export default function RunsExportButton() {
     if (!apiKey) return
     setOpen(false)
 
-    const exportParams = new URLSearchParams()
-    for (const key of ['status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost', 'max_cost', 'access_group_id']) {
-      const v = params.get(key)
-      if (v) exportParams.set(key, v)
-    }
+    const exportParams = exportQuery(params)
 
     const res = await fetch(`${BASE_URL}/runs/export?${exportParams.toString()}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     })
-    if (!res.ok) return
+    if (!res.ok) {
+      toast.error(`Export failed (${res.status})`)
+      return
+    }
 
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
@@ -44,11 +56,7 @@ export default function RunsExportButton() {
     if (!apiKey) return
     setOpen(false)
 
-    const exportParams = new URLSearchParams()
-    for (const key of ['status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost', 'max_cost', 'access_group_id']) {
-      const v = params.get(key)
-      if (v) exportParams.set(key, v)
-    }
+    const exportParams = exportQuery(params)
 
     const res = await fetch(`${BASE_URL}/runs/export?${exportParams.toString()}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -79,6 +87,8 @@ export default function RunsExportButton() {
       ['status', 'Status'], ['model', 'Model'],
       ['feature_tag', 'Tag'], ['end_user_id', 'User'],
       ['search', 'Run ID'], ['min_cost', 'Min $'], ['max_cost', 'Max $'], ['access_group_id', 'Access group'],
+      ['tag', 'Gov. tag'], ['tool_name', 'Tool'], ['security_event_only', 'Security only'], ['api_key_id', 'API key'],
+      ['from', 'From'], ['to', 'To'],
     ] as [string, string][]) {
       const v = params.get(key)
       if (v) filterParts.push(`${label}: ${v}`)

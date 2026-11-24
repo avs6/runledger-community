@@ -38,7 +38,6 @@ from runledger_api.models.eval_experiments import EvalDataset, EvalExperiment, P
 from runledger_api.models.evaluators import Evaluator
 from runledger_api.models.events import (
     AgentRun,
-    OutcomeEvent,
     ProviderCall,
     Span,
     ToolCall,
@@ -93,6 +92,7 @@ from runledger_api.models.projects import Project, ProjectKey, TeamModel
 from runledger_api.models.prompts import Prompt, PromptVersion
 from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAnomaly
 from runledger_api.models.retention import RetentionPolicy
+from runledger_api.models.saved_views import SavedView  # noqa: E402
 from runledger_api.models.scores import ScoreEvent, ScoreRollupDaily
 from runledger_api.models.search_tools import SearchTool
 from runledger_api.models.security import (
@@ -133,7 +133,6 @@ __all__ = [
     "Span",
     "ProviderCall",
     "ToolCall",
-    "OutcomeEvent",
     "ProviderPricing",
     "UsageHourly",
     "UsageDaily",
@@ -238,4 +237,5 @@ __all__ = [
     "TeamModel",
     "VectorStoreCollection",
     "VectorStoreQuery",
+    "SavedView",
 ]

@@ -2,7 +2,9 @@ import { getServerSession } from 'next-auth'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getRuns, listSessions } from '@/lib/api'
+import { getAccessGroupDashboard, getRuns, getRunStats, listSessions } from '@/lib/api'
+import type { RunFilterParams } from '@/lib/api/observe'
+import SavedViewsMenu from '@/components/observe/SavedViewsMenu'
 import RunFilters from '@/components/runs/RunFilters'
 import RunsExportButton from '@/components/runs/RunsExportButton'
 import RunsTabs from './RunsTabs'
@@ -11,7 +13,7 @@ import SessionsEmbed from './SessionsEmbed'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { modelColor } from '@/lib/modelColors'
-import type { RunListItem } from '@/types/api'
+import type { RunListItem, RunStatsResponse } from '@/types/api'
 import { num } from '@/lib/utils'
 
 interface PageProps {
@@ -50,13 +52,11 @@ function compact(value: number) {
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
 }
 
-function HeroChart({ items, total }: { items: RunListItem[]; total: number }) {
-  const succeeded = items.filter((run) => run.status === 'succeeded').length
-  const failed = items.filter((run) => run.status === 'failed').length
-  const cost = items.reduce((sum, run) => sum + parseCost(run.total_cost_usd), 0)
-  const tokens = items.reduce((sum, run) => sum + (run.total_input_tokens ?? 0) + (run.total_output_tokens ?? 0), 0)
+/** Hero tiles come from /runs/stats: every run matching the filters, never a page
+ * sample (review O-20). The activity bars still show the newest page. */
+function HeroChart({ items, stats }: { items: RunListItem[]; stats: RunStatsResponse | null }) {
   const models = Array.from(new Set(items.map((run) => run.primary_model).filter(Boolean) as string[]))
-  const successRate = items.length > 0 ? Math.round((succeeded / items.length) * 100) : 0
+  const successRate = stats?.success_rate != null ? `${Math.round(parseCost(stats.success_rate) * 1000) / 10}%` : '--'
   const sample = [...items]
     .sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
     .slice(-60)
@@ -66,10 +66,10 @@ function HeroChart({ items, total }: { items: RunListItem[]; total: number }) {
       {/* Compact stats row */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          { label: 'Runs', value: total.toLocaleString() },
-          { label: 'Success', value: `${successRate}%` },
-          { label: 'Cost', value: money(cost) },
-          { label: 'Tokens', value: compact(tokens) },
+          { label: 'Runs', value: stats ? stats.total.toLocaleString() : '--' },
+          { label: 'Success', value: successRate },
+          { label: 'Cost', value: stats ? money(parseCost(stats.total_cost_usd)) : '--' },
+          { label: 'Tokens', value: stats ? compact(stats.total_input_tokens + stats.total_output_tokens) : '--' },
         ].map((item) => (
           <div key={item.label} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-900/80">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{item.label}</p>
@@ -140,15 +140,13 @@ async function RunsContent({ searchParams }: PageProps) {
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
-  const data = await getRuns(session.apiKey, {
-    limit: 50,
+  const filters: RunFilterParams = {
     status: searchParams.status,
     feature_tag: searchParams.feature_tag,
     end_user_id: searchParams.end_user_id,
     search: searchParams.search,
     from: searchParams.from ?? sevenDaysAgo,
     to: searchParams.to,
-    cursor: searchParams.cursor,
     model: searchParams.model,
     min_cost: searchParams.min_cost,
     max_cost: searchParams.max_cost,
@@ -157,7 +155,11 @@ async function RunsContent({ searchParams }: PageProps) {
     tool_name: searchParams.tool_name,
     security_event_only: searchParams.security_event_only === 'true',
     api_key_id: searchParams.api_key_id,
-  })
+  }
+  const [data, stats] = await Promise.all([
+    getRuns(session.apiKey, { ...filters, limit: 50, cursor: searchParams.cursor }),
+    getRunStats(session.apiKey, filters).catch(() => null),
+  ])
   const sessionsData = await listSessions(session.apiKey, { page: 1, page_size: 50 }).catch(() => ({ items: [], total: 0, page: 1, page_size: 50 }))
 
 
@@ -180,11 +182,11 @@ async function RunsContent({ searchParams }: PageProps) {
       <RunsTabs
         overview={
           <div className="space-y-4">
-            <HeroChart items={data.items} total={data.total} />
+            <HeroChart items={data.items} stats={stats} />
           </div>
         }
         runs={
-          <RunsPaginated items={data.items} total={data.total} nextCursorHref={nextHref} />
+          <RunsPaginated items={data.items} total={data.total ?? data.items.length} nextCursorHref={nextHref} />
         }
         sessions={
           <SessionsEmbed
@@ -211,6 +213,12 @@ export default function RunsPage({ searchParams }: PageProps) {
           <Button variant="outline" size="sm" asChild>
             <Link href={searchParams.access_group_id ? `/request-explorer?access_group_id=${encodeURIComponent(searchParams.access_group_id)}` : '/request-explorer'}>Request Explorer</Link>
           </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/runs/compare">Compare runs</Link>
+          </Button>
+          <Suspense fallback={null}>
+            <SavedViewsMenu page="runs" />
+          </Suspense>
           <Suspense fallback={null}>
             <RunsExportButton />
           </Suspense>

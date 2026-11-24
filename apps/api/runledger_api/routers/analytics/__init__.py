@@ -14,5 +14,6 @@ from . import scores
 from . import scoped
 from . import explorer
 from . import optimization
+from . import monitoring
 
 __all__ = ["router"]

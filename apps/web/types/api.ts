@@ -17,8 +17,10 @@ export interface RunListItem {
 
 export interface RunListResponse {
   items: RunListItem[]
+  /** Opaque (started_at, id) keyset cursor. */
   next_cursor: string | null
-  total: number
+  /** null when requested with include_total=false. */
+  total: number | null
 }
 
 export interface SpanDetail {
@@ -84,6 +86,9 @@ export interface RunDetailResponse {
   input_payload: Array<{ role: string; content: string }> | null
   output_payload: unknown | null
   span_payloads: Record<string, { input?: unknown; output?: unknown }> | null
+  /** Spans carry captured payloads; redacted when the caller's role may not read them. */
+  payloads_captured?: boolean
+  payloads_redacted?: boolean
 }
 
 export interface GraphNodeData {
@@ -221,6 +226,12 @@ export interface AnalyticsSummary {
   call_count: number
   prev_cost_usd: string
   cost_delta_pct: string | null
+  /** succeeded / (succeeded + failed) over every run in the window. */
+  success_rate?: string | null
+  succeeded_runs?: number
+  finished_runs?: number
+  total_savings_usd?: string
+  active_users?: number
 }
 
 export interface SpendPoint {
@@ -233,6 +244,8 @@ export interface SpendPoint {
 
 export interface SpendOverTime {
   granularity: string
+  /** "rollup+raw" when served from usage_hourly, otherwise "raw". */
+  source?: string
   points: SpendPoint[]
 }
 
@@ -2489,6 +2502,11 @@ export interface ScopedSummary {
   top_intents: IntentCount[]
   top_models: ModelSpend[]
   cost_delta_pct: string | null
+  success_rate?: string | null
+  succeeded_runs?: number
+  finished_runs?: number
+  prev_cost_usd?: string
+  allowed_scopes?: Array<'workspace' | 'org' | 'platform'>
 }
 
 // ── Phase 3: Savings analytics ──────────────────────────────────────────────
@@ -2562,6 +2580,7 @@ export interface RequestRecord {
   provider: string
   model: string
   intent: string | null
+  feature_tag?: string | null
   end_user_id: string | null
   cost_usd: string | null
   baseline_cost_usd: string | null
@@ -4491,4 +4510,58 @@ export interface SystemStatus {
   queues: OpsQueueStatusItem[]
   backups: { enabled: boolean; recent: SystemBackupRun[]; last_success: SystemBackupRun | null } | null
   config_warnings: string[]
+}
+
+// ── Observe (W1-E): run stats, facets, compare, saved views ──────────────────
+
+export interface RunStatsResponse {
+  total: number
+  succeeded: number
+  failed: number
+  running: number
+  cancelled: number
+  success_rate: string | null
+  total_cost_usd: string
+  avg_cost_usd: string | null
+  total_input_tokens: number
+  total_output_tokens: number
+  avg_duration_ms: number | null
+  p95_duration_ms: number | null
+}
+
+export interface RunFacetsResponse {
+  models: string[]
+  providers: string[]
+  feature_tags: string[]
+  statuses: string[]
+}
+
+export interface RunCompareSide {
+  run: RunListItem
+  models: string[]
+  provider_call_count: number
+  tool_call_count: number
+  tools: string[]
+  span_count: number
+  error_count: number
+  total_latency_ms: number | null
+  cached_input_tokens: number
+  savings_usd: string
+}
+
+export interface RunCompareResponse {
+  a: RunCompareSide
+  b: RunCompareSide
+  delta: Record<string, string | null>
+}
+
+export type SavedViewPage = 'runs' | 'explorer' | 'sessions'
+
+export interface SavedView {
+  id: string
+  page: SavedViewPage
+  name: string
+  query: string
+  created_at: string
+  updated_at: string
 }

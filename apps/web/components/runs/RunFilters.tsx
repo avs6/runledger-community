@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { getRunFacets } from '@/lib/api/observe'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,32 +12,6 @@ import {
 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────
-
-const KNOWN_MODELS = [
-  { label: 'Llama 3.1 8B', value: 'llama3.1:8b', provider: 'Ollama' },
-  { label: 'Llama 3.2', value: 'llama3.2', provider: 'Ollama' },
-  { label: 'Llama 3.2 3B', value: 'llama3.2:3b', provider: 'Ollama' },
-  { label: 'DeepSeek R1 14B', value: 'deepseek-r1:14b', provider: 'Ollama' },
-  { label: 'DeepSeek R1 8B', value: 'deepseek-r1:8b', provider: 'Ollama' },
-  { label: 'Qwen 2.5 Coder 14B', value: 'qwen2.5-coder:14b', provider: 'Ollama' },
-  { label: 'Qwen 3.5', value: 'qwen3.5:latest', provider: 'Ollama' },
-  { label: 'Gemma 3', value: 'gemma3:latest', provider: 'Ollama' },
-  { label: 'Nomic Embed Text', value: 'nomic-embed-text', provider: 'Ollama' },
-  { label: 'GPT-4o', value: 'gpt-4o', provider: 'OpenAI' },
-  { label: 'GPT-4o Mini', value: 'gpt-4o-mini', provider: 'OpenAI' },
-  { label: 'GPT-4 Turbo', value: 'gpt-4-turbo', provider: 'OpenAI' },
-  { label: 'GPT-3.5 Turbo', value: 'gpt-3.5-turbo', provider: 'OpenAI' },
-  { label: 'o1', value: 'o1', provider: 'OpenAI' },
-  { label: 'o3-mini', value: 'o3-mini', provider: 'OpenAI' },
-  { label: 'Claude Opus 4.6', value: 'claude-opus-4-6', provider: 'Anthropic' },
-  { label: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6', provider: 'Anthropic' },
-  { label: 'Claude Haiku 4.5', value: 'claude-haiku-4-5', provider: 'Anthropic' },
-  { label: 'Gemini 1.5 Pro', value: 'gemini-1.5-pro', provider: 'Google' },
-  { label: 'Gemini 1.5 Flash', value: 'gemini-1.5-flash', provider: 'Google' },
-  { label: 'Mistral', value: 'mistral', provider: 'Ollama' },
-  { label: 'Phi-4', value: 'phi4', provider: 'Ollama' },
-  { label: 'Qwen 2.5', value: 'qwen2.5', provider: 'Ollama' },
-]
 
 const STATUSES = [
   { value: 'running', label: 'Running', icon: Clock, color: 'text-blue-500' },
@@ -90,7 +66,38 @@ function isoToLocal(iso: string) {
 
 // ── Searchable model combobox ─────────────────────────────────────────────────
 
+type ModelOption = { label: string; value: string; provider: string }
+
+/** Models seen in this workspace (last 30 days), loaded from /runs/facets (review O-24). */
+function useWorkspaceModels(): ModelOption[] {
+  const { data: session } = useSession()
+  const apiKey = (session as { apiKey?: string } | null)?.apiKey
+  const [models, setModels] = useState<ModelOption[]>([])
+  useEffect(() => {
+    if (!apiKey) return
+    let cancelled = false
+    getRunFacets(apiKey)
+      .then(f => {
+        if (cancelled) return
+        setModels(f.models.map(m => ({ label: m, value: m, provider: providerOf(m) })))
+      })
+      .catch(() => { if (!cancelled) setModels([]) })
+    return () => { cancelled = true }
+  }, [apiKey])
+  return models
+}
+
+function providerOf(model: string): string {
+  const m = model.toLowerCase()
+  if (m.includes('/')) return m.split('/')[0]
+  if (m.startsWith('claude')) return 'Anthropic'
+  if (m.startsWith('gpt') || /^o\d/.test(m)) return 'OpenAI'
+  if (m.startsWith('gemini')) return 'Google'
+  return 'Other'
+}
+
 function ModelPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const KNOWN_MODELS = useWorkspaceModels()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState(value)
   const ref = useRef<HTMLDivElement>(null)
@@ -105,7 +112,7 @@ function ModelPicker({ value, onChange }: { value: string; onChange: (v: string)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
 
-  const providers = ['OpenAI', 'Anthropic', 'Google', 'Ollama']
+  const providers = Array.from(new Set(KNOWN_MODELS.map(m => m.provider)))
   const filtered = query
     ? KNOWN_MODELS.filter(m =>
         m.value.toLowerCase().includes(query.toLowerCase()) ||
@@ -121,6 +128,7 @@ function ModelPicker({ value, onChange }: { value: string; onChange: (v: string)
         <input
           className="h-8 w-full rounded-md border border-input bg-background pl-8 pr-8 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:ring-offset-1"
           placeholder="Search model…"
+          aria-label="Model"
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
@@ -132,6 +140,7 @@ function ModelPicker({ value, onChange }: { value: string; onChange: (v: string)
         {query && (
           <button
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Clear model filter"
             onMouseDown={e => { e.preventDefault(); setQuery(''); onChange(''); }}
           >
             <X className="h-3.5 w-3.5" />
@@ -142,7 +151,7 @@ function ModelPicker({ value, onChange }: { value: string; onChange: (v: string)
         <div className="absolute z-50 mt-1 w-64 rounded-md border border-border bg-popover shadow-lg overflow-hidden">
           {filtered.length === 0 ? (
             <div className="px-3 py-2.5 text-xs text-muted-foreground">
-              No matches — press Enter to use &quot;{query}&quot;
+              {KNOWN_MODELS.length === 0 ? 'No models recorded in the last 30 days' : 'No matches'} — press Enter to use &quot;{query}&quot;
             </div>
           ) : (
             <div className="max-h-56 overflow-y-auto">

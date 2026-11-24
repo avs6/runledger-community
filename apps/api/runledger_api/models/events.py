@@ -48,6 +48,7 @@ class AgentRun(Base):
         sa.Index("ix_agent_runs_api_key", "workspace_id", "api_key_id"),
         sa.Index("ix_agent_runs_workflow", "workspace_id", "workflow_id", "started_at"),
         sa.Index("ix_agent_runs_agent", "workspace_id", "agent_id", "started_at"),
+        sa.Index("ix_agent_runs_session", "workspace_id", "session_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -252,21 +253,3 @@ class ToolCall(Base):
     external_span_id: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     tool_arguments: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     tool_result_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-
-
-class OutcomeEvent(Base):
-    __tablename__ = "outcome_events"
-    __table_args__ = (sa.Index("ix_outcome_events_run_id", "run_id"),)
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    run_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), sa.ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
-    )
-    event_type: Mapped[str] = mapped_column(sa.String(128), nullable=False)
-    success: Mapped[bool] = mapped_column(sa.Boolean, nullable=False)
-    labels: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
-    )

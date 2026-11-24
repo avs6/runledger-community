@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RunListItem(BaseModel):
@@ -30,8 +30,8 @@ class RunListItem(BaseModel):
 
 class RunListResponse(BaseModel):
     items: list[RunListItem]
-    next_cursor: str | None  # ISO timestamp of last item's started_at
-    total: int
+    next_cursor: str | None  # opaque (started_at, id) cursor
+    total: int | None  # None when include_total=false
 
 
 class SpanDetail(BaseModel):
@@ -104,6 +104,10 @@ class RunDetailResponse(BaseModel):
     input_payload: list[dict[str, Any]] | None = None
     output_payload: Any | None = None
     span_payloads: dict[str, dict[str, Any]] | None = None
+    # True when spans carry captured payloads; redacted when the caller's role or key
+    # scope does not allow reading them (review O-05).
+    payloads_captured: bool = False
+    payloads_redacted: bool = False
 
 
 class GraphNodeData(BaseModel):
@@ -275,3 +279,65 @@ class LoginResponse(BaseModel):
     # True when the account is using an admin-issued temporary password; the
     # dashboard sends the user to change it before anything else.
     must_change_password: bool = False
+
+
+class RunStatsResponse(BaseModel):
+    total: int
+    succeeded: int
+    failed: int
+    running: int
+    cancelled: int
+    success_rate: Decimal | None
+    total_cost_usd: Decimal
+    avg_cost_usd: Decimal | None
+    total_input_tokens: int
+    total_output_tokens: int
+    avg_duration_ms: int | None
+    p95_duration_ms: int | None
+
+
+class RunFacetsResponse(BaseModel):
+    models: list[str]
+    providers: list[str]
+    feature_tags: list[str]
+    statuses: list[str]
+
+
+class RunCompareSide(BaseModel):
+    run: RunListItem
+    models: list[str]
+    provider_call_count: int
+    tool_call_count: int
+    tools: list[str]
+    span_count: int
+    error_count: int
+    total_latency_ms: int | None
+    cached_input_tokens: int
+    savings_usd: Decimal
+
+
+class RunCompareResponse(BaseModel):
+    a: RunCompareSide
+    b: RunCompareSide
+    delta: dict[str, Decimal | None]
+
+
+class SavedViewCreate(BaseModel):
+    page: str = Field("runs", max_length=32)
+    name: str = Field(..., min_length=1, max_length=120)
+    query: str = Field("", max_length=4000)
+
+
+class SavedViewResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    page: str
+    name: str
+    query: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SavedViewList(BaseModel):
+    items: list[SavedViewResponse]

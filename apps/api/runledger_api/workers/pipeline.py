@@ -36,7 +36,6 @@ from runledger_api.core.celery_app import celery_app
 from runledger_api.core.config import settings
 from runledger_api.models.events import (
     AgentRun,
-    OutcomeEvent,
     ProviderCall,
     RunStatusEnum,
     Span,
@@ -47,6 +46,7 @@ from runledger_api.models.events import (
 )
 from runledger_api.models.ingest_dead_letters import IngestDeadLetter
 from runledger_api.models.ledger import CapturePolicy
+from runledger_api.models.outcomes import Outcome
 from runledger_api.services import kafka_export
 from runledger_api.services.scrubbing import scrub_dict
 from runledger_api.services.workflow_attribution import attribution_from_event
@@ -318,7 +318,7 @@ async def _dispatch(
         case "tool_call":
             await _handle_tool_call(session, workspace_id, event)
         case "outcome":
-            await _handle_outcome(session, event)
+            await _handle_outcome(session, workspace_id, event)
         case unknown:
             log.warning("unknown_event_type", event_type=unknown)
 
@@ -694,15 +694,27 @@ async def _handle_tool_call(session: AsyncSession, workspace_id: str, e: dict[st
         log.exception("kafka_export.tool_call_unexpected_error", run_id=e.get("run_id"))
 
 
-async def _handle_outcome(session: AsyncSession, e: dict[str, Any]) -> None:
+async def _handle_outcome(session: AsyncSession, workspace_id: str, e: dict[str, Any]) -> None:
+    # One outcomes table for SDK, MCP, ingest and the Outcomes API (review O-03).
+    run_id = uuid.UUID(e["run_id"])
+    run = (
+        await session.execute(
+            select(AgentRun.session_id, AgentRun.end_user_id).where(
+                AgentRun.id == run_id, AgentRun.workspace_id == uuid.UUID(workspace_id)
+            )
+        )
+    ).one_or_none()
     await session.execute(
-        insert(OutcomeEvent)
+        insert(Outcome)
         .values(
             id=_stable_id("outcome", e),
-            run_id=uuid.UUID(e["run_id"]),
-            event_type=e["outcome_type"],
+            workspace_id=uuid.UUID(workspace_id),
+            run_id=run_id,
+            session_id=run.session_id if run else None,
+            end_user_id=run.end_user_id if run else None,
+            outcome_type=e["outcome_type"],
             success=e["success"],
-            labels=e.get("labels"),
+            labels=e.get("labels") or {},
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )

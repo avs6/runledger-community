@@ -3,11 +3,12 @@ from __future__ import annotations
 import csv
 import io
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from runledger_api.core.db import get_db
 from runledger_api.core.deps import get_current_workspace
 from runledger_api.models.events import AgentRun
+from runledger_api.models.scores import ScoreEvent
 from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.sessions import (
     SessionDetail,
@@ -24,6 +26,7 @@ from runledger_api.schemas.sessions import (
     TurnCost,
     TurnCostResponse,
 )
+from runledger_api.services.observe import resolve_access_group, run_access_clauses
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -40,11 +43,21 @@ def _duration_ms(started: datetime, ended: datetime | None) -> int | None:
 # ── List sessions ──────────────────────────────────────────────────────────────
 
 
-@router.get("", response_model=SessionList)
-async def list_sessions(
-    workspace: WorkspaceDep,
-    db: DbDep,
-    q: str | None = Query(None),
+@dataclass
+class SessionFilters:
+    q: str | None
+    end_user_id: str | None
+    from_dt: datetime | None
+    to_dt: datetime | None
+    min_turns: int | None
+    min_cost: Decimal | None
+    max_cost: Decimal | None
+    api_key_id: uuid.UUID | None
+    access_group_id: uuid.UUID | None
+
+
+def session_filters(
+    q: str | None = Query(None, description="Substring of session id or end user"),
     end_user_id: str | None = Query(None),
     from_dt: datetime | None = Query(None, alias="from"),
     to_dt: datetime | None = Query(None, alias="to"),
@@ -52,64 +65,98 @@ async def list_sessions(
     min_cost: Decimal | None = Query(None),
     max_cost: Decimal | None = Query(None),
     api_key_id: uuid.UUID | None = Query(None),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-) -> SessionList:
-    base_where = [
+    access_group_id: uuid.UUID | None = Query(None),
+) -> SessionFilters:
+    return SessionFilters(
+        q, end_user_id, from_dt, to_dt, min_turns, min_cost, max_cost, api_key_id, access_group_id
+    )
+
+
+SessionFiltersDep = Annotated[SessionFilters, Depends(session_filters)]
+
+
+async def _grouped_sessions(f: SessionFilters, workspace: Workspace, db: AsyncSession) -> Any:
+    """One GROUP BY session_id query shared by list and export (review O-23)."""
+    access = await resolve_access_group(db, workspace.id, f.access_group_id)
+    where: list[Any] = [
         AgentRun.workspace_id == workspace.id,
         AgentRun.session_id.isnot(None),
+        *run_access_clauses(access, [workspace.id]),
     ]
-    if api_key_id:
-        base_where.append(AgentRun.api_key_id == api_key_id)
-    if q and q.strip():
-        q_like = f"%{q.strip()}%"
-        base_where.append(
-            or_(
-                cast(AgentRun.session_id, String).ilike(q_like),
-                AgentRun.end_user_id.ilike(q_like),
-            )
+    if f.api_key_id:
+        where.append(AgentRun.api_key_id == f.api_key_id)
+    if f.q and f.q.strip():
+        q_like = f"%{f.q.strip()}%"
+        where.append(
+            or_(cast(AgentRun.session_id, String).ilike(q_like), AgentRun.end_user_id.ilike(q_like))
         )
-    if end_user_id:
-        base_where.append(AgentRun.end_user_id == end_user_id)
-    if from_dt:
-        base_where.append(AgentRun.started_at >= from_dt)
-    if to_dt:
-        base_where.append(AgentRun.started_at <= to_dt)
-
+    if f.end_user_id:
+        where.append(AgentRun.end_user_id == f.end_user_id)
+    if f.from_dt:
+        where.append(AgentRun.started_at >= f.from_dt)
+    if f.to_dt:
+        where.append(AgentRun.started_at <= f.to_dt)
+    cost = func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0"))
     grouped = (
         select(
             AgentRun.session_id,
             func.max(AgentRun.end_user_id).label("end_user_id"),
             func.count(AgentRun.id).label("run_count"),
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")).label("total_cost_usd"),
+            cost.label("total_cost_usd"),
             func.min(AgentRun.started_at).label("started_at"),
             func.max(AgentRun.ended_at).label("ended_at"),
         )
-        .where(*base_where)
+        .where(*where)
         .group_by(AgentRun.session_id)
     )
-    if min_turns is not None:
-        grouped = grouped.having(func.count(AgentRun.id) >= min_turns)
-    if min_cost is not None:
-        grouped = grouped.having(
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost
-        )
-    if max_cost is not None:
-        grouped = grouped.having(
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost
-        )
+    if f.min_turns is not None:
+        grouped = grouped.having(func.count(AgentRun.id) >= f.min_turns)
+    if f.min_cost is not None:
+        grouped = grouped.having(cost >= f.min_cost)
+    if f.max_cost is not None:
+        grouped = grouped.having(cost <= f.max_cost)
+    return grouped
 
-    total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
 
-    stmt = (
-        grouped.order_by(func.max(AgentRun.started_at).desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+async def _avg_scores(
+    db: AsyncSession, workspace_id: uuid.UUID, session_ids: list[str]
+) -> dict[str, Decimal]:
+    """Mean evaluation score per session (scores recorded against the session's runs)."""
+    if not session_ids:
+        return {}
+    rows = await db.execute(
+        select(AgentRun.session_id, func.avg(ScoreEvent.value))
+        .join(ScoreEvent, ScoreEvent.run_id == AgentRun.id)
+        .where(
+            AgentRun.workspace_id == workspace_id,
+            ScoreEvent.workspace_id == workspace_id,
+            AgentRun.session_id.in_(session_ids),
+        )
+        .group_by(AgentRun.session_id)
     )
+    return {sid: Decimal(str(round(float(avg), 4))) for sid, avg in rows.all() if avg is not None}
 
-    result = await db.execute(stmt)
-    rows = result.all()
 
+@router.get("", response_model=SessionList)
+async def list_sessions(
+    workspace: WorkspaceDep,
+    db: DbDep,
+    filters: SessionFiltersDep,
+    response: Response,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+) -> SessionList:
+    grouped = await _grouped_sessions(filters, workspace, db)
+    total = (await db.execute(select(func.count()).select_from(grouped.subquery()))).scalar_one()
+    response.headers["X-Total-Count"] = str(total)
+    rows = (
+        await db.execute(
+            grouped.order_by(func.max(AgentRun.started_at).desc(), AgentRun.session_id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).all()
+    scores = await _avg_scores(db, workspace.id, [r.session_id for r in rows])
     items = [
         SessionItem(
             session_id=row.session_id,
@@ -118,7 +165,7 @@ async def list_sessions(
             total_cost_usd=row.total_cost_usd,
             started_at=row.started_at,
             ended_at=row.ended_at,
-            avg_score=None,
+            avg_score=scores.get(row.session_id),
         )
         for row in rows
     ]
@@ -129,60 +176,10 @@ async def list_sessions(
 async def export_sessions(
     workspace: WorkspaceDep,
     db: DbDep,
-    q: str | None = Query(None),
-    end_user_id: str | None = Query(None),
-    from_dt: datetime | None = Query(None, alias="from"),
-    to_dt: datetime | None = Query(None, alias="to"),
-    min_turns: int | None = Query(None, ge=1),
-    min_cost: Decimal | None = Query(None),
-    max_cost: Decimal | None = Query(None),
-    api_key_id: uuid.UUID | None = Query(None),
+    filters: SessionFiltersDep,
     limit: int = Query(5000, ge=1, le=10000),
 ) -> StreamingResponse:
-    base_where = [
-        AgentRun.workspace_id == workspace.id,
-        AgentRun.session_id.isnot(None),
-    ]
-    if api_key_id:
-        base_where.append(AgentRun.api_key_id == api_key_id)
-    if q and q.strip():
-        q_like = f"%{q.strip()}%"
-        base_where.append(
-            or_(
-                cast(AgentRun.session_id, String).ilike(q_like),
-                AgentRun.end_user_id.ilike(q_like),
-            )
-        )
-    if end_user_id:
-        base_where.append(AgentRun.end_user_id == end_user_id)
-    if from_dt:
-        base_where.append(AgentRun.started_at >= from_dt)
-    if to_dt:
-        base_where.append(AgentRun.started_at <= to_dt)
-
-    grouped = (
-        select(
-            AgentRun.session_id,
-            func.max(AgentRun.end_user_id).label("end_user_id"),
-            func.count(AgentRun.id).label("run_count"),
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")).label("total_cost_usd"),
-            func.min(AgentRun.started_at).label("started_at"),
-            func.max(AgentRun.ended_at).label("ended_at"),
-        )
-        .where(*base_where)
-        .group_by(AgentRun.session_id)
-    )
-    if min_turns is not None:
-        grouped = grouped.having(func.count(AgentRun.id) >= min_turns)
-    if min_cost is not None:
-        grouped = grouped.having(
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) >= min_cost
-        )
-    if max_cost is not None:
-        grouped = grouped.having(
-            func.coalesce(func.sum(AgentRun.total_cost_usd), Decimal("0")) <= max_cost
-        )
-
+    grouped = await _grouped_sessions(filters, workspace, db)
     rows = (
         await db.execute(grouped.order_by(func.max(AgentRun.started_at).desc()).limit(limit))
     ).all()

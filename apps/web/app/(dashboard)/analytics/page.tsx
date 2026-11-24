@@ -13,7 +13,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
-import { getAccessGroupDashboard, getOrgDashboard, getRunFlow, getRuns, getScopedSummary } from '@/lib/api'
+import { getAccessGroupDashboard, getOrgDashboard, getRuns, getScopedSummary } from '@/lib/api'
 import RunStatusBadge from '@/components/runs/RunStatusBadge'
 import { formatAge, formatCost, formatTokens, truncateId, num } from '@/lib/utils'
 import AnalyticsBreakdownClient from '@/components/dashboard/AnalyticsBreakdownClient'
@@ -163,7 +163,7 @@ export default async function AnalyticsOverviewPage({
   const raw = session as unknown as Record<string, unknown>
   const tenantRole = raw.tenantRole as string | undefined
   const isPlatformAdmin = raw.isPlatformAdmin as boolean | undefined
-  const canOrg = Boolean(isPlatformAdmin || tenantRole === 'org_admin')
+  const canOrg = Boolean(isPlatformAdmin || tenantRole === 'org_admin' || tenantRole === 'org_manager')
   const canPlatform = Boolean(isPlatformAdmin)
 
   const win = getDashboardWindow(searchParams?.range)
@@ -175,28 +175,21 @@ export default async function AnalyticsOverviewPage({
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
 
-  const [summary, flow, workspaceRuns, orgDashboard] = await Promise.all([
+  const [summary, workspaceRuns, orgDashboard] = await Promise.all([
     getScopedSummary(session.apiKey, scope, { from: win.from, to: win.to, access_group_id: accessGroupId }),
-    getRunFlow(session.apiKey, {
-      scope,
-      mode: 'request-route-provider-outcome',
-      metric: 'requests',
-      limit: 300,
-      from: win.from,
-      to: win.to,
-      access_group_id: accessGroupId,
-    }).catch(() => null),
     scope === 'workspace'
-      ? getRuns(session.apiKey, { limit: 6, from: win.from, to: win.to, access_group_id: accessGroupId }).then(result => result.items)
+      ? getRuns(session.apiKey, { limit: 6, from: win.from, to: win.to, access_group_id: accessGroupId, include_total: false }).then(result => result.items)
       : Promise.resolve([]),
     scope === 'org'
       ? getOrgDashboard(session.apiKey, { from: win.from, to: win.to }).catch(() => null)
       : Promise.resolve(null),
   ])
 
-  const flowItems = flow?.items ?? []
-  const successCount = flowItems.filter(item => item.success).length
-  const successRate = flowItems.length > 0 ? `${Math.round((successCount / flowItems.length) * 100)}%` : '--'
+  // Success rate is computed by the API over every finished run in the window, not
+  // from a flow sample (review O-22).
+  const successRate =
+    summary.success_rate != null ? `${Math.round(Number.parseFloat(summary.success_rate) * 1000) / 10}%` : '--'
+  const finishedRuns = summary.finished_runs ?? 0
   const totalTokens = summary.total_input_tokens + summary.total_output_tokens
   const recentRuns = scope === 'workspace' ? workspaceRuns : orgDashboard?.recent_runs ?? []
 
@@ -226,7 +219,12 @@ export default async function AnalyticsOverviewPage({
               )}
             </div>
             <div className="flex flex-col items-end gap-2">
-              <ScopeTabs currentScope={scope} currentRange={win.range} canOrg={canOrg} canPlatform={canPlatform} />
+              <ScopeTabs
+                currentScope={scope}
+                currentRange={win.range}
+                canOrg={summary.allowed_scopes ? summary.allowed_scopes.includes('org') : canOrg}
+                canPlatform={summary.allowed_scopes ? summary.allowed_scopes.includes('platform') : canPlatform}
+              />
               <RangeTabs currentScope={scope} currentRange={win.range} />
             </div>
           </div>
@@ -237,7 +235,7 @@ export default async function AnalyticsOverviewPage({
             <HeroStat label="Runs" value={summary.run_count.toLocaleString()} sub={`${summary.call_count.toLocaleString()} calls`} icon={Activity} />
             <HeroStat label="Savings" value={money(summary.total_savings_usd)} sub={summary.avg_cost_per_run ? `${money(summary.avg_cost_per_run)}/run` : '--'} icon={Sparkles} />
             <HeroStat label="Tokens" value={formatTokens(totalTokens)} sub={`${summary.active_users.toLocaleString()} users`} icon={Cpu} />
-            <HeroStat label="Success" value={successRate} sub={`${flowItems.length.toLocaleString()} samples`} icon={Route} />
+            <HeroStat label="Success" value={successRate} sub={`${finishedRuns.toLocaleString()} finished runs`} icon={Route} />
           </div>
 
           {/* Quick nav */}
@@ -257,7 +255,7 @@ export default async function AnalyticsOverviewPage({
       </div>
 
       {/* Analytics Breakdown — charts as hero */}
-      <AnalyticsBreakdownClient embedded initialPreset={win.range} apiKey={session.apiKey} />
+      <AnalyticsBreakdownClient embedded initialPreset={win.range} apiKey={session.apiKey} scope={scope} accessGroupId={accessGroupId} />
 
       {/* Grid: Recent activity + Top intents + Top models */}
       <div className="grid gap-3 xl:grid-cols-3">

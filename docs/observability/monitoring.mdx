@@ -12,6 +12,17 @@ Monitoring is the lightweight triage surface for operators who need to check wha
 - **Gateway log** — recent gateway request outcomes and failures.
 - **Telemetry handoff** — quick route into Telemetry for OTLP ingest health, batches, and signal coverage.
 
+The time range, type/state/status filter, search and paging are applied by the API, so a 30-day
+range covers 30 days, not the newest 100 rows:
+
+| Feed | Endpoint | Access |
+|---|---|---|
+| Security events | `GET /analytics/monitoring/security-events?from&to&event_type&q&limit&offset` | workspace readers |
+| Alert firings | `GET /analytics/monitoring/alerts?from&to&state=firing\|resolved&q&limit&offset` | org admins |
+| Gateway requests | `GET /analytics/monitoring/gateway-requests?from&to&status&q&limit&offset` | org admins |
+
+Each returns the page's rows and the total in `X-Total-Count`. Tab, range and filters are kept in the URL.
+
 Monitoring is not the place to configure everything. It is the page you land on to triage a problem and then branch into the right operational owner.
 
 ## Workflow

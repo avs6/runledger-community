@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { KeyRound, MessageSquare, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { authOptions } from '@/lib/auth'
 import { listSessions } from '@/lib/api'
+import SavedViewsMenu from '@/components/observe/SavedViewsMenu'
 import SessionsExportButton from '@/components/sessions/SessionsExportButton'
 import CollapsibleFilters from './CollapsibleFilters'
 import { formatCost, formatDuration } from '@/lib/utils'
@@ -129,6 +130,7 @@ export default async function SessionsPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <SavedViewsMenu page="sessions" />
           <Link
             href={withParams(activeParams, { page: null })}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"

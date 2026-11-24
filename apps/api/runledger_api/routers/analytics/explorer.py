@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from runledger_api.models.outcomes import Outcome
+from runledger_api.services.observe import (
+    call_access_clauses,
+    call_statuses_for,
+    resolve_access_group,
+)
+
 from ._shared import *  # noqa: F403
 
 # ── Phase 3: Request explorer ───────────────────────────────────────────────
@@ -18,6 +25,8 @@ async def request_explorer(
     model: Annotated[str | None, Query()] = None,
     provider: Annotated[str | None, Query()] = None,
     intent: Annotated[str | None, Query()] = None,
+    feature_tag: Annotated[str | None, Query()] = None,
+    api_key_id: Annotated[uuid.UUID | None, Query()] = None,
     end_user_id: Annotated[str | None, Query()] = None,
     optimization: Annotated[str | None, Query()] = None,
     access_group_id: Annotated[uuid.UUID | None, Query()] = None,
@@ -30,32 +39,25 @@ async def request_explorer(
     """Paginated request explorer with filtering by run, user, status, model, provider, intent, and optimization."""
     t_from = _parse_dt(from_dt, _default_from())
     t_to = _parse_dt(to_dt, _default_to())
-    access_group_filters = (
-        await _resolve_access_group_observe_filters(db, workspace.id, access_group_id)
-        if access_group_id is not None
-        else None
-    )
+    access = await resolve_access_group(db, workspace.id, access_group_id)
 
     filters = [
         ProviderCall.workspace_id == workspace.id,
         ProviderCall.created_at >= t_from,
         ProviderCall.created_at < t_to,
+        *call_access_clauses(access),
     ]
-    if access_group_filters:
-        if access_group_filters["end_user_ids"]:
-            filters.append(ProviderCall.end_user_id.in_(access_group_filters["end_user_ids"]))
-        if access_group_filters["models"]:
-            filters.append(ProviderCall.model.in_(access_group_filters["models"]))
-        if access_group_filters["providers"]:
-            filters.append(ProviderCall.provider.in_(access_group_filters["providers"]))
-        if access_group_filters["statuses"]:
-            filters.append(ProviderCall.status.in_(access_group_filters["statuses"]))
+    if api_key_id is not None:
+        filters.append(ProviderCall.api_key_id == api_key_id)
     if model:
         filters.append(ProviderCall.model == model)
     if provider:
         filters.append(ProviderCall.provider == provider)
-    if status:
-        filters.append(ProviderCall.status == status)
+    # Accept either vocabulary: the UI speaks run statuses (succeeded/failed),
+    # provider calls store success/error (review O-01).
+    call_statuses = call_statuses_for(status)
+    if call_statuses is not None:
+        filters.append(ProviderCall.status.in_(call_statuses or ["__none__"]))
     if optimization:
         filters.append(ProviderCall.optimization_applied == optimization)
     if end_user_id:
@@ -109,8 +111,8 @@ async def request_explorer(
     )
     if intent:
         query = query.where(AgentRun.intent == intent)
-    if access_group_filters and access_group_filters["feature_tags"]:
-        query = query.where(AgentRun.feature_tag.in_(access_group_filters["feature_tags"]))
+    if feature_tag:
+        query = query.where(AgentRun.feature_tag == feature_tag)
     if tag:
         pattern = f'%"{tag}"%'
         query = query.where(
@@ -129,6 +131,7 @@ async def request_explorer(
                     ProviderCall.provider.ilike(q_like),
                     ProviderCall.end_user_id.ilike(q_like),
                     AgentRun.intent.ilike(q_like),
+                    AgentRun.feature_tag.ilike(q_like),
                 )
             )
 
@@ -137,7 +140,7 @@ async def request_explorer(
 
     rows = (
         await db.execute(
-            query.order_by(ProviderCall.created_at.desc())
+            query.order_by(ProviderCall.created_at.desc(), ProviderCall.id.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
@@ -151,6 +154,7 @@ async def request_explorer(
                 provider=r.provider,
                 model=r.model,
                 intent=r.intent,
+                feature_tag=r.feature_tag,
                 end_user_id=r.end_user_id,
                 cost_usd=r.cost_usd,
                 baseline_cost_usd=r.baseline_cost_usd,
@@ -320,19 +324,23 @@ async def engineering_metrics(
 
     with_outcome = (
         await db.execute(
-            select(func.count(OutcomeEvent.run_id.distinct())).where(
-                OutcomeEvent.created_at >= t_from,
-                OutcomeEvent.created_at < t_to,
+            select(func.count(Outcome.run_id.distinct())).where(
+                Outcome.workspace_id == workspace.id,
+                Outcome.run_id.is_not(None),
+                Outcome.created_at >= t_from,
+                Outcome.created_at < t_to,
             )
         )
     ).scalar_one()
 
     positive_outcome = (
         await db.execute(
-            select(func.count(OutcomeEvent.id)).where(
-                OutcomeEvent.created_at >= t_from,
-                OutcomeEvent.created_at < t_to,
-                OutcomeEvent.success.is_(True),
+            select(func.count(Outcome.run_id.distinct())).where(
+                Outcome.workspace_id == workspace.id,
+                Outcome.run_id.is_not(None),
+                Outcome.created_at >= t_from,
+                Outcome.created_at < t_to,
+                Outcome.success.is_(True),
             )
         )
     ).scalar_one()

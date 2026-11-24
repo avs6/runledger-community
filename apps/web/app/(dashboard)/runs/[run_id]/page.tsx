@@ -14,7 +14,10 @@ import {
 } from 'lucide-react'
 import { formatCost, formatTokens, formatDuration, num } from '@/lib/utils'
 import type { GatewayRunDecision } from '@/lib/api'
-import type { ProviderCallDetail, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
+import type { ProviderCallDetail, RunDetailResponse, RunGovernanceContextResponse, SpanDetail, ToolCallDetail } from '@/types/api'
+import CopyId from '@/components/observe/CopyId'
+import TraceWaterfall from '@/components/observe/TraceWaterfall'
+import { SectionError } from '@/components/ui/async-card'
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -246,18 +249,23 @@ export default async function RunDetailPage({
     : null
   const accessGroup = accessGroupDashboard?.groups[0] ?? null
 
-  let run, graph
-  let governance: RunGovernanceContextResponse | null = null
-  let decision: GatewayRunDecision | null = null
+  // Only a 404 is "not found"; any other failure surfaces in error.tsx with a retry,
+  // and a failed graph or governance load degrades just that card (review O-19).
+  let run: RunDetailResponse
   try {
-    ;[run, graph, governance, decision] = await Promise.all([
-      getRun(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
-      getRunGraph(session.apiKey, params.run_id, { access_group_id: accessGroupId }),
-      getRunGovernanceContext(session.apiKey, params.run_id, { access_group_id: accessGroupId }).catch(() => null),
-      getGatewayRunDecision(session.apiKey, params.run_id).catch(() => null)])
-  } catch {
-    notFound()
+    run = await getRun(session.apiKey, params.run_id, { access_group_id: accessGroupId })
+  } catch (err) {
+    if (err instanceof Error && /API (404|422)/.test(err.message)) notFound()
+    throw err
   }
+  const [graphResult, governance, decision] = await Promise.all([
+    getRunGraph(session.apiKey, params.run_id, { access_group_id: accessGroupId })
+      .then(g => ({ graph: g, error: null as string | null }))
+      .catch((err: unknown) => ({ graph: null, error: err instanceof Error ? err.message : 'Graph failed to load' })),
+    getRunGovernanceContext(session.apiKey, params.run_id, { access_group_id: accessGroupId }).catch(() => null),
+    getGatewayRunDecision(session.apiKey, params.run_id).catch((): GatewayRunDecision | null => null),
+  ])
+  const graph = graphResult.graph
 
   const hasError = run.status === 'failed'
 
@@ -271,6 +279,11 @@ export default async function RunDetailPage({
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           Runs
+        </Link>
+        <span className="font-mono text-xs text-slate-500">{run.id}</span>
+        <CopyId value={run.id} label="Copy run id" />
+        <Link href={`/runs/compare?a=${encodeURIComponent(run.id)}`} className="ml-auto text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">
+          Compare with…
         </Link>
       </div>
 
@@ -294,7 +307,11 @@ export default async function RunDetailPage({
 
       {/* DAG graph — hero */}
       <div className="min-h-0 h-[480px] rounded-xl border border-gray-200 overflow-hidden dark:border-gray-700">
-        <RunGraph graphNodes={graph.nodes} graphEdges={graph.edges} />
+        {graph ? (
+          <RunGraph graphNodes={graph.nodes} graphEdges={graph.edges} />
+        ) : (
+          <div className="p-3"><SectionError message={`Run graph failed to load: ${graphResult.error}`} /></div>
+        )}
       </div>
 
       {accessGroup && (
@@ -340,10 +357,23 @@ export default async function RunDetailPage({
         <CancelRunButton runId={run.id} status={run.status} />
       </div>
 
-      {/* Payload viewer */}
+      {/* Payload viewer — captured payloads only for roles allowed to read them (O-05) */}
+      {run.payloads_redacted && (
+        <p role="note" className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+          This run has captured prompts and responses, but your role or API key scope can&apos;t read them.
+        </p>
+      )}
       {(run.input_payload != null || run.output_payload != null) && (
         <PayloadViewer run={run} />
       )}
+
+      {/* Trace waterfall */}
+      <div className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-slate-700/60 dark:bg-slate-900">
+        <div className="mb-2">
+          <SectionHeader icon={<Layers className="h-3.5 w-3.5" />} title="Trace waterfall" count={run.spans.length} />
+        </div>
+        <TraceWaterfall runId={run.id} startedAt={run.started_at} endedAt={run.ended_at} spans={run.spans} calls={run.provider_calls} />
+      </div>
 
       {/* Provider calls + Spans side by side on wide screens */}
       <div className="grid gap-3 xl:grid-cols-2">

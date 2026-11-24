@@ -32,7 +32,23 @@ flowchart LR
   overview --> economics["Economics / Model Usage / Cost & Savings"]
 ```
 
-The page reads from the same scoped summary and request-analysis APIs that power deeper economics and observability drill-downs, so the numbers stay aligned across the product.
+## One summary, one set of filters
+
+Every KPI tile comes from one computation (`services/observe.compute_summary`) behind both
+`GET /analytics/summary` and `GET /analytics/scoped-summary`: spend is billable cost, usage counts
+successful calls, and the previous period uses the same filters. The **Success** tile is
+`success_rate` from the API: succeeded ÷ (succeeded + failed) over every run in the window.
+
+`summary`, `spend-over-time`, `spend-by-model` and `spend-by-feature` all take `scope`
+(`workspace`, `org`, `platform`) and `access_group_id` (workspace scope only), so the charts
+below the KPIs show the same slice as the tiles. Org scope needs an org admin or manager;
+`scoped-summary` returns `allowed_scopes` and the page hides the scopes the caller can't use.
+Access-group status filters accept either vocabulary (`succeeded`/`failed` or `success`/`error`).
+
+Hourly and daily spend series and spend-by-model read the `usage_hourly` rollup for the hours it
+has covered and raw provider calls only for the newer hours (`source: "rollup+raw"`); minute
+buckets, API-key filters and access groups with status filters stay on raw calls. A chart that
+fails to load shows an error strip with a retry instead of an empty card.
 
 ## Governance-aware investigation
 

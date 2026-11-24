@@ -1,48 +1,120 @@
 /** Runs, sessions, analytics, outcomes and related context. */
 import type { AnalyticsSummary, Annotation, AnnotationList, AnomalyList, CohortList, RegressionList, RunDetailResponse, RunEconomics, RunGraphResponse, RunListItem, RunListResponse, ScoreSummary, SessionDetail, SessionList, TurnCostResponse, SpendByFeature, SpendByModel, SpendByUser, SpendOverTime, UserSpendDetail, VersionCompareResult, WorkflowTopList, OtlpStats, OtlpBatchList, OtlpBatchDetail, OtlpInsights, ScopedSummary, SavingsResponse, OptimizationOpportunitiesResponse, TrendsResponse, RequestExplorerResponse, EngineeringMetrics, SimulationRequest, SimulationResult, RunbookList, RunbookResponse, ModelScorecardList, ModelScoreTrendList } from '@/types/api'
-import { apiFetch, TimeWindow, _analyticsQs, ContextEntity } from './client'
+import type { RunCompareResponse, RunFacetsResponse, RunStatsResponse, SavedView, SavedViewPage } from '@/types/api'
+import { apiFetch, apiFetchPage, TimeWindow, _analyticsQs, ContextEntity } from './client'
+
+/** The one run filter list: list, export, stats and the live stream all take it (O-11). */
+export interface RunFilterParams {
+  status?: string
+  feature_tag?: string
+  end_user_id?: string
+  search?: string
+  from?: string
+  to?: string
+  model?: string
+  min_cost?: string
+  max_cost?: string
+  access_group_id?: string
+  tag?: string
+  tool_name?: string
+  security_event_only?: boolean
+  api_key_id?: string
+}
+
+export const RUN_FILTER_KEYS: Array<keyof RunFilterParams> = [
+  'status', 'feature_tag', 'end_user_id', 'search', 'from', 'to', 'model', 'min_cost',
+  'max_cost', 'access_group_id', 'tag', 'tool_name', 'security_event_only', 'api_key_id',
+]
+
+export function runFilterQs(params: RunFilterParams, extra: Record<string, string | number | boolean | undefined> = {}): URLSearchParams {
+  const qs = new URLSearchParams()
+  for (const key of RUN_FILTER_KEYS) {
+    const value = params[key]
+    if (value === undefined || value === '' || value === false) continue
+    qs.set(key, String(value))
+  }
+  for (const [k, v] of Object.entries(extra)) {
+    if (v !== undefined && v !== '') qs.set(k, String(v))
+  }
+  return qs
+}
 
 export async function getRuns(
   apiKey: string,
-  params: {
-    limit?: number
-    cursor?: string
-    status?: string
-    feature_tag?: string
-    end_user_id?: string
-    search?: string
-    from?: string
-    to?: string
-    model?: string
-    min_cost?: string
-    max_cost?: string
-    access_group_id?: string
-    tag?: string
-    tool_name?: string
-    security_event_only?: boolean
-    api_key_id?: string
-  } = {}
+  params: RunFilterParams & { limit?: number; cursor?: string; include_total?: boolean } = {}
 ): Promise<RunListResponse> {
-  const qs = new URLSearchParams()
-  if (params.limit) qs.set('limit', String(params.limit))
-  if (params.cursor) qs.set('cursor', params.cursor)
-  if (params.status) qs.set('status', params.status)
-  if (params.feature_tag) qs.set('feature_tag', params.feature_tag)
-  if (params.end_user_id) qs.set('end_user_id', params.end_user_id)
-  if (params.search) qs.set('search', params.search)
-  if (params.from) qs.set('from', params.from)
-  if (params.to) qs.set('to', params.to)
-  if (params.model) qs.set('model', params.model)
-  if (params.min_cost) qs.set('min_cost', params.min_cost)
-  if (params.max_cost) qs.set('max_cost', params.max_cost)
-  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
-  if (params.tag) qs.set('tag', params.tag)
-  if (params.tool_name) qs.set('tool_name', params.tool_name)
-  if (params.security_event_only) qs.set('security_event_only', 'true')
-  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
-
+  const qs = runFilterQs(params, {
+    limit: params.limit,
+    cursor: params.cursor,
+    include_total: params.include_total === false ? 'false' : undefined,
+  })
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<RunListResponse>(`/runs${query}`, apiKey)
+}
+
+export async function getRunStats(apiKey: string, params: RunFilterParams = {}): Promise<RunStatsResponse> {
+  const qs = runFilterQs(params).toString()
+  return apiFetch<RunStatsResponse>(`/runs/stats${qs ? `?${qs}` : ''}`, apiKey)
+}
+
+export async function getRunFacets(apiKey: string, days = 30): Promise<RunFacetsResponse> {
+  return apiFetch<RunFacetsResponse>(`/runs/facets?days=${days}`, apiKey)
+}
+
+/** URL for the live run stream (Server-Sent Events). */
+export function runsStreamPath(params: RunFilterParams & { since?: string } = {}): string {
+  const qs = runFilterQs(params, { since: params.since }).toString()
+  return `/runs/stream${qs ? `?${qs}` : ''}`
+}
+
+export async function compareRuns(apiKey: string, a: string, b: string): Promise<RunCompareResponse> {
+  return apiFetch<RunCompareResponse>(`/runs/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`, apiKey)
+}
+
+export async function listSavedViews(apiKey: string, page: SavedViewPage): Promise<SavedView[]> {
+  const res = await apiFetch<{ items: SavedView[] }>(`/runs/saved-views?page=${page}`, apiKey)
+  return res.items
+}
+
+export async function saveView(apiKey: string, body: { page: SavedViewPage; name: string; query: string }): Promise<SavedView> {
+  return apiFetch<SavedView>('/runs/saved-views', apiKey, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function updateSavedView(apiKey: string, id: string, body: { page: SavedViewPage; name: string; query: string }): Promise<SavedView> {
+  return apiFetch<SavedView>(`/runs/saved-views/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(body) })
+}
+
+export async function deleteSavedView(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/runs/saved-views/${id}`, apiKey, { method: 'DELETE' })
+}
+
+// ── Monitoring feeds with server-side ranges (O-18) ─────────────────────────
+
+export interface MonitoringQuery {
+  from?: string
+  to?: string
+  q?: string
+  limit: number
+  offset: number
+  event_type?: string
+  state?: 'firing' | 'resolved'
+  status?: string
+}
+
+function monitoringPath(feed: 'security-events' | 'alerts' | 'gateway-requests', query: MonitoringQuery): string {
+  return `/analytics/monitoring/${feed}${_analyticsQs({ ...query })}`
+}
+
+export async function listMonitoringSecurityEvents(apiKey: string, query: MonitoringQuery) {
+  return apiFetchPage<import('@/types/api').SecurityEventResponse>(monitoringPath('security-events', query), apiKey)
+}
+
+export async function listMonitoringAlerts(apiKey: string, query: MonitoringQuery) {
+  return apiFetchPage<import('@/types/api').AlertFiring>(monitoringPath('alerts', query), apiKey)
+}
+
+export async function listMonitoringGatewayRequests(apiKey: string, query: MonitoringQuery) {
+  return apiFetchPage<import('@/types/api').GatewayRequestLog>(monitoringPath('gateway-requests', query), apiKey)
 }
 
 export async function getRun(
@@ -594,6 +666,8 @@ export async function getRequestExplorer(
     model?: string
     provider?: string
     intent?: string
+    feature_tag?: string
+    api_key_id?: string
     end_user_id?: string
     optimization?: string
     page?: number
@@ -612,6 +686,8 @@ export async function getRequestExplorer(
   if (params.model) qs.model = params.model
   if (params.provider) qs.provider = params.provider
   if (params.intent) qs.intent = params.intent
+  if (params.feature_tag) qs.feature_tag = params.feature_tag
+  if (params.api_key_id) qs.api_key_id = params.api_key_id
   if (params.end_user_id) qs.end_user_id = params.end_user_id
   if (params.optimization) qs.optimization = params.optimization
   if (params.access_group_id) qs.access_group_id = params.access_group_id

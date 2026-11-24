@@ -14,6 +14,12 @@ The Model Usage page explains which models are actually being used in live traff
 - **Cost / latency / quality comparison** - compare models on real traffic rather than static catalog metadata
 - **Best-value signals** - spot which models appear to deliver better quality-for-cost tradeoffs
 
+## Where the numbers come from
+
+Calls, tokens and cost per model come from `GET /analytics/spend-by-model` for the selected
+scope and window, so they cover every call (not a sample). Latency, route mix and outcome share
+come from the newest 500 runs of the request flow, and the page says so.
+
 ## Best used for
 
 - understanding whether routing is spreading traffic as intended
