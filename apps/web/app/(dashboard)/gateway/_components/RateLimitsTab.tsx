@@ -1,14 +1,22 @@
 'use client'
 
 import Link from 'next/link'
+import { SectionError } from '@/components/ui/async-card'
 import { useGateway } from './useGatewayState'
 
 export function RateLimitsTab() {
   const {
     rateLimitOverview,
+    sectionErrors,
+    loadTabData,
   } = useGateway()
   return (
   <div className="space-y-3">
+  {sectionErrors.rateLimits && <SectionError message={sectionErrors.rateLimits} onRetry={() => void loadTabData('rate-limits', true)} />}
+  {/* ui-fixes #2: this tab reports limits; they are set on routes and budget tiers. */}
+  <p role="note" className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+    Overview only. Per-user RPM is set on each route (Routes tab); per-key requests/min, tokens/min and allowed models are set on budget tiers (Advanced tab), and both are enforced by the gateway.
+  </p>
 
   {rateLimitOverview && (
     <section className="space-y-4">

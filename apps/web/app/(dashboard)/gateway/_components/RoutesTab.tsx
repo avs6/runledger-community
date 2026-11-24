@@ -5,10 +5,13 @@ import type { GatewayRoutingGroupStrategy } from '@/types/api'
 import { inputCls } from './shared'
 import { useSearchParams, usePathname, useRouter } from 'next/navigation'
 import { RouteTestPanel } from './RouteTestPanel'
+import { SectionError } from '@/components/ui/async-card'
 import { useGateway } from './useGatewayState'
 
 export function RoutesTab() {
   const {
+    sectionErrors,
+    loadTabData,
     canManage,
     gatewayRoutes,
     newRouteAlias,
@@ -159,6 +162,8 @@ export function RoutesTab() {
     : gatewayRoutes
   return (
   <div className="space-y-3">
+  {sectionErrors.comparison && <SectionError message={sectionErrors.comparison} onRetry={() => void loadTabData('routes', true)} />}
+  {sectionErrors.pricing && <SectionError message={sectionErrors.pricing} onRetry={() => void loadTabData('routes', true)} />}
   <RouteTestPanel />
 
   <section className="space-y-4">

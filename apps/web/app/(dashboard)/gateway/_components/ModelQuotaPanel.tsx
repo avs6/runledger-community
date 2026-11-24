@@ -125,7 +125,10 @@ export function ModelQuotaPanel({ apiKey, canManage }: { apiKey: string; canMana
     <section id="gateway-model-quotas" className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold dark:text-white">Per-Model Quotas</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold dark:text-white">Per-Model Quotas
+            {/* ui-fixes #2: model budgets are not checked at request time yet (G-01, moving into Budgets). */}
+            <span title="Stored but not checked at request time. Model limits are moving into Budgets (scope: model)." className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Not enforced yet</span>
+          </h2>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
             Manage per-model RPM, TPM, and spend limits for a selected API key directly from Gateway.
           </p>

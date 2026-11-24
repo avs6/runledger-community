@@ -4,10 +4,13 @@ import Link from 'next/link'
 import { RefreshCw, Plus, Trash2, Pencil, ChevronUp } from 'lucide-react'
 import { num } from '@/lib/utils'
 import { inputCls } from './shared'
+import { SectionError } from '@/components/ui/async-card'
 import { useGateway } from './useGatewayState'
 
 export function CacheTab() {
   const {
+    sectionErrors,
+    loadTabData,
     cacheConfigs,
     cacheStats,
     showCacheForm,
@@ -47,6 +50,8 @@ export function CacheTab() {
   } = useGateway()
   return (
   <div className="space-y-3">
+  {sectionErrors.cacheConfigs && <SectionError message={sectionErrors.cacheConfigs} onRetry={() => void loadTabData('cache', true)} />}
+  {sectionErrors.cacheStats && <SectionError message={sectionErrors.cacheStats} onRetry={() => void loadTabData('cache', true)} />}
 
 
   <section className="space-y-4">
