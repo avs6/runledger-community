@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback, createContext, useContext } from 'react'
+import { useEffect, useRef, useState, useCallback, createContext, useContext } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { useRole } from '@/components/rbac/useRole'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { getGatewayRoleMatrix, previewGatewayRouteChange, type GatewayRoleMatrix, type GatewayRouteChangePreview, type GatewayRouteUpdateBody } from '@/lib/api/gateway'
 import { listGatewayRoutes, createGatewayRoute, updateGatewayRoute, deleteGatewayRoute, listGatewayRoutingGroups, createGatewayRoutingGroup, updateGatewayRoutingGroup, deleteGatewayRoutingGroup, getGatewayRoutingStrategyComparison, getGatewayStats, listRoutingPolicies, createRoutingPolicy, updateRoutingPolicy, getRoutingPolicyAnalysis, promoteRoutingPolicyWinner, advanceCanaryRollout, rollbackRoutingPolicy, deleteRoutingPolicy, listGatewayRequests, listProviderPricing, getRoutingRecommendation, getGatewayRateLimitOverview, getResponseCacheConfigs, getResponseCacheStats, createResponseCacheConfig, getResponseCacheConfig, updateResponseCacheConfig, deleteResponseCacheConfig, apiErrorMessage } from '@/lib/api'
 import type { GatewayRoute, GatewayRoutingGroup, GatewayRoutingGroupStrategy, GatewayRoutingStrategyComparisonItem, GatewayStats, GatewayRequestLog, RoutingPolicy, RoutingPolicyAnalysis, RoutingPolicyType, ProviderPricingResponse, RoutingRecommendationResponse, GatewayRateLimitOverview, ResponseCacheConfigResponse, ResponseCacheStatsResponse } from '@/types/api'
 import { parseCsvTags, RouteEditState, RoutingGroupEditState, RoutingPolicyEditState, CacheConfigEditState } from './shared'
@@ -18,7 +20,21 @@ export function useGatewayState() {
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string })?.apiKey
   const { isOrgAdmin, isPlatformAdmin } = useRole()
-  const canManage = isOrgAdmin || isPlatformAdmin
+  const { confirm, dialog: confirmDialog } = useConfirm()
+  // One role matrix (G-17): the API says what this caller may read and change. Until it
+  // answers, fall back to the session role so the page doesn't flash.
+  const [roleMatrix, setRoleMatrix] = useState<GatewayRoleMatrix | null>(null)
+  const caps = roleMatrix?.capabilities
+  const can = useCallback(
+    (resource: string, action: string) => (caps ? !!caps[resource]?.[action] : isOrgAdmin || isPlatformAdmin),
+    [caps, isOrgAdmin, isPlatformAdmin],
+  )
+  const canView = can('routes', 'read')
+  const canManage = can('routes', 'write')
+  const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
+  const loadedSections = useRef<Set<string>>(new Set())
+  const [routeDiff, setRouteDiff] = useState<GatewayRouteChangePreview | null>(null)
+  const pendingRouteBody = useRef<GatewayRouteUpdateBody | null>(null)
 
   const [gatewayRoutes, setGatewayRoutes] = useState<GatewayRoute[]>([])
   const [gatewayStats, setGatewayStats] = useState<GatewayStats | null>(null)
@@ -148,50 +164,85 @@ export function useGatewayState() {
   const activeTab = (TABS.includes(searchParams.get('tab') as Tab) ? searchParams.get('tab') as Tab : 'overview') as Tab
   const setTab = useCallback((t: Tab) => { router.replace(`/gateway?tab=${t}`, { scroll: false }) }, [router])
 
+  useEffect(() => {
+    if (!apiKey) return
+    getGatewayRoleMatrix(apiKey).then(setRoleMatrix).catch(() => setRoleMatrix(null))
+  }, [apiKey])
+
+  /** Run one section's fetch; a failure shows on that section with a retry (G-18). */
+  const runSection = useCallback(async (name: string, label: string, fn: () => Promise<void>) => {
+    try {
+      await fn()
+      setSectionErrors((prev) => {
+        if (!(name in prev)) return prev
+        const next = { ...prev }
+        delete next[name]
+        return next
+      })
+    } catch (err) {
+      setSectionErrors((prev) => ({ ...prev, [name]: apiErrorMessage(err, `Couldn't load ${label}`) }))
+    }
+  }, [])
+
+  // Lazy tabs (G-18): only the data the open tab needs is fetched, once, until a refresh.
+  const loadTabData = useCallback(async (tab: Tab, force = false) => {
+    if (!apiKey || !canView) return
+    if (!force && loadedSections.current.has(tab)) return
+    loadedSections.current.add(tab)
+    if (tab === 'routes') {
+      await Promise.all([
+        runSection('comparison', 'the strategy comparison', async () => {
+          setStrategyComparison((await getGatewayRoutingStrategyComparison(apiKey)).items)
+        }),
+        runSection('pricing', 'provider pricing', async () => {
+          setPricing((await listProviderPricing(apiKey)).items)
+        }),
+      ])
+    } else if (tab === 'cache') {
+      await Promise.all([
+        runSection('cacheConfigs', 'cache profiles', async () => {
+          setCacheConfigs((await getResponseCacheConfigs(apiKey)).items)
+        }),
+        runSection('cacheStats', 'cache stats', async () => {
+          setCacheStats(await getResponseCacheStats(apiKey))
+        }),
+      ])
+    } else if (tab === 'rate-limits') {
+      await runSection('rateLimits', 'rate limits', async () => {
+        setRateLimitOverview(await getGatewayRateLimitOverview(apiKey))
+      })
+    }
+  }, [apiKey, canView, runSection])
+
   const load = useCallback(async () => {
-    if (!apiKey || !canManage) {
+    if (!apiKey || !canView) {
       setLoading(false)
       return
     }
     setLoading(true)
-    try {
-      const [routesData, groupsData, comparisonData, statsData, policiesData, pricingData, rateLimitOverviewData, cacheConfigsData, cacheStatsData] = await Promise.all([
-        listGatewayRoutes(apiKey, true).catch(() => ({ items: [] })),
-        listGatewayRoutingGroups(apiKey, { include_inactive: true }).catch(() => ({ items: [] })),
-        getGatewayRoutingStrategyComparison(apiKey).catch(() => ({ items: [] })),
-        getGatewayStats(apiKey).catch(() => ({ total_requests: 0, cache_hits: 0, cache_hit_rate: '0', avg_latency_ms: null, routes: [] })),
-        listRoutingPolicies(apiKey).catch(() => ({ items: [] })),
-        listProviderPricing(apiKey).catch(() => ({ items: [] })),
-        getGatewayRateLimitOverview(apiKey).catch(() => null),
-        getResponseCacheConfigs(apiKey).catch(() => ({ items: [], total: 0 })),
-        getResponseCacheStats(apiKey).catch(() => ({
-          config_count: 0,
-          enabled_config_count: 0,
-          total_hits: 0,
-          total_misses: 0,
-          hit_rate: null,
-          total_savings_usd: 0,
-          live_entry_count: 0,
-          top_models: [],
-        })),
-      ])
-      setGatewayRoutes(routesData.items)
-      setRoutingGroups(groupsData.items)
-      setStrategyComparison(comparisonData.items)
-      setGatewayStats(statsData as any)
-      setRoutingPolicies(policiesData.items)
-      setPricing(pricingData.items)
-      setRateLimitOverview(rateLimitOverviewData)
-      setCacheConfigs(cacheConfigsData.items)
-      setCacheStats(cacheStatsData as ResponseCacheStatsResponse)
-    } catch {
-      toast.error('Failed to load gateway data')
-    } finally {
-      setLoading(false)
-    }
-  }, [apiKey, canManage])
+    // Core data for the KPI strip and most tabs; each part fails on its own.
+    await Promise.all([
+      runSection('routes', 'routes', async () => {
+        setGatewayRoutes((await listGatewayRoutes(apiKey, true)).items)
+      }),
+      runSection('groups', 'routing groups', async () => {
+        setRoutingGroups((await listGatewayRoutingGroups(apiKey, { include_inactive: true })).items)
+      }),
+      runSection('stats', 'gateway stats', async () => {
+        setGatewayStats(await getGatewayStats(apiKey))
+      }),
+      runSection('policies', 'routing policies', async () => {
+        setRoutingPolicies((await listRoutingPolicies(apiKey)).items)
+      }),
+    ])
+    setLoading(false)
+    const opened = Array.from(loadedSections.current)
+    loadedSections.current.clear()
+    await Promise.all(opened.map((tab) => loadTabData(tab as Tab, true)))
+  }, [apiKey, canView, runSection, loadTabData])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { void loadTabData(activeTab) }, [activeTab, loadTabData])
 
 
 
@@ -408,7 +459,7 @@ export function useGatewayState() {
   }
 
   async function handleDeleteCacheConfig(configId: string) {
-    if (!apiKey || !confirm('Delete this response cache profile?')) return
+    if (!apiKey || !(await confirm({ title: 'Delete this response cache profile?', destructive: true, confirmLabel: 'Delete' }))) return
     try {
       await deleteResponseCacheConfig(apiKey, configId)
       setCacheConfigs((prev) => prev.filter((item) => item.id !== configId))
@@ -426,8 +477,51 @@ export function useGatewayState() {
     }
   }
 
+  /** The fields the user actually changed, in merge mode so unseen config keys survive (G-16). */
+  function buildRouteEditBody(original: GatewayRoute, edit: RouteEditState, routeConfig: Record<string, unknown> | null, routingConfig: Record<string, unknown> | null): GatewayRouteUpdateBody {
+    const body: GatewayRouteUpdateBody = { merge_configs: true }
+    const num = (v: string) => (v.trim() ? parseFloat(v) : null)
+    const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+    if (edit.alias.trim() !== original.alias) body.alias = edit.alias.trim()
+    if ((edit.routingGroupId || null) !== (original.routing_group_id ?? null)) body.routing_group_id = edit.routingGroupId || null
+    if (edit.targetModel.trim() !== original.target_model) body.target_model = edit.targetModel.trim()
+    if ((edit.baseUrl.trim() || null) !== (original.base_url ?? null)) body.base_url = edit.baseUrl.trim() || null
+    if ((edit.apiKeyEnvVar.trim() || null) !== (original.api_key_env_var ?? null)) body.api_key_env_var = edit.apiKeyEnvVar.trim() || null
+    const priority = parseInt(edit.priority, 10) || 10
+    if (priority !== original.priority) body.priority = priority
+    const daily = num(String(edit.dailyCostLimitUsd))
+    if (daily !== (original.daily_cost_limit_usd != null ? parseFloat(String(original.daily_cost_limit_usd)) : null)) body.daily_cost_limit_usd = daily
+    const monthly = num(String(edit.monthlyCostLimitUsd))
+    if (monthly !== (original.monthly_cost_limit_usd != null ? parseFloat(String(original.monthly_cost_limit_usd)) : null)) body.monthly_cost_limit_usd = monthly
+    const rpm = edit.perUserRpmLimit.trim() ? parseInt(edit.perUserRpmLimit, 10) : null
+    if (rpm !== (original.per_user_rpm_limit ?? null)) body.per_user_rpm_limit = rpm
+    if (edit.piiRedactionEnabled !== original.pii_redaction_enabled) body.pii_redaction_enabled = edit.piiRedactionEnabled
+    if (edit.semanticCacheEnabled !== original.semantic_cache_enabled) body.semantic_cache_enabled = edit.semanticCacheEnabled
+    if (edit.contextCompilerEnabled !== original.context_compiler_enabled) body.context_compiler_enabled = edit.contextCompilerEnabled
+    if (edit.intelligentRoutingEnabled !== original.intelligent_routing_enabled) body.intelligent_routing_enabled = edit.intelligentRoutingEnabled
+    // Configs: only sent when edited. Turning intelligent routing off keeps its config.
+    if (!same(routeConfig ?? {}, original.config ?? {})) body.config = routeConfig
+    if (edit.intelligentRoutingEnabled && !same(routingConfig ?? {}, original.routing_config ?? {})) body.routing_config = routingConfig
+    const fallback = buildFallbackConfig(edit.fallbackAliases, edit.contextWindowFallback, edit.contentPolicyFallback, edit.existingFallbackConfig)
+    if (!same(fallback, original.fallback_config)) {
+      // Merge mode: replace the two keys the form owns, keep every other key.
+      body.fallback_config = { aliases: fallback?.aliases ?? null, fallbacks: fallback?.fallbacks ?? null }
+    }
+    const mirror = buildMirrorConfig(edit.mirrorAlias, edit.mirrorSamplePct)
+    if (!same(mirror, original.mirror_config)) body.mirror_config = mirror
+    const required = parseCsvTags(edit.requiredTags)
+    if (!same(required, original.required_tags)) body.required_tags = required
+    const excluded = parseCsvTags(edit.excludedTags)
+    if (!same(excluded, original.excluded_tags)) body.excluded_tags = excluded
+    if ((edit.region.trim() || null) !== (original.region ?? null)) body.region = edit.region.trim() || null
+    return body
+  }
+
+  /** Step 1 of saving a route: validate and show the server-computed diff (ENH). */
   async function handleSaveRouteEdit() {
     if (!apiKey || !routeEditState) return
+    const original = gatewayRoutes.find((r) => r.id === routeEditState.id)
+    if (!original) return
     let routeConfig: Record<string, unknown> | null = null
     let routingConfig: Record<string, unknown> | null = null
     try {
@@ -437,38 +531,35 @@ export function useGatewayState() {
       setRouteEditError('Route config and routing config must be valid JSON')
       return
     }
+    const body = buildRouteEditBody(original, routeEditState, routeConfig, routingConfig)
     setSavingRouteEdit(true)
     setRouteEditError('')
     try {
-      const updated = await updateGatewayRoute(apiKey, routeEditState.id, {
-        alias: routeEditState.alias.trim(),
-        routing_group_id: routeEditState.routingGroupId || null,
-        target_model: routeEditState.targetModel.trim(),
-        base_url: routeEditState.baseUrl.trim() || null,
-        api_key_env_var: routeEditState.apiKeyEnvVar.trim() || null,
-        priority: parseInt(routeEditState.priority, 10) || 10,
-        config: routeConfig,
-        daily_cost_limit_usd: routeEditState.dailyCostLimitUsd ? parseFloat(routeEditState.dailyCostLimitUsd) : null,
-        monthly_cost_limit_usd: routeEditState.monthlyCostLimitUsd ? parseFloat(routeEditState.monthlyCostLimitUsd) : null,
-        pii_redaction_enabled: routeEditState.piiRedactionEnabled,
-        semantic_cache_enabled: routeEditState.semanticCacheEnabled,
-        context_compiler_enabled: routeEditState.contextCompilerEnabled,
-        intelligent_routing_enabled: routeEditState.intelligentRoutingEnabled,
-        routing_config: routeEditState.intelligentRoutingEnabled ? routingConfig : null,
-        mirror_config: buildMirrorConfig(routeEditState.mirrorAlias, routeEditState.mirrorSamplePct),
-        per_user_rpm_limit: routeEditState.perUserRpmLimit ? parseInt(routeEditState.perUserRpmLimit, 10) : null,
-        fallback_config: buildFallbackConfig(
-          routeEditState.fallbackAliases,
-          routeEditState.contextWindowFallback,
-          routeEditState.contentPolicyFallback,
-          routeEditState.existingFallbackConfig,
-        ),
-        required_tags: parseCsvTags(routeEditState.requiredTags),
-        excluded_tags: parseCsvTags(routeEditState.excludedTags),
-        region: routeEditState.region.trim() || null,
-      })
+      const preview = await previewGatewayRouteChange(apiKey, routeEditState.id, body)
+      if (preview.changes.length === 0) {
+        toast.info('Nothing changed')
+        setRouteEditState(null)
+        return
+      }
+      pendingRouteBody.current = body
+      setRouteDiff(preview)
+    } catch (err) {
+      setRouteEditError(apiErrorMessage(err, 'This change was rejected'))
+    } finally {
+      setSavingRouteEdit(false)
+    }
+  }
+
+  /** Step 2: the user reviewed the diff and confirmed. */
+  async function confirmRouteDiff() {
+    if (!apiKey || !routeDiff || !pendingRouteBody.current) return
+    setSavingRouteEdit(true)
+    try {
+      const updated = await updateGatewayRoute(apiKey, routeDiff.route_id, pendingRouteBody.current)
       setGatewayRoutes((prev) => prev.map((route) => (route.id === updated.id ? updated : route)))
       setRouteEditState(null)
+      setRouteDiff(null)
+      pendingRouteBody.current = null
       toast.success('Gateway route updated')
       await load()
     } catch (err) {
@@ -476,6 +567,11 @@ export function useGatewayState() {
     } finally {
       setSavingRouteEdit(false)
     }
+  }
+
+  function cancelRouteDiff() {
+    setRouteDiff(null)
+    pendingRouteBody.current = null
   }
 
   function beginGroupEdit(group: GatewayRoutingGroup) {
@@ -741,7 +837,7 @@ export function useGatewayState() {
   }
 
   async function handleDeleteRoute(routeId: string) {
-    if (!apiKey || !confirm('Delete this gateway route?')) return
+    if (!apiKey || !(await confirm({ title: 'Delete this gateway route?', description: 'Clients calling its alias stop reaching it on the next request.', destructive: true, confirmLabel: 'Delete' }))) return
     try {
       await deleteGatewayRoute(apiKey, routeId)
       setGatewayRoutes((prev) => prev.filter((r) => r.id !== routeId))
@@ -804,7 +900,7 @@ export function useGatewayState() {
   }
 
   async function handleDeleteRoutingGroup(groupId: string) {
-    if (!apiKey || !confirm('Delete this routing group? Routes will be detached.')) return
+    if (!apiKey || !(await confirm({ title: 'Delete this routing group?', description: 'Its routes are detached and keep serving their alias.', destructive: true, confirmLabel: 'Delete' }))) return
     try {
       await deleteGatewayRoutingGroup(apiKey, groupId)
       await load()
@@ -852,7 +948,7 @@ export function useGatewayState() {
   }
 
   async function handleDeletePolicy(id: string) {
-    if (!apiKey || !confirm('Delete this routing policy?')) return
+    if (!apiKey || !(await confirm({ title: 'Delete this routing policy?', description: 'The alias falls back to plain priority ordering.', destructive: true, confirmLabel: 'Delete' }))) return
     try {
       await deleteRoutingPolicy(apiKey, id)
       setRoutingPolicies((prev) => prev.filter((p) => p.id !== id))
@@ -947,6 +1043,16 @@ export function useGatewayState() {
   }
 
   return {
+    can,
+    canView,
+    roleMatrix,
+    sectionErrors,
+    loadTabData,
+    confirm,
+    confirmDialog,
+    routeDiff,
+    confirmRouteDiff,
+    cancelRouteDiff,
     session,
     apiKey,
     isOrgAdmin,
