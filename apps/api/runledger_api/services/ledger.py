@@ -160,6 +160,19 @@ async def build_daily_snapshot(
 # (cost NULL → value) or a call that arrived late is reported as late data, not as
 # tampering; changing a sealed call's user, key, model, tokens or cost is tampering.
 
+# LedgerSnapshot.total_cost_usd is Numeric(14, 8).
+_COST_QUANTUM = Decimal("0.00000001")
+
+
+def _canonical_cost(value: Any) -> str:
+    """Signed form of a snapshot total: fixed point at the column's 8 places.
+
+    ``str(Decimal)`` is not stable across a database round trip (``0`` comes back as
+    ``0E-8``, tiny amounts in exponent form), which made honest days verify as tampered.
+    """
+    return format(Decimal(value or 0).quantize(_COST_QUANTUM), "f")
+
+
 _CANONICAL_FIELDS = (
     "id",
     "run_id",
@@ -211,7 +224,7 @@ def _snapshot_data(snap: LedgerSnapshot) -> dict[str, Any]:
     return {
         "workspace_id": str(snap.workspace_id),
         "snapshot_date": str(snap.snapshot_date),
-        "total_cost_usd": str(snap.total_cost_usd),
+        "total_cost_usd": _canonical_cost(snap.total_cost_usd),
         "call_count": snap.call_count,
         "model_breakdown": snap.model_breakdown or {},
     }
@@ -245,6 +258,8 @@ async def seal_snapshot(
         return existing, False
 
     data = await build_daily_snapshot(db, workspace_id, snapshot_date)
+    # Sign the total in the same canonical form verify recomputes it in.
+    data["total_cost_usd"] = _canonical_cost(data["total_cost_usd"])
     rows = await _day_calls(db, workspace_id, snapshot_date)
     entries = [(str(r.id), canonical_row_hash(r)) for r in rows]
     root = entries_digest(entries)

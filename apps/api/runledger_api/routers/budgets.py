@@ -1328,7 +1328,6 @@ async def list_runaway_holds(
 async def create_runaway_hold(
     body: RunawayHoldCreate,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
-    api_key: Annotated[ApiKey, Depends(get_current_api_key)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> RunawayHoldResponse:
@@ -1340,7 +1339,7 @@ async def create_runaway_hold(
         subject_id=body.subject_id.strip(),
         reason=body.reason or "manual",
         details={"source": "manual"},
-        created_by=api_key.created_by,
+        created_by=auth[1].id,  # the admin user (ApiKey.created_by is free text)
         expires_at=datetime.now(UTC) + timedelta(minutes=body.minutes),
     )
     db.add(hold)
@@ -1363,7 +1362,6 @@ async def create_runaway_hold(
 async def release_runaway_hold(
     hold_id: uuid.UUID,
     auth: Annotated[tuple[Any, ...], Depends(require_workspace_admin)],
-    api_key: Annotated[ApiKey, Depends(get_current_api_key)],
     db: Annotated[AsyncSession, Depends(get_db)],
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> RunawayHoldResponse:
@@ -1381,7 +1379,7 @@ async def release_runaway_hold(
     if hold.released_at is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Hold already released")
     hold.released_at = datetime.now(UTC)
-    hold.released_by = api_key.created_by
+    hold.released_by = auth[1].id
     await emit_audit_event(
         db,
         workspace.id,

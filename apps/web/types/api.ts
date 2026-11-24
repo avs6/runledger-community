@@ -78,6 +78,8 @@ export interface RunDetailResponse {
   started_at: string
   ended_at: string | null
   duration_ms: number | null
+  /** Run metadata as ingested, including auto_tags from auto-tag rules. */
+  metadata?: Record<string, unknown> | null
   spans: SpanDetail[]
   provider_calls: ProviderCallDetail[]
   tool_calls: ToolCallDetail[]

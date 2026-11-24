@@ -48,7 +48,7 @@ PAGED = [
     "/datasets",
     "/experiments",
     "/runbooks",
-    "/playground/models",
+    # /playground/models is not paged: it returns the workspace's route aliases (W1-G, B-10).
     "/evaluations/evaluators",
     "/mcp-registry",
     "/mcp-registry/tools",

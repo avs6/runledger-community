@@ -97,6 +97,8 @@ class RunDetailResponse(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     duration_ms: int | None
+    # Run metadata as ingested, including ``auto_tags`` from auto-tag rules (review S-19).
+    metadata: dict[str, Any] | None = None
     spans: list[SpanDetail]
     provider_calls: list[ProviderCallDetail]
     tool_calls: list[ToolCallDetail]

@@ -1274,6 +1274,7 @@ async def get_run(
         started_at=run.started_at,
         ended_at=run.ended_at,
         duration_ms=_duration_ms(run.started_at, run.ended_at),
+        metadata=strip_payloads(run.run_metadata),
         input_payload=input_payload,
         output_payload=output_payload,
         span_payloads=span_payloads if span_payloads else None,

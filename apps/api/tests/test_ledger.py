@@ -150,6 +150,27 @@ def test_canonical_hash_separates_late_enrichment_from_tampering() -> None:
     assert entries_digest([a, b]) == entries_digest([b, a])
 
 
+def test_signed_total_survives_a_database_round_trip() -> None:
+    """A zero or tiny total must sign the same as Postgres returns it (Numeric(14, 8))."""
+    from runledger_api.services import ledger as ledger_svc
+
+    for sealed, returned in (
+        (Decimal(0), Decimal("0E-8")),
+        (Decimal("0.0000001"), Decimal("1.0E-7")),
+        (Decimal("12.3456"), Decimal("12.34560000")),
+    ):
+        snap = SimpleNamespace(
+            workspace_id=uuid.uuid4(),
+            snapshot_date=date(2026, 2, 27),
+            total_cost_usd=returned,
+            call_count=0,
+            model_breakdown={},
+        )
+        assert ledger_svc._snapshot_data(snap)["total_cost_usd"] == ledger_svc._canonical_cost(
+            sealed
+        )
+
+
 @pytest.mark.asyncio
 async def test_verify_sealed_snapshot_reports_late_data_not_tampering() -> None:
     from runledger_api.services import ledger as ledger_svc
