@@ -3034,6 +3034,8 @@ export interface GuardrailTemplate {
 }
 
 export interface PartnerGuardrailResponse {
+  /** Names of stored credential fields; values are never returned. */
+  credential_keys?: string[]
   id: string
   workspace_id: string
   provider: string

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -99,6 +100,7 @@ type PartnerFormState = {
   status: string
   config_text: string
   credentials_text: string
+  credential_keys?: string[]
 }
 
 function emptyPartnerForm(): PartnerFormState {
@@ -107,6 +109,7 @@ function emptyPartnerForm(): PartnerFormState {
 
 export default function GuardrailsPage() {
   const { data: session } = useSession()
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const apiKey = (session as any)?.apiKey
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -228,7 +231,7 @@ export default function GuardrailsPage() {
   function openRuleEdit(rule: GuardrailRuleResponse) { setEditingRule(rule); setRuleName(rule.name); setRuleDescription(rule.description || ''); setRuleMode(rule.mode || 'pre_call'); setRuleType(rule.rule_type || 'custom'); setRuleSeverity(rule.severity || 'medium'); setRuleLogic(rule.logic || ''); setRuleConfigText(JSON.stringify(rule.config || {}, null, 2)); setRuleSkipSystemMessages(rule.skip_system_messages || false); setShowRuleModal(true) }
   function applyTemplate(template: GuardrailTemplate) { resetRuleForm(); setRuleName(template.name); setRuleDescription(template.description || ''); setRuleMode(template.mode || 'pre_call'); setRuleType('template'); setRuleSeverity('medium'); setRuleLogic(template.default_logic || ''); setRuleConfigText(JSON.stringify(template.default_config || {}, null, 2)); setShowRuleModal(true) }
 
-  function openPartnerEdit(partner: PartnerGuardrailResponse) { setPartnerForm({ id: partner.id, provider: partner.provider, name: partner.name, mode: partner.mode, endpoint_url: partner.endpoint_url || '', timeout_ms: partner.timeout_ms, fallback_action: partner.fallback_action, priority: partner.priority, status: partner.status, config_text: JSON.stringify(partner.config || {}, null, 2), credentials_text: '{}' }); setShowPartnerModal(true) }
+  function openPartnerEdit(partner: PartnerGuardrailResponse) { setPartnerForm({ id: partner.id, provider: partner.provider, name: partner.name, mode: partner.mode, endpoint_url: partner.endpoint_url || '', timeout_ms: partner.timeout_ms, fallback_action: partner.fallback_action, priority: partner.priority, status: partner.status, config_text: JSON.stringify(partner.config || {}, null, 2), credentials_text: '{}', credential_keys: partner.credential_keys ?? [] }); setShowPartnerModal(true) }
 
   async function handleSaveRule(e: React.FormEvent) {
     e.preventDefault()
@@ -247,7 +250,7 @@ export default function GuardrailsPage() {
     } catch (err) { toast.error(apiErrorMessage(err, 'Failed to save guardrail rule')) } finally { setSavingRule(false) }
   }
 
-  async function handleDeleteRule(rule: GuardrailRuleResponse) { if (!apiKey || !confirm(`Delete "${rule.name}"?`)) return; try { await deleteGuardrailRule(apiKey, rule.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed to delete') } }
+  async function handleDeleteRule(rule: GuardrailRuleResponse) { if (!apiKey || !(await confirm({ title: `Delete "${rule.name}"?`, destructive: true, confirmLabel: 'Delete' }))) return; try { await deleteGuardrailRule(apiKey, rule.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed to delete') } }
   async function handleToggleRuleStatus(rule: GuardrailRuleResponse) { if (!apiKey) return; try { await updateGuardrailRule(apiKey, rule.id, { status: rule.status === 'active' ? 'disabled' : 'active' }); toast.success(rule.status === 'active' ? 'Paused' : 'Activated'); await loadData() } catch { toast.error('Failed to update') } }
 
   async function handleBulkRuleStatus(nextStatus: 'active' | 'disabled') {
@@ -274,7 +277,7 @@ export default function GuardrailsPage() {
     try { await createGuardrailTestCase(apiKey, { guardrail_rule_id: testCaseRuleId, name: testCaseName.trim(), input_text: testCaseInput.trim(), expected_decision: testCaseExpectedDecision }); toast.success('Test case created'); setTestCaseName(''); setTestCaseInput(''); await loadData() } catch { toast.error('Failed') } finally { setSavingTestCase(false) }
   }
 
-  async function handleDeleteTestCase(tc: GuardrailTestCaseResponse) { if (!apiKey || !confirm(`Delete "${tc.name}"?`)) return; try { await deleteGuardrailTestCase(apiKey, tc.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed') } }
+  async function handleDeleteTestCase(tc: GuardrailTestCaseResponse) { if (!apiKey || !(await confirm({ title: `Delete "${tc.name}"?`, destructive: true, confirmLabel: 'Delete' }))) return; try { await deleteGuardrailTestCase(apiKey, tc.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed') } }
 
   async function handleRunRegression(ruleId?: string) {
     const tid = ruleId || selectedRegressionRuleId; if (!apiKey || !tid) return
@@ -289,13 +292,15 @@ export default function GuardrailsPage() {
     try {
       const config = partnerForm.config_text.trim() ? JSON.parse(partnerForm.config_text) : {}
       const credentials = partnerForm.credentials_text.trim() ? JSON.parse(partnerForm.credentials_text) : {}
-      const payload = { provider: partnerForm.provider, name: partnerForm.name.trim(), mode: partnerForm.mode, endpoint_url: partnerForm.endpoint_url.trim() || undefined, timeout_ms: partnerForm.timeout_ms, fallback_action: partnerForm.fallback_action, priority: partnerForm.priority, status: partnerForm.status, config, credentials }
+      // On edit, credentials merge server-side: fields left out keep their stored secret (G-06).
+      const typedCredentials = Object.keys(credentials).length > 0 ? { credentials } : {}
+      const payload = { provider: partnerForm.provider, name: partnerForm.name.trim(), mode: partnerForm.mode, endpoint_url: partnerForm.endpoint_url.trim() || undefined, timeout_ms: partnerForm.timeout_ms, fallback_action: partnerForm.fallback_action, priority: partnerForm.priority, status: partnerForm.status, config, ...(partnerForm.id ? typedCredentials : { credentials }) }
       if (partnerForm.id) { await updatePartnerGuardrail(apiKey, partnerForm.id, payload); toast.success('Updated') } else { await createPartnerGuardrail(apiKey, payload); toast.success('Created') }
       setShowPartnerModal(false); setPartnerForm(emptyPartnerForm()); await loadData()
-    } catch { toast.error('Failed') } finally { setSavingPartner(false) }
+    } catch (err) { toast.error(err instanceof SyntaxError ? 'Config and credentials must be valid JSON' : err instanceof Error ? err.message : 'Failed') } finally { setSavingPartner(false) }
   }
 
-  async function handleDeletePartner(p: PartnerGuardrailResponse) { if (!apiKey || !confirm(`Delete "${p.name}"?`)) return; try { await deletePartnerGuardrail(apiKey, p.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed') } }
+  async function handleDeletePartner(p: PartnerGuardrailResponse) { if (!apiKey || !(await confirm({ title: `Delete "${p.name}"?`, description: 'Its stored credentials are deleted too.', destructive: true, confirmLabel: 'Delete' }))) return; try { await deletePartnerGuardrail(apiKey, p.id); toast.success('Deleted'); await loadData() } catch { toast.error('Failed') } }
   async function handleHealthCheckPartner(p: PartnerGuardrailResponse) { if (!apiKey) return; try { await healthCheckPartner(apiKey, p.id); toast.success(`Health checked ${p.name}`); await loadData() } catch { toast.error('Failed') } }
   async function handleTogglePartnerStatus(p: PartnerGuardrailResponse) { if (!apiKey) return; try { await updatePartnerGuardrail(apiKey, p.id, { status: p.status === 'active' ? 'disabled' : 'active' }); toast.success(p.status === 'active' ? 'Paused' : 'Activated'); await loadData() } catch { toast.error('Failed') } }
 
@@ -307,6 +312,7 @@ export default function GuardrailsPage() {
 
   return (
     <div className="space-y-3">
+      {confirmDialog}
       {failedSections.length > 0 && (
         <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
           <span>Couldn&apos;t load: {failedSections.join(', ')}. What&apos;s shown for those sections may be incomplete.</span>
@@ -683,7 +689,10 @@ export default function GuardrailsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xs font-bold text-slate-900 dark:text-white">Partner Guardrails</h2>
-              <p className="text-[10px] text-slate-500">{partners.length} external vendor(s) running alongside custom rules.</p>
+              <p className="text-[10px] text-slate-500">{partners.length} external vendor(s) configured.</p>
+              <p role="note" className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                Not enforced yet: the gateway does not call partner endpoints, and Health only records when it was checked. Use custom rules for enforcement.
+              </p>
             </div>
           </div>
           {partners.length === 0 ? (
@@ -705,7 +714,7 @@ export default function GuardrailsPage() {
                         ))}
                       </div>
                     </div>
-                    <button onClick={() => handleTogglePartnerStatus(p)} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${p.status === 'active' ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                    <button aria-label={p.status === 'active' ? `Pause ${p.name}` : `Activate ${p.name}`} onClick={() => handleTogglePartnerStatus(p)} className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${p.status === 'active' ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'}`}>
                       <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${p.status === 'active' ? 'translate-x-4' : 'translate-x-0'}`} />
                     </button>
                   </div>
@@ -850,7 +859,7 @@ export default function GuardrailsPage() {
           <div className="w-full max-w-xl rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">{partnerForm.id ? 'Edit Partner' : 'Add Partner'}</h2>
-              <button onClick={() => setShowPartnerModal(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setShowPartnerModal(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
             </div>
             <form onSubmit={handleSavePartner} className="p-4 space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
@@ -877,8 +886,15 @@ export default function GuardrailsPage() {
                 </select>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <textarea value={partnerForm.config_text} onChange={(e) => setPartnerForm((c) => ({ ...c, config_text: e.target.value }))} className={`${inputCls} min-h-24 font-mono`} placeholder="Config JSON" />
-                <textarea value={partnerForm.credentials_text} onChange={(e) => setPartnerForm((c) => ({ ...c, credentials_text: e.target.value }))} className={`${inputCls} min-h-24 font-mono`} placeholder="Credentials JSON" />
+                <textarea aria-label="Config JSON" value={partnerForm.config_text} onChange={(e) => setPartnerForm((c) => ({ ...c, config_text: e.target.value }))} className={`${inputCls} min-h-24 font-mono`} placeholder="Config JSON" />
+                <div className="space-y-1">
+                  <textarea aria-label="Credentials JSON" value={partnerForm.credentials_text} onChange={(e) => setPartnerForm((c) => ({ ...c, credentials_text: e.target.value }))} className={`${inputCls} min-h-24 w-full font-mono`} placeholder="Credentials JSON" />
+                  {partnerForm.id && (
+                    <p className="text-[10px] text-slate-500">
+                      Stored: {partnerForm.credential_keys?.length ? partnerForm.credential_keys.join(', ') : 'none'}. Only the fields you type are replaced; the rest are kept.
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="flex justify-end gap-1.5 border-t border-slate-100 dark:border-slate-800 pt-3">
                 <button type="button" onClick={() => setShowPartnerModal(false)} className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
