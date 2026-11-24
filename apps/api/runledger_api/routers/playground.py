@@ -14,17 +14,23 @@ DELETE /playground/sessions/{id}               Delete session
 POST   /playground/send                        Send a request
 GET    /playground/history                     Recent requests
 GET    /playground/history/{id}                Get request detail
+GET    /playground/models                      Route aliases to pick from
 POST   /playground/compare                     Compare models side-by-side
+
+Send and compare run through gateway-rs with the caller API key, so Playground
+traffic gets the same governance, routing, metering and run records as production
+(review B-10).
 """
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +42,8 @@ from runledger_api.models.tenant import Workspace
 from runledger_api.schemas.playground import (
     PlaygroundCompareRequest,
     PlaygroundCompareResponse,
+    PlaygroundModel,
+    PlaygroundModelList,
     PlaygroundRequestListResponse,
     PlaygroundRequestResponse,
     PlaygroundSendRequest,
@@ -44,6 +52,7 @@ from runledger_api.schemas.playground import (
     PlaygroundSessionResponse,
     PlaygroundSessionUpdate,
 )
+from runledger_api.services import gateway_client
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/playground", tags=["playground"])
@@ -86,6 +95,7 @@ def _request_to_response(r: PlaygroundRequest) -> PlaygroundRequestResponse:
         route_decision=r.route_decision,
         error=r.error,
         gateway_request_id=r.gateway_request_id,
+        run_id=r.run_id,
         created_at=r.created_at,
     )
 
@@ -243,6 +253,83 @@ async def delete_session(session_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> 
 
 # ── Send Request ───────────────────────────────────────────────────────────
 
+# Sampling parameters the Playground forwards to the gateway; anything else is dropped.
+_ALLOWED_PARAMS = (
+    "temperature",
+    "max_tokens",
+    "top_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "seed",
+    "stop",
+)
+
+
+def _gateway_params(parameters: dict[str, Any]) -> dict[str, Any]:
+    return {k: parameters[k] for k in _ALLOWED_PARAMS if parameters.get(k) is not None}
+
+
+def _messages(system_prompt: str | None, user_prompt: str) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
+    return messages
+
+
+def _require_bearer(request: Request) -> str:
+    authorization = gateway_client.bearer_from_headers(request.headers)
+    if authorization is None:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "Playground calls run through the gateway with your API key; send it as a Bearer token",
+        )
+    return authorization
+
+
+def _record(
+    ws: Workspace,
+    outcome: gateway_client.GatewayCallResult,
+    *,
+    model: str,
+    system_prompt: str | None,
+    user_prompt: str,
+    parameters: dict[str, Any],
+    session_id: uuid.UUID | None,
+    provider: str | None = None,
+) -> PlaygroundRequest:
+    """Persist what the gateway really did with one Playground prompt."""
+    return PlaygroundRequest(
+        id=uuid.uuid4(),
+        workspace_id=ws.id,
+        session_id=session_id,
+        model=model,
+        provider=provider,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        parameters=parameters,
+        status="completed" if outcome.ok else "failed",
+        response_text=outcome.text,
+        input_tokens=outcome.input_tokens,
+        output_tokens=outcome.output_tokens,
+        cost_usd=outcome.cost_usd,
+        latency_ms=outcome.latency_ms,
+        route_decision=(f"cache:{outcome.cache}" if outcome.cache else outcome.model),
+        error=None if outcome.ok else f"[{outcome.status_code}] {outcome.error}",
+        run_id=outcome.run_id,
+    )
+
+
+@router.get(
+    "/models",
+    response_model=PlaygroundModelList,
+    dependencies=[Depends(analytics_rate_limit)],
+)
+async def list_models(ws: WorkspaceDep, db: DbDep) -> PlaygroundModelList:
+    """Model choices for the Playground: this workspace's active gateway route aliases."""
+    aliases = await gateway_client.list_route_aliases(db, ws.id)
+    return PlaygroundModelList(items=[PlaygroundModel(**a) for a in aliases])
+
 
 @router.post(
     "/send",
@@ -251,21 +338,28 @@ async def delete_session(session_id: uuid.UUID, ws: WorkspaceDep, db: DbDep) -> 
     dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def send_request(
-    body: PlaygroundSendRequest, ws: WorkspaceDep, db: DbDep
+    body: PlaygroundSendRequest, request: Request, ws: WorkspaceDep, db: DbDep
 ) -> PlaygroundRequestResponse:
-    req = PlaygroundRequest(
-        id=uuid.uuid4(),
-        workspace_id=ws.id,
-        session_id=body.session_id,
+    """Run one prompt through the gateway (governance, routing, metering, a recorded run)."""
+    authorization = _require_bearer(request)
+    outcome = await gateway_client.chat_completion(
+        authorization,
         model=body.model,
-        provider=body.provider,
+        messages=_messages(body.system_prompt, body.user_prompt),
+        params=_gateway_params(body.parameters),
+        metadata={"feature_tag": "playground", "source": "playground"},
+        tags=["playground"],
+    )
+    outcome = await gateway_client.attach_run(db, ws.id, outcome)
+    req = _record(
+        ws,
+        outcome,
+        model=body.model,
         system_prompt=body.system_prompt,
         user_prompt=body.user_prompt,
         parameters=body.parameters,
-        status="completed",
-        response_text="[Playground request recorded — gateway integration pending]",
-        input_tokens=0,
-        output_tokens=0,
+        session_id=body.session_id,
+        provider=body.provider,
     )
     db.add(req)
     await db.commit()
@@ -345,21 +439,35 @@ async def get_request(
     dependencies=[Depends(require_workspace_writer), Depends(management_rate_limit)],
 )
 async def compare_models(
-    body: PlaygroundCompareRequest, ws: WorkspaceDep, db: DbDep
+    body: PlaygroundCompareRequest, request: Request, ws: WorkspaceDep, db: DbDep
 ) -> PlaygroundCompareResponse:
-    results = []
-    for model_name in body.models:
-        req = PlaygroundRequest(
-            id=uuid.uuid4(),
-            workspace_id=ws.id,
+    """Send the same prompt to 2-5 route aliases through the gateway, side by side."""
+    authorization = _require_bearer(request)
+    group = str(uuid.uuid4())
+    outcomes = await asyncio.gather(
+        *[
+            gateway_client.chat_completion(
+                authorization,
+                model=model_name,
+                messages=_messages(body.system_prompt, body.user_prompt),
+                params=_gateway_params(body.parameters),
+                metadata={"feature_tag": "playground", "source": "playground.compare"},
+                tags=["playground"],
+            )
+            for model_name in body.models
+        ]
+    )
+    results: list[PlaygroundRequest] = []
+    for model_name, outcome in zip(body.models, outcomes, strict=True):
+        attached = await gateway_client.attach_run(db, ws.id, outcome)
+        req = _record(
+            ws,
+            attached,
             model=model_name,
             system_prompt=body.system_prompt,
             user_prompt=body.user_prompt,
-            parameters=body.parameters,
-            status="completed",
-            response_text=f"[Compare result for {model_name} — gateway integration pending]",
-            input_tokens=0,
-            output_tokens=0,
+            parameters={**body.parameters, "compare_group": group},
+            session_id=body.session_id,
         )
         db.add(req)
         results.append(req)
@@ -369,5 +477,6 @@ async def compare_models(
         await db.refresh(r)
 
     return PlaygroundCompareResponse(
+        compare_group=group,
         results=[_request_to_response(r) for r in results],
     )

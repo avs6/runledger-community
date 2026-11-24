@@ -47,6 +47,8 @@ class EvaluatorRunRequest(BaseModel):
 
     run_ids: list[uuid.UUID] | None = None  # None = evaluate all recent runs
     limit: int = Field(100, ge=1, le=1000)
+    # Score in the request (real counts back) instead of queueing a Celery task.
+    wait: bool = False
 
 
 class EvaluatorRunResult(BaseModel):
@@ -54,6 +56,8 @@ class EvaluatorRunResult(BaseModel):
     evaluated: int
     scores_created: int
     errors: int
+    skipped: int = 0  # runs with no captured payload (LLM judge only)
+    queued: bool = False
 
 
 # ── Cost-quality analytics ────────────────────────────────────────────────────

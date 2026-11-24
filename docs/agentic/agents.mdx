@@ -140,6 +140,14 @@ RunLedger automatically scans the value for PII patterns (emails, phone numbers,
 credit cards, IP addresses). If detected, the memory is flagged `has_pii = true` and an
 audit event is logged.
 
+- **PII is encrypted at rest.** Values flagged `has_pii` are stored encrypted and decrypted on read for
+  authorised callers. Encrypted values are matched by key only in memory search, and never copied into
+  the memory audit trail.
+- **Keys are unique per agent.** Storing an existing key returns `409`; pass `"upsert": true` to
+  overwrite it, or `PUT /agents/{agent_id}/memory/{key}` to update.
+- **Retention is enforced.** Entries past `expires_at` (set from `retention_days`) are hidden from
+  list, search and stats reads and deleted by the hourly `build.purge_expired_memories` task.
+
 ### List & search memories
 
 ```bash

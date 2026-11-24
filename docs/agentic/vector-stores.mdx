@@ -91,8 +91,20 @@ curl -X POST http://localhost:8201/vector-stores/{collection_id}/search-test \
   -d '{"query": "what is RAG?", "top_k": 5}'
 ```
 
-Records the query and returns results. Full Qdrant search integration is routed through the
-`semantic-cache-svc` microservice.
+Embeds the query with the in-cluster embedding service (`EMBEDDING_SVC_URL`) and searches the
+collection in Qdrant (`QDRANT_URL`, optional `QDRANT_API_KEY`), returning scored hits with their
+payloads. If either service is unreachable, or Qdrant has no such collection, the API answers `503` with
+the reason and records nothing, so counters stay honest. Self-hosted embeddings have no per-query
+provider cost, so `embed_cost` and `query_cost` are 0.
+
+## Sync from Qdrant
+
+```bash
+curl -X POST http://localhost:8201/vector-stores/{collection_id}/sync   -H "Authorization: Bearer rl_..."
+```
+
+Refreshes `document_count`, `dimensions` and `distance_metric` from Qdrant's collection info. The
+dashboard's collection page has **Search test** and **Sync from Qdrant**.
 
 ---
 

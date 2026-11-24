@@ -1,54 +1,6 @@
-/** Prompts, evaluations, datasets, experiments, replay, playground, vector stores, agent memory and plugins. */
-import type { DatasetList, DatasetResponse, ExperimentList, ExperimentResponse, ExperimentResults, PromptList, PromptMetrics, PromptResponse, PromptVersion, ScoreEvent, ScoreList, VersionList, EvalDataset, EvalDatasetList, EvalExperiment, EvalExperimentList, ExperimentModelConfig, GithubConfig, GithubSyncResult, DatasetItem } from '@/types/api'
+/** Prompts, evaluations, datasets, experiments (eval + replay), playground, vector stores, agents, workflows and plugins. */
+import type { PromptList, PromptMetrics, PromptResponse, PromptVersion, ScoreEvent, ScoreList, VersionList, EvalDataset, EvalDatasetList, EvalExperiment, EvalExperimentList, ExperimentModelConfig, GithubConfig, GithubSyncResult, DatasetItem, ExperimentMode, RouteRecommendationResult, PromotionApproval, PromotionApprovalList, VersionScore, PromptDiff, RunbookResponse, PlaygroundModelList } from '@/types/api'
 import { apiFetch } from './client'
-
-// ── Phase 10 — Replay helpers ─────────────────────────────────────────────────
-
-export async function createDataset(
-  apiKey: string,
-  body: { name: string; run_ids: string[]; source?: string }
-): Promise<DatasetResponse> {
-  return apiFetch<DatasetResponse>('/replay/datasets', apiKey, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
-export async function listDatasets(apiKey: string): Promise<DatasetList> {
-  return apiFetch<DatasetList>('/replay/datasets', apiKey)
-}
-
-export async function createExperiment(
-  apiKey: string,
-  body: { dataset_id: string; name: string; configs: { model: string; label?: string }[] }
-): Promise<ExperimentResponse> {
-  return apiFetch<ExperimentResponse>('/replay/experiments', apiKey, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
-export async function listExperiments(
-  apiKey: string,
-  params: { access_group_id?: string; api_key_id?: string } = {}
-): Promise<ExperimentList> {
-  const qs = new URLSearchParams()
-  if (params.access_group_id) qs.set('access_group_id', params.access_group_id)
-  if (params.api_key_id) qs.set('api_key_id', params.api_key_id)
-  const query = qs.toString() ? `?${qs.toString()}` : ''
-  return apiFetch<ExperimentList>(`/replay/experiments${query}`, apiKey)
-}
-
-export async function runExperiment(apiKey: string, id: string): Promise<ExperimentResponse> {
-  return apiFetch<ExperimentResponse>(`/replay/experiments/${id}/run`, apiKey, { method: 'POST' })
-}
-
-export async function getExperimentResults(
-  apiKey: string,
-  id: string
-): Promise<ExperimentResults> {
-  return apiFetch<ExperimentResults>(`/replay/experiments/${id}/results`, apiKey)
-}
 
 // ── Phase 17 — Evaluations & Scores ───────────────────────────────────────────
 
@@ -164,6 +116,19 @@ export async function getLatestVersion(
   )
 }
 
+/** Edit a version's content: creates a new version (versions are immutable). */
+export async function editVersion(
+  apiKey: string,
+  name: string,
+  version: number,
+  body: { content: string; commit_message?: string; environment?: string; approval_id?: string }
+): Promise<PromptVersion> {
+  return apiFetch<PromptVersion>(`/prompts/${encodeURIComponent(name)}/versions/${version}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function promoteVersion(
   apiKey: string,
   name: string,
@@ -171,6 +136,7 @@ export async function promoteVersion(
     source_environment?: string
     target_environment?: string
     commit_message?: string | null
+    approval_id?: string | null
   }
 ): Promise<PromptVersion> {
   return apiFetch<PromptVersion>(
@@ -204,6 +170,17 @@ export async function createEvaluator(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  })
+}
+
+export async function updateEvaluator(
+  apiKey: string,
+  id: string,
+  data: { name?: string; description?: string | null; status?: 'active' | 'inactive'; config?: Record<string, unknown> }
+): Promise<import('@/types/api').EvaluatorResponse> {
+  return apiFetch<import('@/types/api').EvaluatorResponse>(`/evaluations/evaluators/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
   })
 }
 
@@ -270,6 +247,7 @@ export async function createEvalExperiment(
   data: {
     name: string
     description?: string
+    mode?: ExperimentMode
     dataset_id?: string
     prompt_name?: string
     prompt_version?: number
@@ -290,6 +268,100 @@ export async function deleteEvalExperiment(apiKey: string, id: string): Promise<
 
 export async function runEvalExperiment(apiKey: string, id: string): Promise<EvalExperiment> {
   return apiFetch<EvalExperiment>(`/experiments/${id}/run`, apiKey, { method: 'POST' })
+}
+
+export async function updateEvalExperiment(
+  apiKey: string,
+  id: string,
+  data: Partial<{
+    name: string
+    description: string
+    mode: ExperimentMode
+    dataset_id: string
+    prompt_name: string
+    prompt_version: number
+    evaluator_ids: string[]
+    models: ExperimentModelConfig[]
+  }>
+): Promise<EvalExperiment> {
+  return apiFetch<EvalExperiment>(`/experiments/${id}`, apiKey, { method: 'PUT', body: JSON.stringify(data) })
+}
+
+/** Curate a replay dataset from recorded runs (their captured conversations). */
+export async function createDatasetFromRuns(
+  apiKey: string,
+  data: { name: string; run_ids: string[]; description?: string; use_output_as_expected?: boolean }
+): Promise<EvalDataset> {
+  return apiFetch<EvalDataset>('/datasets/from-runs', apiKey, { method: 'POST', body: JSON.stringify(data) })
+}
+
+/** Turn a completed experiment into a pending Flywheel route recommendation (review B-05). */
+export async function recommendRouteFromExperiment(
+  apiKey: string,
+  id: string,
+  maxScoreDrop = 0.02
+): Promise<RouteRecommendationResult> {
+  return apiFetch<RouteRecommendationResult>(`/experiments/${id}/recommend-route`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify({ max_score_drop: maxScoreDrop }),
+  })
+}
+
+// ── Prompt governance (review B-02, B-03; ENH diff + score gate) ──────────────
+
+export async function updatePrompt(
+  apiKey: string,
+  name: string,
+  data: {
+    description?: string
+    default_environment?: string
+    promotion_min_score?: number
+    promotion_score_name?: string
+    clear_promotion_gate?: boolean
+  }
+): Promise<PromptResponse> {
+  return apiFetch<PromptResponse>(`/prompts/${encodeURIComponent(name)}`, apiKey, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function requestPromotion(
+  apiKey: string,
+  name: string,
+  data: { source_environment?: string; version?: number; reason?: string }
+): Promise<PromotionApproval> {
+  return apiFetch<PromotionApproval>(`/prompts/${encodeURIComponent(name)}/promotion-requests`, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function listPromotionRequests(apiKey: string, name: string): Promise<PromotionApprovalList> {
+  return apiFetch<PromotionApprovalList>(`/prompts/${encodeURIComponent(name)}/promotion-requests`, apiKey)
+}
+
+export async function getVersionScore(apiKey: string, name: string, version: number): Promise<VersionScore> {
+  return apiFetch<VersionScore>(`/prompts/${encodeURIComponent(name)}/versions/${version}/score`, apiKey)
+}
+
+export async function diffPromptVersions(
+  apiKey: string,
+  name: string,
+  from: number,
+  to: number
+): Promise<PromptDiff> {
+  return apiFetch<PromptDiff>(`/prompts/${encodeURIComponent(name)}/diff?from=${from}&to=${to}`, apiKey)
+}
+
+// ── Runbooks (review B-12) ────────────────────────────────────────────────────
+
+export async function getRunbook(apiKey: string, id: string): Promise<RunbookResponse> {
+  return apiFetch<RunbookResponse>(`/runbooks/${id}`, apiKey)
+}
+
+export async function deleteRunbook(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/runbooks/${id}`, apiKey, { method: 'DELETE' })
 }
 
 // ── GitHub Sync ────────────────────────────────────────────────────────────────
@@ -431,6 +503,16 @@ export async function getVectorQueries(
   return apiFetch<import('@/types/api').VectorQueryListResponse>(`/vector-stores/${collectionId}/queries${query}`, apiKey)
 }
 
+/** Refresh document count, dimensions and status from Qdrant (review B-19). */
+export async function syncVectorCollection(
+  apiKey: string,
+  collectionId: string
+): Promise<import('@/types/api').VectorCollectionResponse> {
+  return apiFetch<import('@/types/api').VectorCollectionResponse>(`/vector-stores/${collectionId}/sync`, apiKey, {
+    method: 'POST',
+  })
+}
+
 export async function testVectorSearch(
   apiKey: string,
   collectionId: string,
@@ -455,6 +537,31 @@ export async function getPlaygroundSessions(
   if (params.offset) qs.set('offset', String(params.offset))
   const query = qs.toString() ? `?${qs.toString()}` : ''
   return apiFetch<import('@/types/api').PlaygroundSessionListResponse>(`/playground/sessions${query}`, apiKey)
+}
+
+export async function createPlaygroundSession(
+  apiKey: string,
+  data: { name?: string; system_prompt?: string; mode?: 'single' | 'conversation' | 'compare'; config?: Record<string, unknown> }
+): Promise<import('@/types/api').PlaygroundSessionResponse> {
+  return apiFetch<import('@/types/api').PlaygroundSessionResponse>('/playground/sessions', apiKey, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updatePlaygroundSession(
+  apiKey: string,
+  id: string,
+  data: { name?: string; system_prompt?: string; is_favorite?: boolean; config?: Record<string, unknown> }
+): Promise<import('@/types/api').PlaygroundSessionResponse> {
+  return apiFetch<import('@/types/api').PlaygroundSessionResponse>(`/playground/sessions/${id}`, apiKey, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deletePlaygroundSession(apiKey: string, id: string): Promise<void> {
+  return apiFetch<void>(`/playground/sessions/${id}`, apiKey, { method: 'DELETE' })
 }
 
 export async function getPlaygroundHistory(
@@ -487,10 +594,16 @@ export async function sendPlaygroundRequest(
   })
 }
 
+/** Playground model choices: this workspace's active gateway route aliases. */
+export async function getPlaygroundModels(apiKey: string): Promise<PlaygroundModelList> {
+  return apiFetch<PlaygroundModelList>('/playground/models', apiKey)
+}
+
 export async function comparePlaygroundModels(
   apiKey: string,
   data: {
     models: string[]
+    session_id?: string
     system_prompt?: string
     user_prompt: string
     parameters?: Record<string, unknown>

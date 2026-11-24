@@ -1,31 +1,30 @@
 """
-Example 10 — Replay harness + user analytics deepening.
+Example 10 — Experiments through the gateway: eval a dataset, replay recorded runs,
+turn the winner into a route recommendation.
 
 What this demonstrates
 ──────────────────────
-- User cohort classification (P0–P3 spend tiers)
-- Anomaly detection list (populated by nightly worker)
-- Creating a named dataset from recent run IDs
-- Defining a cost-projection experiment (gpt-4o vs gpt-4o-mini)
-- Triggering the projection worker
-- Polling for results and printing a cost-comparison table
+- Listing the gateway route aliases you can test (GET /playground/models)
+- An eval experiment: a small dataset with expected outputs, run against two
+  route aliases with POST /experiments/{id}/run?wait=true. Every item is a real
+  gateway call (budgets, guardrails and routing apply) recorded as a run, and is
+  scored by expected-output match plus any evaluators you attach.
+- A replay experiment: curate a dataset from recorded runs (their captured
+  conversations) with POST /datasets/from-runs and replay it against an alias.
+- POST /experiments/{id}/recommend-route: turn the result into a Flywheel
+  recommendation, then apply it from Optimization (audited, with rollback).
 
-Cost projection uses actual token counts from provider_calls and
-ProviderPricing rates — no real LLM calls are made.
+The old Replay Lab (/replay, cost projection only) was merged into experiments as
+mode="replay" (review B-07).
 
 Prerequisites
 ─────────────
-A running RunLedger stack with at least one instrumented run:
-
-    docker compose -f infra/docker-compose.yml up -d
-
-Install
-───────
-    pip install httpx python-dotenv
+A running RunLedger stack with at least one active gateway route alias, and a
+workspace API key in .env.
 
 Run it
 ──────
-    # Copy .env.example → .env and fill in your values, then:
+    pip install httpx python-dotenv
     python 10_replay_experiment.py
 
 Key .env variables used here:
@@ -36,7 +35,6 @@ Key .env variables used here:
 from __future__ import annotations
 
 import os
-import time
 
 import httpx
 from dotenv import load_dotenv
@@ -45,166 +43,111 @@ load_dotenv()
 
 API_URL = os.getenv("RUNLEDGER_BASE_URL", "http://localhost:8201")
 API_KEY = os.getenv("RUNLEDGER_API_KEY", "")
-
 if not API_KEY:
     raise SystemExit("Set RUNLEDGER_API_KEY in .env before running this example.")
 
-HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+client = httpx.Client(base_url=API_URL, headers={"Authorization": f"Bearer {API_KEY}"}, timeout=180)
 
 
-def _get(path: str) -> dict:
-    r = httpx.get(f"{API_URL}{path}", headers=HEADERS, timeout=10)
-    r.raise_for_status()
-    return r.json()
+def show(title: str) -> None:
+    print(f"\n── {title} " + "─" * max(0, 60 - len(title)))
 
 
-def _post(path: str, body: dict) -> dict:
-    r = httpx.post(f"{API_URL}{path}", json=body, headers=HEADERS, timeout=10)
-    r.raise_for_status()
-    return r.json()
-
-
-# ── 1. Cohort distribution ─────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  1 · User cohort distribution (30-day)")
-print("═══════════════════════════════════════")
-
-cohorts = _get("/analytics/users/cohorts")
-if not cohorts["items"]:
-    print("  (no users with spend in the last 30 days)")
-else:
-    print(f"  Window: {cohorts['window_days']} days")
-    print(f"  {'Tier':<6} {'Users':>6} {'Total spend':>14} {'Avg spend':>12}")
-    print(f"  {'─'*6} {'─'*6} {'─'*14} {'─'*12}")
-    for c in cohorts["items"]:
-        print(
-            f"  {c['cohort_tier']:<6} {c['user_count']:>6} "
-            f"  ${float(c['total_cost_usd']):>12.4f} "
-            f"  ${float(c['avg_cost_usd']):>10.4f}"
-        )
-
-# ── 2. Anomaly list ────────────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  2 · User spend anomalies")
-print("═══════════════════════════════════════")
-
-anomalies = _get("/analytics/users/anomalies")
-count = len(anomalies["items"])
-if count == 0:
-    print("  No anomalies flagged yet.")
-    print("  Tip: run the anomaly_detection Celery worker to populate this table:")
-    print("    uv run celery -A runledger_api.core.celery call analytics.anomaly_detection")
-else:
-    print(f"  {count} anomaly flag(s) found:")
-    for a in anomalies["items"][:5]:
-        print(f"    {a['end_user_id']:<30} z={float(a['zscore']):.1f}σ  {a['reason'][:60]}")
-
-# ── 3. Get 3 recent run IDs ────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  3 · Fetch 3 recent run IDs")
-print("═══════════════════════════════════════")
-
-runs_resp = _get("/runs?limit=3")
-run_ids = [r["id"] for r in runs_resp["items"]]
-
-if not run_ids:
-    print("  No runs found. Send some instrumented requests first.")
+show("1 · Route aliases you can test")
+aliases = [m["alias"] for m in client.get("/playground/models").raise_for_status().json()["items"]]
+print("  ", aliases or "none — add a gateway route first")
+if not aliases:
     raise SystemExit(0)
+models = [{"model": a} for a in aliases[:2]]
 
-for rid in run_ids:
-    print(f"    {rid}")
-
-# ── 4. Create dataset ──────────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  4 · Create replay dataset")
-print("═══════════════════════════════════════")
-
-dataset = _post("/replay/datasets", {"name": "example-10-dataset", "run_ids": run_ids})
-dataset_id = dataset["id"]
-print(f"  Created dataset: {dataset['name']} (id={dataset_id})")
-print(f"  Run count: {dataset['run_count']}")
-
-# ── 5. Create experiment ───────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  5 · Create cost-projection experiment")
-print("═══════════════════════════════════════")
-
-experiment = _post(
-    "/replay/experiments",
-    {
-        "dataset_id": dataset_id,
-        "name": "gpt-4o vs gpt-4o-mini",
-        "configs": [
-            {"model": "gpt-4o", "label": "GPT-4o"},
-            {"model": "gpt-4o-mini", "label": "GPT-4o-mini"},
-        ],
-    },
+show("2 · Eval dataset")
+dataset = (
+    client.post(
+        "/datasets",
+        json={
+            "name": "example-10-eval",
+            "items": [
+                {"input": "What is 2+2? Answer with a number.", "expected_output": "4"},
+                {"input": "What is the capital of France? One word.", "expected_output": "Paris"},
+                {"input": "Spell 'cat' backwards.", "expected_output": "tac"},
+            ],
+        },
+    )
+    .raise_for_status()
+    .json()
 )
-experiment_id = experiment["id"]
-print(f"  Created experiment: {experiment['name']} (id={experiment_id})")
-print(f"  Status: {experiment['status']}")
+print(f"   dataset {dataset['id'][:8]}… with {dataset['item_count']} items")
 
-# ── 6. Trigger projection ──────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  6 · Trigger projection worker")
-print("═══════════════════════════════════════")
-
-run_resp = _post(f"/replay/experiments/{experiment_id}/run", {})
-print(f"  Status → {run_resp['status']}")
-
-# ── 7. Poll for results ────────────────────────────────────────────────────────
-
-print("\n═══════════════════════════════════════")
-print("  7 · Poll for results (up to 30s)")
-print("═══════════════════════════════════════")
-
-results = None
-for attempt in range(10):
-    time.sleep(3)
-    r = _get(f"/replay/experiments/{experiment_id}/results")
-    if r["status"] == "completed":
-        results = r
-        break
-    print(f"  [{attempt + 1}/10] status={r['status']}…")
-
-if results is None:
-    print("  Worker did not complete within 30s.")
-    print("  Ensure Celery is running: uv run celery -A runledger_api.core.celery worker --loglevel=info")
-    raise SystemExit(1)
-
-# ── 8. Print results ───────────────────────────────────────────────────────────
-
-print(f"\n  Completed at: {results['completed_at']}")
-print(f"  Dataset runs used: {results['dataset_run_count']}")
-print()
-print(f"  {'Model':<25} {'Input tok':>10} {'Output tok':>11} {'Avg cost/run':>14} {'Total cost':>12} Pricing")
-print(f"  {'─'*25} {'─'*10} {'─'*11} {'─'*14} {'─'*12} {'─'*7}")
-for c in results["configs"]:
-    pricing_ok = "✓" if c["pricing_found"] else "⚠ missing"
+show("3 · Eval experiment through the gateway")
+exp = (
+    client.post(
+        "/experiments",
+        json={
+            "name": "example-10-eval",
+            "mode": "eval",
+            "dataset_id": dataset["id"],
+            "models": models,
+        },
+    )
+    .raise_for_status()
+    .json()
+)
+exp = (
+    client.post(f"/experiments/{exp['id']}/run", params={"wait": "true"}).raise_for_status().json()
+)
+summary = exp["results"]["summary"]
+print(
+    f"   status={exp['status']}  calls={summary['calls']}  errors={summary['errors']}  via={summary['via']}"
+)
+for row in exp["results"]["models"]:
     print(
-        f"  {c['model']:<25} {c['total_input_tokens']:>10,} {c['total_output_tokens']:>11,} "
-        f"  ${float(c['avg_cost_per_run']):>12.6f} "
-        f"  ${float(c['projected_cost_usd']):>10.4f} {pricing_ok}"
+        f"   {row['label']:<20} score={row['avg_score']}  match={row['expected_match_rate']}  "
+        f"latency={row['avg_latency_ms']}ms  avg_cost={row['avg_cost_usd']}"
+    )
+for d in exp["results"]["deltas"]:
+    print(
+        f"   {d['candidate']} vs {d['baseline']}: score {d['score_delta']}, cost {d['cost_delta_pct']}%"
     )
 
-if results["deltas"]:
-    print()
-    print("  Cost deltas:")
-    for d in results["deltas"]:
-        delta_str = f"{float(d['cost_delta_pct']):+.1f}%" if d["cost_delta_pct"] is not None else "n/a"
-        print(f"    {d['config_a']} → {d['config_b']}: {delta_str}")
+show("4 · Route recommendation from the result")
+rec = client.post(f"/experiments/{exp['id']}/recommend-route", json={"max_score_drop": 0.05})
+if rec.status_code == 201:
+    r = rec.json()
+    print(
+        f"   pending recommendation {r['recommendation_id'][:8]}…: {r['alias']} → {r['proposed_model']}"
+    )
+    print(
+        "   review and apply it under Optimization (POST /gateway/flywheel/recommendations/{id}/apply)"
+    )
+else:
+    print(f"   no recommendation: {rec.json().get('detail')}")
 
-print()
-print("  ✓ Phase 10 example complete.")
-print()
-print("  Tips:")
-print("  • Run the anomaly detection worker nightly:")
-print("      celery beat --app=runledger_api.core.celery (with schedule configured)")
-print("  • Open /replay in the dashboard to manage datasets and experiments interactively.")
-print("  • Open /analytics/users to see cohort badges and anomaly flags per user.")
+show("5 · Replay recorded runs")
+runs = [o["run_id"] for item in exp["results"]["items"] for o in item["outputs"] if o["run_id"]][:3]
+replay_ds = client.post("/datasets/from-runs", json={"name": "example-10-replay", "run_ids": runs})
+if replay_ds.status_code == 201:
+    rd = replay_ds.json()
+    rexp = (
+        client.post(
+            "/experiments",
+            json={
+                "name": "example-10-replay",
+                "mode": "replay",
+                "dataset_id": rd["id"],
+                "models": models[-1:],
+            },
+        )
+        .raise_for_status()
+        .json()
+    )
+    rexp = (
+        client.post(f"/experiments/{rexp['id']}/run", params={"wait": "true"})
+        .raise_for_status()
+        .json()
+    )
+    print(f"   replayed {rd['item_count']} runs: {rexp['results']['summary']}")
+else:
+    # Replays need captured conversations; enable payload capture to use them.
+    print(f"   {replay_ds.status_code}: {replay_ds.json().get('detail')}")
+
+print("\nOpen /experiments in the dashboard to browse results, items and the recorded runs.")

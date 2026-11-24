@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -209,21 +209,37 @@ async def test_delete_experiment(authed_client, mock_db_session, mock_workspace)
 
 @pytest.mark.asyncio
 async def test_run_experiment(authed_client, mock_db_session, mock_workspace):
+    """?wait=true runs through the runner with the caller's bearer key."""
     exp = _exp(workspace_id=mock_workspace.id, status="pending")
+    exp.dataset_id = uuid.uuid4()
+    exp.models = [{"model": "fast"}]
     mock_db_session.get = AsyncMock(return_value=exp)
 
-    scores_result = MagicMock()
-    scores_result.scalars.return_value.all.return_value = []
-    mock_db_session.execute = AsyncMock(return_value=scores_result)
+    async def fake_execute(_db, e, authorization):
+        e.status = "completed"
+        e.results = {"summary": {"calls": 1, "via": "gateway"}}
+        fake_execute.authorization = authorization
+        return e
 
-    def _refresh(obj):
-        pass  # obj already mutated in-place
-
-    mock_db_session.refresh = AsyncMock(side_effect=_refresh)
-
-    resp = await authed_client.post(f"/experiments/{exp.id}/run")
+    with patch("runledger_api.routers.eval_experiments.execute_experiment", fake_execute):
+        resp = await authed_client.post(
+            f"/experiments/{exp.id}/run?wait=true", headers={"Authorization": "Bearer test-key"}
+        )
     assert resp.status_code == 200
     assert resp.json()["status"] == "completed"
+    assert resp.json()["results"]["summary"]["via"] == "gateway"
+    assert fake_execute.authorization == "Bearer test-key"
+
+
+@pytest.mark.asyncio
+async def test_run_experiment_without_dataset_is_422(
+    authed_client, mock_db_session, mock_workspace
+):
+    exp = _exp(workspace_id=mock_workspace.id, status="pending")
+    exp.dataset_id = None
+    mock_db_session.get = AsyncMock(return_value=exp)
+    resp = await authed_client.post(f"/experiments/{exp.id}/run")
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

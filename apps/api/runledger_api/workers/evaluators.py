@@ -43,72 +43,69 @@ def _get_sync_session() -> Session:
     return Session()
 
 
-async def _run_batch(
-    evaluator_id: uuid.UUID,
+async def evaluate_batch(
+    db: AsyncSession,
+    evaluator: Any,
     run_ids: list[uuid.UUID] | None,
     limit: int,
+    *,
+    authorization: str | None = None,
 ) -> dict[str, int]:
-    """Async implementation of batch evaluation."""
-    from sqlalchemy.pool import NullPool
+    """Score runs with one evaluator; shared by the Celery task and ``?wait`` runs.
 
-    async_engine = create_async_engine(settings.database_url, poolclass=NullPool)
-    AsyncSessionLocal = async_sessionmaker(  # noqa: N806
-        async_engine, class_=AsyncSession, expire_on_commit=False
-    )
-
+    The LLM judge gets each run's captured input/output (review B-13); runs with no
+    captured payload are skipped, not scored on an empty transcript.
+    """
     from runledger_api.models.evaluators import Evaluator
     from runledger_api.models.events import AgentRun
     from runledger_api.models.scores import ScoreEvent
-    from runledger_api.services.evaluators import evaluate_run
+    from runledger_api.services.evaluators import evaluate_run, load_run_payloads
 
-    evaluated = 0
-    scores_created = 0
-    errors = 0
+    evaluated = scores_created = errors = skipped = 0
+    stmt = select(AgentRun).where(AgentRun.workspace_id == evaluator.workspace_id)
+    if run_ids:
+        stmt = stmt.where(AgentRun.id.in_(run_ids))
+    else:
+        stmt = (
+            stmt.where(AgentRun.status == "succeeded")
+            .order_by(AgentRun.started_at.desc())
+            .limit(limit)
+        )
+    runs = list((await db.execute(stmt)).scalars().all())
+    payloads = await load_run_payloads(db, [r.id for r in runs])
 
-    async with AsyncSessionLocal() as db:
-        # Load evaluator
-        result = await db.execute(select(Evaluator).where(Evaluator.id == evaluator_id))
-        evaluator = result.scalar_one_or_none()
-        if evaluator is None or evaluator.status != "active":
-            log.warning("evaluator_not_found_or_inactive", evaluator_id=str(evaluator_id))
-            await async_engine.dispose()
-            return {"evaluated": 0, "scores_created": 0, "errors": 0}
+    for run in runs:
+        evaluated += 1
+        captured = payloads.get(run.id, {})
+        run_dict: dict[str, Any] = {
+            "id": str(run.id),
+            "status": run.status,
+            "feature_tag": run.feature_tag,
+            "deployment_version": run.deployment_version,
+            "total_cost_usd": str(run.total_cost_usd) if run.total_cost_usd else None,
+            "total_input_tokens": run.total_input_tokens,
+            "total_output_tokens": run.total_output_tokens,
+            # AgentRun has no duration column; compute it (review B-01).
+            "duration_ms": int((run.ended_at - run.started_at).total_seconds() * 1000)
+            if run.ended_at and run.started_at
+            else None,
+            "input_payload": captured.get("input_payload"),
+            "output_payload": captured.get("output_payload"),
+        }
+        if (
+            evaluator.type == "llm_judge"
+            and run_dict["input_payload"] is None
+            and run_dict["output_payload"] is None
+        ):
+            skipped += 1
+            continue
 
-        # Resolve runs to evaluate
-        stmt = select(AgentRun).where(AgentRun.workspace_id == evaluator.workspace_id)
-        if run_ids:
-            stmt = stmt.where(AgentRun.id.in_(run_ids))
-        else:
-            stmt = (
-                stmt.where(AgentRun.status == "succeeded")
-                .order_by(AgentRun.started_at.desc())
-                .limit(limit)
+        try:
+            score_value, evidence = await evaluate_run(
+                evaluator.type, evaluator.config, run_dict, authorization=authorization
             )
-        run_result = await db.execute(stmt)
-        runs = run_result.scalars().all()
-
-        for run in runs:
-            evaluated += 1
-            run_dict: dict[str, Any] = {
-                "id": str(run.id),
-                "status": run.status,
-                "feature_tag": run.feature_tag,
-                "deployment_version": run.deployment_version,
-                "total_cost_usd": str(run.total_cost_usd) if run.total_cost_usd else None,
-                "total_input_tokens": run.total_input_tokens,
-                "total_output_tokens": run.total_output_tokens,
-                # AgentRun has no duration column; compute it (review B-01: reading
-                # run.duration_ms crashed every batch evaluation).
-                "duration_ms": int((run.ended_at - run.started_at).total_seconds() * 1000)
-                if run.ended_at and run.started_at
-                else None,
-            }
-
-            try:
-                score_value, evidence = await evaluate_run(
-                    evaluator.type, evaluator.config, run_dict
-                )
-                score = ScoreEvent(
+            db.add(
+                ScoreEvent(
                     workspace_id=evaluator.workspace_id,
                     run_id=run.id,
                     name=evaluator.name,
@@ -116,32 +113,61 @@ async def _run_batch(
                     source="llm" if evaluator.type == "llm_judge" else "rule",
                     confidence=Decimal("0.9") if evaluator.type == "llm_judge" else Decimal("1.0"),
                     evidence=evidence,
-                    evaluator_id=evaluator_id,
+                    evaluator_id=evaluator.id,
                 )
-                db.add(score)
-                scores_created += 1
-            except Exception as exc:
-                errors += 1
-                log.warning(
-                    "evaluator_run_error",
-                    evaluator_id=str(evaluator_id),
-                    run_id=str(run.id),
-                    error=str(exc),
-                )
-
-        # Update evaluator stats
-        await db.execute(
-            update(Evaluator)
-            .where(Evaluator.id == evaluator_id)
-            .values(
-                last_run_at=datetime.now(UTC),
-                last_run_count=Evaluator.last_run_count + scores_created,
             )
-        )
-        await db.commit()
+            scores_created += 1
+        except Exception as exc:
+            errors += 1
+            log.warning(
+                "evaluator_run_error",
+                evaluator_id=str(evaluator.id),
+                run_id=str(run.id),
+                error=str(exc),
+            )
 
-    await async_engine.dispose()
-    return {"evaluated": evaluated, "scores_created": scores_created, "errors": errors}
+    await db.execute(
+        update(Evaluator)
+        .where(Evaluator.id == evaluator.id)
+        .values(
+            last_run_at=datetime.now(UTC),
+            last_run_count=Evaluator.last_run_count + scores_created,
+        )
+    )
+    await db.commit()
+    return {
+        "evaluated": evaluated,
+        "scores_created": scores_created,
+        "errors": errors,
+        "skipped": skipped,
+    }
+
+
+async def _run_batch(
+    evaluator_id: uuid.UUID,
+    run_ids: list[uuid.UUID] | None,
+    limit: int,
+) -> dict[str, int]:
+    """Async implementation of batch evaluation (Celery; judge uses its stored key ref)."""
+    from sqlalchemy.pool import NullPool
+
+    from runledger_api.models.evaluators import Evaluator
+
+    async_engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    AsyncSessionLocal = async_sessionmaker(  # noqa: N806
+        async_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    try:
+        async with AsyncSessionLocal() as db:
+            evaluator = (
+                await db.execute(select(Evaluator).where(Evaluator.id == evaluator_id))
+            ).scalar_one_or_none()
+            if evaluator is None or evaluator.status != "active":
+                log.warning("evaluator_not_found_or_inactive", evaluator_id=str(evaluator_id))
+                return {"evaluated": 0, "scores_created": 0, "errors": 0, "skipped": 0}
+            return await evaluate_batch(db, evaluator, run_ids, limit)
+    finally:
+        await async_engine.dispose()
 
 
 @celery_app.task(name="evaluators.batch_evaluate")  # type: ignore[untyped-decorator]

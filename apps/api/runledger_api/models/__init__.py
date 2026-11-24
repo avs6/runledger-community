@@ -90,7 +90,7 @@ from runledger_api.models.playground import PlaygroundRequest, PlaygroundSession
 from runledger_api.models.plugins import Plugin, PluginExecution
 from runledger_api.models.projects import Project, ProjectKey, TeamModel
 from runledger_api.models.prompts import Prompt, PromptVersion
-from runledger_api.models.replay import ReplayDataset, ReplayExperiment, UserAnomaly
+from runledger_api.models.replay import UserAnomaly
 from runledger_api.models.retention import RetentionPolicy
 from runledger_api.models.saved_views import SavedView  # noqa: E402
 from runledger_api.models.scores import ScoreEvent, ScoreRollupDaily
@@ -139,8 +139,6 @@ __all__ = [
     "DataQualityIssue",
     "Annotation",
     "UserAnomaly",
-    "ReplayDataset",
-    "ReplayExperiment",
     "LedgerKey",
     "LedgerSnapshot",
     "ToolRegistry",

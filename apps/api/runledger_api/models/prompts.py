@@ -28,9 +28,11 @@ class Prompt(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    default_environment: Mapped[str] = mapped_column(
-        sa.Text, nullable=False, server_default="production"
-    )
+    default_environment: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="dev")
+    # Score gate for promotion to production (0-1); None means no gate.
+    promotion_min_score: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    # Restrict the gate to scores with this name (an evaluator name); None = all scores.
+    promotion_score_name: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )
@@ -64,8 +66,13 @@ class PromptVersion(Base):
     content: Mapped[str] = mapped_column(sa.Text, nullable=False)
     variables: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default="[]")
     commit_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
-    environment: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="production")
+    environment: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default="dev")
     model_hint: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # The approval that let this version into production; unique, so one approval
+    # authorises exactly one production version (review B-02).
+    approval_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True, unique=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         sa.TIMESTAMP(timezone=True), server_default=sa.text("NOW()"), nullable=False
     )

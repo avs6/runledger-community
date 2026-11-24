@@ -120,16 +120,67 @@ async def test_create_evaluator_llm_judge(
 
     mock_db_session.refresh = mock_refresh
 
+    aliases = [{"alias": "gpt-4o-mini", "provider": "openai", "targets": ["gpt-4o-mini"]}]
+    with (
+        patch("runledger_api.routers.evaluations._require_admin_for_judge", AsyncMock()),
+        patch(
+            "runledger_api.services.gateway_client.list_route_aliases",
+            AsyncMock(return_value=aliases),
+        ),
+    ):
+        resp = await authed_client.post(
+            "/evaluations/evaluators",
+            json={
+                "name": "LLM Judge",
+                "type": "llm_judge",
+                "config": {
+                    "model": "gpt-4o-mini",
+                    "criteria": "Rate quality 0-1",
+                    "gateway_api_key": "rl_live_secret",
+                },
+            },
+        )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["type"] == "llm_judge"
+    # The key is write-only: stored as an encrypted ref, never returned (review B-09).
+    assert body["config"]["gateway_key_set"] is True
+    assert "gateway_api_key" not in body["config"]
+    assert "gateway_key_ref" not in body["config"]
+    assert "rl_live_secret" not in resp.text
+    stored = mock_db_session.add.call_args.args[0]
+    assert stored.config["gateway_key_ref"].startswith("enc::")
+
+
+@pytest.mark.asyncio
+async def test_create_llm_judge_rejects_provider_key_and_base_url(
+    authed_client: AsyncClient,
+) -> None:
+    with patch("runledger_api.routers.evaluations._require_admin_for_judge", AsyncMock()):
+        resp = await authed_client.post(
+            "/evaluations/evaluators",
+            json={
+                "name": "Bad judge",
+                "type": "llm_judge",
+                "config": {
+                    "model": "gpt-4o-mini",
+                    "api_key": "sk-provider",
+                    "base_url": "http://169.254.169.254",
+                },
+            },
+        )
+    assert resp.status_code == 422
+    assert "gateway" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_llm_judge_requires_admin_session(authed_client: AsyncClient) -> None:
+    """A workload API key (no admin session) cannot create a judge."""
     resp = await authed_client.post(
         "/evaluations/evaluators",
-        json={
-            "name": "LLM Judge",
-            "type": "llm_judge",
-            "config": {"model": "gpt-4o-mini", "criteria": "Rate quality 0-1"},
-        },
+        json={"name": "J", "type": "llm_judge", "config": {"model": "gpt-4o-mini"}},
     )
-    assert resp.status_code == 201
-    assert resp.json()["type"] == "llm_judge"
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

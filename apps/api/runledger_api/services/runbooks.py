@@ -128,3 +128,46 @@ async def generate_runbook(
     await db.commit()
     await db.refresh(entry)
     return entry
+
+
+def runbook_markdown(entry: RunbookEntry) -> str:
+    """Render a runbook as Markdown for export (review B-12)."""
+    s = entry.summary or {}
+    lines = [
+        f"# Runbook: run {s.get('run_id', entry.run_id)}",
+        "",
+        f"- **Severity:** {entry.severity}",
+        f"- **Generated:** {entry.generated_at.isoformat() if entry.generated_at else ''}",
+        f"- **Status:** {s.get('status')}",
+        f"- **Feature tag:** {s.get('feature_tag') or '-'}",
+        f"- **Duration:** {s.get('duration_ms')} ms",
+        f"- **Cost:** ${s.get('cost_usd', 0):.6f} "
+        f"({s.get('cost_ratio', 0)}x the workspace average)",
+        f"- **Tokens:** {s.get('input_tokens')} in / {s.get('output_tokens')} out",
+        "",
+        "## What happened",
+        "",
+        str(s.get("what_happened") or ""),
+        "",
+        "## Models, providers and tools",
+        "",
+        f"- Models: {', '.join(s.get('models_used') or []) or '-'}",
+        f"- Providers: {', '.join(s.get('providers_used') or []) or '-'}",
+        f"- Tools: {', '.join(s.get('tools_used') or []) or '-'}",
+        f"- Spans: {s.get('span_count')} ({s.get('failed_span_count')} failed); "
+        f"provider calls: {s.get('provider_call_count')} ({s.get('failed_call_count')} failed)",
+        "",
+    ]
+    errors = s.get("errors") or []
+    if errors:
+        lines += ["## Errors", ""]
+        lines += [
+            f"- {e.get('provider')}/{e.get('model')}: {e.get('error_type') or 'error'}"
+            for e in errors
+        ]
+        lines.append("")
+    recs = s.get("recommendations") or []
+    lines += ["## Recommended actions", ""]
+    lines += [f"- {r}" for r in recs] if recs else ["- No action needed."]
+    lines.append("")
+    return "\n".join(lines)

@@ -4,7 +4,8 @@ Example 15 — Prompt Management
 Demonstrates:
   1. POST /prompts              — create a named prompt template
   2. POST /prompts/{name}/versions — commit v1 (staging) and v2 (staging)
-  3. POST /prompts/{name}/promote  — promote staging → production
+  3. POST /prompts/{name}/promotion-requests, then POST /prompts/{name}/promote
+     with the approved approval_id — production needs an approval (review B-02)
   4. GET  /prompts/{name}/latest   — pull the latest production version
   5. rl.get_prompt()           — SDK fetch with {{variable}} substitution + 60s cache
   6. GET  /prompts/{name}/metrics  — per-version run count, avg cost, avg score
@@ -62,7 +63,7 @@ with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=10) as client:
     resp = client.post("/prompts", json={
         "name": PROMPT_NAME,
         "description": "Customer support agent system prompt",
-        "default_environment": "production",
+        "default_environment": "dev",
     })
 
 if resp.status_code == 201:
@@ -120,10 +121,24 @@ else:
 sep("Step 3 — POST /prompts/{name}/promote (staging → production)")
 
 with httpx.Client(base_url=BASE_URL, headers=HEADERS, timeout=10) as client:
+    # Production is governed: ask for a prompt_promote approval for the latest staging
+    # version. An approver decides it in Approvals (or an auto-approval policy does).
+    req = client.post(f"/prompts/{PROMPT_NAME}/promotion-requests", json={
+        "source_environment": "staging",
+        "reason": "Example 15: friendlier tone",
+    })
+    req.raise_for_status()
+    approval = req.json()
+    print(f"  Approval {approval['id'][:8]}… for v{approval['version']}: {approval['status']}")
+    if approval["status"] == "pending":
+        # For the example, approve it ourselves (needs an approver role; with separation of
+        # duties on, a different user must approve it in the dashboard).
+        client.post(f"/approvals/{approval['id']}/approve", json={"note": "example 15"})
     resp = client.post(f"/prompts/{PROMPT_NAME}/promote", json={
         "source_environment": "staging",
         "target_environment": "production",
         "commit_message": "Promote v2 to production",
+        "approval_id": approval["id"],
     })
 
 if resp.status_code == 201:

@@ -12,7 +12,9 @@ The Optimization Simulator lets you model the cost and latency impact of switchi
 3. **Toggle optimizations** — enable semantic cache and/or prompt compression
 4. **View projections** — see estimated cost savings, latency changes, quality risk, and per-dimension impact
 
-The simulator queries your actual `provider_calls` data, applies cost and latency ratios from a built-in model catalog (21 models), and returns projected outcomes with a confidence score.
+The simulator queries your actual `provider_calls` data and prices a model swap from real pricing rows: it re-prices the observed input/output token mix of each current model at the proposed model's rates. Only when the proposed model has no pricing row does it fall back to a static ratio table, and then it says so in the description and drops confidence to `directional`. Cache and compression levers use what this workspace actually achieved: the cache hit rate on routes with caching on, and the cost savings recorded on compressed calls, over the same window. With no observed data a lever projects nothing and the impact row says so. The dashboard's model pickers list the target models of your gateway routes.
+
+Optimization **opportunities** come from one engine, the [Flywheel](/optimization/flywheel): each item on the Opportunities tab (and in `GET /analytics/optimization-opportunities`) is a pending Flywheel recommendation with its `recommendation_id`, and **Apply** changes the alias's primary route through `POST /gateway/flywheel/recommendations/{id}/apply`, with audit and rollback. Experiments add recommendations with `POST /experiments/{id}/recommend-route`.
 
 ## Key outputs
 

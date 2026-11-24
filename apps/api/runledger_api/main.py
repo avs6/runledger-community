@@ -24,7 +24,6 @@ from runledger_api.routers import (
     ledger,
     login,
     privacy,
-    replay,
     runs,
     tools,
 )
@@ -51,6 +50,7 @@ from runledger_api.routers import policies as policies_router
 from runledger_api.routers import prompts as prompts_router
 from runledger_api.routers import providers as providers_router
 from runledger_api.routers import retention as retention_router
+from runledger_api.routers import runbooks as runbooks_router
 from runledger_api.routers import security as security_router
 from runledger_api.routers import sessions as sessions_router
 from runledger_api.routers import settings as settings_router
@@ -115,7 +115,6 @@ app.include_router(runs.router)
 app.include_router(login.router)
 app.include_router(budgets.router)
 app.include_router(billing.router)
-app.include_router(replay.router)
 app.include_router(ledger.router)
 app.include_router(tools.router)
 app.include_router(privacy.router)
@@ -145,6 +144,7 @@ app.include_router(budget_tiers_router.router)
 app.include_router(agents_router.router)
 app.include_router(workflows_router.router)
 app.include_router(vector_stores_router.router)
+app.include_router(runbooks_router.router)
 app.include_router(playground_router.router)
 app.include_router(workspace_controls_router.tags_router)
 app.include_router(workspace_controls_router.search_tools_router)

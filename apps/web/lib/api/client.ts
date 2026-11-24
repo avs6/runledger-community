@@ -255,7 +255,7 @@ export async function exportRunbook(
   runbookId: string,
   format: 'markdown' | 'json' = 'markdown'
 ): Promise<string> {
-  const res = await apiRequest(`/runs/runbooks/${runbookId}/export?format=${format}`, apiKey)
+  const res = await apiRequest(`/runbooks/${runbookId}/export?format=${format}`, apiKey)
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
   return res.text()
 }

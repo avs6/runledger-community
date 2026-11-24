@@ -4,10 +4,12 @@ Pydantic response schemas for the analytics API.
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnalyticsSummary(BaseModel):
@@ -181,6 +183,17 @@ class OptimizationOpportunity(BaseModel):
     potential_savings_usd: Decimal
     affected_calls: int
     description: str
+    # Flywheel recommendation behind this opportunity (review B-20); apply it with
+    # POST /gateway/flywheel/recommendations/{recommendation_id}/apply.
+    recommendation_id: uuid.UUID | None = None
+    segment_by: str | None = None
+    segment_key: str | None = None
+    kind: str | None = None
+    confidence: str | None = None
+    current_config: dict[str, Any] = Field(default_factory=dict)
+    proposed_config: dict[str, Any] = Field(default_factory=dict)
+    est_cost_delta_pct: float | None = None
+    applies_to_route: bool = False
 
 
 class OptimizationOpportunitiesResponse(BaseModel):

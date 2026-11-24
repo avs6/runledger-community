@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { getVectorCollection, getVectorCollectionStats, getVectorQueries } from '@/lib/api'
 import type { VectorCollectionStats, VectorQueryResponse } from '@/types/api'
 import { num } from '@/lib/utils'
+import { SearchTestPanel } from './_components/SearchTestPanel'
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`
@@ -112,10 +113,12 @@ export default async function VectorStoreDetailPage({ params }: { params: Promis
           <StatCard label="Documents" value={stats.document_count.toLocaleString()} />
           <StatCard label="Size" value={bytes(stats.size_bytes)} />
           <StatCard label="Total Queries" value={stats.total_queries.toLocaleString()} />
-          <StatCard label="Total Cost" value={money(stats.total_cost)} sub={`Query: ${money(stats.total_query_cost)} / Embed: ${money(stats.total_embed_cost)}`} />
+          <StatCard label="Total Cost" value={money(stats.total_cost)} sub="Self-hosted embeddings: no per-query provider cost" />
           <StatCard label="Avg Latency" value={stats.avg_query_latency_ms != null ? `${num(stats.avg_query_latency_ms).toFixed(0)}ms` : '-'} sub={stats.avg_results_per_query != null ? `${num(stats.avg_results_per_query).toFixed(1)} results/query` : ''} />
         </div>
       )}
+
+      <SearchTestPanel collectionId={collection_id} />
 
       <section>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-widest text-slate-500">
@@ -124,9 +127,7 @@ export default async function VectorStoreDetailPage({ params }: { params: Promis
         {queries.queries.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-10 text-center dark:border-slate-700 dark:bg-slate-900/40">
             <p className="text-sm text-slate-500">No queries recorded yet.</p>
-            <p className="mt-2 text-xs text-slate-400">
-              Use <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">POST /vector-stores/{collection_id}/search-test</code> to test searches.
-            </p>
+            <p className="mt-2 text-xs text-slate-400">Run a search test above to record one.</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/80">

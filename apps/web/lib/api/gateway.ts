@@ -598,18 +598,6 @@ export async function getUnpricedUsage(
   return apiFetch(`/providers/pricing/unpriced?days=${days}`, apiKey)
 }
 
-// ── Phase 13: Route Recommendations ─────────────────────────────────────────
-
-export async function createRouteRecommendation(
-  apiKey: string,
-  body: { experiment_id: string; config_index: number; reason: string }
-): Promise<{ status: string; recommendation_id: string }> {
-  return apiFetch<{ status: string; recommendation_id: string }>('/gateway/route-recommendations', apiKey, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  })
-}
-
 // ── Phase 15: ML Intelligence Layer ────────────────────────────────────
 
 export async function listAnomalies(

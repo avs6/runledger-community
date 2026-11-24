@@ -49,10 +49,11 @@ celery_app = Celery(
         "runledger_api.workers.budget_overrides",
         "runledger_api.workers.backups",
         "runledger_api.workers.kafka",
-        # Replay experiments were queued but no worker loaded the task (review B-06).
-        "runledger_api.workers.replay",
         # Worker/beat heartbeats for /health and the system status page.
         "runledger_api.workers.platform",
+        # Build-area maintenance: agent memory expiry purge (review B-16). Replay
+        # experiments now run in-request through the gateway (review B-07).
+        "runledger_api.workers.build_maintenance",
     ],
 )
 
@@ -144,6 +145,11 @@ celery_app.conf.update(
         "flywheel-analyze-daily": {
             "task": "flywheel.analyze",
             "schedule": crontab(hour=3, minute=30),
+        },
+        # Agent memory: delete entries past expires_at (review B-16)
+        "agent-memory-purge-hourly": {
+            "task": "build.purge_expired_memories",
+            "schedule": 3600.0,
         },
         # Cost enrichment: every 60 seconds
         "cost-enrichment-60s": {

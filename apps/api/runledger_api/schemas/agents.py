@@ -323,6 +323,8 @@ class AgentMemoryCreate(BaseModel):
     memory_type: MemoryType = "long_term"
     metadata: dict[str, Any] = Field(default_factory=dict)
     retention_days: int | None = Field(None, ge=1, le=3650)
+    # Overwrite an existing key instead of returning 409 (review B-16).
+    upsert: bool = False
 
 
 class AgentMemoryUpdate(BaseModel):

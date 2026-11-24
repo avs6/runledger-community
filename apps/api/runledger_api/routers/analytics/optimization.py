@@ -72,20 +72,60 @@ async def simulate_optimization(
     current_key = _match_model_key(body.current_model)
     proposed_key = _match_model_key(body.proposed_model)
 
+    # Model swap priced from real pricing rows over the observed token mix (review
+    # B-20); the static ratio table is only a labelled fallback.
     model_cost_ratio = Decimal(1)
-    if current_key and proposed_key:
+    priced_from_rows = False
+    if body.proposed_model:
+        from runledger_api.services.optimization import price_ratio  # noqa: PLC0415
+
+        usage_rows = (
+            await db.execute(
+                select(
+                    ProviderCall.provider,
+                    ProviderCall.model,
+                    func.coalesce(func.sum(ProviderCall.input_tokens), 0),
+                    func.coalesce(func.sum(ProviderCall.output_tokens), 0),
+                )
+                .where(*filters)
+                .group_by(ProviderCall.provider, ProviderCall.model)
+            )
+        ).all()
+        cur_priced, new_priced = await price_ratio(
+            db,
+            workspace.id,
+            [(p, m, int(i or 0), int(o or 0)) for p, m, i, o in usage_rows],
+            body.proposed_model,
+        )
+        if cur_priced and new_priced is not None and cur_priced > 0:
+            model_cost_ratio = (new_priced / cur_priced).quantize(Decimal("0.0001"))
+            priced_from_rows = True
+    if not priced_from_rows and current_key and proposed_key:
         cur_ratio = MODEL_COST_RATIOS.get(current_key, 1.0)
         new_ratio = MODEL_COST_RATIOS.get(proposed_key, 1.0)
         if cur_ratio > 0:
             model_cost_ratio = Decimal(str(round(new_ratio / cur_ratio, 4)))
 
-    cache_savings_pct = Decimal(0)
-    if body.enable_cache:
-        current_cache_rate = cached_count / affected if affected > 0 else 0
-        target_cache_rate = max(current_cache_rate, 0.40)
-        cache_savings_pct = Decimal(str(round((target_cache_rate - current_cache_rate) * 0.50, 4)))
+    # Cache and compression levers use what this workspace actually achieved
+    # (review B-20); with no observed data the lever projects nothing.
+    from runledger_api.services.optimization import observed_rates  # noqa: PLC0415
 
-    compression_pct = Decimal("0.15") if body.enable_compression else Decimal(0)
+    observed = await observed_rates(db, workspace.id, t_from)
+    current_cache_rate = cached_count / affected if affected > 0 else 0
+    target_cache_rate = current_cache_rate
+    cache_savings_pct = Decimal(0)
+    observed_cache = observed["cache_hit_rate"]
+    if body.enable_cache and observed_cache is not None:
+        target_cache_rate = max(current_cache_rate, float(observed_cache))
+        # A cache hit costs nothing, so each extra hit saves that call's cost.
+        cache_savings_pct = Decimal(str(round(target_cache_rate - current_cache_rate, 4)))
+
+    observed_comp = observed["compression_savings_pct"]
+    compression_pct = (
+        Decimal(str(round(float(observed_comp), 4)))
+        if body.enable_compression and observed_comp is not None
+        else Decimal(0)
+    )
 
     projected_cost = (
         current_cost * model_cost_ratio * (1 - cache_savings_pct) * (1 - compression_pct)
@@ -109,6 +149,8 @@ async def simulate_optimization(
         quality_risk = QUALITY_RISK_MAP.get(proposed_key, "medium")
 
     confidence = "high" if affected >= 100 else "medium" if affected >= 20 else "directional"
+    if body.proposed_model and not priced_from_rows:
+        confidence = "directional"
 
     impacts: list[SimulationImpact] = []
     if body.proposed_model and body.current_model:
@@ -127,9 +169,12 @@ async def simulate_optimization(
                 current_value=f"{round(cached_count / affected * 100)}% hit rate"
                 if affected > 0
                 else "0%",
-                projected_value=f"~{round(float(cache_savings_pct) * 100 + cached_count / affected * 100)}% hit rate"
-                if affected > 0
-                else "40%",
+                projected_value=(
+                    f"~{round(target_cache_rate * 100)}% hit rate "
+                    f"(observed on {observed['cache_sample']} cached-route requests)"
+                    if observed_cache is not None
+                    else "no observed cache traffic to project from"
+                ),
                 delta_pct=Decimal(str(round(float(cache_savings_pct) * -100, 1))),
             )
         )
@@ -138,8 +183,13 @@ async def simulate_optimization(
             SimulationImpact(
                 label="Prompt compression",
                 current_value="Disabled",
-                projected_value="Enabled (~15% token reduction)",
-                delta_pct=Decimal("-15"),
+                projected_value=(
+                    f"Enabled (~{round(float(compression_pct) * 100, 1)}% cost reduction "
+                    f"observed on {observed['compression_sample']} calls)"
+                    if observed_comp is not None
+                    else "no observed compression savings to project from"
+                ),
+                delta_pct=Decimal(str(round(float(compression_pct) * -100, 1))),
             )
         )
 
@@ -150,8 +200,17 @@ async def simulate_optimization(
         parts.append("enable caching")
     if body.enable_compression:
         parts.append("enable compression")
+    basis = (
+        " Model cost from pricing rows."
+        if priced_from_rows
+        else " Model cost from a static ratio table (no pricing row for the proposed model)."
+        if body.proposed_model
+        else ""
+    )
+    if body.enable_cache or body.enable_compression:
+        basis += " Cache/compression effects use this workspace's observed hit rate and savings."
     desc = (
-        f"Simulating: {', '.join(parts) or 'no changes'}. "
+        f"Simulating: {', '.join(parts) or 'no changes'}.{basis} "
         f"Affects {affected:,} requests with ${float(current_cost):.4f} current spend. "
         f"Projected savings: ${float(projected_savings):.4f} ({float(savings_pct):.1f}%)."
     )
@@ -254,18 +313,27 @@ async def model_scorecards(
     )
     cache_rows = {r.model_used: r for r in (await db.execute(cache_stmt)).all()}
 
+    # Attribute a run's scores to a model only when that run used exactly one model,
+    # once per score (not once per call), so multi-model runs don't copy one score onto
+    # every model and chatty runs don't outweigh others (review B-25).
+    single_model_runs = (
+        select(
+            ProviderCall.run_id.label("run_id"),
+            func.min(ProviderCall.model).label("model"),
+        )
+        .where(*filters)
+        .group_by(ProviderCall.run_id)
+        .having(func.count(func.distinct(ProviderCall.model)) == 1)
+        .subquery()
+    )
     score_stmt = (
         select(
-            ProviderCall.model,
+            single_model_runs.c.model.label("model"),
             func.avg(ScoreEvent.value).label("avg_score"),
         )
-        .join(ScoreEvent, ScoreEvent.run_id == ProviderCall.run_id)
-        .where(
-            ProviderCall.workspace_id == workspace.id,
-            ProviderCall.created_at >= start,
-            ProviderCall.created_at <= end,
-        )
-        .group_by(ProviderCall.model)
+        .join(ScoreEvent, ScoreEvent.run_id == single_model_runs.c.run_id)
+        .where(ScoreEvent.workspace_id == workspace.id)
+        .group_by(single_model_runs.c.model)
     )
     score_map = {r.model: r.avg_score for r in (await db.execute(score_stmt)).all()}
 
@@ -285,17 +353,19 @@ async def model_scorecards(
                 total_cost_usd=Decimal(str(r.total_cost or 0)),
                 call_count=r.call_count,
                 avg_cost_per_call=Decimal(str(round(float(r.avg_cost or 0), 6))),
-                avg_latency_ms=Decimal(str(round(float(r.avg_latency or 0), 1)))
-                if r.avg_latency
+                avg_latency_ms=Decimal(str(round(float(r.avg_latency), 1)))
+                if r.avg_latency is not None
                 else None,
-                p95_latency_ms=Decimal(str(round(float(r.p95_latency or 0), 1)))
-                if r.p95_latency
+                p95_latency_ms=Decimal(str(round(float(r.p95_latency), 1)))
+                if r.p95_latency is not None
                 else None,
                 error_rate=Decimal(str(round(r.error_count / r.call_count * 100, 2)))
                 if r.call_count > 0
                 else Decimal("0"),
                 cache_hit_rate=cache_hit_rate,
-                avg_quality_score=Decimal(str(round(float(avg_score), 2))) if avg_score else None,
+                avg_quality_score=Decimal(str(round(float(avg_score), 2)))
+                if avg_score is not None
+                else None,
                 input_tokens=r.input_tokens or 0,
                 output_tokens=r.output_tokens or 0,
             )

@@ -8,15 +8,17 @@ import { toast } from 'sonner'
 import {
   FlaskConical, Database, BookText, Plus, Trash2, Play,
   CheckCircle, Clock, XCircle, Loader2, Star, Beaker,
-  Network, ChevronDown, ChevronRight, Sparkles,
+  Network, ChevronDown, ChevronRight, Sparkles, Pencil,
 } from 'lucide-react'
 import { useRole } from '@/components/rbac/useRole'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { listEvalDatasets, createEvalDataset, listEvalExperiments, createEvalExperiment, runEvalExperiment, listPrompts, createPrompt, deletePrompt, listEvaluators, createEvaluator, deleteEvaluator, runEvaluator, getCostQuality, getBestValueModels } from '@/lib/api'
 import type { EvalDataset, EvalExperiment, DatasetItem, PromptResponse, EvaluatorResponse, CostQualityPoint, BestValueModel } from '@/types/api'
 import QualityScoresTab from '@/components/evaluation/QualityScoresTab'
+import { EvaluatorEditDialog } from './_components/EvaluatorEditDialog'
 import { num } from '@/lib/utils'
 
-type Tab = 'scores' | 'experiments' | 'datasets' | 'prompts' | 'evaluators' | 'replay'
+type Tab = 'scores' | 'experiments' | 'datasets' | 'prompts' | 'evaluators'
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
@@ -369,9 +371,10 @@ function PromptsTab({
   const router = useRouter()
   const { data: session } = useSession()
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
+  const { confirm: confirmDialog, dialog: confirmEl } = useConfirm()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [defaultEnv, setDefaultEnv] = useState('production')
+  const [defaultEnv, setDefaultEnv] = useState('dev')
   const [creating, setCreating] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [page, setPage] = useState(0)
@@ -385,7 +388,7 @@ function PromptsTab({
     try {
       await createPrompt(apiKey, { name: name.trim(), description: description.trim() || null, default_environment: defaultEnv })
       toast.success(`Prompt "${name}" created`)
-      setName(''); setDescription(''); setDefaultEnv('production'); setShowForm(false)
+      setName(''); setDescription(''); setDefaultEnv('dev'); setShowForm(false)
       onRefresh()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -394,7 +397,7 @@ function PromptsTab({
   }
 
   async function handleDelete(promptName: string) {
-    if (!confirm(`Delete prompt "${promptName}" and all its versions?`)) return
+    if (!(await confirmDialog({ title: `Delete prompt "${promptName}"?`, description: 'All its versions are deleted. This cannot be undone.', confirmLabel: 'Delete', destructive: true }))) return
     try {
       await deletePrompt(apiKey, promptName)
       toast.success('Prompt deleted')
@@ -404,6 +407,7 @@ function PromptsTab({
 
   return (
     <div className="space-y-3">
+      {confirmEl}
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500 dark:text-slate-400">Version-controlled prompt templates with variable substitution.</p>
         {canWrite && (
@@ -473,8 +477,9 @@ function PromptsTab({
 
 function EvaluatorsTab({
   evaluators, costQuality, bestValue, loading,
-  onCreate, onDelete, onRun, canWrite,
+  onCreate, onDelete, onRun, onEdited, canWrite,
 }: {
+  onEdited: () => void
   evaluators: EvaluatorResponse[]
   costQuality: CostQualityPoint[]
   bestValue: BestValueModel[]
@@ -492,6 +497,10 @@ function EvaluatorsTab({
   const [type, setType] = useState<'rule' | 'llm_judge'>('rule')
   const [configText, setConfigText] = useState('{\n  "rules": []\n}')
   const [configError, setConfigError] = useState('')
+  const [editing, setEditing] = useState<EvaluatorResponse | null>(null)
+  const { data: evSession } = useSession()
+  const evApiKey = (evSession as { apiKey?: string } | null)?.apiKey ?? ''
+  const { confirm: confirmEv, dialog: confirmEvEl } = useConfirm()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -507,6 +516,11 @@ function EvaluatorsTab({
 
   return (
     <div className="space-y-3">
+      {confirmEvEl}
+      {editing && (
+        <EvaluatorEditDialog apiKey={evApiKey} evaluator={editing} onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); onEdited() }} />
+      )}
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500 dark:text-slate-400">Rule-based and LLM-judge evaluator pipelines.</p>
         {canWrite && (
@@ -523,7 +537,7 @@ function EvaluatorsTab({
               <div><label className={labelCls}>Name</label><input value={name} onChange={(e) => setName(e.target.value)} required className={inputCls} placeholder="e.g. Quality Judge" /></div>
               <div>
                 <label className={labelCls}>Type</label>
-                <select value={type} onChange={(e) => { setType(e.target.value as 'rule' | 'llm_judge'); setConfigText(e.target.value === 'llm_judge' ? '{\n  "model": "gpt-4o-mini",\n  "criteria": "Rate quality 0-1."\n}' : '{\n  "rules": []\n}') }} className={inputCls}>
+                <select value={type} onChange={(e) => { setType(e.target.value as 'rule' | 'llm_judge'); setConfigText(e.target.value === 'llm_judge' ? '{\n  "model": "<gateway route alias>",\n  "criteria": "Rate quality 0-1.",\n  "gateway_api_key": "<RunLedger API key, stored encrypted>"\n}' : '{\n  "rules": []\n}') }} className={inputCls}>
                   <option value="rule">Rule-based</option><option value="llm_judge">LLM Judge</option>
                 </select>
               </div>
@@ -533,6 +547,13 @@ function EvaluatorsTab({
               <label className={labelCls}>Config (JSON)</label>
               <textarea value={configText} onChange={(e) => { setConfigText(e.target.value); setConfigError('') }} rows={4} className={`${inputCls} font-mono`} />
               {configError && <p className="text-[10px] text-red-500">{configError}</p>}
+              {type === 'llm_judge' && (
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Judges run through the gateway: <code>model</code> is a route alias, and <code>gateway_api_key</code> is
+                  write-only (stored encrypted, never shown again). Provider keys and base URLs are rejected. Creating a judge
+                  needs a workspace admin.
+                </p>
+              )}
             </div>
             <button type="submit" disabled={creating || !name} className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creating ? 'Creating…' : 'Create'}</button>
           </form>
@@ -576,7 +597,8 @@ function EvaluatorsTab({
                         {running === ev.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}Run
                       </button>
                     )}
-                    {canWrite && <button onClick={() => onDelete(ev.id)} className="rounded p-0.5 text-slate-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>}
+                    {canWrite && <button aria-label={`Edit evaluator ${ev.name}`} onClick={() => setEditing(ev)} className="rounded p-0.5 text-slate-400 hover:text-violet-600"><Pencil className="h-3 w-3" /></button>}
+                    {canWrite && <button aria-label={`Delete evaluator ${ev.name}`} onClick={async () => { if (await confirmEv({ title: `Delete evaluator "${ev.name}"?`, description: 'Scores it already created are kept.', confirmLabel: 'Delete', destructive: true })) await onDelete(ev.id) }} className="rounded p-0.5 text-slate-400 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>}
                   </div>
                 </td>
               </tr>
@@ -649,206 +671,6 @@ function EvaluatorsTab({
   )
 }
 
-// ── Replay tab ────────────────────────────────────────────────────────────────
-
-function ReplayTab({
-  datasets, experiments, loading, canWrite,
-  onCreateDataset, onCreateExperiment, onRunExperiment,
-}: {
-  datasets: EvalDataset[]
-  experiments: EvalExperiment[]
-  loading: boolean
-  canWrite: boolean
-  onCreateDataset: (data: { name: string; description?: string; items: DatasetItem[] }) => Promise<void>
-  onCreateExperiment: (data: { name: string; description?: string; dataset_id?: string; prompt_name?: string; prompt_version?: number; models: Array<{ model: string; provider: string; label: null }> }) => Promise<void>
-  onRunExperiment: (id: string) => Promise<void>
-}) {
-  const [subTab, setSubTab] = useState<'datasets' | 'experiments'>('datasets')
-  const [showNewDs, setShowNewDs] = useState(false)
-  const [newDsName, setNewDsName] = useState('')
-  const [creatingDs, setCreatingDs] = useState(false)
-  const [showNewExp, setShowNewExp] = useState(false)
-  const [newExpName, setNewExpName] = useState('')
-  const [newExpDatasetId, setNewExpDatasetId] = useState('')
-  const [newExpModel, setNewExpModel] = useState('')
-  const [newExpProvider, setNewExpProvider] = useState('')
-  const [creatingExp, setCreatingExp] = useState(false)
-  const [expandedExp, setExpandedExp] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
-
-  const items = subTab === 'datasets' ? datasets : experiments
-  const totalPages = Math.ceil(items.length / PAGE_SIZE)
-  const pagedDs = datasets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const pagedExp = experiments.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-
-  const datasetMap = Object.fromEntries(datasets.map((d) => [d.id, d.name]))
-
-  async function handleCreateDs() {
-    if (!newDsName.trim()) return
-    setCreatingDs(true)
-    try {
-      await onCreateDataset({ name: newDsName.trim(), items: [] })
-      setNewDsName(''); setShowNewDs(false)
-    } finally { setCreatingDs(false) }
-  }
-
-  async function handleCreateExp() {
-    if (!newExpName.trim() || !newExpDatasetId || !newExpModel.trim() || !newExpProvider.trim()) return
-    setCreatingExp(true)
-    try {
-      await onCreateExperiment({
-        name: newExpName.trim(),
-        dataset_id: newExpDatasetId,
-        models: [{ model: newExpModel.trim(), provider: newExpProvider.trim(), label: null }],
-      })
-      setNewExpName(''); setNewExpDatasetId(''); setNewExpModel(''); setNewExpProvider(''); setShowNewExp(false)
-    } finally { setCreatingExp(false) }
-  }
-
-  return (
-    <div className="space-y-3">
-
-      <div className="flex items-center gap-3 rounded-lg border border-violet-300 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-950/20 px-3 py-2">
-        <Network className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-        <p className="text-xs text-violet-800 dark:text-violet-200">Experiments replay traffic through gateway routes and model configs.</p>
-        <div className="ml-auto flex gap-1.5">
-          {[{ label: 'Gateway', href: '/gateway' }, { label: 'Providers', href: '/provider-profiles' }, { label: 'Routes', href: '/gateway?tab=routes' }].map(({ label, href }) => (
-            <Link key={label} href={href} className="rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800/50">{label}</Link>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-        {(['datasets', 'experiments'] as const).map((t) => (
-          <button key={t} onClick={() => { setSubTab(t); setPage(0) }}
-            className={`px-3 py-1.5 text-xs font-medium capitalize ${subTab === t ? 'border-b-2 border-violet-500 text-violet-600 dark:text-violet-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {subTab === 'datasets' && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Replay datasets for model comparison.</p>
-            {canWrite && <button onClick={() => setShowNewDs(!showNewDs)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700"><Plus className="h-3.5 w-3.5" /> New Dataset</button>}
-          </div>
-          {showNewDs && (
-            <div className="flex items-center gap-2">
-              <input value={newDsName} onChange={(e) => setNewDsName(e.target.value)} placeholder="Dataset name" className={inputCls} />
-              <button onClick={handleCreateDs} disabled={creatingDs} className="rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creatingDs ? 'Creating…' : 'Create'}</button>
-            </div>
-          )}
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Source</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Items</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loading ? <SkeletonRows cols={4} /> :
-                 pagedDs.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-xs text-slate-400">No datasets yet.</td></tr>
-                ) : pagedDs.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                    <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200">{d.name}</td>
-                    <td className="px-3 py-1.5 text-slate-500">{d.source ?? '—'}</td>
-                    <td className="px-3 py-1.5 tabular-nums">{d.item_count}</td>
-                    <td className="px-3 py-1.5 text-slate-500">{new Date(d.created_at).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Pagination page={page} totalPages={Math.ceil(datasets.length / PAGE_SIZE)} total={datasets.length} onPageChange={setPage} />
-          </div>
-        </div>
-      )}
-
-      {subTab === 'experiments' && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Re-run datasets with different model configs to compare costs.</p>
-            {canWrite && <button onClick={() => setShowNewExp(!showNewExp)} className="flex items-center gap-1 rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700"><Plus className="h-3.5 w-3.5" /> New Experiment</button>}
-          </div>
-          {showNewExp && (
-            <div className="flex flex-wrap items-center gap-2">
-              <input value={newExpName} onChange={(e) => setNewExpName(e.target.value)} placeholder="Experiment name" className={inputCls} />
-              <select value={newExpDatasetId} onChange={(e) => setNewExpDatasetId(e.target.value)} className={inputCls}>
-                <option value="">Select dataset</option>
-                {datasets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-              <input value={newExpModel} onChange={(e) => setNewExpModel(e.target.value)} placeholder="Model" className={inputCls} />
-              <input value={newExpProvider} onChange={(e) => setNewExpProvider(e.target.value)} placeholder="Provider" className={inputCls} />
-              <button onClick={handleCreateExp} disabled={creatingExp} className="rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50">{creatingExp ? 'Creating…' : 'Create'}</button>
-            </div>
-          )}
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60">
-                  <th className="px-3 py-1.5 w-6" />
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Status</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Dataset</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Models</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scores</th>
-                  <th className="px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Created</th>
-                  <th className="px-3 py-1.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loading ? <SkeletonRows cols={8} /> :
-                 pagedExp.length === 0 ? (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-xs text-slate-400">No experiments yet.</td></tr>
-                ) : pagedExp.map((e) => (
-                  <>
-                    <tr key={e.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
-                      <td className="px-3 py-1.5">
-                        {e.status === 'completed' && e.results && (
-                          <button onClick={() => setExpandedExp(expandedExp === e.id ? null : e.id)}>
-                            {expandedExp === e.id ? <ChevronDown className="h-3.5 w-3.5 text-slate-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200">{e.name}</td>
-                      <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLES[e.status] ?? ''}`}>{STATUS_ICON[e.status]}{e.status}</span>
-                      </td>
-                      <td className="px-3 py-1.5 text-slate-500">{e.dataset_id ? datasetMap[e.dataset_id] ?? e.dataset_id.slice(0, 8) : '—'}</td>
-                      <td className="px-3 py-1.5 text-slate-500 font-mono">{e.models.map((m) => `${m.provider}/${m.model}`).join(', ') || '—'}</td>
-                      <td className="px-3 py-1.5 tabular-nums">{e.scores_created}</td>
-                      <td className="px-3 py-1.5 text-slate-500">{new Date(e.created_at).toLocaleDateString()}</td>
-                      <td className="px-3 py-1.5">
-                        {e.status === 'pending' && canWrite && (
-                          <button onClick={() => onRunExperiment(e.id)} className="flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-emerald-700">
-                            <Play className="h-3 w-3" /> Run
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                    {expandedExp === e.id && e.results && (
-                      <tr key={`${e.id}-r`} className="border-b border-slate-100 dark:border-slate-800">
-                        <td colSpan={8} className="px-4 py-2">
-                          <pre className="max-h-48 overflow-auto rounded-lg bg-slate-50 dark:bg-slate-800 p-2 text-[10px] font-mono">{JSON.stringify(e.results, null, 2)}</pre>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                ))}
-              </tbody>
-            </table>
-            <Pagination page={page} totalPages={Math.ceil(experiments.length / PAGE_SIZE)} total={experiments.length} onPageChange={setPage} />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function EvaluationPage() {
@@ -859,7 +681,9 @@ export default function EvaluationPage() {
   const apiKey = (session as { apiKey?: string } | null)?.apiKey ?? ''
 
   const parseTab = useCallback((value: string | null): Tab => {
-    if (value === 'scores' || value === 'experiments' || value === 'datasets' || value === 'prompts' || value === 'evaluators' || value === 'replay') return value
+    // Replay Lab was merged into experiments (mode = replay, review B-07).
+    if (value === 'replay') return 'experiments'
+    if (value === 'scores' || value === 'experiments' || value === 'datasets' || value === 'prompts' || value === 'evaluators') return value
     return 'experiments'
   }, [])
 
@@ -901,9 +725,7 @@ export default function EvaluationPage() {
   }, [apiKey])
 
   useEffect(() => {
-    refresh()
-    if (apiKey) {
-    }
+    void refresh()
   }, [refresh])
 
   useEffect(() => {
@@ -921,7 +743,11 @@ export default function EvaluationPage() {
   }
 
   async function handleRunExperiment(id: string) {
-    try { const updated = await runEvalExperiment(apiKey, id); setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e))); toast.success('Experiment completed') } catch { toast.error('Failed to run experiment') }
+    try {
+      const updated = await runEvalExperiment(apiKey, id)
+      setExperiments((prev) => prev.map((e) => (e.id === id ? updated : e)))
+      toast.success('Experiment started: every item runs through the gateway. Open it under Experiments for results.')
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to run experiment') }
   }
 
   async function handleCreateDataset(data: { name: string; description?: string; items: DatasetItem[] }) {
@@ -929,7 +755,7 @@ export default function EvaluationPage() {
   }
 
   async function handleCreateEvaluator(data: { name: string; description: string; type: string; config: Record<string, unknown> }) {
-    try { await createEvaluator(apiKey, data); toast.success('Evaluator created'); await refresh() } catch { toast.error('Failed to create evaluator') }
+    try { await createEvaluator(apiKey, data); toast.success('Evaluator created'); await refresh() } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to create evaluator') }
   }
 
   async function handleDeleteEvaluator(id: string) {
@@ -937,7 +763,7 @@ export default function EvaluationPage() {
   }
 
   async function handleRunEvaluator(id: string) {
-    try { await runEvaluator(apiKey, id); toast.success('Evaluation queued'); await refresh() } catch { toast.error('Failed to queue evaluation') }
+    try { await runEvaluator(apiKey, id); toast.success('Evaluation queued (LLM judges call the gateway with their stored key)'); await refresh() } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to queue evaluation') }
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
@@ -946,7 +772,6 @@ export default function EvaluationPage() {
     { id: 'datasets', label: 'Datasets', icon: <Database className="h-3.5 w-3.5" />, count: datasets.length },
     { id: 'prompts', label: 'Prompts', icon: <BookText className="h-3.5 w-3.5" />, count: prompts.length },
     { id: 'evaluators', label: 'Evaluators', icon: <CheckCircle className="h-3.5 w-3.5" />, count: evaluators.length },
-    { id: 'replay', label: 'Replay Lab', icon: <Beaker className="h-3.5 w-3.5" /> },
   ]
 
   return (
@@ -1028,12 +853,7 @@ export default function EvaluationPage() {
         <PromptsTab prompts={prompts} loading={loading} onRefresh={refresh} canWrite={canWrite} />
       )}
       {tab === 'evaluators' && (
-        <EvaluatorsTab evaluators={evaluators} costQuality={costQuality} bestValue={bestValue} loading={loading} onCreate={handleCreateEvaluator} onDelete={handleDeleteEvaluator} onRun={handleRunEvaluator} canWrite={canWrite} />
-      )}
-      {tab === 'replay' && (
-        <ReplayTab datasets={datasets} experiments={experiments} loading={loading} canWrite={canWrite}
-          onCreateDataset={handleCreateDataset} onCreateExperiment={handleCreateExperiment} onRunExperiment={handleRunExperiment}
-          />
+        <EvaluatorsTab evaluators={evaluators} costQuality={costQuality} bestValue={bestValue} loading={loading} onCreate={handleCreateEvaluator} onDelete={handleDeleteEvaluator} onRun={handleRunEvaluator} onEdited={() => void refresh()} canWrite={canWrite} />
       )}
     </div>
   )

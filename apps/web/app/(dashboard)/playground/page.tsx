@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getPlaygroundSessions, getPlaygroundHistory } from '@/lib/api'
-import type { PlaygroundSessionResponse, PlaygroundRequestResponse } from '@/types/api'
+import { getPlaygroundSessions, getPlaygroundHistory, getPlaygroundModels } from '@/lib/api'
+import type { PlaygroundModel, PlaygroundSessionResponse, PlaygroundRequestResponse } from '@/types/api'
 import PlaygroundClient from './PlaygroundClient'
 
 export default async function PlaygroundPage() {
@@ -12,23 +12,29 @@ export default async function PlaygroundPage() {
   let sessions: PlaygroundSessionResponse[] = []
   let history: PlaygroundRequestResponse[] = []
   let historyTotal = 0
+  let models: PlaygroundModel[] = []
+  let loadError: string | null = null
   try {
-    const [sessData, histData] = await Promise.all([
+    const [sessData, histData, modelData] = await Promise.all([
       getPlaygroundSessions(apiKey, { limit: 10 }),
       getPlaygroundHistory(apiKey, { limit: 50 }),
+      getPlaygroundModels(apiKey),
     ])
     sessions = sessData.sessions
     history = histData.requests
     historyTotal = histData.total
-  } catch {
-    // pass empty defaults
+    models = modelData.items
+  } catch (err) {
+    loadError = err instanceof Error ? err.message : 'Failed to load the Playground'
   }
+  if (loadError) return <p role="alert" className="p-8 text-status-error">{loadError}</p>
 
   return (
     <PlaygroundClient
       initialSessions={sessions}
       initialHistory={history}
       initialHistoryTotal={historyTotal}
+      models={models}
     />
   )
 }

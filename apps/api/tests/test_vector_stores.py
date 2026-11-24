@@ -15,7 +15,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -328,12 +328,44 @@ async def test_search_test(
     mock_db_session.execute = AsyncMock(return_value=result)
     mock_db_session.refresh = AsyncMock(side_effect=_refresh_defaults)
 
-    resp = await authed_client.post(
-        f"/vector-stores/{coll.id}/search-test",
-        headers={"Authorization": "Bearer test-key"},
-        json={"query": "what is RAG?", "top_k": 5},
-    )
+    hits = [{"score": 0.91, "payload": {"text": "RAG is retrieval"}, "id": 1}]
+    with patch("runledger_api.services.vector_search.search", AsyncMock(return_value=(hits, 12))):
+        resp = await authed_client.post(
+            f"/vector-stores/{coll.id}/search-test",
+            headers={"Authorization": "Bearer test-key"},
+            json={"query": "what is RAG?", "top_k": 5},
+        )
     assert resp.status_code == 200
     data = resp.json()
     assert data["query"] == "what is RAG?"
-    assert data["result_count"] == 0
+    assert data["result_count"] == 1
+    assert data["results"][0]["payload"]["text"] == "RAG is retrieval"
+    assert data["latency_ms"] == 12
+    assert coll.total_queries == 51  # fixture starts at 50
+
+
+@pytest.mark.asyncio
+async def test_search_test_unavailable_is_503_and_records_nothing(
+    authed_client: AsyncClient,
+    mock_db_session: AsyncMock,
+) -> None:
+    """No Qdrant → an honest 503, no fake empty result and no counter bump (B-19)."""
+    from runledger_api.services.vector_search import VectorSearchUnavailable
+
+    coll = _make_collection()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = coll
+    mock_db_session.execute = AsyncMock(return_value=result)
+    with patch(
+        "runledger_api.services.vector_search.search",
+        AsyncMock(side_effect=VectorSearchUnavailable("Qdrant unreachable")),
+    ):
+        resp = await authed_client.post(
+            f"/vector-stores/{coll.id}/search-test",
+            headers={"Authorization": "Bearer test-key"},
+            json={"query": "q"},
+        )
+    assert resp.status_code == 503
+    assert "Qdrant" in resp.json()["detail"]
+    assert coll.total_queries == 50  # unchanged
+    mock_db_session.add.assert_not_called()
