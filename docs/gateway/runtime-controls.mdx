@@ -43,6 +43,27 @@ logs `gateway_per_user_rpm_redis_error`.
 { "per_user_rpm_limit": 60 }
 ```
 
+## Per-key budget tiers
+
+A budget tier is a reusable set of per-key limits (**Model Gateway → Advanced → API Key Quota Tiers**, or
+`/budget-tiers`). A key gets the tier assigned to it, or the workspace's default tier when it has none. The
+gateway checks the tier before choosing a route:
+
+| Limit | Breach | Notes |
+|---|---|---|
+| `allowed_models` | **403**, `X-RunLedger-Limit-Reason: model_not_allowed` | The alias the client sends must be in the list; empty means any |
+| `rpm_limit` | **429**, `X-RunLedger-Limit-Reason: tier_rpm`, `Retry-After` | Requests per key, sliding 60-second window |
+| `tpm_limit` | **429**, `X-RunLedger-Limit-Reason: tier_tpm`, `Retry-After` | Estimated tokens per key per 60 seconds: prompt characters / 4 plus `max_tokens` (256 when unset) |
+
+`max_spend_usd` is the tier's spend cap and is enforced with the cost caps above
+(`X-Cost-Cap-Reason: budget_tier_exceeded`). Like the per-user limit, the rate checks fail open if Redis is
+unavailable. On edit, sending `null` clears a limit; deleting a tier deactivates it, removes default status
+and unassigns it from its keys.
+
+```json
+{ "name": "starter", "rpm_limit": 60, "tpm_limit": 50000, "allowed_models": ["chat-fast"], "is_default": true }
+```
+
 ## PII redaction
 
 When enabled on a route, message content is scrubbed of common PII patterns (emails, phone numbers, SSNs,

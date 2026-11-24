@@ -74,6 +74,18 @@ Because recommendations are **observational**, applying is scoped for safety:
   **advisory**: accepting one records the decision without mutating routes. Auto-apply only ever
   touches `alias`-segmented recommendations.
 
+### Who can apply, and rolling back
+
+Applying a recommendation, rolling one back and changing settings need an **organization admin**, because
+they rewrite a route or (with `apply_mode: auto`) let the flywheel do so. Running the analysis and
+dismissing a recommendation need a workspace admin. Every one of these writes an audit event
+(`flywheel.recommendation_applied`, `flywheel.recommendation_rolled_back`, `flywheel.settings_updated`, …),
+including auto-applies and auto-rollbacks. See [Gateway administration](/gateway/administration).
+
+To undo an applied recommendation by hand, `POST /gateway/flywheel/recommendations/{id}/rollback` (or
+**Roll back** in the dashboard, under the `applied` filter) restores the route config snapshotted at apply
+time and marks the recommendation `rolled_back`.
+
 <Note>
 The quality floor is a first-class guardrail. No recommendation is applied — and nothing stays
 applied — below the SLA. In `auto` mode, an applied config whose measured quality later drops below
@@ -91,9 +103,10 @@ config per segment that holds the SLA.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/gateway/flywheel/settings` | Current settings (creates defaults) |
-| `PUT` | `/gateway/flywheel/settings` | Update SLA / metric / mode / segmentation |
+| `PUT` | `/gateway/flywheel/settings` | Update SLA / metric / mode / segmentation (org admin) |
 | `GET` | `/gateway/flywheel/recommendations` | List recommendations (filter by `status`) |
-| `POST` | `/gateway/flywheel/recommendations/{id}/apply` | Apply a pending recommendation |
+| `POST` | `/gateway/flywheel/recommendations/{id}/apply` | Apply a pending recommendation (org admin) |
+| `POST` | `/gateway/flywheel/recommendations/{id}/rollback` | Restore the route an applied recommendation changed (org admin) |
 | `POST` | `/gateway/flywheel/recommendations/{id}/dismiss` | Dismiss a pending recommendation |
 | `POST` | `/gateway/flywheel/run` | Run the analysis loop now |
 

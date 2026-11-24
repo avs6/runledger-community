@@ -66,6 +66,14 @@ The bundled `config/pricing.yml` is a curated starter (Ollama + latest OpenAI / 
 seeded automatically — import it (or your own) from the GUI.
 </Note>
 
+## Sync the deployment's catalog
+
+`POST /providers/pricing/sync` (platform admins; **Sync catalog** on Provider Profiles) re-loads the pricing
+file shipped with the deployment (`PRICING_FILE`, `config/pricing.yml` by default) into the global catalog,
+with the same idempotent rules as an import. Updating that file and syncing is how operators refresh
+prices; nothing is fetched from the internet. Send `{"dry_run": true}` to validate the file without writing.
+Every pricing change (create, edit, retire, re-price, import, sync) is recorded in the audit log.
+
 ## Tags
 
 Each model can carry freeform **tags** — `reasoning`, `coding`, `embedding`, `vision`, `local`, `cheap`, or

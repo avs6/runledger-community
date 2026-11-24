@@ -84,6 +84,19 @@ Routes support both `required_tags` and `excluded_tags`. This allows:
 
 Routing groups can also contribute default tags for untagged traffic, which makes the tier and provider exclusion flow work even when callers do not pass custom headers.
 
+## Policy and group rules
+
+- A route in a routing group always has the group's alias. Changing the alias of a grouped route returns
+  **400** unless the same request moves it out of the group; renaming a group that still has routes
+  returns **409**.
+- Every route a policy names (`weights` keys, `canary_route_id`, `variants[].route_id`, or the route passed
+  to promote) must be in the workspace and serve the policy's alias.
+- `policy_type` must be a known strategy on create and on update.
+
+Use **Test request** on the Routes tab (`POST /gateway/routes/preview`) to see which route an alias resolves
+to, with estimated cost and recent latency, and review the diff that every route edit shows before it saves.
+See [Gateway administration](/gateway/administration).
+
 ## A/B testing validity
 
 Production A/B testing uses:

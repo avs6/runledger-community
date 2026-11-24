@@ -83,6 +83,7 @@
         "gateway/routing",
         "gateway/caching",
         "gateway/runtime-controls",
+        "gateway/administration",
         "gateway/providers",
         "gateway/gateway-rs-spec"
       ]
